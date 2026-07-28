@@ -35,7 +35,14 @@ export async function sendWhatsAppText(toMobile: string, body: string) {
     type: 'text',
     text: { preview_url: true, body },
   });
-  return { skipped: false as const, result };
+  const messages = Array.isArray(result.messages) ? result.messages : [];
+  const messageId = String((messages[0] as { id?: string } | undefined)?.id ?? '');
+  if (!messageId) {
+    throw new Error(
+      'WhatsApp API accepted the request but returned no message id. Check the recipient is on Meta’s allow list.',
+    );
+  }
+  return { skipped: false as const, result, messageId, to };
 }
 
 export async function sendWhatsAppImage(toMobile: string, imageUrl: string, caption?: string) {

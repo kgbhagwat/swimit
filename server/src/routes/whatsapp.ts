@@ -234,10 +234,21 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
     });
     const result = results[0];
     if (!result?.ok) {
-      res.status(502).json({ error: result?.error ?? 'Send failed', result });
+      res.status(502).json({
+        error:
+          result?.error ??
+          'Send failed. Add this number under Meta → Step 1 Try it out → To (allow list), then accept the invite on WhatsApp.',
+        result,
+      });
       return;
     }
-    res.json({ ok: true, mobile, result });
+    res.json({
+      ok: true,
+      mobile,
+      to: `91${mobile}`,
+      result,
+      hint: 'If the phone shows nothing: Meta → Step 1 → add/verify this number on the allow list, then retry.',
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Test send failed' });

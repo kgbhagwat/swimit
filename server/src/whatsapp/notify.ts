@@ -219,7 +219,7 @@ export async function sendBroadcast(params: {
   message: string;
   saasAccountId: number;
 }) {
-  const results: { mobile: string; ok: boolean; error?: string }[] = [];
+  const results: { mobile: string; ok: boolean; error?: string; messageId?: string }[] = [];
   for (const mobile of params.mobiles) {
     try {
       const result = await sendWhatsAppText(mobile, params.message);
@@ -230,7 +230,11 @@ export async function sendBroadcast(params: {
         body: params.message,
         status: result.skipped ? 'skipped' : 'sent',
       });
-      results.push({ mobile, ok: !result.skipped });
+      results.push({
+        mobile,
+        ok: !result.skipped,
+        messageId: 'messageId' in result ? result.messageId : undefined,
+      });
     } catch (err) {
       const error = err instanceof Error ? err.message : 'Send failed';
       await logOutbound({
