@@ -21,7 +21,8 @@ export type MenuPageKey =
   | 'pool-expenses'
   | 'balance-sheet'
   | 'pool-core-info'
-  | 'holiday-management';
+  | 'holiday-management'
+  | 'whatsapp';
 
 export type MenuPageDef = {
   key: MenuPageKey;
@@ -46,6 +47,7 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'pool-core-info', section: 'Setup', to: '/pool-core-info', label: 'Pool Core Info' },
   { key: 'holiday-management', section: 'Setup', to: '/holiday-management', label: 'Holiday Management' },
   { key: 'pass-payment', section: 'Operations', to: '/pass-payment', label: 'Pass Payment' },
+  { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp' },
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },
   { key: 'coach-payment', section: 'Operations', to: '/coach-payment', label: 'Coach Payment' },
   { key: 'pool-expenses', section: 'Operations', to: '/pool-expenses', label: 'Pool Expenses' },

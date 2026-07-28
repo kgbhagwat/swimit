@@ -243,6 +243,34 @@ ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS pool_address TEXT NOT NULL DE
 CREATE UNIQUE INDEX IF NOT EXISTS saas_accounts_account_code_uidx
   ON saas_accounts (account_code)
   WHERE account_code IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS whatsapp_outbound (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT REFERENCES saas_accounts(id) ON DELETE SET NULL,
+  to_mobile TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'sent',
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_inbound (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT REFERENCES saas_accounts(id) ON DELETE SET NULL,
+  registration_id INT REFERENCES registrations(id) ON DELETE SET NULL,
+  from_mobile TEXT NOT NULL,
+  wa_message_id TEXT,
+  kind TEXT NOT NULL DEFAULT 'other',
+  caption TEXT,
+  mime_type TEXT,
+  file_path TEXT,
+  status TEXT NOT NULL DEFAULT 'received',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_inbound_account ON whatsapp_inbound (saas_account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_outbound_account ON whatsapp_outbound (saas_account_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS saas_accounts_email_lower_uidx
   ON saas_accounts (LOWER(TRIM(email)))
   WHERE TRIM(email) <> '';

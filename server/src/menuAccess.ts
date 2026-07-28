@@ -5,6 +5,7 @@ export const ACCESS_PAGE_KEYS = [
   'pool-core-info',
   'holiday-management',
   'pass-payment',
+  'whatsapp',
   'pass-scanner',
   'coach-payment',
   'pool-expenses',

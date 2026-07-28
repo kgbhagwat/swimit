@@ -63,6 +63,19 @@ export const MENU_ITEMS: MenuItem[] = [
     ),
   },
   {
+    section: 'Operations',
+    to: '/whatsapp',
+    label: 'WhatsApp',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3.5a8 8 0 0 0-6.9 12.1L4 20.5l5-1.1A8 8 0 1 0 12 3.5z" />
+          <path d="M9.2 9.4c.3-.5.6-.5.9-.5h.3c.2 0 .4 0 .5.4l.7 1.7c.1.2 0 .4-.1.5l-.4.5c-.1.1-.2.3 0 .5.3.5.8 1.1 1.4 1.5.4.3.7.2.9 0l.6-.7c.2-.2.4-.2.6-.1l1.8.5c.3.1.4.2.4.5v.4c0 .3-.2.7-.7.9-.9.4-2.1.3-3.6-.6-1.7-1.1-2.9-2.7-3.3-3.8-.3-.8-.2-1.4.1-1.7z" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
     section: 'Information',
     to: '/swimmers',
     label: "Swimmer's List",

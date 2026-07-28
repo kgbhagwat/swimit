@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { ACCESS_PAGE_KEYS } from '../menuAccess.js';
 import { hashPassword, verifyPassword } from '../password.js';
+import { notifyLoginCredentials } from '../whatsapp/notify.js';
 
 type AccountBody = {
   accountName?: string;
@@ -300,8 +301,18 @@ saasAccountsRouter.post('/', async (req, res) => {
         mustChangePassword: true,
       },
       deliveryNote:
-        'Until email/SMS is set up, the admin password is "admin". Share the login URL and account code with the pool operator. They must change the password on first login.',
+        'Login details can also be sent on WhatsApp when WhatsApp is configured. Temporary password is "admin". They must change it on first login.',
     });
+
+    void notifyLoginCredentials({
+      mobile,
+      accountName: account.accountName,
+      accountCode,
+      loginUrl,
+      userName: adminUserName,
+      temporaryPassword: adminPassword,
+      saasAccountId: accountId,
+    }).catch((err) => console.warn('[whatsapp] credentials notify failed', err));
   } catch (err) {
     try {
       await client.query('ROLLBACK');
@@ -396,8 +407,18 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
         mustChangePassword: true,
       },
       deliveryNote:
-        'Admin password was reset to "admin". Share the login URL and account code again. They must change the password on next login.',
+        'Admin password was reset to "admin". WhatsApp send is attempted when configured.',
     });
+
+    void notifyLoginCredentials({
+      mobile: String(admin.rows[0].mobile ?? account.mobile),
+      accountName: account.accountName,
+      accountCode: account.accountCode,
+      loginUrl,
+      userName: String(admin.rows[0].user_name),
+      temporaryPassword: adminPassword,
+      saasAccountId: id,
+    }).catch((err) => console.warn('[whatsapp] credentials notify failed', err));
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : '';

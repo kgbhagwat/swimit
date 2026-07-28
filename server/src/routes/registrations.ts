@@ -5,6 +5,10 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
+import {
+  notifyPassIssued,
+  notifyRegistrationConfirmation,
+} from '../whatsapp/notify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../uploads');
@@ -302,6 +306,20 @@ registrationsRouter.patch('/:id', async (req, res) => {
           paymentMode === 'Online' ? transactionId : null,
         ],
       );
+
+      const account = await pool.query(
+        `SELECT account_code FROM saas_accounts WHERE id = $1`,
+        [accountId],
+      );
+      void notifyPassIssued({
+        mobile: String(updated.whatsapp_mobile),
+        fullName: String(updated.full_name),
+        passType: passName,
+        passValidUntil: String(updated.pass_valid_until).slice(0, 10),
+        registrationId: Number(updated.id),
+        accountCode: String(account.rows[0]?.account_code ?? ''),
+        saasAccountId: accountId,
+      }).catch((err) => console.warn('[whatsapp] pass notify failed', err));
     }
 
     res.json(updated);
@@ -436,6 +454,12 @@ registrationsRouter.post(
       );
 
       res.status(201).json(rows[0]);
+
+      void notifyRegistrationConfirmation({
+        mobile: body.whatsappMobile.trim(),
+        fullName: body.fullName.trim(),
+        saasAccountId: accountId,
+      }).catch((err) => console.warn('[whatsapp] registration notify failed', err));
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'Registration failed';

@@ -23,6 +23,7 @@ import { PoolCoreInfo } from './PoolCoreInfo';
 import { HolidayManagement } from './HolidayManagement';
 import { CreateUser } from './CreateUser';
 import { UserManagement } from './UserManagement';
+import { WhatsAppMessaging } from './WhatsAppMessaging';
 import { CreateAccount } from './CreateAccount';
 import { Accounts } from './Accounts';
 import { ServicePackages } from './ServicePackages';
@@ -59,6 +60,7 @@ const appFeatureRoutes = (
     <Route path="pass/:id" element={<PassView />} />
     <Route path="id-card/:id" element={<IdCardView />} />
     <Route path="pass-payment" element={<PassPayment />} />
+    <Route path="whatsapp" element={<WhatsAppMessaging />} />
     <Route path="pool-expenses" element={<PoolExpenses />} />
     <Route path="pass-scanner" element={<PassScanner />} />
     <Route path="coach-payment" element={<CoachPayment />} />
@@ -84,6 +86,7 @@ const legacyFeatureRedirects = (
     <Route path="/pass/:id" element={<RedirectToApplication />} />
     <Route path="/id-card/:id" element={<RedirectToApplication />} />
     <Route path="/pass-payment" element={<RedirectToApplication />} />
+    <Route path="/whatsapp" element={<RedirectToApplication />} />
     <Route path="/pool-expenses" element={<RedirectToApplication />} />
     <Route path="/pass-scanner" element={<RedirectToApplication />} />
     <Route path="/coach-payment" element={<RedirectToApplication />} />

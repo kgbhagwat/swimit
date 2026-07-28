@@ -10,6 +10,7 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/coaches',
   '/swimmers',
   '/pass-payment',
+  '/whatsapp',
   '/pool-expenses',
   '/pass-scanner',
   '/coach-payment',
