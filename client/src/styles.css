@@ -387,18 +387,32 @@ h1 {
   border: 1px solid #cfd6e4;
   border-radius: 8px;
   background: #fff;
-  padding: 0.85rem 0.5rem;
+  padding: 0.65rem 0.75rem;
   cursor: pointer;
   color: #2a4068;
   font-weight: 600;
-  display: grid;
-  justify-items: center;
-  gap: 0.35rem;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
 }
 
 .photo-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.photo-btn .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+.photo-btn:disabled .photo-icon-camera,
+.photo-btn:disabled .photo-icon-upload {
+  opacity: 0.55;
+  filter: grayscale(0.35);
 }
 
 .icon {
@@ -3530,12 +3544,6 @@ button.coach-payment-back {
   width: 1.25rem;
   height: 1.25rem;
   flex-shrink: 0;
-}
-
-.terms-toolbar-btn:disabled .terms-icon-camera,
-.terms-toolbar-btn:disabled .terms-icon-upload {
-  opacity: 0.55;
-  filter: grayscale(0.35);
 }
 
 @media (max-width: 640px) {

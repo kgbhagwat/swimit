@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useRef, useState } from 'react';
 import { MenuBackLink } from './MenuBackLink';
+import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { emailHint, isValidEmail, isValidMobile, mobileHint } from './formValidation';
 import { TermsModal } from './TermsModal';
@@ -356,10 +357,7 @@ function PhotoField({
             disabled={compressing}
             onClick={() => cameraRef.current?.click()}
           >
-            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-              <path d="M4 8h3l2-2h6l2 2h3v11H4V8z" />
-              <circle cx="12" cy="13" r="3.5" />
-            </svg>
+            <CameraActionIcon />
             {takeLabel}
           </button>
           <button
@@ -368,9 +366,7 @@ function PhotoField({
             disabled={compressing}
             onClick={() => fileRef.current?.click()}
           >
-            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-              <path d="M3 7h6l2 2h10v10H3V7z" />
-            </svg>
+            <UploadActionIcon />
             {uploadLabel}
           </button>
         </div>
