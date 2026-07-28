@@ -33,7 +33,7 @@ export async function sendWhatsAppText(toMobile: string, body: string) {
     messaging_product: 'whatsapp',
     to,
     type: 'text',
-    text: { preview_url: true, body },
+    text: { preview_url: false, body },
   });
   const messages = Array.isArray(result.messages) ? result.messages : [];
   const messageId = String((messages[0] as { id?: string } | undefined)?.id ?? '');
