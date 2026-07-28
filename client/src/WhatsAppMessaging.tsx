@@ -284,7 +284,11 @@ export function WhatsAppMessaging() {
           </button>
         </div>
         {inbox.length === 0 ? (
-          <p className="pass-empty">No inbound WhatsApp media yet.</p>
+          <p className="pass-empty">
+            No inbound WhatsApp media yet. Send a photo/text to Meta’s test number, then Refresh. In Meta → Step
+            2 → Configure Webhooks, confirm <code>messages</code> is subscribed. While the app is unpublished,
+            also check Meta’s “Check test webhooks” log after you send.
+          </p>
         ) : (
           <div className="batch-saved-table-wrap">
             <table className="batch-saved-table">

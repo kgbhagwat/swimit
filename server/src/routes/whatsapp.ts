@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
-import { downloadWhatsAppMedia, sendWhatsAppTemplate, sendWhatsAppText } from '../whatsapp/client.js';
+import { downloadWhatsAppMedia, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { notifyPassExpiring, sendBroadcast } from '../whatsapp/notify.js';
 
@@ -46,31 +46,8 @@ function classifyInbound(caption: string, mimeType: string) {
   return 'other';
 }
 
-async function saveInboundMedia(params: {
-  fromMobile: string;
-  mediaId: string;
-  mimeType: string;
-  caption: string;
-  waMessageId?: string;
-}) {
-  fs.mkdirSync(uploadRoot, { recursive: true });
-  const { buffer, mimeType } = await downloadWhatsAppMedia(params.mediaId);
-  const ext =
-    mimeType.includes('png')
-      ? 'png'
-      : mimeType.includes('jpeg') || mimeType.includes('jpg')
-        ? 'jpg'
-        : mimeType.includes('pdf')
-          ? 'pdf'
-          : 'bin';
-  const fileName = `${Date.now()}-${params.fromMobile}.${ext}`;
-  const abs = path.join(uploadRoot, fileName);
-  fs.writeFileSync(abs, buffer);
-  const relativePath = `whatsapp/${fileName}`;
-  const kind = classifyInbound(params.caption, mimeType);
-
-  // Match swimmer / staff / account by mobile (last 10 digits)
-  const last10 = params.fromMobile.replace(/\D/g, '').slice(-10);
+async function resolveInboundAccount(fromMobile: string) {
+  const last10 = fromMobile.replace(/\D/g, '').slice(-10);
   let saasAccountId: number | null = null;
   let registrationId: number | null = null;
 
@@ -90,22 +67,71 @@ async function saveInboundMedia(params: {
        ORDER BY id DESC LIMIT 1`,
       [last10],
     );
-    if (account.rows[0]) saasAccountId = Number(account.rows[0].id);
+    if (account.rows[0]) {
+      saasAccountId = Number(account.rows[0].id);
+    } else {
+      // Application preview / unmatched senders → SwimIT platform account
+      const platform = await pool.query(
+        `SELECT id FROM saas_accounts WHERE LOWER(account_code) = 'swimit' LIMIT 1`,
+      );
+      if (platform.rows[0]) saasAccountId = Number(platform.rows[0].id);
+    }
   }
 
+  return { last10: last10 || fromMobile, saasAccountId, registrationId };
+}
+
+async function saveInboundMedia(params: {
+  fromMobile: string;
+  mediaId: string;
+  mimeType: string;
+  caption: string;
+  waMessageId?: string;
+}) {
+  fs.mkdirSync(uploadRoot, { recursive: true });
+  const { last10, saasAccountId, registrationId } = await resolveInboundAccount(params.fromMobile);
+  let relativePath: string | null = null;
+  let mimeType = params.mimeType;
+  let status = 'received';
+  let caption = params.caption || '';
+
+  try {
+    const downloaded = await downloadWhatsAppMedia(params.mediaId);
+    mimeType = downloaded.mimeType || mimeType;
+    const ext =
+      mimeType.includes('png')
+        ? 'png'
+        : mimeType.includes('jpeg') || mimeType.includes('jpg')
+          ? 'jpg'
+          : mimeType.includes('pdf')
+            ? 'pdf'
+            : 'bin';
+    const fileName = `${Date.now()}-${last10}.${ext}`;
+    const abs = path.join(uploadRoot, fileName);
+    fs.writeFileSync(abs, downloaded.buffer);
+    relativePath = `whatsapp/${fileName}`;
+  } catch (err) {
+    status = 'media_download_failed';
+    const errMsg = err instanceof Error ? err.message : 'media download failed';
+    caption = caption ? `${caption} (${errMsg})` : errMsg;
+    console.error('[whatsapp] media download failed', err);
+  }
+
+  const kind = classifyInbound(params.caption, mimeType);
   await pool.query(
     `INSERT INTO whatsapp_inbound
      (saas_account_id, registration_id, from_mobile, wa_message_id, kind, caption, mime_type, file_path, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'received')`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       saasAccountId,
       registrationId,
-      last10 || params.fromMobile,
+      last10,
       params.waMessageId ?? null,
       kind,
-      params.caption || null,
+      caption || null,
       mimeType,
       relativePath,
+      status,
     ],
   );
 }
@@ -128,10 +154,20 @@ whatsappRouter.post('/webhook', async (req, res) => {
               image?: { id?: string; caption?: string; mime_type?: string };
               document?: { id?: string; caption?: string; filename?: string; mime_type?: string };
             }>;
+            statuses?: unknown[];
           };
+          field?: string;
         }>;
       }>;
     };
+
+    console.info(
+      '[whatsapp] webhook received',
+      JSON.stringify({
+        entries: body.entry?.length ?? 0,
+        sampleType: body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.type ?? null,
+      }),
+    );
 
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
@@ -156,12 +192,28 @@ whatsappRouter.post('/webhook', async (req, res) => {
               waMessageId: msg.id,
             });
           } else if (msg.type === 'text' && msg.text?.body) {
-            const last10 = from.replace(/\D/g, '').slice(-10);
+            const { last10, saasAccountId, registrationId } = await resolveInboundAccount(from);
             await pool.query(
               `INSERT INTO whatsapp_inbound
-               (from_mobile, wa_message_id, kind, caption, status)
-               VALUES ($1, $2, 'text', $3, 'received')`,
-              [last10 || from, msg.id ?? null, msg.text.body],
+               (saas_account_id, registration_id, from_mobile, wa_message_id, kind, caption, status)
+               VALUES ($1, $2, $3, $4, 'text', $5, 'received')`,
+              [saasAccountId, registrationId, last10, msg.id ?? null, msg.text.body],
+            );
+          } else {
+            // Stickers, audio, etc. — still record so inbox is not empty
+            const { last10, saasAccountId, registrationId } = await resolveInboundAccount(from);
+            await pool.query(
+              `INSERT INTO whatsapp_inbound
+               (saas_account_id, registration_id, from_mobile, wa_message_id, kind, caption, status)
+               VALUES ($1, $2, $3, $4, $5, $6, 'received')`,
+              [
+                saasAccountId,
+                registrationId,
+                last10,
+                msg.id ?? null,
+                String(msg.type ?? 'other'),
+                'Unsupported message type for download',
+              ],
             );
           }
         }
