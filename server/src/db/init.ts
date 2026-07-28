@@ -1,4 +1,5 @@
 import { pool } from './pool.js';
+import { allowDuplicateAccountMobile } from '../envFlags.js';
 
 const sql = `
 CREATE TABLE IF NOT EXISTS registrations (
@@ -480,6 +481,12 @@ async function init() {
   `).catch(() => undefined);
 
   await pool.query(sql);
+
+  // Staging may reuse account mobiles; production keeps UNIQUE(mobile).
+  if (allowDuplicateAccountMobile()) {
+    await pool.query(`ALTER TABLE saas_accounts DROP CONSTRAINT IF EXISTS saas_accounts_mobile_key`);
+    console.info('[db] staging: dropped saas_accounts.mobile unique constraint');
+  }
 
   // Ensure singleton legacy tables can insert new per-account rows
   await pool.query(`

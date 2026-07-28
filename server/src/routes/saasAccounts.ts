@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
+import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { ACCESS_PAGE_KEYS } from '../menuAccess.js';
 import { hashPassword, verifyPassword } from '../password.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
@@ -79,7 +80,7 @@ function validate(body: AccountBody, { requireCode = true } = {}) {
   return null;
 }
 
-async function findContactConflict(
+async function findContactConflicts(
   client: { query: typeof pool.query },
   mobile: string,
   email: string,
@@ -92,15 +93,17 @@ async function findContactConflict(
        mobile = $1
        OR (TRIM(email) <> '' AND LOWER(TRIM(email)) = $2)
      )
-       AND ($3::int IS NULL OR id <> $3)
-     LIMIT 1`,
+       AND ($3::int IS NULL OR id <> $3)`,
     [mobile, email, excludeId ?? null],
   );
-  if (!rows[0]) return null;
-  if (String(rows[0].mobile) === mobile) {
-    return 'An account with this mobile number already exists';
+
+  let mobileConflict = false;
+  let emailConflict = false;
+  for (const row of rows) {
+    if (String(row.mobile) === mobile) mobileConflict = true;
+    if (email && String(row.email ?? '').trim().toLowerCase() === email) emailConflict = true;
   }
-  return 'An account with this email already exists';
+  return { mobileConflict, emailConflict };
 }
 
 function duplicateConflictMessage(message: string) {
@@ -219,10 +222,21 @@ saasAccountsRouter.post('/', async (req, res) => {
       return;
     }
 
-    const contactConflict = await findContactConflict(client, mobile, email);
-    if (contactConflict) {
-      res.status(400).json({ error: contactConflict });
+    const conflicts = await findContactConflicts(client, mobile, email);
+    const warnings: string[] = [];
+    if (conflicts.emailConflict) {
+      res.status(400).json({ error: 'An account with this email already exists' });
       return;
+    }
+    if (conflicts.mobileConflict) {
+      if (allowDuplicateAccountMobile()) {
+        warnings.push(
+          'This mobile number is already used by another account. Allowed on staging only — production will block it.',
+        );
+      } else {
+        res.status(400).json({ error: 'An account with this mobile number already exists' });
+        return;
+      }
     }
 
     await client.query('BEGIN');
@@ -300,6 +314,7 @@ saasAccountsRouter.post('/', async (req, res) => {
         temporaryPassword: adminPassword,
         mustChangePassword: true,
       },
+      warnings,
       deliveryNote:
         'Login details can also be sent on WhatsApp when WhatsApp is configured. Temporary password is "admin". They must change it on first login.',
     });
@@ -459,10 +474,21 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
       return;
     }
 
-    const contactConflict = await findContactConflict(pool, mobile, email, id);
-    if (contactConflict) {
-      res.status(400).json({ error: contactConflict });
+    const conflicts = await findContactConflicts(pool, mobile, email, id);
+    const warnings: string[] = [];
+    if (conflicts.emailConflict) {
+      res.status(400).json({ error: 'An account with this email already exists' });
       return;
+    }
+    if (conflicts.mobileConflict) {
+      if (allowDuplicateAccountMobile()) {
+        warnings.push(
+          'This mobile number is already used by another account. Allowed on staging only — production will block it.',
+        );
+      } else {
+        res.status(400).json({ error: 'An account with this mobile number already exists' });
+        return;
+      }
     }
 
     const { rows } = await pool.query(
@@ -508,7 +534,10 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
       packageName = String(pkg.rows[0]?.package_name ?? '');
     }
 
-    res.json(mapRow({ ...updated, package_name: packageName }));
+    res.json({
+      ...mapRow({ ...updated, package_name: packageName }),
+      warnings,
+    });
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : '';

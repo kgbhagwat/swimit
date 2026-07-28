@@ -59,6 +59,7 @@ export function CreateAccount() {
   const [form, setForm] = useState<AccountForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [codeCheck, setCodeCheck] = useState<CodeCheck>({ status: 'idle', message: '' });
   const [created, setCreated] = useState<CreatedCredentials | null>(null);
 
@@ -147,6 +148,8 @@ export function CreateAccount() {
     }
 
     setSaving(true);
+    setError('');
+    setWarning('');
     try {
       const res = await fetch('/api/saas-accounts', {
         method: 'POST',
@@ -168,6 +171,8 @@ export function CreateAccount() {
       if (!res.ok) throw new Error(body.error ?? 'Failed to create account');
 
       const code = String(body.accountCode ?? form.accountCode);
+      const warnList = Array.isArray(body.warnings) ? body.warnings.map(String) : [];
+      if (warnList.length) setWarning(warnList.join(' '));
       setCreated({
         accountName: String(body.accountName ?? form.accountName),
         accountCode: code,
@@ -232,6 +237,7 @@ export function CreateAccount() {
 
         <h1>Account created</h1>
         <p className="lede">Send these details to the pool operator. Shown only once.</p>
+        {warning ? <p className="error">{warning}</p> : null}
 
         <section className="pass-form-card account-credentials-card">
           <p className="success">{created.deliveryNote}</p>
@@ -437,6 +443,7 @@ export function CreateAccount() {
       </form>
 
       {error ? <p className="error">{error}</p> : null}
+      {warning ? <p className="success">{warning}</p> : null}
     </div>
     </>
   );
