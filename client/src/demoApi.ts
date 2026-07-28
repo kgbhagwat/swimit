@@ -518,33 +518,9 @@ export async function handleDemoApiRequest(
   const store = readDemoStore();
   const { pathname, searchParams } = parsed;
 
-  // WhatsApp needs a real pool tenant — demo only stubs UI-safe responses
+  // Live WhatsApp (Meta) — Application uses the real API with the bound tenant
   if (pathname.startsWith('/api/whatsapp')) {
-    if (method === 'GET' && pathname === '/api/whatsapp/status') {
-      return null; // read live Meta config from server
-    }
-    if (method === 'GET' && pathname === '/api/whatsapp/inbox') {
-      return jsonResponse([]);
-    }
-    if (
-      method === 'POST' &&
-      (pathname === '/api/whatsapp/broadcast' || pathname === '/api/whatsapp/notify-expiring')
-    ) {
-      return jsonResponse(
-        {
-          error:
-            'Application demo cannot send WhatsApp. Log in with your pool account code (e.g. /swimit) to use live messaging.',
-        },
-        400,
-      );
-    }
-    return jsonResponse(
-      {
-        error:
-          'WhatsApp is not available in Application demo. Open your pool login URL instead.',
-      },
-      400,
-    );
+    return null;
   }
 
   if (pathname === '/api/batches') return handleBatches(method, body, store);

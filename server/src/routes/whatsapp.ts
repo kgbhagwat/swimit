@@ -184,10 +184,11 @@ whatsappRouter.get('/status', (_req, res) => {
 whatsappRouter.get('/inbox', requireTenant, async (req, res) => {
   try {
     const accountId = tenantId(req);
+    // Include unmatched inbound (null account) so Application / early tests can see media
     const { rows } = await pool.query(
       `SELECT id, registration_id, from_mobile, kind, caption, mime_type, file_path, status, created_at
        FROM whatsapp_inbound
-       WHERE saas_account_id = $1
+       WHERE saas_account_id = $1 OR saas_account_id IS NULL
        ORDER BY created_at DESC
        LIMIT 100`,
       [accountId],
@@ -208,6 +209,38 @@ whatsappRouter.get('/inbox', requireTenant, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load WhatsApp inbox' });
+  }
+});
+
+/** Send one test message to a mobile (for Application / Meta allow-list testing). */
+whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const body = req.body as { mobile?: string; message?: string };
+    const mobile = String(body.mobile ?? '').replace(/\D/g, '').slice(-10);
+    const message = String(body.message ?? '').trim();
+    if (mobile.length !== 10) {
+      res.status(400).json({ error: 'Enter a valid 10-digit WhatsApp mobile' });
+      return;
+    }
+    if (!message) {
+      res.status(400).json({ error: 'Message is required' });
+      return;
+    }
+    const results = await sendBroadcast({
+      mobiles: [mobile],
+      message,
+      saasAccountId: accountId,
+    });
+    const result = results[0];
+    if (!result?.ok) {
+      res.status(502).json({ error: result?.error ?? 'Send failed', result });
+      return;
+    }
+    res.json({ ok: true, mobile, result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Test send failed' });
   }
 });
 
