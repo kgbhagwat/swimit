@@ -1,0 +1,13 @@
+uploads/
+server/uploads/
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.log
+.DS_Store
+.vite/
+*.tsbuildinfo
