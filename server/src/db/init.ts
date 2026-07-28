@@ -485,10 +485,11 @@ async function init() {
 
   await pool.query(sql);
 
-  // Staging may reuse account mobiles; production keeps UNIQUE(mobile).
+  // Staging may reuse mobiles; production keeps unique constraints.
   if (allowDuplicateAccountMobile()) {
     await pool.query(`ALTER TABLE saas_accounts DROP CONSTRAINT IF EXISTS saas_accounts_mobile_key`);
-    console.info('[db] staging: dropped saas_accounts.mobile unique constraint');
+    await pool.query(`DROP INDEX IF EXISTS app_users_tenant_mobile_uidx`);
+    console.info('[db] staging: allowed duplicate account/user mobiles');
   }
 
   // Ensure singleton legacy tables can insert new per-account rows

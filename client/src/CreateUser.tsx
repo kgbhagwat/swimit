@@ -30,15 +30,18 @@ export function CreateUser() {
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setError('');
+    setWarning('');
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setWarning('');
 
     if (!form.userName.trim()) {
       setError('Enter User Name');
@@ -66,6 +69,13 @@ export function CreateUser() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to create user');
+      const warnList = Array.isArray(body.warnings) ? body.warnings.map(String) : [];
+      if (warnList.length) {
+        setWarning(warnList.join(' '));
+        // brief pause so user can see the staging warning before leaving
+        window.setTimeout(() => navigate(userManagementTo, { replace: true }), 1200);
+        return;
+      }
       navigate(userManagementTo, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user');
@@ -160,6 +170,7 @@ export function CreateUser() {
         </div>
 
         {error ? <p className="error">{error}</p> : null}
+        {warning ? <p className="success">{warning}</p> : null}
 
         <div className="pass-form-actions">
           <button

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
+import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { sanitizeMenuAccess } from '../menuAccess.js';
 import { hashPassword } from '../password.js';
 import { tenantId } from '../middleware/tenant.js';
@@ -93,16 +94,33 @@ usersRouter.post('/', async (req, res) => {
       return;
     }
 
-    const existing = await pool.query(
+    const nameExisting = await pool.query(
       `SELECT id FROM app_users
-       WHERE saas_account_id = $1
-         AND (LOWER(user_name) = LOWER($2) OR mobile = $3)
+       WHERE saas_account_id = $1 AND LOWER(user_name) = LOWER($2)
        LIMIT 1`,
-      [accountId, userName, mobile],
+      [accountId, userName],
     );
-    if (existing.rows[0]) {
-      res.status(400).json({ error: 'User Name or Mobile No. already exists' });
+    if (nameExisting.rows[0]) {
+      res.status(400).json({ error: 'User Name already exists' });
       return;
+    }
+
+    const warnings: string[] = [];
+    const mobileExisting = await pool.query(
+      `SELECT id FROM app_users
+       WHERE saas_account_id = $1 AND mobile = $2
+       LIMIT 1`,
+      [accountId, mobile],
+    );
+    if (mobileExisting.rows[0]) {
+      if (allowDuplicateAccountMobile()) {
+        warnings.push(
+          'This mobile number is already used by another user. Allowed on staging only — production will block it.',
+        );
+      } else {
+        res.status(400).json({ error: 'Mobile No. already exists' });
+        return;
+      }
     }
 
     const passwordHash = await hashPassword(password);
@@ -115,9 +133,18 @@ usersRouter.post('/', async (req, res) => {
       [accountId, userName, mobile, passwordHash, menuAccess],
     );
 
-    res.status(201).json(mapUser(rows[0]));
+    res.status(201).json({ ...mapUser(rows[0]), warnings });
   } catch (err) {
     console.error(err);
+    const message = err instanceof Error ? err.message : '';
+    if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {
+      res.status(400).json({
+        error: allowDuplicateAccountMobile()
+          ? 'Could not create user (duplicate). Redeploy so staging mobile uniqueness is relaxed.'
+          : 'User Name or Mobile No. already exists',
+      });
+      return;
+    }
     res.status(500).json({ error: 'Failed to create user' });
   }
 });
