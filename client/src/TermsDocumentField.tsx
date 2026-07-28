@@ -1,4 +1,9 @@
 import { useRef, useState } from 'react';
+import {
+  createTunedOcrWorker,
+  type OcrLanguageMode,
+  recognizeImageFile,
+} from './termsOcr';
 
 type Props = {
   label: string;
@@ -27,7 +32,7 @@ function joinPages(existing: string, pages: string[]) {
   return next;
 }
 
-async function extractPagesFromFiles(files: File[]): Promise<string[]> {
+async function extractPagesFromFiles(files: File[], mode: OcrLanguageMode): Promise<string[]> {
   const texts: string[] = [];
   const imageFiles: File[] = [];
   const otherFiles: File[] = [];
@@ -53,13 +58,10 @@ async function extractPagesFromFiles(files: File[]): Promise<string[]> {
   }
 
   if (imageFiles.length > 0) {
-    const { createWorker } = await import('tesseract.js');
-    // English + Marathi (Devanagari) trained data
-    const worker = await createWorker(['eng', 'mar']);
+    const worker = await createTunedOcrWorker(mode);
     try {
-      for (let i = 0; i < imageFiles.length; i += 1) {
-        const result = await worker.recognize(imageFiles[i]);
-        const text = String(result.data.text ?? '').trim();
+      for (const file of imageFiles) {
+        const text = await recognizeImageFile(worker, file);
         if (text) texts.push(text);
       }
     } finally {
@@ -82,6 +84,7 @@ export function TermsDocumentField({
   const valueRef = useRef(value);
   valueRef.current = value;
 
+  const [langMode, setLangMode] = useState<OcrLanguageMode>('marathi');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -92,18 +95,20 @@ export function TermsDocumentField({
 
     setBusy(true);
     setError('');
+    const langLabel =
+      langMode === 'marathi' ? 'Marathi' : langMode === 'english' ? 'English' : 'Marathi + English';
     setStatus(
       files.length > 1
-        ? `Scanning ${files.length} pages (English + Marathi)…`
+        ? `Scanning ${files.length} pages (${langLabel}, enhanced)…`
         : files[0].type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(files[0].name)
-          ? 'Scanning page (English + Marathi OCR)…'
+          ? `Scanning page (${langLabel}, enhanced)…`
           : 'Reading file…',
     );
 
     try {
-      const pages = await extractPagesFromFiles(files);
+      const pages = await extractPagesFromFiles(files, langMode);
       if (pages.length === 0) {
-        throw new Error('No text found. Try clearer photos or another file.');
+        throw new Error('No text found. Try a clearer photo or switch OCR language mode.');
       }
       const beforePages = countPages(valueRef.current);
       const next = joinPages(valueRef.current, pages);
@@ -128,10 +133,22 @@ export function TermsDocumentField({
     <div className="field terms-document-field">
       <span className="label">{label}</span>
       <p className="hint">
-        Scan or upload one page at a time (or select multiple images). OCR supports{' '}
-        <strong>English and Marathi</strong>. Each page is added below the existing text. You can also
-        upload .txt files. First Marathi scan may take longer while language data downloads.
+        Scan or upload pages (multiple images OK). Enhanced OCR cleans contrast, prefers Marathi script,
+        restores Marathi digits, and normalizes bullets. Mixed English+Marathi pages: choose “Marathi +
+        English”.
       </p>
+      <label className="field terms-ocr-lang">
+        <span className="label">OCR language</span>
+        <select
+          value={langMode}
+          disabled={busy}
+          onChange={(e) => setLangMode(e.target.value as OcrLanguageMode)}
+        >
+          <option value="marathi">Marathi (best for Marathi docs / bullets / १२३)</option>
+          <option value="mixed">Marathi + English</option>
+          <option value="english">English only</option>
+        </select>
+      </label>
       <div className="photo-actions terms-scan-actions">
         <button
           type="button"
