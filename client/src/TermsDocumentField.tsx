@@ -131,34 +131,7 @@ export function TermsDocumentField({
 
   return (
     <div className="field terms-document-field">
-      <div className="terms-heading-row">
-        <button
-          type="button"
-          className="terms-heading-icon"
-          disabled={busy}
-          title={value.trim() ? 'Scan next page' : 'Scan photo'}
-          aria-label={value.trim() ? 'Scan next page' : 'Scan photo'}
-          onClick={() => cameraRef.current?.click()}
-        >
-          <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-            <path d="M4 8h3l2-2h6l2 2h3v11H4V8z" />
-            <circle cx="12" cy="13" r="3.5" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="terms-heading-icon"
-          disabled={busy}
-          title="Upload page(s)"
-          aria-label="Upload page(s)"
-          onClick={() => fileRef.current?.click()}
-        >
-          <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-            <path d="M3 7h6l2 2h10v10H3V7z" />
-          </svg>
-        </button>
-        <span className="label">{label}</span>
-      </div>
+      <span className="label">{label}</span>
       <p className="hint">Scan or upload one page at a time.</p>
       <div className="terms-toolbar">
         <label className="terms-ocr-lang">
@@ -180,6 +153,10 @@ export function TermsDocumentField({
             disabled={busy}
             onClick={() => cameraRef.current?.click()}
           >
+            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M4 8h3l2-2h6l2 2h3v11H4V8z" />
+              <circle cx="12" cy="13" r="3.5" />
+            </svg>
             {value.trim() ? 'Scan next page' : 'Scan photo'}
           </button>
           <button
@@ -188,6 +165,9 @@ export function TermsDocumentField({
             disabled={busy}
             onClick={() => fileRef.current?.click()}
           >
+            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M3 7h6l2 2h10v10H3V7z" />
+            </svg>
             Upload page(s)
           </button>
           <button

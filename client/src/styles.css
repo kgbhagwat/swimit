@@ -3479,47 +3479,6 @@ button.coach-payment-back {
   margin-top: 0.35rem;
 }
 
-.terms-heading-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.2rem;
-}
-
-.terms-heading-row .label {
-  margin: 0;
-}
-
-.terms-heading-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  border: 1px solid #cfd6e4;
-  border-radius: 8px;
-  background: #fff;
-  color: #2a4068;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.terms-heading-icon:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.terms-heading-icon:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.terms-heading-icon .icon {
-  width: 1.15rem;
-  height: 1.15rem;
-}
-
 .terms-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -3565,6 +3524,12 @@ button.coach-payment-back {
   min-height: 2.55rem;
   padding: 0.45rem 0.75rem;
   white-space: nowrap;
+}
+
+.terms-toolbar-btn .icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
 }
 
 @media (max-width: 640px) {
