@@ -277,7 +277,6 @@ export function PoolCoreInfo() {
       </div>
 
       <h1>Pool Core Info</h1>
-      <p className="lede">Facility identity, terms, and payment details used across SwimIT.</p>
 
       {loading ? (
         <p className="pass-empty">Loading…</p>
