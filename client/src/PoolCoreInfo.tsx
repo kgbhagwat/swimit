@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { MenuBackLink } from './MenuBackLink';
 import { compressImageToLimit } from './compressImage';
+import { TermsDocumentField } from './TermsDocumentField';
 
 type PoolCoreInfoData = {
   poolName: string;
@@ -401,27 +402,21 @@ export function PoolCoreInfo() {
             ) : null}
           </div>
 
-          <label className="field">
-            <span className="label">Terms & Conditions for swimmer</span>
-            <textarea
-              value={form.swimmerTerms}
-              onChange={(e) => setForm((prev) => ({ ...prev, swimmerTerms: e.target.value }))}
-              placeholder="Shown on swimmer registration"
-              rows={10}
-              className="terms-textarea"
-            />
-          </label>
+          <TermsDocumentField
+            label="Terms & Conditions for swimmer"
+            value={form.swimmerTerms}
+            onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
+            placeholder="Shown on swimmer registration"
+            rows={10}
+          />
 
-          <label className="field">
-            <span className="label">Terms & Conditions for staff</span>
-            <textarea
-              value={form.staffTerms}
-              onChange={(e) => setForm((prev) => ({ ...prev, staffTerms: e.target.value }))}
-              placeholder="Shown on staff registration"
-              rows={10}
-              className="terms-textarea"
-            />
-          </label>
+          <TermsDocumentField
+            label="Terms & Conditions for staff"
+            value={form.staffTerms}
+            onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
+            placeholder="Shown on staff registration"
+            rows={10}
+          />
 
           {error ? <p className="error">{error}</p> : null}
           {success ? <p className="success">{success}</p> : null}

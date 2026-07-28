@@ -3475,6 +3475,14 @@ button.coach-payment-back {
   white-space: pre-wrap;
 }
 
+.terms-document-field .terms-scan-actions {
+  margin-bottom: 0.55rem;
+}
+
+.terms-document-field .terms-textarea {
+  margin-top: 0.35rem;
+}
+
 .upi-id-field {
   max-width: 28rem;
 }
