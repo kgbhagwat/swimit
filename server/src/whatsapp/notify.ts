@@ -1,6 +1,11 @@
 import { pool } from '../db/pool.js';
 import { getWhatsAppConfig } from './config.js';
-import { sendWhatsAppImage, sendWhatsAppTemplate, sendWhatsAppText } from './client.js';
+import {
+  formatWhatsAppUserError,
+  sendWhatsAppImage,
+  sendWhatsAppTemplate,
+  sendWhatsAppText,
+} from './client.js';
 
 async function logOutbound(params: {
   saasAccountId?: number | null;
@@ -133,7 +138,7 @@ export async function notifyLoginCredentials(params: {
     });
     return {
       ok: false,
-      error: `${message}. In Meta → WhatsApp → API Setup, add ${params.mobile} under Recipient / allow list, then try again.`,
+      error: formatWhatsAppUserError(message, params.mobile),
     };
   }
 }

@@ -1,6 +1,40 @@
 import { getWhatsAppConfig, toE164 } from './config.js';
 
-type GraphError = { error?: { message?: string; code?: number } };
+type GraphError = {
+  error?: {
+    message?: string;
+    type?: string;
+    code?: number;
+    error_subcode?: number;
+    error_user_data?: { description?: string };
+  };
+};
+
+export function formatWhatsAppUserError(raw: string, mobile?: string) {
+  const message = String(raw || 'WhatsApp send failed').trim();
+  const lower = message.toLowerCase();
+  // Same mobile for admin + operator is fine — WhatsApp only sees the phone number.
+  if (
+    lower.includes('authenticat') ||
+    lower.includes('access token') ||
+    lower.includes('oauth') ||
+    lower.includes('session has expired') ||
+    lower.includes('invalid oauth')
+  ) {
+    return `${message}. Refresh the WhatsApp access token in Meta → WhatsApp → API Setup, update WHATSAPP_TOKEN on the server, then redeploy.`;
+  }
+  if (
+    lower.includes('recipient') ||
+    lower.includes('not a valid whatsapp') ||
+    lower.includes('undeliverable') ||
+    lower.includes('(#131030)') ||
+    lower.includes('not in allowed')
+  ) {
+    const m = mobile ? ` ${mobile}` : '';
+    return `${message}. Add${m} under Meta → WhatsApp → API Setup → Recipient / allow list.`;
+  }
+  return message;
+}
 
 async function graphPost(path: string, body: unknown) {
   const cfg = getWhatsAppConfig();
@@ -15,7 +49,14 @@ async function graphPost(path: string, body: unknown) {
   });
   const json = (await res.json().catch(() => ({}))) as GraphError & Record<string, unknown>;
   if (!res.ok) {
-    throw new Error(json.error?.message ?? `WhatsApp API error (${res.status})`);
+    const err = json.error;
+    const parts = [
+      err?.message,
+      err?.type ? `(${err.type})` : null,
+      err?.code != null ? `code ${err.code}` : null,
+      err?.error_user_data?.description,
+    ].filter(Boolean);
+    throw new Error(parts.join(' ') || `WhatsApp API error (${res.status})`);
   }
   return json;
 }
