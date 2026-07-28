@@ -293,9 +293,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS app_users_platform_mobile_uidx
 CREATE UNIQUE INDEX IF NOT EXISTS app_users_tenant_user_name_uidx
   ON app_users (saas_account_id, LOWER(user_name))
   WHERE saas_account_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS app_users_tenant_mobile_uidx
-  ON app_users (saas_account_id, mobile)
-  WHERE saas_account_id IS NOT NULL;
+-- Tenant mobile uniqueness is applied after schema bootstrap (skipped may skip it).
 
 -- Per-account app data (fresh empty app for each SaaS account)
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
@@ -487,10 +485,18 @@ async function init() {
   await pool.query(sql);
 
   // Staging may reuse mobiles; production keeps unique constraints.
+  // Important: never CREATE the unique index before this branch — staging can already
+  // have duplicate mobiles, and CREATE UNIQUE INDEX would crash boot (502).
   if (allowDuplicateAccountMobile()) {
     await pool.query(`ALTER TABLE saas_accounts DROP CONSTRAINT IF EXISTS saas_accounts_mobile_key`);
     await pool.query(`DROP INDEX IF EXISTS app_users_tenant_mobile_uidx`);
     console.info('[db] staging: allowed duplicate account/user mobiles');
+  } else {
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS app_users_tenant_mobile_uidx
+        ON app_users (saas_account_id, mobile)
+        WHERE saas_account_id IS NOT NULL
+    `);
   }
 
   // Ensure singleton legacy tables can insert new per-account rows
