@@ -3527,9 +3527,15 @@ button.coach-payment-back {
 }
 
 .terms-toolbar-btn .icon {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.25rem;
+  height: 1.25rem;
   flex-shrink: 0;
+}
+
+.terms-toolbar-btn:disabled .terms-icon-camera,
+.terms-toolbar-btn:disabled .terms-icon-upload {
+  opacity: 0.55;
+  filter: grayscale(0.35);
 }
 
 @media (max-width: 640px) {
