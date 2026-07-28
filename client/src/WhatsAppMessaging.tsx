@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { isApplicationDemo } from './applicationDemo';
 import { MenuBackLink } from './MenuBackLink';
 
 type InboxItem = {
@@ -107,6 +108,14 @@ export function WhatsAppMessaging() {
       <p className="lede">
         Send pool messages on WhatsApp and review inbound payment screenshots / certificates.
       </p>
+
+      {isApplicationDemo() ? (
+        <p className="error">
+          You are in Application demo. Live WhatsApp needs a pool login — open{' '}
+          <a href="/swimit">/swimit</a> (or your 6-character account code), sign in, then open
+          Operations → WhatsApp.
+        </p>
+      ) : null}
 
       {loading ? <p className="pass-empty">Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
