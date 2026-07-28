@@ -97,25 +97,38 @@ export async function sendWhatsAppImage(toMobile: string, imageUrl: string, capt
   return { skipped: false as const, result };
 }
 
-export async function downloadWhatsAppMedia(mediaId: string) {
+export async function downloadWhatsAppMedia(mediaId: string, directUrl?: string) {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) throw new Error('WhatsApp is not configured');
 
-  const metaRes = await fetch(`https://graph.facebook.com/${cfg.apiVersion}/${mediaId}`, {
-    headers: { Authorization: `Bearer ${cfg.token}` },
-  });
-  const meta = (await metaRes.json().catch(() => ({}))) as { url?: string; mime_type?: string };
-  if (!metaRes.ok || !meta.url) {
-    throw new Error('Failed to resolve WhatsApp media URL');
+  let url = String(directUrl ?? '').trim();
+  let mimeType = '';
+
+  if (!url) {
+    const metaRes = await fetch(`https://graph.facebook.com/${cfg.apiVersion}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${cfg.token}` },
+    });
+    const meta = (await metaRes.json().catch(() => ({}))) as {
+      url?: string;
+      mime_type?: string;
+      error?: { message?: string };
+    };
+    if (!metaRes.ok || !meta.url) {
+      throw new Error(meta.error?.message ?? 'Failed to resolve WhatsApp media URL');
+    }
+    url = meta.url;
+    mimeType = String(meta.mime_type ?? '');
   }
 
-  const fileRes = await fetch(meta.url, {
+  const fileRes = await fetch(url, {
     headers: { Authorization: `Bearer ${cfg.token}` },
   });
-  if (!fileRes.ok) throw new Error('Failed to download WhatsApp media');
+  if (!fileRes.ok) throw new Error(`Failed to download WhatsApp media (${fileRes.status})`);
   const buffer = Buffer.from(await fileRes.arrayBuffer());
   return {
     buffer,
-    mimeType: String(meta.mime_type ?? fileRes.headers.get('content-type') ?? 'application/octet-stream'),
+    mimeType: String(
+      mimeType || fileRes.headers.get('content-type') || 'application/octet-stream',
+    ),
   };
 }

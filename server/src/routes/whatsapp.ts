@@ -87,6 +87,7 @@ async function saveInboundMedia(params: {
   mimeType: string;
   caption: string;
   waMessageId?: string;
+  mediaUrl?: string;
 }) {
   fs.mkdirSync(uploadRoot, { recursive: true });
   const { last10, saasAccountId, registrationId } = await resolveInboundAccount(params.fromMobile);
@@ -96,7 +97,7 @@ async function saveInboundMedia(params: {
   let caption = params.caption || '';
 
   try {
-    const downloaded = await downloadWhatsAppMedia(params.mediaId);
+    const downloaded = await downloadWhatsAppMedia(params.mediaId, params.mediaUrl);
     mimeType = downloaded.mimeType || mimeType;
     const ext =
       mimeType.includes('png')
@@ -151,8 +152,14 @@ whatsappRouter.post('/webhook', async (req, res) => {
               from?: string;
               type?: string;
               text?: { body?: string };
-              image?: { id?: string; caption?: string; mime_type?: string };
-              document?: { id?: string; caption?: string; filename?: string; mime_type?: string };
+              image?: { id?: string; caption?: string; mime_type?: string; url?: string };
+              document?: {
+                id?: string;
+                caption?: string;
+                filename?: string;
+                mime_type?: string;
+                url?: string;
+              };
             }>;
             statuses?: unknown[];
           };
@@ -182,6 +189,7 @@ whatsappRouter.post('/webhook', async (req, res) => {
               mimeType: String(msg.image.mime_type ?? 'image/jpeg'),
               caption: String(msg.image.caption ?? ''),
               waMessageId: msg.id,
+              mediaUrl: msg.image.url,
             });
           } else if (msg.type === 'document' && msg.document?.id) {
             await saveInboundMedia({
@@ -190,6 +198,7 @@ whatsappRouter.post('/webhook', async (req, res) => {
               mimeType: String(msg.document.mime_type ?? 'application/pdf'),
               caption: String(msg.document.caption ?? msg.document.filename ?? ''),
               waMessageId: msg.id,
+              mediaUrl: msg.document.url,
             });
           } else if (msg.type === 'text' && msg.text?.body) {
             const { last10, saasAccountId, registrationId } = await resolveInboundAccount(from);
