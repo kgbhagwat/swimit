@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
-import { downloadWhatsAppMedia, sendWhatsAppTemplate } from '../whatsapp/client.js';
+import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { notifyPassExpiring, sendBroadcast } from '../whatsapp/notify.js';
 
@@ -233,12 +233,17 @@ whatsappRouter.post('/webhook', async (req, res) => {
   }
 });
 
-whatsappRouter.get('/status', (_req, res) => {
+whatsappRouter.get('/status', async (_req, res) => {
   const cfg = getWhatsAppConfig();
+  const probe = await probeWhatsAppAuth();
   res.json({
     enabled: cfg.enabled,
     phoneNumberIdSet: Boolean(cfg.phoneNumberId),
     publicAppUrl: cfg.publicAppUrl || null,
+    tokenValid: probe.tokenValid,
+    tokenError: probe.error,
+    displayPhoneNumber: probe.displayPhoneNumber,
+    verifiedName: 'verifiedName' in probe ? probe.verifiedName ?? null : null,
   });
 });
 
@@ -309,7 +314,10 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
         // Fall through to plain text if hello_world is missing
         if (!message) {
           res.status(502).json({
-            error: `${templateError}. Also try Meta → Step 1 → select Recipient → Send message.`,
+            error: formatWhatsAppUserError(
+              `${templateError}. Also try Meta → Step 1 → select Recipient → Send message.`,
+              mobile,
+            ),
           });
           return;
         }
@@ -328,9 +336,11 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
     const result = results[0];
     if (!result?.ok) {
       res.status(502).json({
-        error:
+        error: formatWhatsAppUserError(
           result?.error ??
-          'Send failed. In Meta Step 1, select your number under Recipient and click Send message once.',
+            'Send failed. In Meta Step 1, select your number under Recipient and click Send message once.',
+          mobile,
+        ),
         result,
       });
       return;
@@ -346,7 +356,7 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : 'Test send failed';
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: formatWhatsAppUserError(message) });
   }
 });
 

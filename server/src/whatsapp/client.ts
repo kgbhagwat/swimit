@@ -21,7 +21,7 @@ export function formatWhatsAppUserError(raw: string, mobile?: string) {
     lower.includes('session has expired') ||
     lower.includes('invalid oauth')
   ) {
-    return `${message}. Refresh the WhatsApp access token in Meta → WhatsApp → API Setup, update WHATSAPP_TOKEN on the server, then redeploy.`;
+    return `${message}. The token in server .env is invalid or expired. Paste a fresh WHATSAPP_TOKEN, then run: docker compose -f docker-compose.lightsail.yml up -d --force-recreate app`;
   }
   if (
     lower.includes('recipient') ||
@@ -34,6 +34,17 @@ export function formatWhatsAppUserError(raw: string, mobile?: string) {
     return `${message}. Add${m} under Meta → WhatsApp → API Setup → Recipient / allow list.`;
   }
   return message;
+}
+
+function graphErrorMessage(json: GraphError, status: number) {
+  const err = json.error;
+  const parts = [
+    err?.message,
+    err?.type ? `(${err.type})` : null,
+    err?.code != null ? `code ${err.code}` : null,
+    err?.error_user_data?.description,
+  ].filter(Boolean);
+  return parts.join(' ') || `WhatsApp API error (${status})`;
 }
 
 async function graphPost(path: string, body: unknown) {
@@ -49,16 +60,55 @@ async function graphPost(path: string, body: unknown) {
   });
   const json = (await res.json().catch(() => ({}))) as GraphError & Record<string, unknown>;
   if (!res.ok) {
-    const err = json.error;
-    const parts = [
-      err?.message,
-      err?.type ? `(${err.type})` : null,
-      err?.code != null ? `code ${err.code}` : null,
-      err?.error_user_data?.description,
-    ].filter(Boolean);
-    throw new Error(parts.join(' ') || `WhatsApp API error (${res.status})`);
+    throw new Error(graphErrorMessage(json, res.status));
   }
   return json;
+}
+
+/** Live check: env can look "connected" while the token is already dead. */
+export async function probeWhatsAppAuth() {
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    return {
+      configured: false,
+      tokenValid: false as const,
+      error: null as string | null,
+      displayPhoneNumber: null as string | null,
+    };
+  }
+  try {
+    const url = `https://graph.facebook.com/${cfg.apiVersion}/${cfg.phoneNumberId}?fields=display_phone_number,verified_name`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${cfg.token}` },
+    });
+    const json = (await res.json().catch(() => ({}))) as GraphError & {
+      display_phone_number?: string;
+      verified_name?: string;
+    };
+    if (!res.ok) {
+      const error = formatWhatsAppUserError(graphErrorMessage(json, res.status));
+      return {
+        configured: true,
+        tokenValid: false as const,
+        error,
+        displayPhoneNumber: null as string | null,
+      };
+    }
+    return {
+      configured: true,
+      tokenValid: true as const,
+      error: null as string | null,
+      displayPhoneNumber: String(json.display_phone_number ?? '') || null,
+      verifiedName: String(json.verified_name ?? '') || null,
+    };
+  } catch (err) {
+    return {
+      configured: true,
+      tokenValid: false as const,
+      error: formatWhatsAppUserError(err instanceof Error ? err.message : 'Token check failed'),
+      displayPhoneNumber: null as string | null,
+    };
+  }
 }
 
 export async function sendWhatsAppText(toMobile: string, body: string) {

@@ -19,6 +19,10 @@ type WaStatus = {
   enabled: boolean;
   phoneNumberIdSet: boolean;
   publicAppUrl: string | null;
+  tokenValid?: boolean;
+  tokenError?: string | null;
+  displayPhoneNumber?: string | null;
+  verifiedName?: string | null;
 };
 
 async function ensureApplicationTenant() {
@@ -171,12 +175,22 @@ export function WhatsAppMessaging() {
         <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
           <p>
             <strong>Status:</strong>{' '}
-            {status.enabled ? 'Connected' : 'Not configured (messages are logged / skipped)'}
+            {!status.enabled
+              ? 'Not configured (messages are logged / skipped)'
+              : status.tokenValid
+                ? `Connected${status.displayPhoneNumber ? ` (${status.displayPhoneNumber})` : ''}`
+                : 'Token invalid / expired'}
           </p>
           {!status.enabled ? (
             <p className="muted">
               Set <code>WHATSAPP_TOKEN</code>, <code>WHATSAPP_PHONE_NUMBER_ID</code>, and{' '}
-              <code>PUBLIC_APP_URL</code> on the server, then restart.
+              <code>PUBLIC_APP_URL</code> on the server, then recreate the app container.
+            </p>
+          ) : null}
+          {status.enabled && status.tokenValid === false ? (
+            <p className="error" style={{ marginBottom: 0 }}>
+              {status.tokenError ||
+                'WHATSAPP_TOKEN on the server is not accepted by Meta. Paste a fresh token into .env and recreate the app container.'}
             </p>
           ) : null}
         </section>
