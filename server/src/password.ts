@@ -18,9 +18,9 @@ export async function verifyPassword(password: string, storedHash: string) {
   return timingSafeEqual(derived, expected);
 }
 
-/** Temporary admin password shown once at account creation. */
-export function generateTempPassword(length = 10) {
-  const alphabet = 'abcdefghijkmnopqrstuvwxyz23456789';
+/** Temporary password shown once at account/user creation (default 8 chars). */
+export function generateTempPassword(length = 8) {
+  const alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const bytes = randomBytes(length);
   let out = '';
   for (let i = 0; i < length; i += 1) {

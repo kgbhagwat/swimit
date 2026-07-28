@@ -306,11 +306,14 @@ function handleUsers(method: string, pathname: string, body: Record<string, unkn
       id: allocDemoId(store),
       userName: formString(body, 'userName'),
       mobile: formString(body, 'mobile'),
+      email: formString(body, 'email'),
       menuAccess: Array.isArray(body.menuAccess) ? body.menuAccess.map(String) : [],
       mustChangePassword: true,
       isAccountAdmin: false,
       saasAccountId: null,
       createdAt: new Date().toISOString(),
+      temporaryPassword: 'DemoPass1',
+      deliveryNote: 'Demo mode: password is DemoPass1.',
     };
     store.users.push(row);
     writeDemoStore(store);

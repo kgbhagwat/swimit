@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { MenuBackLink } from './MenuBackLink';
 import {
@@ -23,6 +23,7 @@ type AppUser = {
   id: number;
   userName: string;
   mobile: string;
+  email?: string;
   menuAccess: string[];
   createdAt: string;
 };
@@ -62,8 +63,6 @@ function UserRow({
     toAccessSet(user.menuAccess, allowedPages),
   );
   const [showReset, setShowReset] = useState(false);
-  const [resetPassword, setResetPassword] = useState('');
-  const [showResetPassword, setShowResetPassword] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
 
@@ -90,10 +89,8 @@ function UserRow({
     });
   }
 
-  async function onResetPassword(e: FormEvent) {
-    e.preventDefault();
-    if (resetPassword.length < 6) {
-      onMessage('error', 'Password must be at least 6 characters');
+  async function onResetPassword() {
+    if (!confirm(`Generate a new random password for ${user.userName} and send it on WhatsApp?`)) {
       return;
     }
     setSavingPassword(true);
@@ -101,19 +98,19 @@ function UserRow({
       const res = await fetch(`/api/users/${user.id}/password`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: resetPassword }),
+        body: JSON.stringify({}),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to reset password');
-      setResetPassword('');
-      setShowResetPassword(false);
       setShowReset(false);
-      onMessage(
-        'info',
-        typeof body.deliveryNote === 'string' && body.deliveryNote
-          ? `Password reset for ${user.userName}. ${body.deliveryNote}`
-          : `Password reset for ${user.userName}.`,
-      );    } catch (err) {
+      const temp =
+        typeof body.temporaryPassword === 'string' && body.temporaryPassword
+          ? ` Temporary password: ${body.temporaryPassword}.`
+          : '';
+      const note =
+        typeof body.deliveryNote === 'string' && body.deliveryNote ? ` ${body.deliveryNote}` : '';
+      onMessage('info', `Password reset for ${user.userName}.${temp}${note}`);
+    } catch (err) {
       onMessage('error', err instanceof Error ? err.message : 'Failed to reset password');
     } finally {
       setSavingPassword(false);
@@ -147,6 +144,9 @@ function UserRow({
           <strong>Mobile</strong> {user.mobile}
         </p>
         <p>
+          <strong>Email</strong> {user.email?.trim() ? user.email : '—'}
+        </p>
+        <p>
           <strong>Created</strong> {formatCreatedAt(String(user.createdAt ?? ''))}
         </p>
         {!showReset ? (
@@ -154,55 +154,24 @@ function UserRow({
             Reset Password
           </button>
         ) : (
-          <form className="user-reset-inline" onSubmit={onResetPassword}>
-            <div className="password-input-wrap">
-              <input
-                type={showResetPassword ? 'text' : 'password'}
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-                placeholder="New password (min 6)"
-                autoComplete="new-password"
-                minLength={6}
-                required
-              />
-              <button
-                type="button"
-                className="password-eye"
-                onClick={() => setShowResetPassword((prev) => !prev)}
-                aria-label={showResetPassword ? 'Hide password' : 'View password'}
-              >
-                {showResetPassword ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                    <path d="M3 3l18 18" />
-                    <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-                    <path d="M9.9 5.2A10.4 10.4 0 0 1 12 5c5 0 8.5 4.2 9.7 6.1a1.4 1.4 0 0 1 0 1.6c-.5.8-1.6 2.3-3.3 3.6" />
-                    <path d="M6.1 6.1C4.5 7.3 3.4 8.8 2.9 9.6a1.4 1.4 0 0 0 0 1.6C4.1 13.2 7.6 17 12 17c1.1 0 2.1-.2 3.1-.5" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                    <path d="M2.9 11.2a1.4 1.4 0 0 0 0 1.6C4.1 14.7 7.6 19 12 19s7.9-4.3 9.1-6.2a1.4 1.4 0 0 0 0-1.6C19.9 9.3 16.4 5 12 5S4.1 9.3 2.9 11.2z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            <div className="user-reset-actions">
-              <button type="submit" className="csv-btn" disabled={savingPassword}>
-                {savingPassword ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                className="terms-link"
-                onClick={() => {
-                  setShowReset(false);
-                  setResetPassword('');
-                  setShowResetPassword(false);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+          <div className="user-reset-actions">
+            <button
+              type="button"
+              className="csv-btn"
+              disabled={savingPassword}
+              onClick={() => void onResetPassword()}
+            >
+              {savingPassword ? 'Resetting…' : 'Generate & send'}
+            </button>
+            <button
+              type="button"
+              className="terms-link"
+              onClick={() => setShowReset(false)}
+              disabled={savingPassword}
+            >
+              Cancel
+            </button>
+          </div>
         )}
       </td>
 

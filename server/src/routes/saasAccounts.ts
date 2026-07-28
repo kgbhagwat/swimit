@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { ACCESS_PAGE_KEYS } from '../menuAccess.js';
-import { hashPassword, verifyPassword } from '../password.js';
+import { hashPassword, generateTempPassword, verifyPassword } from '../password.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
 
 type AccountBody = {
@@ -264,16 +264,16 @@ saasAccountsRouter.post('/', async (req, res) => {
 
     const created = rows[0];
     const accountId = Number(created.id);
-    const adminPassword = 'admin';
+    const adminPassword = generateTempPassword(8);
     const passwordHash = await hashPassword(adminPassword);
     const adminUserName = 'admin';
 
     const { rows: adminRows } = await client.query(
       `INSERT INTO app_users
-       (user_name, mobile, password_hash, menu_access, saas_account_id, must_change_password, is_account_admin)
-       VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
-       RETURNING id, user_name, mobile`,
-      [adminUserName, mobile, passwordHash, [...ACCESS_PAGE_KEYS], accountId],
+       (user_name, mobile, email, password_hash, menu_access, saas_account_id, must_change_password, is_account_admin)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE, TRUE)
+       RETURNING id, user_name, mobile, email`,
+      [adminUserName, mobile, email, passwordHash, [...ACCESS_PAGE_KEYS], accountId],
     );
 
     // Empty app shell for this account only (no shared / demo data)
@@ -316,7 +316,7 @@ saasAccountsRouter.post('/', async (req, res) => {
       },
       warnings,
       deliveryNote:
-        'Login details can also be sent on WhatsApp when WhatsApp is configured. Temporary password is "admin". They must change it on first login.',
+        'Login details can also be sent on WhatsApp when WhatsApp is configured. Temporary password is random (8 characters). They must change it on first login.',
     });
 
     void notifyLoginCredentials({
@@ -371,11 +371,11 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
       return;
     }
 
-    const adminPassword = 'admin';
+    const adminPassword = generateTempPassword(8);
     const passwordHash = await hashPassword(adminPassword);
 
     let admin = await pool.query(
-      `SELECT id, user_name, mobile
+      `SELECT id, user_name, mobile, email
        FROM app_users
        WHERE saas_account_id = $1 AND COALESCE(is_account_admin, FALSE) = TRUE
        ORDER BY id ASC
@@ -386,10 +386,10 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
     if (!admin.rows[0]) {
       admin = await pool.query(
         `INSERT INTO app_users
-         (user_name, mobile, password_hash, menu_access, saas_account_id, must_change_password, is_account_admin)
-         VALUES ('admin', $1, $2, $3, $4, TRUE, TRUE)
-         RETURNING id, user_name, mobile`,
-        [account.mobile, passwordHash, [...ACCESS_PAGE_KEYS], id],
+         (user_name, mobile, email, password_hash, menu_access, saas_account_id, must_change_password, is_account_admin)
+         VALUES ('admin', $1, $2, $3, $4, $5, TRUE, TRUE)
+         RETURNING id, user_name, mobile, email`,
+        [account.mobile, account.email, passwordHash, [...ACCESS_PAGE_KEYS], id],
       );
     } else {
       await pool.query(
@@ -401,7 +401,7 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
         [passwordHash, Number(admin.rows[0].id), id],
       );
       admin = await pool.query(
-        `SELECT id, user_name, mobile FROM app_users WHERE id = $1`,
+        `SELECT id, user_name, mobile, email FROM app_users WHERE id = $1`,
         [Number(admin.rows[0].id)],
       );
     }
@@ -422,7 +422,7 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
         mustChangePassword: true,
       },
       deliveryNote:
-        'Admin password was reset to "admin". WhatsApp send is attempted when configured.',
+        'Admin password was reset to a new random 8-character password. WhatsApp send is attempted when configured.',
     });
 
     void notifyLoginCredentials({

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { sanitizeMenuAccess } from '../menuAccess.js';
-import { hashPassword } from '../password.js';
+import { generateTempPassword, hashPassword } from '../password.js';
 import { tenantId } from '../middleware/tenant.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
 
@@ -11,6 +11,7 @@ function mapUser(row: Record<string, unknown>) {
     id: Number(row.id),
     userName: String(row.user_name ?? ''),
     mobile: String(row.mobile ?? ''),
+    email: String(row.email ?? ''),
     menuAccess: Array.isArray(row.menu_access)
       ? row.menu_access.map(String)
       : [],
@@ -19,6 +20,11 @@ function mapUser(row: Record<string, unknown>) {
     saasAccountId: row.saas_account_id == null ? null : Number(row.saas_account_id),
     createdAt: row.created_at,
   };
+}
+
+function isValidEmail(value: string) {
+  const email = value.trim();
+  return email.includes('@') && email.includes('.') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function loginOriginFromRequest(req: { get: (name: string) => string | undefined }) {
@@ -33,7 +39,7 @@ usersRouter.get('/', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const { rows } = await pool.query(
-      `SELECT id, user_name, mobile, menu_access, must_change_password, is_account_admin,
+      `SELECT id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
               saas_account_id, created_at
        FROM app_users
        WHERE saas_account_id = $1
@@ -56,7 +62,7 @@ usersRouter.get('/:id', async (req, res) => {
       return;
     }
     const { rows } = await pool.query(
-      `SELECT id, user_name, mobile, menu_access, must_change_password, is_account_admin,
+      `SELECT id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
               saas_account_id, created_at
        FROM app_users
        WHERE id = $1 AND saas_account_id = $2`,
@@ -79,14 +85,15 @@ usersRouter.post('/', async (req, res) => {
     const body = req.body as {
       userName?: string;
       mobile?: string;
-      password?: string;
+      email?: string;
       menuAccess?: unknown;
     };
 
     const userName = String(body.userName ?? '').trim();
     const mobile = String(body.mobile ?? '').trim();
-    const password = String(body.password ?? '');
+    const email = String(body.email ?? '').trim().toLowerCase();
     const menuAccess = sanitizeMenuAccess(body.menuAccess);
+    const password = generateTempPassword(8);
 
     if (!userName) {
       res.status(400).json({ error: 'User Name is required' });
@@ -96,8 +103,8 @@ usersRouter.post('/', async (req, res) => {
       res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
       return;
     }
-    if (password.length < 6) {
-      res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Enter a valid email address' });
       return;
     }
 
@@ -133,11 +140,11 @@ usersRouter.post('/', async (req, res) => {
     const passwordHash = await hashPassword(password);
     const { rows } = await pool.query(
       `INSERT INTO app_users
-       (saas_account_id, user_name, mobile, password_hash, menu_access, must_change_password)
-       VALUES ($1, $2, $3, $4, $5, TRUE)
-       RETURNING id, user_name, mobile, menu_access, must_change_password, is_account_admin,
+       (saas_account_id, user_name, mobile, email, password_hash, menu_access, must_change_password)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+       RETURNING id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
                  saas_account_id, created_at`,
-      [accountId, userName, mobile, passwordHash, menuAccess],
+      [accountId, userName, mobile, email, passwordHash, menuAccess],
     );
 
     const account = await pool.query(
@@ -152,9 +159,10 @@ usersRouter.post('/', async (req, res) => {
 
     res.status(201).json({
       ...mapUser(rows[0]),
+      temporaryPassword: password,
       warnings,
       deliveryNote:
-        'Login details are also sent on WhatsApp when WhatsApp is configured. User must change password on first login.',
+        'A random 8-character password was generated and sent on WhatsApp when configured. User must change it on first login.',
     });
 
     void notifyLoginCredentials({
@@ -190,8 +198,11 @@ usersRouter.patch('/:id/password', async (req, res) => {
       return;
     }
 
-    const password = String((req.body as { password?: string }).password ?? '');
-    if (password.length < 6) {
+    const body = req.body as { password?: string };
+    let password = String(body.password ?? '').trim();
+    if (!password) {
+      password = generateTempPassword(8);
+    } else if (password.length < 6) {
       res.status(400).json({ error: 'Password must be at least 6 characters' });
       return;
     }
@@ -200,9 +211,9 @@ usersRouter.patch('/:id/password', async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE app_users
        SET password_hash = $1,
-           must_change_password = FALSE
+           must_change_password = TRUE
        WHERE id = $2 AND saas_account_id = $3
-       RETURNING id, user_name, mobile, menu_access, must_change_password, is_account_admin,
+       RETURNING id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
                  saas_account_id, created_at`,
       [passwordHash, id, accountId],
     );
@@ -226,7 +237,8 @@ usersRouter.patch('/:id/password', async (req, res) => {
     res.json({
       ok: true,
       user: mapUser(rows[0]),
-      deliveryNote: 'Updated password is also sent on WhatsApp when WhatsApp is configured.',
+      temporaryPassword: password,
+      deliveryNote: 'A new random password was generated and sent on WhatsApp when configured.',
     });
 
     if (mobile) {
@@ -260,7 +272,7 @@ usersRouter.patch('/:id/access', async (req, res) => {
       `UPDATE app_users
        SET menu_access = $1
        WHERE id = $2 AND saas_account_id = $3
-       RETURNING id, user_name, mobile, menu_access, must_change_password, is_account_admin,
+       RETURNING id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
                  saas_account_id, created_at`,
       [menuAccess, id, accountId],
     );
