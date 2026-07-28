@@ -38,6 +38,7 @@ export function WhatsAppMessaging() {
   const [message, setMessage] = useState('');
   const [testMobile, setTestMobile] = useState('');
   const [testMessage, setTestMessage] = useState('Hello from SwimIT WhatsApp test.');
+  const [sendMode, setSendMode] = useState<'template' | 'text'>('text');
   const [audience, setAudience] = useState('active_swimmers');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -81,14 +82,18 @@ export function WhatsAppMessaging() {
       const res = await fetch('/api/whatsapp/send-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: testMobile, message: testMessage, mode: 'template' }),
+        body: JSON.stringify({
+          mobile: testMobile,
+          message: testMessage,
+          mode: sendMode,
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Test send failed');
       setInfo(
         body.mode === 'template'
-          ? `Template hello_world sent to ${testMobile}. Check WhatsApp for a chat from Meta’s test number (+1 555…).`
-          : `Test message sent to ${testMobile}. Check WhatsApp on that phone.`,
+          ? `Template hello_world sent to ${testMobile}. That is Meta’s sample text (not the box below). Check chat +1 555…`
+          : `Custom text sent to ${testMobile}. If nothing arrives, first reply “Hi” to the +1 555… chat, then retry.`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test send failed');
@@ -179,6 +184,12 @@ export function WhatsAppMessaging() {
 
       <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
         <h2>Send test message</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          <strong>App → WhatsApp:</strong> messages you send from here.
+          <br />
+          <strong>WhatsApp → App:</strong> photos/docs people send to the business number show in Inbound inbox
+          below.
+        </p>
         <form onSubmit={onTestSend}>
           <label className="field">
             <span className="label">WhatsApp mobile (10 digits)</span>
@@ -191,19 +202,42 @@ export function WhatsAppMessaging() {
             />
           </label>
           <label className="field">
-            <span className="label">Message</span>
+            <span className="label">Send as</span>
+            <select
+              value={sendMode}
+              onChange={(e) => setSendMode(e.target.value === 'template' ? 'template' : 'text')}
+            >
+              <option value="text">Custom text (message box below)</option>
+              <option value="template">Meta hello_world template (sample text)</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="label">Message (used for custom text)</span>
             <textarea
               rows={3}
               value={testMessage}
               onChange={(e) => setTestMessage(e.target.value)}
-              required
+              required={sendMode === 'text'}
+              disabled={sendMode === 'template'}
             />
           </label>
+          {sendMode === 'text' ? (
+            <p className="muted">
+              Custom text usually works only after that person replies once to the Meta test chat (+1 555…). Reply
+              “Hi” there, then send.
+            </p>
+          ) : (
+            <p className="muted">Template always sends Meta’s fixed “Welcome and congratulations…” sample.</p>
+          )}
           <div className="pass-form-actions">
             <button
               type="submit"
               className="submit"
-              disabled={testSending || testMobile.length !== 10 || !testMessage.trim()}
+              disabled={
+                testSending ||
+                testMobile.length !== 10 ||
+                (sendMode === 'text' && !testMessage.trim())
+              }
             >
               {testSending ? 'Sending…' : 'Send test message'}
             </button>
