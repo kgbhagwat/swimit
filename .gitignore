@@ -16,3 +16,5 @@ build/
 # Office lock/temp files
 ~\$*
 *.docx
+
+~WRL*
