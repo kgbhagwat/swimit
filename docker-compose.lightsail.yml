@@ -1,0 +1,57 @@
+# SwimIT on Lightsail (app + Postgres + Caddy HTTPS)
+# Usage on the server:
+#   cp .env.lightsail.example .env
+#   # edit .env — set DOMAIN, passwords, CORS_ORIGIN
+#   docker compose -f docker-compose.lightsail.yml up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-swimit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-swimit}
+    volumes:
+      - swimit_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-swimit}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-swimit}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env}
+    volumes:
+      - swimit_uploads:/app/server/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - '4000'
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  swimit_pgdata:
+  swimit_uploads:
+  caddy_data:
+  caddy_config:

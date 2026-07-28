@@ -6,6 +6,7 @@ build/
 .env
 .env.*
 !.env.example
+!.env.lightsail.example
 !**/.env.example
 *.log
 .DS_Store
