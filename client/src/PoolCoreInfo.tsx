@@ -37,6 +37,7 @@ function ImageField({
   preview,
   existingUrl,
   onPick,
+  onClear,
 }: {
   label: string;
   hint: string;
@@ -44,6 +45,7 @@ function ImageField({
   preview: string | null;
   existingUrl: string | null;
   onPick: (file: File | null) => void;
+  onClear: () => void;
 }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -75,13 +77,23 @@ function ImageField({
       <p className="hint">{hint}</p>
       {compressing ? <p className="hint">Compressing image…</p> : null}
       {display ? (
-        <div className="preview-wrap">
+        <div className="preview-wrap preview-wrap--deletable">
           <img src={display} alt={label} className="preview pool-core-preview" />
-          {file ? (
-            <button type="button" className="linkish" onClick={() => onPick(null)}>
-              Remove new upload
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="preview-delete-btn"
+            aria-label={`Delete ${label}`}
+            title="Delete image"
+            disabled={compressing}
+            onClick={onClear}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M4 7h16" />
+              <path d="M9 7V5h6v2" />
+              <path d="M7 7l1 13h8l1-13" />
+              <path d="M10 11v6M14 11v6" />
+            </svg>
+          </button>
         </div>
       ) : (
         <p className="hint">No image uploaded yet.</p>
@@ -147,6 +159,8 @@ export function PoolCoreInfo() {
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [qrFile, setQrFile] = useState<File | null>(null);
+  const [clearLogo, setClearLogo] = useState(false);
+  const [clearQr, setClearQr] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -176,6 +190,8 @@ export function PoolCoreInfo() {
       });
       setLogoFile(null);
       setQrFile(null);
+      setClearLogo(false);
+      setClearQr(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -205,6 +221,8 @@ export function PoolCoreInfo() {
       data.append('upiDetails', form.upiDetails.trim());
       if (logoFile) data.append('poolLogo', logoFile);
       if (qrFile) data.append('paymentQr', qrFile);
+      if (clearLogo && !logoFile) data.append('clearPoolLogo', '1');
+      if (clearQr && !qrFile) data.append('clearPaymentQr', '1');
 
       const res = await fetch('/api/pool-core-info', { method: 'PUT', body: data });
       const body = await res.json().catch(() => ({}));
@@ -220,6 +238,8 @@ export function PoolCoreInfo() {
       });
       setLogoFile(null);
       setQrFile(null);
+      setClearLogo(false);
+      setClearQr(false);
       setSuccess('Pool core info saved successfully.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -272,16 +292,30 @@ export function PoolCoreInfo() {
               hint="Max 200 KB — square or landscape logo works best"
               file={logoFile}
               preview={logoPreview}
-              existingUrl={uploadUrl(form.poolLogoPath)}
-              onPick={setLogoFile}
+              existingUrl={clearLogo ? null : uploadUrl(form.poolLogoPath)}
+              onPick={(file) => {
+                setLogoFile(file);
+                if (file) setClearLogo(false);
+              }}
+              onClear={() => {
+                setLogoFile(null);
+                setClearLogo(true);
+              }}
             />
             <ImageField
               label="Payment QR code"
               hint="Max 200 KB — upload UPI / payment QR image"
               file={qrFile}
               preview={qrPreview}
-              existingUrl={uploadUrl(form.paymentQrPath)}
-              onPick={setQrFile}
+              existingUrl={clearQr ? null : uploadUrl(form.paymentQrPath)}
+              onPick={(file) => {
+                setQrFile(file);
+                if (file) setClearQr(false);
+              }}
+              onClear={() => {
+                setQrFile(null);
+                setClearQr(true);
+              }}
             />
           </div>
 

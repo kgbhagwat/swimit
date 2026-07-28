@@ -153,6 +153,8 @@ function handlePoolCoreInfo(method: string, body: Record<string, unknown>, store
     return jsonResponse(store.poolCoreInfo);
   }
   if (method === 'PUT') {
+    const clearLogo = formString(body, 'clearPoolLogo') === '1';
+    const clearQr = formString(body, 'clearPaymentQr') === '1';
     store.poolCoreInfo = {
       ...store.poolCoreInfo,
       poolName: formString(body, 'poolName') || String(store.poolCoreInfo.poolName ?? ''),
@@ -160,8 +162,16 @@ function handlePoolCoreInfo(method: string, body: Record<string, unknown>, store
       swimmerTerms: String(body.swimmerTerms ?? store.poolCoreInfo.swimmerTerms ?? ''),
       staffTerms: String(body.staffTerms ?? store.poolCoreInfo.staffTerms ?? ''),
       upiDetails: formString(body, 'upiDetails'),
-      poolLogoPath: body.poolLogo ?? store.poolCoreInfo.poolLogoPath,
-      paymentQrPath: body.paymentQr ?? store.poolCoreInfo.paymentQrPath,
+      poolLogoPath: body.poolLogo
+        ? body.poolLogo
+        : clearLogo
+          ? null
+          : store.poolCoreInfo.poolLogoPath,
+      paymentQrPath: body.paymentQr
+        ? body.paymentQr
+        : clearQr
+          ? null
+          : store.poolCoreInfo.paymentQrPath,
       updatedAt: new Date().toISOString(),
     };
     writeDemoStore(store);

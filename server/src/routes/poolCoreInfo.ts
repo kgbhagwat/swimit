@@ -109,12 +109,23 @@ poolCoreInfoRouter.put(
         return;
       }
 
-      const poolLogoPath =
-        files?.poolLogo?.[0]?.filename ||
-        (current.pool_logo_path ? String(current.pool_logo_path) : null);
-      const paymentQrPath =
-        files?.paymentQr?.[0]?.filename ||
-        (current.payment_qr_path ? String(current.payment_qr_path) : null);
+      const clearPoolLogo = String(body.clearPoolLogo ?? '') === '1';
+      const clearPaymentQr = String(body.clearPaymentQr ?? '') === '1';
+
+      const poolLogoPath = files?.poolLogo?.[0]?.filename
+        ? files.poolLogo[0].filename
+        : clearPoolLogo
+          ? null
+          : current.pool_logo_path
+            ? String(current.pool_logo_path)
+            : null;
+      const paymentQrPath = files?.paymentQr?.[0]?.filename
+        ? files.paymentQr[0].filename
+        : clearPaymentQr
+          ? null
+          : current.payment_qr_path
+            ? String(current.payment_qr_path)
+            : null;
 
       const { rows } = await pool.query(
         `UPDATE pool_core_info SET
