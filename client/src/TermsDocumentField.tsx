@@ -134,15 +134,15 @@ export function TermsDocumentField({
       <span className="label">{label}</span>
       <p className="hint">Scan or upload one page at a time.</p>
       <label className="field terms-ocr-lang">
-        <span className="label">OCR language</span>
+        <span className="label">Language of Document</span>
         <select
           value={langMode}
           disabled={busy}
           onChange={(e) => setLangMode(e.target.value as OcrLanguageMode)}
         >
-          <option value="marathi">Marathi (best for Marathi docs / bullets / १२३)</option>
-          <option value="mixed">Marathi + English</option>
-          <option value="english">English only</option>
+          <option value="marathi">Marathi</option>
+          <option value="mixed">Marathi+English</option>
+          <option value="english">English</option>
         </select>
       </label>
       <div className="photo-actions terms-scan-actions">
