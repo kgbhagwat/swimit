@@ -108,8 +108,12 @@ function UserRow({
       setResetPassword('');
       setShowResetPassword(false);
       setShowReset(false);
-      onMessage('info', `Password reset for ${user.userName}.`);
-    } catch (err) {
+      onMessage(
+        'info',
+        typeof body.deliveryNote === 'string' && body.deliveryNote
+          ? `Password reset for ${user.userName}. ${body.deliveryNote}`
+          : `Password reset for ${user.userName}.`,
+      );    } catch (err) {
       onMessage('error', err instanceof Error ? err.message : 'Failed to reset password');
     } finally {
       setSavingPassword(false);

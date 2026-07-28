@@ -70,10 +70,10 @@ export function CreateUser() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to create user');
       const warnList = Array.isArray(body.warnings) ? body.warnings.map(String) : [];
-      if (warnList.length) {
-        setWarning(warnList.join(' '));
-        // brief pause so user can see the staging warning before leaving
-        window.setTimeout(() => navigate(userManagementTo, { replace: true }), 1200);
+      const delivery = typeof body.deliveryNote === 'string' ? body.deliveryNote : '';
+      if (warnList.length || delivery) {
+        setWarning([delivery, ...warnList].filter(Boolean).join(' '));
+        window.setTimeout(() => navigate(userManagementTo, { replace: true }), 1600);
         return;
       }
       navigate(userManagementTo, { replace: true });

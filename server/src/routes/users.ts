@@ -4,6 +4,7 @@ import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { sanitizeMenuAccess } from '../menuAccess.js';
 import { hashPassword } from '../password.js';
 import { tenantId } from '../middleware/tenant.js';
+import { notifyLoginCredentials } from '../whatsapp/notify.js';
 
 function mapUser(row: Record<string, unknown>) {
   return {
@@ -18,6 +19,12 @@ function mapUser(row: Record<string, unknown>) {
     saasAccountId: row.saas_account_id == null ? null : Number(row.saas_account_id),
     createdAt: row.created_at,
   };
+}
+
+function loginOriginFromRequest(req: { get: (name: string) => string | undefined }) {
+  return String(
+    req.get('origin') || process.env.PUBLIC_APP_URL || process.env.CORS_ORIGIN || 'http://localhost:5173',
+  ).replace(/\/$/, '');
 }
 
 export const usersRouter = Router();
@@ -133,7 +140,32 @@ usersRouter.post('/', async (req, res) => {
       [accountId, userName, mobile, passwordHash, menuAccess],
     );
 
-    res.status(201).json({ ...mapUser(rows[0]), warnings });
+    const account = await pool.query(
+      `SELECT account_name, account_code FROM saas_accounts WHERE id = $1`,
+      [accountId],
+    );
+    const accountName = String(account.rows[0]?.account_name ?? 'SwimIT');
+    const accountCode = String(account.rows[0]?.account_code ?? '');
+    const loginUrl = accountCode
+      ? `${loginOriginFromRequest(req)}/${accountCode}`
+      : loginOriginFromRequest(req);
+
+    res.status(201).json({
+      ...mapUser(rows[0]),
+      warnings,
+      deliveryNote:
+        'Login details are also sent on WhatsApp when WhatsApp is configured. User must change password on first login.',
+    });
+
+    void notifyLoginCredentials({
+      mobile,
+      accountName,
+      accountCode,
+      loginUrl,
+      userName,
+      temporaryPassword: password,
+      saasAccountId: accountId,
+    }).catch((err) => console.warn('[whatsapp] user credentials notify failed', err));
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : '';
@@ -179,7 +211,35 @@ usersRouter.patch('/:id/password', async (req, res) => {
       return;
     }
 
-    res.json({ ok: true, user: mapUser(rows[0]) });
+    const account = await pool.query(
+      `SELECT account_name, account_code FROM saas_accounts WHERE id = $1`,
+      [accountId],
+    );
+    const accountName = String(account.rows[0]?.account_name ?? 'SwimIT');
+    const accountCode = String(account.rows[0]?.account_code ?? '');
+    const loginUrl = accountCode
+      ? `${loginOriginFromRequest(req)}/${accountCode}`
+      : loginOriginFromRequest(req);
+    const userName = String(rows[0].user_name ?? '');
+    const mobile = String(rows[0].mobile ?? '');
+
+    res.json({
+      ok: true,
+      user: mapUser(rows[0]),
+      deliveryNote: 'Updated password is also sent on WhatsApp when WhatsApp is configured.',
+    });
+
+    if (mobile) {
+      void notifyLoginCredentials({
+        mobile,
+        accountName,
+        accountCode,
+        loginUrl,
+        userName,
+        temporaryPassword: password,
+        saasAccountId: accountId,
+      }).catch((err) => console.warn('[whatsapp] password reset notify failed', err));
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to reset password' });
