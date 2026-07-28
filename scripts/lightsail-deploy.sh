@@ -63,7 +63,13 @@ if [ -d .git ]; then
 fi
 
 echo "==> Building and starting (domain: ${DOMAIN})"
-docker compose -f docker-compose.lightsail.yml --env-file .env up -d --build
+GIT_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export GIT_COMMIT BUILD_TIME
+docker compose -f docker-compose.lightsail.yml --env-file .env build \
+  --build-arg GIT_COMMIT="${GIT_COMMIT}" \
+  --build-arg BUILD_TIME="${BUILD_TIME}"
+docker compose -f docker-compose.lightsail.yml --env-file .env up -d
 
 echo "==> Status"
 docker compose -f docker-compose.lightsail.yml ps
@@ -73,5 +79,8 @@ echo "Waiting a few seconds for HTTPS…"
 sleep 5
 curl -sS -m 20 "https://${DOMAIN}/api/health" || true
 echo ""
+curl -sS -m 20 "https://${DOMAIN}/api/version" || true
+echo ""
+echo "Deployed commit: ${GIT_COMMIT}"
 echo "Open https://${DOMAIN}"
 echo "Login: code swimit / user superadmin / password superadmin"

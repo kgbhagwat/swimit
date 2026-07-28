@@ -36,6 +36,14 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.get('/api/version', (_req, res) => {
+  res.json({
+    status: 'ok',
+    commit: process.env.GIT_COMMIT || process.env.SOURCE_COMMIT || 'unknown',
+    builtAt: process.env.BUILD_TIME || null,
+  });
+});
+
 app.use('/api/registrations', requireTenant, registrationsRouter);
 app.use('/api/staff-registrations', requireTenant, staffRegistrationsRouter);
 app.use('/api/batches', requireTenant, batchesRouter);

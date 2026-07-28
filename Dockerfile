@@ -1,6 +1,7 @@
-# SwimIT — production image (React client + Express API)
 FROM node:22-alpine AS build
 WORKDIR /app
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
 
 COPY package.json package-lock.json ./
 COPY client/package.json ./client/
@@ -16,6 +17,10 @@ RUN npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV BUILD_TIME=$BUILD_TIME
 
 COPY package.json package-lock.json ./
 COPY client/package.json ./client/
