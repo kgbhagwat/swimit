@@ -42,6 +42,7 @@ export async function notifyLoginCredentials(params: {
     `SwimIT login for ${params.accountName}`,
     '',
     `Account code: ${params.accountCode}`,
+    `Login URL: ${params.loginUrl}`,
     `User name: ${params.userName}`,
     `Temporary password: ${params.temporaryPassword}`,
     '',
