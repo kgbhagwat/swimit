@@ -8,6 +8,8 @@ type PoolCoreInfoData = {
   poolLogoPath: string | null;
   swimmerTerms: string;
   staffTerms: string;
+  paymentAcceptCash: boolean;
+  paymentAcceptOnline: boolean;
   paymentQrPath: string | null;
   upiDetails: string;
 };
@@ -154,6 +156,8 @@ export function PoolCoreInfo() {
     poolLogoPath: null,
     swimmerTerms: '',
     staffTerms: '',
+    paymentAcceptCash: true,
+    paymentAcceptOnline: true,
     paymentQrPath: null,
     upiDetails: '',
   });
@@ -185,6 +189,8 @@ export function PoolCoreInfo() {
         poolLogoPath: body.poolLogoPath ?? null,
         swimmerTerms: body.swimmerTerms ?? '',
         staffTerms: body.staffTerms ?? '',
+        paymentAcceptCash: body.paymentAcceptCash !== false,
+        paymentAcceptOnline: body.paymentAcceptOnline !== false,
         paymentQrPath: body.paymentQrPath ?? null,
         upiDetails: body.upiDetails ?? '',
       });
@@ -207,6 +213,21 @@ export function PoolCoreInfo() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    if (!form.paymentAcceptCash && !form.paymentAcceptOnline) {
+      setError('Select at least one payment option (Cash or Online)');
+      return;
+    }
+    if (form.paymentAcceptOnline) {
+      const hasQr = Boolean(qrFile) || (Boolean(form.paymentQrPath) && !clearQr);
+      if (!hasQr) {
+        setError('Payment QR code is required when Online is selected');
+        return;
+      }
+      if (!form.upiDetails.trim()) {
+        setError('UPI ID is required when Online is selected');
+        return;
+      }
+    }
     if (!isValidUpiId(form.upiDetails)) {
       setError('Enter a valid UPI ID (e.g. name@upi)');
       return;
@@ -219,6 +240,8 @@ export function PoolCoreInfo() {
       data.append('swimmerTerms', form.swimmerTerms);
       data.append('staffTerms', form.staffTerms);
       data.append('upiDetails', form.upiDetails.trim());
+      data.append('paymentAcceptCash', form.paymentAcceptCash ? '1' : '0');
+      data.append('paymentAcceptOnline', form.paymentAcceptOnline ? '1' : '0');
       if (logoFile) data.append('poolLogo', logoFile);
       if (qrFile) data.append('paymentQr', qrFile);
       if (clearLogo && !logoFile) data.append('clearPoolLogo', '1');
@@ -233,6 +256,8 @@ export function PoolCoreInfo() {
         poolLogoPath: body.poolLogoPath ?? null,
         swimmerTerms: body.swimmerTerms ?? '',
         staffTerms: body.staffTerms ?? '',
+        paymentAcceptCash: body.paymentAcceptCash !== false,
+        paymentAcceptOnline: body.paymentAcceptOnline !== false,
         paymentQrPath: body.paymentQrPath ?? null,
         upiDetails: body.upiDetails ?? '',
       });
@@ -286,6 +311,38 @@ export function PoolCoreInfo() {
             />
           </label>
 
+          <fieldset className="field payment-options-field">
+            <legend className="label">
+              Payment Option <span className="req">*</span>
+            </legend>
+            <p className="hint">Tick the payment methods this pool accepts.</p>
+            <div className="payment-option-checks">
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={form.paymentAcceptCash}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, paymentAcceptCash: e.target.checked }))
+                  }
+                />
+                <span>Cash</span>
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={form.paymentAcceptOnline}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, paymentAcceptOnline: e.target.checked }))
+                  }
+                />
+                <span>Online</span>
+              </label>
+            </div>
+            {form.paymentAcceptOnline ? (
+              <p className="hint">Online selected — Payment QR and UPI ID are required.</p>
+            ) : null}
+          </fieldset>
+
           <div className="grid-2 photos">
             <ImageField
               label="Pool Logo"
@@ -303,8 +360,12 @@ export function PoolCoreInfo() {
               }}
             />
             <ImageField
-              label="Payment QR code"
-              hint="Max 200 KB — upload UPI / payment QR image"
+              label={form.paymentAcceptOnline ? 'Payment QR code *' : 'Payment QR code'}
+              hint={
+                form.paymentAcceptOnline
+                  ? 'Required for Online — Max 200 KB — upload UPI / payment QR image'
+                  : 'Max 200 KB — upload UPI / payment QR image'
+              }
               file={qrFile}
               preview={qrPreview}
               existingUrl={clearQr ? null : uploadUrl(form.paymentQrPath)}
@@ -321,13 +382,16 @@ export function PoolCoreInfo() {
 
           <div className="field upi-id-field">
             <div className="upi-id-row">
-              <span className="label">UPI ID</span>
+              <span className="label">
+                UPI ID{form.paymentAcceptOnline ? <span className="req"> *</span> : null}
+              </span>
               <input
                 value={form.upiDetails}
                 onChange={(e) => setForm((prev) => ({ ...prev, upiDetails: e.target.value }))}
                 placeholder="name@upi"
                 inputMode="email"
                 autoComplete="off"
+                required={form.paymentAcceptOnline}
                 aria-invalid={Boolean(upiHint(form.upiDetails))}
                 aria-label="UPI ID"
               />

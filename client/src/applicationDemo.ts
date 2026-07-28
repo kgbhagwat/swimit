@@ -79,6 +79,8 @@ function emptyStore(): DemoStore {
       staffTerms: '',
       paymentQrPath: null,
       upiDetails: '',
+      paymentAcceptCash: true,
+      paymentAcceptOnline: true,
       updatedAt: new Date().toISOString(),
     },
     holidaysWeekly: [],

@@ -155,6 +155,14 @@ function handlePoolCoreInfo(method: string, body: Record<string, unknown>, store
   if (method === 'PUT') {
     const clearLogo = formString(body, 'clearPoolLogo') === '1';
     const clearQr = formString(body, 'clearPaymentQr') === '1';
+    const paymentAcceptCash =
+      body.paymentAcceptCash === undefined
+        ? Boolean(store.poolCoreInfo.paymentAcceptCash !== false)
+        : formString(body, 'paymentAcceptCash') === '1';
+    const paymentAcceptOnline =
+      body.paymentAcceptOnline === undefined
+        ? Boolean(store.poolCoreInfo.paymentAcceptOnline !== false)
+        : formString(body, 'paymentAcceptOnline') === '1';
     store.poolCoreInfo = {
       ...store.poolCoreInfo,
       poolName: formString(body, 'poolName') || String(store.poolCoreInfo.poolName ?? ''),
@@ -162,6 +170,8 @@ function handlePoolCoreInfo(method: string, body: Record<string, unknown>, store
       swimmerTerms: String(body.swimmerTerms ?? store.poolCoreInfo.swimmerTerms ?? ''),
       staffTerms: String(body.staffTerms ?? store.poolCoreInfo.staffTerms ?? ''),
       upiDetails: formString(body, 'upiDetails'),
+      paymentAcceptCash,
+      paymentAcceptOnline,
       poolLogoPath: body.poolLogo
         ? body.poolLogo
         : clearLogo

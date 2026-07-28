@@ -3479,6 +3479,38 @@ button.coach-payment-back {
   max-width: 28rem;
 }
 
+.payment-options-field {
+  border: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.payment-options-field legend {
+  padding: 0;
+}
+
+.payment-option-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-top: 0.35rem;
+}
+
+.payment-option-checks .check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.payment-option-checks input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
 .upi-id-row {
   display: flex;
   align-items: center;

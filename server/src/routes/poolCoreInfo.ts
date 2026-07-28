@@ -35,6 +35,12 @@ const upload = multer({
 
 export const poolCoreInfoRouter = Router();
 
+function truthyFlag(value: unknown, fallback = false) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const v = String(value).trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
 function mapRow(row: Record<string, unknown>) {
   return {
     poolName: String(row.pool_name ?? ''),
@@ -42,6 +48,8 @@ function mapRow(row: Record<string, unknown>) {
     poolLogoPath: row.pool_logo_path ? String(row.pool_logo_path) : null,
     swimmerTerms: String(row.swimmer_terms ?? ''),
     staffTerms: String(row.staff_terms ?? ''),
+    paymentAcceptCash: row.payment_accept_cash !== false,
+    paymentAcceptOnline: row.payment_accept_online !== false,
     paymentQrPath: row.payment_qr_path ? String(row.payment_qr_path) : null,
     upiDetails: String(row.upi_details ?? ''),
     updatedAt: row.updated_at,
@@ -92,6 +100,8 @@ poolCoreInfoRouter.put(
       const swimmerTerms = String(body.swimmerTerms ?? '');
       const staffTerms = String(body.staffTerms ?? '');
       const upiDetails = String(body.upiDetails ?? '').trim();
+      const paymentAcceptCash = truthyFlag(body.paymentAcceptCash, true);
+      const paymentAcceptOnline = truthyFlag(body.paymentAcceptOnline, true);
 
       if (!poolName) {
         res.status(400).json({ error: 'Pool name is required' });
@@ -99,6 +109,10 @@ poolCoreInfoRouter.put(
       }
       if (!poolAddress) {
         res.status(400).json({ error: 'Pool address is required' });
+        return;
+      }
+      if (!paymentAcceptCash && !paymentAcceptOnline) {
+        res.status(400).json({ error: 'Select at least one payment option (Cash or Online)' });
         return;
       }
       if (
@@ -127,6 +141,17 @@ poolCoreInfoRouter.put(
             ? String(current.payment_qr_path)
             : null;
 
+      if (paymentAcceptOnline) {
+        if (!paymentQrPath) {
+          res.status(400).json({ error: 'Payment QR code is required when Online is selected' });
+          return;
+        }
+        if (!upiDetails) {
+          res.status(400).json({ error: 'UPI ID is required when Online is selected' });
+          return;
+        }
+      }
+
       const { rows } = await pool.query(
         `UPDATE pool_core_info SET
            pool_name = $1,
@@ -134,10 +159,12 @@ poolCoreInfoRouter.put(
            pool_logo_path = $3,
            swimmer_terms = $4,
            staff_terms = $5,
-           payment_qr_path = $6,
-           upi_details = $7,
+           payment_accept_cash = $6,
+           payment_accept_online = $7,
+           payment_qr_path = $8,
+           upi_details = $9,
            updated_at = NOW()
-         WHERE saas_account_id = $8
+         WHERE saas_account_id = $10
          RETURNING *`,
         [
           poolName,
@@ -145,6 +172,8 @@ poolCoreInfoRouter.put(
           poolLogoPath,
           swimmerTerms,
           staffTerms,
+          paymentAcceptCash,
+          paymentAcceptOnline,
           paymentQrPath,
           upiDetails,
           accountId,

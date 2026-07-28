@@ -162,6 +162,7 @@ export function PassPayment() {
   const [paymentMode, setPaymentMode] = useState('');
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [transactionId, setTransactionId] = useState('');
+  const [paymentModes, setPaymentModes] = useState<Array<'Cash' | 'Online'>>(['Cash', 'Online']);
   const [paymentQrPath, setPaymentQrPath] = useState<string | null>(null);
   const [upiDetails, setUpiDetails] = useState('');
   const [onlineDetailsLoading, setOnlineDetailsLoading] = useState(false);
@@ -327,9 +328,44 @@ export function PassPayment() {
   }, [paying, passStartDate, passValidUntil]);
 
   useEffect(() => {
+    if (!paying) return;
+
+    let cancelled = false;
+    fetch('/api/pool-core-info')
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? 'Failed to load payment options');
+        return body as {
+          paymentAcceptCash?: boolean;
+          paymentAcceptOnline?: boolean;
+          paymentQrPath?: string | null;
+          upiDetails?: string;
+        };
+      })
+      .then((body) => {
+        if (cancelled) return;
+        const modes: Array<'Cash' | 'Online'> = [];
+        if (body.paymentAcceptCash !== false) modes.push('Cash');
+        if (body.paymentAcceptOnline !== false) modes.push('Online');
+        const allowed: Array<'Cash' | 'Online'> =
+          modes.length > 0 ? modes : ['Cash', 'Online'];
+        setPaymentModes(allowed);
+        setPaymentMode((prev) => (allowed.includes(prev as 'Cash' | 'Online') ? prev : ''));
+        setPaymentQrPath(body.paymentQrPath ?? null);
+        setUpiDetails(String(body.upiDetails ?? '').trim());
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPaymentModes(['Cash', 'Online']);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [paying]);
+
+  useEffect(() => {
     if (!paying || paymentMode !== 'Online') {
-      setPaymentQrPath(null);
-      setUpiDetails('');
       setOnlineDetailsLoading(false);
       return;
     }
@@ -642,7 +678,7 @@ export function PassPayment() {
                   Payment mode <span className="req">*</span>
                 </span>
                 <div className="payment-mode-choices" role="radiogroup" aria-label="Payment mode">
-                  {(['Cash', 'Online'] as const).map((mode) => (
+                  {paymentModes.map((mode) => (
                     <label
                       key={mode}
                       className={`choice-chip${paymentMode === mode ? ' selected' : ''}`}
