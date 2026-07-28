@@ -1553,6 +1553,39 @@ button.platform-rail-link {
   }
 }
 
+.menu-tile-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.menu-send-qr {
+  flex: 0 0 auto;
+  border: 1.5px solid #2f7fe8;
+  background: #fff;
+  color: #1a3568;
+  font-weight: 700;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(22, 58, 107, 0.12);
+}
+
+.menu-send-qr:hover:not(:disabled) {
+  background: #eef5ff;
+  border-color: #1f6fd6;
+}
+
+.menu-send-qr:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .menu-tile {
   position: relative;
   display: flex;
@@ -5372,4 +5405,60 @@ button.menu-link {
   background: #f0f3f6;
   padding: 0.1em 0.35em;
   border-radius: 4px;
+}
+
+.public-open-form {
+  min-height: 100%;
+  padding-bottom: 2rem;
+}
+
+.public-pool-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: min(860px, calc(100% - 1.5rem));
+  margin: 1rem auto 0.35rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(165deg, #e8f1ff 0%, #f7fbff 100%);
+  border: 1px solid #c5d4ea;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(10, 35, 70, 0.12);
+}
+
+.public-pool-logo {
+  width: 4.25rem;
+  height: 4.25rem;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #d7dde8;
+  flex-shrink: 0;
+}
+
+.public-pool-logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #2f7fe8;
+}
+
+.public-pool-text h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #1a3568;
+  line-height: 1.25;
+}
+
+.public-pool-text p {
+  margin: 0.25rem 0 0;
+  color: #4b5c7a;
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+}
+
+.public-open-form .page {
+  box-shadow: none;
+  background: #fff;
 }

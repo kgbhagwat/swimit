@@ -32,6 +32,7 @@ import { AccountPortal } from './AccountPortal';
 import { ApplicationDemoSync } from './ApplicationDemoSync';
 import { RequirePlatformSession } from './RequirePlatformSession';
 import { PlatformUsersLayout } from './PlatformUsersLayout';
+import { PublicOpenForm } from './PublicOpenForm';
 
 installTenantFetch();
 
@@ -118,6 +119,11 @@ createRoot(document.getElementById('root')!).render(
           {appFeatureRoutes}
         </Route>
         {legacyFeatureRedirects}
+        <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
+        <Route
+          path="/:accountCode/open/staff-register"
+          element={<PublicOpenForm kind="staff" />}
+        />
         <Route path="/:accountCode" element={<AccountPortal />}>
           {appFeatureRoutes}
         </Route>

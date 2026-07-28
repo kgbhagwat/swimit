@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
 import { menuBackState } from './menuCatalog';
+import { isPublicOpenFormPath } from './PublicOpenForm';
 import {
   getActiveAccountCode,
   isPlatformUsersPath,
@@ -29,6 +30,8 @@ function platformBackTarget(pathname: string) {
 
 export function MenuBackLink({ label = '← Back' }: MenuBackLinkProps) {
   const { pathname } = useLocation();
+  if (isPublicOpenFormPath(pathname)) return null;
+
   const accountCode = getActiveAccountCode();
   const to =
     isApplicationDemo() || !accountCode || isPlatformUsersPath(pathname)

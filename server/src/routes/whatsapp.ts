@@ -6,7 +6,7 @@ import { pool } from '../db/pool.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
 import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
-import { notifyPassExpiring, sendBroadcast } from '../whatsapp/notify.js';
+import { notifyPassExpiring, notifyOpenFormQr, sendBroadcast } from '../whatsapp/notify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadRoot = path.resolve(__dirname, '../../uploads/whatsapp');
@@ -356,6 +356,75 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : 'Test send failed';
+    res.status(500).json({ error: formatWhatsAppUserError(message) });
+  }
+});
+
+/** Send public registration/staff form link + QR to a mobile (usually the logged-in desk user). */
+whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const body = req.body as { form?: string; mobile?: string };
+    const form = String(body.form ?? '').trim().toLowerCase();
+    if (form !== 'swimmer' && form !== 'staff') {
+      res.status(400).json({ error: 'form must be swimmer or staff' });
+      return;
+    }
+    const mobile = String(body.mobile ?? '').replace(/\D/g, '').slice(-10);
+    if (mobile.length !== 10) {
+      res.status(400).json({ error: 'Enter a valid 10-digit WhatsApp mobile' });
+      return;
+    }
+
+    const account = await pool.query(
+      `SELECT account_code, account_name FROM saas_accounts WHERE id = $1`,
+      [accountId],
+    );
+    const accountCode = String(account.rows[0]?.account_code ?? '');
+    if (!/^[a-z0-9]{6}$/.test(accountCode)) {
+      res.status(400).json({ error: 'Account has no valid login code' });
+      return;
+    }
+
+    const poolInfo = await pool.query(
+      `SELECT pool_name, pool_address FROM pool_core_info WHERE saas_account_id = $1 LIMIT 1`,
+      [accountId],
+    );
+
+    const result = await notifyOpenFormQr({
+      mobile,
+      form: form as 'swimmer' | 'staff',
+      accountCode,
+      poolName: String(poolInfo.rows[0]?.pool_name ?? account.rows[0]?.account_name ?? ''),
+      poolAddress: String(poolInfo.rows[0]?.pool_address ?? ''),
+      saasAccountId: accountId,
+    });
+
+    if (!result.ok) {
+      res.status(502).json({ error: result.error, ok: false });
+      return;
+    }
+    if (result.skipped) {
+      res.status(503).json({
+        error: 'WhatsApp is not configured on the server',
+        ok: false,
+        skipped: true,
+      });
+      return;
+    }
+
+    const path =
+      form === 'staff' ? `/${accountCode}/open/staff-register` : `/${accountCode}/open/register`;
+    res.json({
+      ok: true,
+      form,
+      mobile,
+      formUrl: `${getWhatsAppConfig().publicAppUrl || ''}${path}`,
+      messageId: result.messageId,
+    });
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : 'Send form QR failed';
     res.status(500).json({ error: formatWhatsAppUserError(message) });
   }
 });

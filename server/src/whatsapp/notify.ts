@@ -284,6 +284,102 @@ export async function notifyPassExpiring(params: {
   }
 }
 
+/** WhatsApp a public open-form link + QR to desk staff mobile. */
+export async function notifyOpenFormQr(params: {
+  mobile: string;
+  form: 'swimmer' | 'staff';
+  accountCode: string;
+  poolName?: string;
+  poolAddress?: string;
+  saasAccountId: number;
+}): Promise<NotifyCredentialsResult> {
+  const cfg = getWhatsAppConfig();
+  const path =
+    params.form === 'staff'
+      ? `/${params.accountCode}/open/staff-register`
+      : `/${params.accountCode}/open/register`;
+  const formUrl = cfg.publicAppUrl ? `${cfg.publicAppUrl}${path}` : path;
+  const title = params.form === 'staff' ? 'Staff registration' : 'Swimmer registration';
+  const body = [
+    params.poolName ? `${params.poolName}` : 'SwimIT',
+    params.poolAddress ? params.poolAddress : null,
+    '',
+    `${title} form (no login needed):`,
+    formUrl,
+    '',
+    'Scan the QR code or open the link to fill the form.',
+  ]
+    .filter((line) => line !== null)
+    .join('\n');
+
+  if (!cfg.enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'open_form_qr',
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+    } catch {
+      // Session may already be open.
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    if (result.skipped) {
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'open_form_qr',
+        body,
+        status: 'skipped',
+      });
+      return { ok: true, skipped: true };
+    }
+
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'open_form_qr',
+      body,
+      status: 'sent',
+    });
+
+    if (cfg.publicAppUrl) {
+      const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(formUrl)}`;
+      try {
+        await sendWhatsAppImage(params.mobile, qrApi, `${title} QR`);
+      } catch (qrErr) {
+        console.warn('[whatsapp] form QR image send failed', qrErr);
+      }
+    }
+
+    return {
+      ok: true,
+      skipped: false,
+      to: result.to,
+      messageId: result.messageId,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'open_form_qr',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
+}
+
 export async function sendBroadcast(params: {
   mobiles: string[];
   message: string;
