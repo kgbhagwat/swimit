@@ -157,15 +157,7 @@ usersRouter.post('/', async (req, res) => {
       ? `${loginOriginFromRequest(req)}/${accountCode}`
       : loginOriginFromRequest(req);
 
-    res.status(201).json({
-      ...mapUser(rows[0]),
-      temporaryPassword: password,
-      warnings,
-      deliveryNote:
-        'A random 8-character password was generated and sent on WhatsApp when configured. User must change it on first login.',
-    });
-
-    void notifyLoginCredentials({
+    const whatsapp = await notifyLoginCredentials({
       mobile,
       accountName,
       accountCode,
@@ -173,7 +165,28 @@ usersRouter.post('/', async (req, res) => {
       userName,
       temporaryPassword: password,
       saasAccountId: accountId,
-    }).catch((err) => console.warn('[whatsapp] user credentials notify failed', err));
+    });
+
+    let deliveryNote =
+      'A random 8-character password was generated. User must change it on first login.';
+    let whatsappOk = false;
+    if (whatsapp.ok && whatsapp.skipped) {
+      deliveryNote += ' WhatsApp is not configured on the server, so nothing was sent.';
+    } else if (whatsapp.ok) {
+      whatsappOk = true;
+      deliveryNote += ' Login details were sent on WhatsApp.';
+    } else {
+      deliveryNote += ` WhatsApp send failed: ${whatsapp.error}`;
+    }
+
+    res.status(201).json({
+      ...mapUser(rows[0]),
+      temporaryPassword: password,
+      warnings,
+      deliveryNote,
+      whatsappOk,
+      whatsappError: whatsapp.ok ? null : whatsapp.error,
+    });
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : '';
@@ -234,15 +247,12 @@ usersRouter.patch('/:id/password', async (req, res) => {
     const userName = String(rows[0].user_name ?? '');
     const mobile = String(rows[0].mobile ?? '');
 
-    res.json({
-      ok: true,
-      user: mapUser(rows[0]),
-      temporaryPassword: password,
-      deliveryNote: 'A new random password was generated and sent on WhatsApp when configured.',
-    });
+    let deliveryNote = 'A new random password was generated.';
+    let whatsappOk = false;
+    let whatsappError: string | null = null;
 
     if (mobile) {
-      void notifyLoginCredentials({
+      const whatsapp = await notifyLoginCredentials({
         mobile,
         accountName,
         accountCode,
@@ -250,8 +260,26 @@ usersRouter.patch('/:id/password', async (req, res) => {
         userName,
         temporaryPassword: password,
         saasAccountId: accountId,
-      }).catch((err) => console.warn('[whatsapp] password reset notify failed', err));
+      });
+      if (whatsapp.ok && whatsapp.skipped) {
+        deliveryNote += ' WhatsApp is not configured on the server, so nothing was sent.';
+      } else if (whatsapp.ok) {
+        whatsappOk = true;
+        deliveryNote += ' Password was sent on WhatsApp.';
+      } else {
+        whatsappError = whatsapp.error;
+        deliveryNote += ` WhatsApp send failed: ${whatsapp.error}`;
+      }
     }
+
+    res.json({
+      ok: true,
+      user: mapUser(rows[0]),
+      temporaryPassword: password,
+      deliveryNote,
+      whatsappOk,
+      whatsappError,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to reset password' });

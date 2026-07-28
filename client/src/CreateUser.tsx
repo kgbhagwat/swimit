@@ -79,7 +79,8 @@ export function CreateUser() {
       ].filter(Boolean);
       if (parts.length) {
         setWarning(parts.join(' '));
-        window.setTimeout(() => navigate(userManagementTo, { replace: true }), 2200);
+        if (body.whatsappOk === false) setError(String(body.whatsappError || delivery));
+        window.setTimeout(() => navigate(userManagementTo, { replace: true }), 2800);
         return;
       }
       navigate(userManagementTo, { replace: true });

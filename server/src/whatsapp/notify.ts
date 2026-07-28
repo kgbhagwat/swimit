@@ -1,6 +1,6 @@
 import { pool } from '../db/pool.js';
 import { getWhatsAppConfig } from './config.js';
-import { sendWhatsAppImage, sendWhatsAppText } from './client.js';
+import { sendWhatsAppImage, sendWhatsAppTemplate, sendWhatsAppText } from './client.js';
 
 async function logOutbound(params: {
   saasAccountId?: number | null;
@@ -29,6 +29,16 @@ async function logOutbound(params: {
   }
 }
 
+export type NotifyCredentialsResult =
+  | { ok: true; skipped: false; to: string; messageId: string }
+  | { ok: true; skipped: true }
+  | { ok: false; error: string };
+
+/**
+ * Send login credentials on WhatsApp.
+ * Meta test numbers often drop free text until a template opens the chat,
+ * so we send hello_world first, then the credentials text.
+ */
 export async function notifyLoginCredentials(params: {
   mobile: string;
   accountName: string;
@@ -37,7 +47,7 @@ export async function notifyLoginCredentials(params: {
   userName: string;
   temporaryPassword: string;
   saasAccountId?: number;
-}) {
+}): Promise<NotifyCredentialsResult> {
   const body = [
     `SwimIT login for ${params.accountName}`,
     '',
@@ -49,16 +59,68 @@ export async function notifyLoginCredentials(params: {
     'Please change the password after first login.',
   ].join('\n');
 
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
     await logOutbound({
       saasAccountId: params.saasAccountId,
       toMobile: params.mobile,
       kind: 'login_credentials',
       body,
-      status: result.skipped ? 'skipped' : 'sent',
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
     });
-    return result;
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    // Open / refresh the business chat (required on Meta sandbox for free text).
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_credentials_session',
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch (sessionErr) {
+      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_credentials_session',
+        body: 'hello_world',
+        status: 'failed',
+        error: sessionMessage,
+      });
+      // Continue — text may still work if a session is already open.
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    if (result.skipped) {
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_credentials',
+        body,
+        status: 'skipped',
+      });
+      return { ok: true, skipped: true };
+    }
+
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'login_credentials',
+      body,
+      status: 'sent',
+    });
+    return {
+      ok: true,
+      skipped: false,
+      to: result.to,
+      messageId: result.messageId,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Send failed';
     await logOutbound({
@@ -69,7 +131,10 @@ export async function notifyLoginCredentials(params: {
       status: 'failed',
       error: message,
     });
-    throw err;
+    return {
+      ok: false,
+      error: `${message}. In Meta → WhatsApp → API Setup, add ${params.mobile} under Recipient / allow list, then try again.`,
+    };
   }
 }
 

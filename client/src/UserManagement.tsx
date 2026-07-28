@@ -109,7 +109,8 @@ function UserRow({
           : '';
       const note =
         typeof body.deliveryNote === 'string' && body.deliveryNote ? ` ${body.deliveryNote}` : '';
-      onMessage('info', `Password reset for ${user.userName}.${temp}${note}`);
+      const type = body.whatsappOk === true ? 'info' : 'error';
+      onMessage(type, `Password reset for ${user.userName}.${temp}${note}`);
     } catch (err) {
       onMessage('error', err instanceof Error ? err.message : 'Failed to reset password');
     } finally {

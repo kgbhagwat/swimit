@@ -316,7 +316,7 @@ saasAccountsRouter.post('/', async (req, res) => {
       },
       warnings,
       deliveryNote:
-        'Login details can also be sent on WhatsApp when WhatsApp is configured. Temporary password is random (8 characters). They must change it on first login.',
+        'Temporary password is random (8 characters). They must change it on first login.',
     });
 
     void notifyLoginCredentials({
@@ -327,7 +327,10 @@ saasAccountsRouter.post('/', async (req, res) => {
       userName: adminUserName,
       temporaryPassword: adminPassword,
       saasAccountId: accountId,
-    }).catch((err) => console.warn('[whatsapp] credentials notify failed', err));
+    }).then((result) => {
+      if (!result.ok) console.warn('[whatsapp] credentials notify failed', result.error);
+      else if (result.skipped) console.info('[whatsapp] credentials skipped (not configured)');
+    });
   } catch (err) {
     try {
       await client.query('ROLLBACK');
@@ -433,7 +436,9 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
       userName: String(admin.rows[0].user_name),
       temporaryPassword: adminPassword,
       saasAccountId: id,
-    }).catch((err) => console.warn('[whatsapp] credentials notify failed', err));
+    }).then((result) => {
+      if (!result.ok) console.warn('[whatsapp] credentials notify failed', result.error);
+    });
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : '';
