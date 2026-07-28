@@ -3244,6 +3244,17 @@ button.coach-payment-back {
 
 .pool-core-form {
   margin-top: 0.75rem;
+  background: linear-gradient(165deg, #e8f1ff 0%, #f4f8ff 45%, #eef6fb 100%);
+  border-color: #c5d4ea;
+}
+
+.pool-core-form .photo-actions {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: #a8bdd8;
+}
+
+.pool-core-form .photo-btn {
+  background: #fff;
 }
 
 .create-user-form {
