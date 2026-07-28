@@ -64,8 +64,12 @@ fi
 
 echo "==> Building and starting (domain: ${DOMAIN})"
 GIT_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+GIT_SHORT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+GIT_SUBJ="$(git log -1 --pretty=%s 2>/dev/null || echo '')"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 export GIT_COMMIT BUILD_TIME
+echo "==> Deploying commit: ${GIT_SHORT} — ${GIT_SUBJ}"
+echo "    ${GIT_COMMIT}"
 docker compose -f docker-compose.lightsail.yml --env-file .env build \
   --build-arg GIT_COMMIT="${GIT_COMMIT}" \
   --build-arg BUILD_TIME="${BUILD_TIME}"
@@ -79,8 +83,9 @@ echo "Waiting a few seconds for HTTPS…"
 sleep 5
 curl -sS -m 20 "https://${DOMAIN}/api/health" || true
 echo ""
+echo -n "Running /api/version: "
 curl -sS -m 20 "https://${DOMAIN}/api/version" || true
 echo ""
-echo "Deployed commit: ${GIT_COMMIT}"
+echo "Confirm running commit equals: ${GIT_COMMIT}"
 echo "Open https://${DOMAIN}"
 echo "Login: code swimit / user superadmin / password superadmin"

@@ -35,6 +35,16 @@ fi
 echo "==> Deploying to ${USER_NAME}@${HOST}:${REMOTE_DIR}"
 echo "==> Using key: $KEY"
 
+# Show local + origin tip so you can confirm after deploy
+if git rev-parse HEAD >/dev/null 2>&1; then
+  LOCAL_COMMIT="$(git rev-parse HEAD)"
+  LOCAL_SHORT="$(git rev-parse --short HEAD)"
+  LOCAL_SUBJ="$(git log -1 --pretty=%s)"
+  echo "==> Expected commit (this PC / push to GitHub first if needed):"
+  echo "    ${LOCAL_SHORT} ${LOCAL_SUBJ}"
+  echo "    ${LOCAL_COMMIT}"
+fi
+
 ssh -i "$KEY" \
   -o StrictHostKeyChecking=accept-new \
   -o IdentitiesOnly=yes \
@@ -43,6 +53,9 @@ ssh -i "$KEY" \
    cd '${REMOTE_DIR}'
    echo '==> git pull'
    git pull --ff-only
+   echo '==> repo HEAD after pull:'
+   git rev-parse HEAD
+   git log -1 --oneline
    echo '==> deploy'
    bash scripts/lightsail-deploy.sh
    echo '==> version'
@@ -50,4 +63,5 @@ ssh -i "$KEY" \
    echo
   "
 
-echo "==> Done. Open https://staging.swimit.co.in"
+echo "==> Done. Confirm /api/version commit matches the Expected commit above."
+echo "==> Open https://staging.swimit.co.in"
