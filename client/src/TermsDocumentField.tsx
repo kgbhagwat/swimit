@@ -8,33 +8,65 @@ type Props = {
   rows?: number;
 };
 
-async function extractTextFromImage(file: File): Promise<string> {
-  const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker('eng');
-  try {
-    const result = await worker.recognize(file);
-    return String(result.data.text ?? '').trim();
-  } finally {
-    await worker.terminate();
-  }
+function countPages(text: string) {
+  const matches = text.match(/---\s*Page\s+\d+\s*---/gi);
+  if (matches?.length) return matches.length;
+  return text.trim() ? 1 : 0;
 }
 
-async function extractTextFromFile(file: File): Promise<string> {
-  const name = file.name.toLowerCase();
-  const type = file.type.toLowerCase();
+function joinPages(existing: string, pages: string[]) {
+  let next = existing.trim();
+  let pageNo = countPages(next);
+  for (const pageText of pages) {
+    const text = pageText.trim();
+    if (!text) continue;
+    pageNo += 1;
+    const block = pageNo === 1 && !next ? text : `--- Page ${pageNo} ---\n\n${text}`;
+    next = next ? `${next}\n\n${block}` : block;
+  }
+  return next;
+}
 
-  if (
-    type.startsWith('image/') ||
-    /\.(png|jpe?g|webp|gif|bmp|tif{1,2})$/i.test(name)
-  ) {
-    return extractTextFromImage(file);
+async function extractPagesFromFiles(files: File[]): Promise<string[]> {
+  const texts: string[] = [];
+  const imageFiles: File[] = [];
+  const otherFiles: File[] = [];
+
+  for (const file of files) {
+    const name = file.name.toLowerCase();
+    const type = file.type.toLowerCase();
+    if (
+      type.startsWith('image/') ||
+      /\.(png|jpe?g|webp|gif|bmp|tif{1,2})$/i.test(name)
+    ) {
+      imageFiles.push(file);
+    } else if (type.startsWith('text/') || /\.(txt|md|csv)$/i.test(name)) {
+      otherFiles.push(file);
+    } else {
+      throw new Error(`Unsupported file: ${file.name}. Use photos/images or .txt`);
+    }
   }
 
-  if (type.startsWith('text/') || /\.(txt|md|csv)$/i.test(name)) {
-    return (await file.text()).trim();
+  for (const file of otherFiles) {
+    const text = (await file.text()).trim();
+    if (text) texts.push(text);
   }
 
-  throw new Error('Use a photo/image of the document, or a .txt file');
+  if (imageFiles.length > 0) {
+    const { createWorker } = await import('tesseract.js');
+    const worker = await createWorker('eng');
+    try {
+      for (let i = 0; i < imageFiles.length; i += 1) {
+        const result = await worker.recognize(imageFiles[i]);
+        const text = String(result.data.text ?? '').trim();
+        if (text) texts.push(text);
+      }
+    } finally {
+      await worker.terminate();
+    }
+  }
+
+  return texts;
 }
 
 export function TermsDocumentField({
@@ -46,28 +78,41 @@ export function TermsDocumentField({
 }: Props) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
-  async function handleFile(file: File | null, mode: 'replace' | 'append') {
-    if (!file) return;
+  async function handleFiles(fileList: FileList | null) {
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) return;
+
     setBusy(true);
     setError('');
-    setStatus(file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name)
-      ? 'Scanning document (OCR)…'
-      : 'Reading file…');
+    setStatus(
+      files.length > 1
+        ? `Scanning ${files.length} pages…`
+        : files[0].type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(files[0].name)
+          ? 'Scanning page (OCR)…'
+          : 'Reading file…',
+    );
+
     try {
-      const text = await extractTextFromFile(file);
-      if (!text) {
-        throw new Error('No text found in that document. Try a clearer photo.');
+      const pages = await extractPagesFromFiles(files);
+      if (pages.length === 0) {
+        throw new Error('No text found. Try clearer photos or another file.');
       }
-      const next =
-        mode === 'append' && value.trim()
-          ? `${value.trim()}\n\n${text}`
-          : text;
+      const beforePages = countPages(valueRef.current);
+      const next = joinPages(valueRef.current, pages);
       onChange(next);
-      setStatus(`Imported ${text.length} characters. Review and edit if needed.`);
+      const added = countPages(next) - beforePages;
+      setStatus(
+        added > 1
+          ? `Added ${added} pages. Scan more pages anytime — they append below.`
+          : `Added page ${countPages(next)}. Scan more pages anytime — they append below.`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to read document');
       setStatus('');
@@ -82,8 +127,8 @@ export function TermsDocumentField({
     <div className="field terms-document-field">
       <span className="label">{label}</span>
       <p className="hint">
-        Type below, or scan/upload a document photo to extract text (English OCR). You can also upload a
-        .txt file.
+        Scan or upload one page at a time (or select multiple images). Each page is OCR’d and{' '}
+        <strong>added</strong> below the existing text. You can also upload .txt files.
       </p>
       <div className="photo-actions terms-scan-actions">
         <button
@@ -96,7 +141,7 @@ export function TermsDocumentField({
             <path d="M4 8h3l2-2h6l2 2h3v11H4V8z" />
             <circle cx="12" cy="13" r="3.5" />
           </svg>
-          Scan photo
+          {value.trim() ? 'Scan next page' : 'Scan photo'}
         </button>
         <button
           type="button"
@@ -107,7 +152,7 @@ export function TermsDocumentField({
           <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
             <path d="M3 7h6l2 2h10v10H3V7z" />
           </svg>
-          Upload document
+          Upload page(s)
         </button>
         {value.trim() ? (
           <button
@@ -115,7 +160,7 @@ export function TermsDocumentField({
             className="photo-btn"
             disabled={busy}
             onClick={() => {
-              if (confirm('Clear this terms text?')) {
+              if (confirm('Clear all terms text?')) {
                 onChange('');
                 setStatus('');
                 setError('');
@@ -132,14 +177,15 @@ export function TermsDocumentField({
         accept="image/*"
         capture="environment"
         hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null, 'replace')}
+        onChange={(e) => void handleFiles(e.target.files)}
       />
       <input
         ref={fileRef}
         type="file"
         accept="image/*,.txt,.md,text/plain"
+        multiple
         hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null, value.trim() ? 'append' : 'replace')}
+        onChange={(e) => void handleFiles(e.target.files)}
       />
       {busy ? <p className="hint">{status || 'Working…'}</p> : null}
       {!busy && status ? <p className="success">{status}</p> : null}
