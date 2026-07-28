@@ -103,14 +103,9 @@ function UserRow({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to reset password');
       setShowReset(false);
-      const temp =
-        typeof body.temporaryPassword === 'string' && body.temporaryPassword
-          ? ` Temporary password: ${body.temporaryPassword}.`
-          : '';
-      const note =
-        typeof body.deliveryNote === 'string' && body.deliveryNote ? ` ${body.deliveryNote}` : '';
-      const type = body.whatsappOk === true ? 'info' : 'error';
-      onMessage(type, `Password reset for ${user.userName}.${temp}${note}`);
+      onMessage(body.whatsappOk === false ? 'error' : 'info', body.whatsappOk === false
+        ? String(body.whatsappError || body.deliveryNote || 'WhatsApp send failed')
+        : 'New Password Sent');
     } catch (err) {
       onMessage('error', err instanceof Error ? err.message : 'Failed to reset password');
     } finally {
