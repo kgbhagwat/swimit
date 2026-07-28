@@ -3,6 +3,7 @@ import { MenuBackLink } from './MenuBackLink';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { emailHint, isValidEmail, isValidMobile, mobileHint } from './formValidation';
+import { SendFormQrButton } from './SendFormQrButton';
 import { TermsModal } from './TermsModal';
 
 type Lang = 'en' | 'mr' | 'hi';
@@ -601,19 +602,22 @@ export function App() {
       <div className="page">
         <div className="top-row">
           <MenuBackLink label={t.mainMenu} />
-          <div className="langs">
-            {(['en', 'mr', 'hi'] as const).map((code, i) => (
-              <span key={code}>
-                {i > 0 ? <span className="sep"> / </span> : null}
-                <button
-                  type="button"
-                  className={lang === code ? 'lang active' : 'lang'}
-                  onClick={() => setLang(code)}
-                >
-                  {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
-                </button>
-              </span>
-            ))}
+          <div className="top-row-right">
+            <SendFormQrButton form="swimmer" />
+            <div className="langs">
+              {(['en', 'mr', 'hi'] as const).map((code, i) => (
+                <span key={code}>
+                  {i > 0 ? <span className="sep"> / </span> : null}
+                  <button
+                    type="button"
+                    className={lang === code ? 'lang active' : 'lang'}
+                    onClick={() => setLang(code)}
+                  >
+                    {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -633,19 +637,22 @@ export function App() {
     <div className="page">
       <div className="top-row">
         <MenuBackLink label={t.mainMenu} />
-        <div className="langs">
-          {(['en', 'mr', 'hi'] as const).map((code, i) => (
-            <span key={code}>
-              {i > 0 ? <span className="sep"> / </span> : null}
-              <button
-                type="button"
-                className={lang === code ? 'lang active' : 'lang'}
-                onClick={() => setLang(code)}
-              >
-                {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
-              </button>
-            </span>
-          ))}
+        <div className="top-row-right">
+          <SendFormQrButton form="swimmer" />
+          <div className="langs">
+            {(['en', 'mr', 'hi'] as const).map((code, i) => (
+              <span key={code}>
+                {i > 0 ? <span className="sep"> / </span> : null}
+                <button
+                  type="button"
+                  className={lang === code ? 'lang active' : 'lang'}
+                  onClick={() => setLang(code)}
+                >
+                  {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
+                </button>
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 

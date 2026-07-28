@@ -5,6 +5,7 @@ import { emailHint, isValidEmail, isValidMobile, mobileHint } from './formValida
 import { MenuBackLink } from './MenuBackLink';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { TermsModal } from './TermsModal';
+import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
 
 type Lang = 'en' | 'mr' | 'hi';
@@ -947,7 +948,9 @@ export function StaffRegistration() {
                 aria-label="Active status"
               />
             </label>
-          ) : null}
+          ) : (
+            <SendFormQrButton form="staff" />
+          )}
           {isEdit ? null : (
             <div className="langs">
               {(['en', 'mr', 'hi'] as const).map((code, i) => (

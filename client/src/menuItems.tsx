@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { MenuSection } from './menuCatalog';
 
@@ -262,73 +262,23 @@ export function MenuTiles({
   items,
   appPath,
   section,
-  sendQrMobile,
-  onSendQrResult,
 }: {
   items: MenuItem[];
   appPath: (path: string) => string;
   section: MenuSection;
-  /** When set, Registration / Staff tiles show Send QR (WhatsApp to this mobile). */
-  sendQrMobile?: string | null;
-  onSendQrResult?: (type: 'info' | 'error', text: string) => void;
 }) {
-  const [sendingTo, setSendingTo] = useState<string | null>(null);
-
   if (items.length === 0) {
     return <p className="menu-section-empty">No pages in {section} yet.</p>;
   }
 
-  async function sendQr(form: 'swimmer' | 'staff', mobile: string) {
-    setSendingTo(form);
-    try {
-      const res = await fetch('/api/whatsapp/send-form-qr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ form, mobile }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Failed to send QR');
-      onSendQrResult?.(
-        'info',
-        form === 'staff' ? 'Staff form QR sent on WhatsApp' : 'Registration form QR sent on WhatsApp',
-      );
-    } catch (err) {
-      onSendQrResult?.(
-        'error',
-        err instanceof Error ? err.message : 'Failed to send QR on WhatsApp',
-      );
-    } finally {
-      setSendingTo(null);
-    }
-  }
-
   return (
     <nav className="menu-grid" aria-label={`${section} pages`}>
-      {items.map((item) => {
-        const qrForm =
-          item.to === '/register' ? 'swimmer' : item.to === '/staff-register' ? 'staff' : null;
-        const canSendQr = Boolean(qrForm && sendQrMobile && /^\d{10}$/.test(sendQrMobile));
-
-        return (
-          <div key={item.to} className="menu-tile-row">
-            <Link className="menu-tile" to={appPath(item.to)}>
-              {item.icon}
-              <span className="menu-tile-label">{item.label}</span>
-            </Link>
-            {canSendQr && qrForm ? (
-              <button
-                type="button"
-                className="menu-send-qr"
-                disabled={sendingTo === qrForm}
-                title="Send form link + QR on WhatsApp to your mobile"
-                onClick={() => void sendQr(qrForm, sendQrMobile!)}
-              >
-                {sendingTo === qrForm ? 'Sending…' : 'Send QR'}
-              </button>
-            ) : null}
-          </div>
-        );
-      })}
+      {items.map((item) => (
+        <Link key={item.to} className="menu-tile" to={appPath(item.to)}>
+          {item.icon}
+          <span className="menu-tile-label">{item.label}</span>
+        </Link>
+      ))}
     </nav>
   );
 }

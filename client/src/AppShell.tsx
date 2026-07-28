@@ -336,9 +336,6 @@ export function AppShell({
       ? sectionFromNav
       : (readStoredMenuSection() ?? 'Setup');
   });
-  const [menuFlash, setMenuFlash] = useState<{ type: 'info' | 'error'; text: string } | null>(
-    null,
-  );
 
   function appPath(path: string) {
     return `${homePath}${path}`;
@@ -474,21 +471,7 @@ export function AppShell({
         </div>
 
         <div className="app-shell-body">
-          {menuFlash ? (
-            <p className={menuFlash.type === 'error' ? 'error' : 'success'}>{menuFlash.text}</p>
-          ) : null}
-          {pageContent ?? (
-            <MenuTiles
-              items={visibleItems}
-              appPath={appPath}
-              section={section}
-              sendQrMobile={tenantUser?.mobile ?? null}
-              onSendQrResult={(type, text) => {
-                setMenuFlash({ type, text });
-                window.setTimeout(() => setMenuFlash(null), 4000);
-              }}
-            />
-          )}
+          {pageContent ?? <MenuTiles items={visibleItems} appPath={appPath} section={section} />}
         </div>
       </div>
     </div>
