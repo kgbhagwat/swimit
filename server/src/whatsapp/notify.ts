@@ -304,7 +304,7 @@ export async function notifyOpenFormQr(params: {
     params.poolName ? `${params.poolName}` : 'SwimIT',
     params.poolAddress ? params.poolAddress : null,
     '',
-    `${title} form (no login needed):`,
+    `${title} form:`,
     formUrl,
     '',
     'Scan the QR code or open the link to fill the form.',
