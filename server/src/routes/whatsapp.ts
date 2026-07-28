@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
-import { downloadWhatsAppMedia } from '../whatsapp/client.js';
+import { downloadWhatsAppMedia, sendWhatsAppTemplate, sendWhatsAppText } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { notifyPassExpiring, sendBroadcast } from '../whatsapp/notify.js';
 
@@ -216,13 +216,45 @@ whatsappRouter.get('/inbox', requireTenant, async (req, res) => {
 whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
   try {
     const accountId = tenantId(req);
-    const body = req.body as { mobile?: string; message?: string };
+    const body = req.body as { mobile?: string; message?: string; mode?: string };
     const mobile = String(body.mobile ?? '').replace(/\D/g, '').slice(-10);
     const message = String(body.message ?? '').trim();
+    const mode = String(body.mode ?? 'template').toLowerCase();
     if (mobile.length !== 10) {
       res.status(400).json({ error: 'Enter a valid 10-digit WhatsApp mobile' });
       return;
     }
+
+    // Templates open the conversation on Meta test numbers; free text often never shows up.
+    if (mode !== 'text') {
+      try {
+        const sent = await sendWhatsAppTemplate(mobile, 'hello_world', 'en_US');
+        if (sent.skipped) {
+          res.status(503).json({ error: 'WhatsApp is not configured on the server' });
+          return;
+        }
+        res.json({
+          ok: true,
+          mobile,
+          to: sent.to,
+          mode: 'template',
+          template: 'hello_world',
+          messageId: sent.messageId,
+          hint: 'Look for a chat from Meta’s test number (+1 555…). If nothing arrives, send once from Meta Step 1 with Recipient selected.',
+        });
+        return;
+      } catch (err) {
+        const templateError = err instanceof Error ? err.message : 'Template send failed';
+        // Fall through to plain text if hello_world is missing
+        if (!message) {
+          res.status(502).json({
+            error: `${templateError}. Also try Meta → Step 1 → select Recipient → Send message.`,
+          });
+          return;
+        }
+      }
+    }
+
     if (!message) {
       res.status(400).json({ error: 'Message is required' });
       return;
@@ -237,7 +269,7 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
       res.status(502).json({
         error:
           result?.error ??
-          'Send failed. Add this number under Meta → Step 1 Try it out → To (allow list), then accept the invite on WhatsApp.',
+          'Send failed. In Meta Step 1, select your number under Recipient and click Send message once.',
         result,
       });
       return;
@@ -246,12 +278,14 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
       ok: true,
       mobile,
       to: `91${mobile}`,
+      mode: 'text',
       result,
-      hint: 'If the phone shows nothing: Meta → Step 1 → add/verify this number on the allow list, then retry.',
+      hint: 'Free text may not appear until you reply to the business chat. Prefer the hello_world template test.',
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Test send failed' });
+    const message = err instanceof Error ? err.message : 'Test send failed';
+    res.status(500).json({ error: message });
   }
 });
 

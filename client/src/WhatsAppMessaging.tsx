@@ -81,11 +81,15 @@ export function WhatsAppMessaging() {
       const res = await fetch('/api/whatsapp/send-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: testMobile, message: testMessage }),
+        body: JSON.stringify({ mobile: testMobile, message: testMessage, mode: 'template' }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Test send failed');
-      setInfo(`Test message sent to ${testMobile}. Check WhatsApp on that phone.`);
+      setInfo(
+        body.mode === 'template'
+          ? `Template hello_world sent to ${testMobile}. Check WhatsApp for a chat from Meta’s test number (+1 555…).`
+          : `Test message sent to ${testMobile}. Check WhatsApp on that phone.`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test send failed');
     } finally {

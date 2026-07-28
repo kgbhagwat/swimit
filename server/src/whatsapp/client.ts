@@ -45,6 +45,37 @@ export async function sendWhatsAppText(toMobile: string, body: string) {
   return { skipped: false as const, result, messageId, to };
 }
 
+/** Approved / sample template (Meta test numbers ship with hello_world). */
+export async function sendWhatsAppTemplate(
+  toMobile: string,
+  templateName: string,
+  languageCode = 'en_US',
+) {
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    console.info('[whatsapp] skipped template (not configured):', templateName);
+    return { skipped: true as const };
+  }
+  const to = toE164(toMobile);
+  if (!to) throw new Error('Invalid WhatsApp mobile number');
+
+  const result = await graphPost(`${cfg.phoneNumberId}/messages`, {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+    },
+  });
+  const messages = Array.isArray(result.messages) ? result.messages : [];
+  const messageId = String((messages[0] as { id?: string } | undefined)?.id ?? '');
+  if (!messageId) {
+    throw new Error('WhatsApp API returned no message id for template send');
+  }
+  return { skipped: false as const, result, messageId, to };
+}
+
 export async function sendWhatsAppImage(toMobile: string, imageUrl: string, caption?: string) {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
