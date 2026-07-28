@@ -62,7 +62,6 @@ function UserRow({
   const [accessDraft, setAccessDraft] = useState(() =>
     toAccessSet(user.menuAccess, allowedPages),
   );
-  const [showReset, setShowReset] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
 
@@ -90,9 +89,6 @@ function UserRow({
   }
 
   async function onResetPassword() {
-    if (!confirm(`Generate a new random password for ${user.userName} and send it on WhatsApp?`)) {
-      return;
-    }
     setSavingPassword(true);
     try {
       const res = await fetch(`/api/users/${user.id}/password`, {
@@ -102,10 +98,12 @@ function UserRow({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to reset password');
-      setShowReset(false);
-      onMessage(body.whatsappOk === false ? 'error' : 'info', body.whatsappOk === false
-        ? String(body.whatsappError || body.deliveryNote || 'WhatsApp send failed')
-        : 'New Password Sent');
+      onMessage(
+        body.whatsappOk === false ? 'error' : 'info',
+        body.whatsappOk === false
+          ? String(body.whatsappError || body.deliveryNote || 'WhatsApp send failed')
+          : 'New Password Sent',
+      );
     } catch (err) {
       onMessage('error', err instanceof Error ? err.message : 'Failed to reset password');
     } finally {
@@ -145,30 +143,14 @@ function UserRow({
         <p>
           <strong>Created</strong> {formatCreatedAt(String(user.createdAt ?? ''))}
         </p>
-        {!showReset ? (
-          <button type="button" className="terms-link" onClick={() => setShowReset(true)}>
-            Reset Password
-          </button>
-        ) : (
-          <div className="user-reset-actions">
-            <button
-              type="button"
-              className="csv-btn"
-              disabled={savingPassword}
-              onClick={() => void onResetPassword()}
-            >
-              {savingPassword ? 'Resetting…' : 'Generate & send'}
-            </button>
-            <button
-              type="button"
-              className="terms-link"
-              onClick={() => setShowReset(false)}
-              disabled={savingPassword}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+        <button
+          type="button"
+          className="terms-link"
+          disabled={savingPassword}
+          onClick={() => void onResetPassword()}
+        >
+          {savingPassword ? 'Sending…' : 'Reset Password'}
+        </button>
       </td>
 
       <td className="user-col-access">
