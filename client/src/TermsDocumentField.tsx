@@ -132,11 +132,7 @@ export function TermsDocumentField({
   return (
     <div className="field terms-document-field">
       <span className="label">{label}</span>
-      <p className="hint">
-        Scan or upload pages (multiple images OK). Enhanced OCR cleans contrast, prefers Marathi script,
-        restores Marathi digits, and normalizes bullets. Mixed English+Marathi pages: choose “Marathi +
-        English”.
-      </p>
+      <p className="hint">Scan or upload one page at a time.</p>
       <label className="field terms-ocr-lang">
         <span className="label">OCR language</span>
         <select
