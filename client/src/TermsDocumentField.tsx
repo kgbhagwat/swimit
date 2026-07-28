@@ -54,7 +54,8 @@ async function extractPagesFromFiles(files: File[]): Promise<string[]> {
 
   if (imageFiles.length > 0) {
     const { createWorker } = await import('tesseract.js');
-    const worker = await createWorker('eng');
+    // English + Marathi (Devanagari) trained data
+    const worker = await createWorker(['eng', 'mar']);
     try {
       for (let i = 0; i < imageFiles.length; i += 1) {
         const result = await worker.recognize(imageFiles[i]);
@@ -93,9 +94,9 @@ export function TermsDocumentField({
     setError('');
     setStatus(
       files.length > 1
-        ? `Scanning ${files.length} pages…`
+        ? `Scanning ${files.length} pages (English + Marathi)…`
         : files[0].type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(files[0].name)
-          ? 'Scanning page (OCR)…'
+          ? 'Scanning page (English + Marathi OCR)…'
           : 'Reading file…',
     );
 
@@ -127,8 +128,9 @@ export function TermsDocumentField({
     <div className="field terms-document-field">
       <span className="label">{label}</span>
       <p className="hint">
-        Scan or upload one page at a time (or select multiple images). Each page is OCR’d and{' '}
-        <strong>added</strong> below the existing text. You can also upload .txt files.
+        Scan or upload one page at a time (or select multiple images). OCR supports{' '}
+        <strong>English and Marathi</strong>. Each page is added below the existing text. You can also
+        upload .txt files. First Marathi scan may take longer while language data downloads.
       </p>
       <div className="photo-actions terms-scan-actions">
         <button
