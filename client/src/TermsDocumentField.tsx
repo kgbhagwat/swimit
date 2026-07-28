@@ -133,47 +133,47 @@ export function TermsDocumentField({
     <div className="field terms-document-field">
       <span className="label">{label}</span>
       <p className="hint">Scan or upload one page at a time.</p>
-      <label className="field terms-ocr-lang">
-        <span className="label">Language of Document</span>
-        <select
-          value={langMode}
-          disabled={busy}
-          onChange={(e) => setLangMode(e.target.value as OcrLanguageMode)}
-        >
-          <option value="marathi">Marathi</option>
-          <option value="mixed">Marathi+English</option>
-          <option value="english">English</option>
-        </select>
-      </label>
-      <div className="photo-actions terms-scan-actions">
-        <button
-          type="button"
-          className="photo-btn"
-          disabled={busy}
-          onClick={() => cameraRef.current?.click()}
-        >
-          <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-            <path d="M4 8h3l2-2h6l2 2h3v11H4V8z" />
-            <circle cx="12" cy="13" r="3.5" />
-          </svg>
-          {value.trim() ? 'Scan next page' : 'Scan photo'}
-        </button>
-        <button
-          type="button"
-          className="photo-btn"
-          disabled={busy}
-          onClick={() => fileRef.current?.click()}
-        >
-          <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-            <path d="M3 7h6l2 2h10v10H3V7z" />
-          </svg>
-          Upload page(s)
-        </button>
-        {value.trim() ? (
+      <div className="terms-toolbar">
+        <label className="terms-ocr-lang">
+          <span className="label">Language of Document</span>
+          <select
+            value={langMode}
+            disabled={busy}
+            onChange={(e) => setLangMode(e.target.value as OcrLanguageMode)}
+          >
+            <option value="marathi">Marathi</option>
+            <option value="mixed">Marathi+English</option>
+            <option value="english">English</option>
+          </select>
+        </label>
+        <div className="terms-toolbar-actions">
           <button
             type="button"
-            className="photo-btn"
+            className="photo-btn terms-toolbar-btn"
             disabled={busy}
+            onClick={() => cameraRef.current?.click()}
+          >
+            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M4 8h3l2-2h6l2 2h3v11H4V8z" />
+              <circle cx="12" cy="13" r="3.5" />
+            </svg>
+            {value.trim() ? 'Scan next page' : 'Scan photo'}
+          </button>
+          <button
+            type="button"
+            className="photo-btn terms-toolbar-btn"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+          >
+            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M3 7h6l2 2h10v10H3V7z" />
+            </svg>
+            Upload page(s)
+          </button>
+          <button
+            type="button"
+            className="photo-btn terms-toolbar-btn"
+            disabled={busy || !value.trim()}
             onClick={() => {
               if (confirm('Clear all terms text?')) {
                 onChange('');
@@ -184,7 +184,7 @@ export function TermsDocumentField({
           >
             Clear text
           </button>
-        ) : null}
+        </div>
       </div>
       <input
         ref={cameraRef}

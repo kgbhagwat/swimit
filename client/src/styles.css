@@ -3475,21 +3475,70 @@ button.coach-payment-back {
   white-space: pre-wrap;
 }
 
-.terms-document-field .terms-scan-actions {
-  margin-bottom: 0.55rem;
-}
-
 .terms-document-field .terms-textarea {
   margin-top: 0.35rem;
 }
 
-.terms-ocr-lang {
-  max-width: 28rem;
+.terms-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.75rem;
   margin-bottom: 0.65rem;
+}
+
+.terms-ocr-lang {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 11rem;
+  flex: 0 1 14rem;
+  margin: 0;
 }
 
 .terms-ocr-lang select {
   width: 100%;
+  min-height: 2.55rem;
+}
+
+.terms-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+}
+
+.terms-toolbar-btn {
+  flex-direction: row !important;
+  gap: 0.4rem;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.75rem;
+  white-space: nowrap;
+}
+
+.terms-toolbar-btn .icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+@media (max-width: 640px) {
+  .terms-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .terms-ocr-lang {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .terms-toolbar-actions {
+    width: 100%;
+  }
+
+  .terms-toolbar-btn {
+    flex: 1 1 auto;
+  }
 }
 
 .upi-id-field {
