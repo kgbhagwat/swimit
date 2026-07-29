@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS batch_schedule_settings (
 );
 
 ALTER TABLE batch_schedule_settings ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 1;
+ALTER TABLE batch_schedule_settings ADD COLUMN IF NOT EXISTS session TEXT NOT NULL DEFAULT 'Complete Day';
 
 CREATE TABLE IF NOT EXISTS batch_slots (
   id SERIAL PRIMARY KEY,
@@ -116,9 +117,14 @@ CREATE TABLE IF NOT EXISTS pass_types (
   pass_charges NUMERIC(12, 2) NOT NULL DEFAULT 0,
   coaching_charges NUMERIC(12, 2) NOT NULL DEFAULT 0,
   coach TEXT,
+  max_swimmers_per_coach INT,
+  exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS max_swimmers_per_coach INT;
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE;
 
 CREATE TABLE IF NOT EXISTS pool_expenses (
   id SERIAL PRIMARY KEY,

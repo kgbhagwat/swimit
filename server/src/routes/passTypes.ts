@@ -10,7 +10,17 @@ type PassBody = {
   passCharges?: number;
   coachingCharges?: number;
   coach?: string;
+  maxSwimmersPerCoach?: number | null;
+  exceedingLimitAllowed?: boolean;
 };
+
+function parseMaxSwimmers(value: unknown): number | null | 'invalid' {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'string' && /^no\s*limit$/i.test(value.trim())) return null;
+  const num = Number(value);
+  if (!Number.isInteger(num) || num <= 0) return 'invalid';
+  return num;
+}
 
 function mapRow(row: {
   id: number;
@@ -21,6 +31,8 @@ function mapRow(row: {
   pass_charges: string | number;
   coaching_charges: string | number;
   coach: string | null;
+  max_swimmers_per_coach?: number | null;
+  exceeding_limit_allowed?: boolean | null;
 }) {
   return {
     id: row.id,
@@ -31,6 +43,9 @@ function mapRow(row: {
     passCharges: Number(row.pass_charges),
     coachingCharges: Number(row.coaching_charges),
     coach: row.coach ?? '',
+    maxSwimmersPerCoach:
+      row.max_swimmers_per_coach == null ? null : Number(row.max_swimmers_per_coach),
+    exceedingLimitAllowed: row.exceeding_limit_allowed !== false,
   };
 }
 
@@ -41,6 +56,17 @@ function validate(body: PassBody) {
   if (body.passCharges === undefined || Number.isNaN(Number(body.passCharges))) {
     return 'Pass charges are required';
   }
+  const passCharges = Number(body.passCharges);
+  const coachingCharges = Number(body.coachingCharges || 0);
+  if (Number.isNaN(coachingCharges) || coachingCharges < 0) {
+    return 'Coaching charges must be a valid amount';
+  }
+  if (coachingCharges >= passCharges) {
+    return 'Coaching charges must be less than pass charges';
+  }
+  if (parseMaxSwimmers(body.maxSwimmersPerCoach) === 'invalid') {
+    return 'Max swimmers must be a positive number or No Limit';
+  }
   return null;
 }
 
@@ -49,7 +75,8 @@ export const passTypesRouter = Router();
 passTypesRouter.get('/', async (req, res) => {
   const accountId = tenantId(req);
   const { rows } = await pool.query(
-    `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach
+    `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
+            max_swimmers_per_coach, exceeding_limit_allowed
      FROM pass_types
      WHERE saas_account_id = $1
      ORDER BY id ASC`,
@@ -68,11 +95,15 @@ passTypesRouter.post('/', async (req, res) => {
       return;
     }
 
+    const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
+    const exceedingAllowed = body.exceedingLimitAllowed !== false;
     const { rows } = await pool.query(
       `INSERT INTO pass_types
-       (saas_account_id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach`,
+       (saas_account_id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
+        max_swimmers_per_coach, exceeding_limit_allowed)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
+                 max_swimmers_per_coach, exceeding_limit_allowed`,
       [
         accountId,
         body.passName!.trim(),
@@ -82,6 +113,8 @@ passTypesRouter.post('/', async (req, res) => {
         Number(body.passCharges),
         Number(body.coachingCharges || 0),
         body.coach?.trim() || null,
+        maxSwimmers === 'invalid' ? null : maxSwimmers,
+        exceedingAllowed,
       ],
     );
     res.status(201).json(mapRow(rows[0]));
@@ -102,6 +135,8 @@ passTypesRouter.put('/:id', async (req, res) => {
       return;
     }
 
+    const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
+    const exceedingAllowed = body.exceedingLimitAllowed !== false;
     const { rows } = await pool.query(
       `UPDATE pass_types
        SET pass_name = $1,
@@ -111,9 +146,12 @@ passTypesRouter.put('/:id', async (req, res) => {
            pass_charges = $5,
            coaching_charges = $6,
            coach = $7,
+           max_swimmers_per_coach = $8,
+           exceeding_limit_allowed = $9,
            updated_at = NOW()
-       WHERE id = $8 AND saas_account_id = $9
-       RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach`,
+       WHERE id = $10 AND saas_account_id = $11
+       RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
+                 max_swimmers_per_coach, exceeding_limit_allowed`,
       [
         body.passName!.trim(),
         body.forAudience!.trim(),
@@ -122,6 +160,8 @@ passTypesRouter.put('/:id', async (req, res) => {
         Number(body.passCharges),
         Number(body.coachingCharges || 0),
         body.coach?.trim() || null,
+        maxSwimmers === 'invalid' ? null : maxSwimmers,
+        exceedingAllowed,
         id,
         accountId,
       ],

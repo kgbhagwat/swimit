@@ -727,3 +727,95 @@ export async function notifyPassPaymentRequest(params: {
     return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
   }
 }
+
+export async function notifyAccountAdminBatchOverLimit(params: {
+  mobile: string;
+  adminName: string;
+  accountName: string;
+  swimmerName: string;
+  passType: string;
+  batch: string;
+  coach: string;
+  currentCount: number;
+  limit: number;
+  saasAccountId: number;
+  source: 'desk_payment' | 'whatsapp_request' | 'whatsapp_verified';
+}): Promise<NotifyCredentialsResult> {
+  const sourceLabel =
+    params.source === 'desk_payment'
+      ? 'desk payment'
+      : params.source === 'whatsapp_request'
+        ? 'WhatsApp payment request'
+        : 'WhatsApp payment confirmation';
+
+  const body = [
+    `Hello ${params.adminName || 'Admin'},`,
+    '',
+    `Batch capacity warning for ${params.accountName}.`,
+    '',
+    `A swimmer was assigned over the coach limit during ${sourceLabel}.`,
+    `Swimmer: ${params.swimmerName}`,
+    `Pass: ${params.passType}`,
+    `Batch: ${params.batch}`,
+    `Coach: ${params.coach}`,
+    `Active swimmers with this coach in batch: ${params.currentCount} (limit ${params.limit})`,
+    '',
+    'Please review batch and coach allocation if needed.',
+  ].join('\n');
+
+  if (!getWhatsAppConfig().enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'batch_coach_over_limit',
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'batch_coach_over_limit_session',
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch {
+      // Continue — free text may still work if a session is open.
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'batch_coach_over_limit',
+      body,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+
+    return result.skipped
+      ? { ok: true, skipped: true }
+      : {
+          ok: true,
+          skipped: false,
+          to: result.to,
+          messageId: result.messageId,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'batch_coach_over_limit',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
+}

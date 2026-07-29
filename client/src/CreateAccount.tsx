@@ -22,6 +22,8 @@ type ServicePackageOption = {
   packageName: string;
   isActive: boolean;
   trialDays: number;
+  price: number;
+  billingPeriod: string;
 };
 
 type CodeCheck = {
@@ -38,14 +40,34 @@ type CreatedCredentials = {
   email: string;
   city: string;
   packageName: string;
+  packagePrice: number;
+  billingPeriod: string;
   loginUrl: string;
   adminUserName: string;
   deliveryNote: string;
   whatsappOk: boolean;
 };
 
+type PlatformPayInfo = {
+  paymentQrPath: string | null;
+  upiId: string;
+};
+
 const ACCOUNT_CODE_RE = /^[a-z0-9]{6}$/;
 const STATUSES = ['Trial', 'Active', 'Suspended'] as const;
+
+function isTrialPackage(name: string) {
+  return name.trim().toLowerCase() === 'trial';
+}
+
+function formatMoney(value: number) {
+  return `₹${value.toLocaleString('en-IN')}`;
+}
+
+function uploadUrl(filename: string | null | undefined) {
+  if (!filename) return null;
+  return `/uploads/${filename}`;
+}
 
 const emptyForm: AccountForm = {
   accountName: '',
@@ -101,6 +123,8 @@ export function CreateAccount() {
   const [success, setSuccess] = useState('');
   const [codeCheck, setCodeCheck] = useState<CodeCheck>({ status: 'idle', message: '' });
   const [created, setCreated] = useState<CreatedCredentials | null>(null);
+  const [platformPay, setPlatformPay] = useState<PlatformPayInfo | null>(null);
+  const [platformPayError, setPlatformPayError] = useState('');
   /** When true, account code is user-controlled and no longer auto-filled from the name. */
   const [codeEditedByUser, setCodeEditedByUser] = useState(false);
   const [originalCode, setOriginalCode] = useState('');
@@ -116,6 +140,8 @@ export function CreateAccount() {
           packageName: String(row.packageName ?? ''),
           isActive: row.isActive !== false,
           trialDays: Number(row.trialDays ?? 0),
+          price: Number(row.price ?? 0),
+          billingPeriod: String(row.billingPeriod ?? 'Month'),
         }));
         setPackages(options);
         if (!isEdit) {
@@ -128,6 +154,41 @@ export function CreateAccount() {
       }
     })();
   }, [isEdit]);
+
+  useEffect(() => {
+    if (!created) {
+      setPlatformPay(null);
+      setPlatformPayError('');
+      return;
+    }
+    const needsPayment = !isTrialPackage(created.packageName);
+    if (!needsPayment) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/platform-payment');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? 'Failed to load payment details');
+        if (cancelled) return;
+        setPlatformPay({
+          paymentQrPath: body.paymentQrPath ? String(body.paymentQrPath) : null,
+          upiId: String(body.upiId ?? ''),
+        });
+        setPlatformPayError('');
+      } catch (err) {
+        if (!cancelled) {
+          setPlatformPay(null);
+          setPlatformPayError(
+            err instanceof Error ? err.message : 'Failed to load payment details',
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [created]);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -332,9 +393,9 @@ export function CreateAccount() {
       const code = String(body.accountCode ?? form.accountCode);
       const warnList = Array.isArray(body.warnings) ? body.warnings.map(String) : [];
       if (warnList.length) setWarning(warnList.join(' '));
+      const selectedPkg = packages.find((p) => p.id === packageId);
       const selectedPackage =
-        packages.find((p) => p.id === packageId)?.packageName ||
-        String(body.packageName ?? '');
+        selectedPkg?.packageName || String(body.packageName ?? '');
       setCreated({
         accountName: String(body.accountName ?? form.accountName),
         accountCode: code,
@@ -344,6 +405,8 @@ export function CreateAccount() {
         email: String(body.email ?? form.email),
         city: String(body.city ?? form.city),
         packageName: selectedPackage,
+        packagePrice: Number(selectedPkg?.price ?? body.packagePrice ?? 0),
+        billingPeriod: String(selectedPkg?.billingPeriod ?? body.billingPeriod ?? 'Month'),
         loginUrl: String(body.loginUrl ?? accountLoginUrl(code)),
         adminUserName: String(body.adminUser?.userName ?? 'admin'),
         deliveryNote: String(
@@ -385,6 +448,8 @@ export function CreateAccount() {
             .join('\n'),
         )}`
       : '';
+
+    const showPayment = !isTrialPackage(created.packageName);
 
     return (
       <>
@@ -458,6 +523,56 @@ export function CreateAccount() {
               </dd>
             </div>
           </dl>
+        </section>
+
+        {showPayment ? (
+          <section className="pass-form-card account-created-payment-card">
+            <h2>Payment</h2>
+            <p className="muted" style={{ marginTop: 0 }}>
+              This is a paid package. Share the SwimIT payment details below with the pool
+              operator.
+            </p>
+            <p className="renew-amount-line">
+              Amount to pay:{' '}
+              <strong>
+                {created.packagePrice > 0
+                  ? `${formatMoney(created.packagePrice)} / ${created.billingPeriod}`
+                  : '—'}
+              </strong>
+              {' · '}
+              Package: <strong>{created.packageName}</strong>
+            </p>
+
+            {platformPayError ? <p className="error">{platformPayError}</p> : null}
+
+            <div className="online-payment-details">
+              {uploadUrl(platformPay?.paymentQrPath) ? (
+                <img
+                  src={uploadUrl(platformPay?.paymentQrPath)!}
+                  alt="SwimIT SaaS payment QR code"
+                  className="online-payment-qr"
+                />
+              ) : (
+                <p className="muted">
+                  {platformPay ? 'No SaaS payment QR configured yet.' : 'Loading payment details…'}
+                </p>
+              )}
+              {platformPay?.upiId ? (
+                <p className="online-payment-upi">
+                  <span className="label">UPI ID</span>
+                  <span className="online-payment-upi-value">{platformPay.upiId}</span>
+                </p>
+              ) : platformPay ? (
+                <p className="muted">No UPI ID configured yet.</p>
+              ) : null}
+            </div>
+
+            <p className="hint">
+              After payment, the pool operator can send the payment screenshot on WhatsApp to
+              SwimIT for confirmation.
+            </p>
+          </section>
+        ) : null}
 
           <div className="submit-wrap" style={{ marginTop: '1rem' }}>
             {mailto ? (
@@ -475,7 +590,6 @@ export function CreateAccount() {
               </Link>
             )}
           </div>
-        </section>
       </div>
       </>
     );

@@ -13,26 +13,38 @@ type GraphError = {
 export function formatWhatsAppUserError(raw: string, mobile?: string) {
   const message = String(raw || 'WhatsApp send failed').trim();
   const lower = message.toLowerCase();
-  // Same mobile for admin + operator is fine — WhatsApp only sees the phone number.
+  const m = mobile ? ` ${mobile}` : '';
+
+  // Check allow-list / recipient errors before OAuth — Meta often tags these as OAuthException too.
+  if (
+    lower.includes('(#131030)') ||
+    lower.includes('not in allowed') ||
+    lower.includes('recipient phone number not in allowed list') ||
+    lower.includes('not a valid whatsapp') ||
+    lower.includes('undeliverable')
+  ) {
+    return (
+      `${message}. ` +
+      `This WhatsApp number is still in Meta test/development mode, so it can only message numbers on the allow list.` +
+      ` Add${m} under Meta → WhatsApp → API Setup → To / Recipient phone numbers,` +
+      ` or publish the app / complete Business verification to message any mobile.`
+    );
+  }
+
   if (
     lower.includes('authenticat') ||
     lower.includes('access token') ||
-    lower.includes('oauth') ||
     lower.includes('session has expired') ||
-    lower.includes('invalid oauth')
+    lower.includes('invalid oauth') ||
+    (lower.includes('oauth') && !lower.includes('131030'))
   ) {
     return `${message}. The token in server .env is invalid or expired. Paste a fresh WHATSAPP_TOKEN, then run: docker compose -f docker-compose.lightsail.yml up -d --force-recreate app`;
   }
-  if (
-    lower.includes('recipient') ||
-    lower.includes('not a valid whatsapp') ||
-    lower.includes('undeliverable') ||
-    lower.includes('(#131030)') ||
-    lower.includes('not in allowed')
-  ) {
-    const m = mobile ? ` ${mobile}` : '';
+
+  if (lower.includes('recipient')) {
     return `${message}. Add${m} under Meta → WhatsApp → API Setup → Recipient / allow list.`;
   }
+
   return message;
 }
 

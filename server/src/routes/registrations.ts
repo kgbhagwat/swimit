@@ -11,6 +11,7 @@ import {
   notifyPassPaymentRequest,
   notifyRegistrationConfirmation,
 } from '../whatsapp/notify.js';
+import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../uploads');
@@ -204,6 +205,43 @@ function formatDateValue(value: unknown) {
   return String(value).slice(0, 10);
 }
 
+registrationsRouter.get('/assignment-count', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const batch = String(req.query.batch ?? '').trim();
+    const coach = String(req.query.coach ?? '').trim();
+    const excludeId = Number(req.query.excludeId ?? 0);
+
+    if (!batch || !coach) {
+      res.status(400).json({ error: 'batch and coach are required' });
+      return;
+    }
+
+    const params: Array<string | number> = [accountId, batch, coach];
+    let excludeSql = '';
+    if (Number.isFinite(excludeId) && excludeId > 0) {
+      params.push(excludeId);
+      excludeSql = ` AND id <> $${params.length}`;
+    }
+
+    const { rows } = await pool.query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count
+       FROM registrations
+       WHERE saas_account_id = $1
+         AND is_active = TRUE
+         AND LOWER(TRIM(COALESCE(batch, ''))) = LOWER(TRIM($2::text))
+         AND LOWER(TRIM(COALESCE(coach, ''))) = LOWER(TRIM($3::text))
+         ${excludeSql}`,
+      params,
+    );
+
+    res.json({ count: Number(rows[0]?.count ?? 0) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to count swimmers for batch and coach' });
+  }
+});
+
 registrationsRouter.get('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);
@@ -304,6 +342,22 @@ registrationsRouter.patch('/:id', async (req, res) => {
       return;
     }
 
+    if (isPassPayment) {
+      const capacity = await checkBatchCoachCapacity({
+        saasAccountId: accountId,
+        registrationId: id,
+        passType: String(body.passType ?? '').trim(),
+        batch: String(body.batch ?? '').trim(),
+        coach: body.coach,
+      });
+      if (capacity.overLimit && !capacity.exceedingAllowed && capacity.limit != null) {
+        res.status(400).json({
+          error: `This batch already has ${capacity.count} swimmers with this coach (limit ${capacity.limit}). Exceeding the limit is not allowed for this pass type.`,
+        });
+        return;
+      }
+    }
+
     const updates: string[] = [];
     const values: unknown[] = [];
 
@@ -387,6 +441,16 @@ registrationsRouter.patch('/:id', async (req, res) => {
         accountCode: String(account.rows[0]?.account_code ?? ''),
         saasAccountId: accountId,
       }).catch((err) => console.warn('[whatsapp] pass notify failed', err));
+
+      void maybeNotifyBatchCoachOverLimit({
+        saasAccountId: accountId,
+        registrationId: Number(updated.id),
+        swimmerName: String(updated.full_name),
+        passType: passName,
+        batch: String(updated.batch ?? ''),
+        coach: updated.coach,
+        source: 'desk_payment',
+      }).catch((err) => console.warn('[whatsapp] batch capacity notify failed', err));
     }
 
     res.json(updated);
@@ -426,6 +490,20 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(passValidUntil)) {
       res.status(400).json({ error: 'Pass valid-until date is required' });
+      return;
+    }
+
+    const capacity = await checkBatchCoachCapacity({
+      saasAccountId: accountId,
+      registrationId: id,
+      passType,
+      batch,
+      coach,
+    });
+    if (capacity.overLimit && !capacity.exceedingAllowed && capacity.limit != null) {
+      res.status(400).json({
+        error: `This batch already has ${capacity.count} swimmers with this coach (limit ${capacity.limit}). Exceeding the limit is not allowed for this pass type.`,
+      });
       return;
     }
 
@@ -523,6 +601,16 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
       paymentQrPath,
       saasAccountId: accountId,
     });
+
+    void maybeNotifyBatchCoachOverLimit({
+      saasAccountId: accountId,
+      registrationId: id,
+      swimmerName: String(regRows[0].full_name),
+      passType,
+      batch,
+      coach,
+      source: 'whatsapp_request',
+    }).catch((err) => console.warn('[whatsapp] batch capacity notify failed', err));
 
     res.json({
       ok: true,

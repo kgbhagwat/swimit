@@ -119,6 +119,20 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     section: 'Setup',
+    to: '/pool-core-info',
+    label: 'Pool Core Info',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 19h16" />
+          <path d="M6 19V9l6-4 6 4v10" />
+          <path d="M10 19v-4h4v4" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
+    section: 'Setup',
     to: '/batches',
     label: 'Batch List',
     icon: (
@@ -209,20 +223,6 @@ export const MENU_ITEMS: MenuItem[] = [
           <rect x="3" y="6" width="18" height="12" rx="2" />
           <path d="M3 10h18" />
           <path d="M7 15h3" />
-        </svg>
-      </IconWrap>
-    ),
-  },
-  {
-    section: 'Setup',
-    to: '/pool-core-info',
-    label: 'Pool Core Info',
-    icon: (
-      <IconWrap>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M4 19h16" />
-          <path d="M6 19V9l6-4 6 4v10" />
-          <path d="M10 19v-4h4v4" />
         </svg>
       </IconWrap>
     ),

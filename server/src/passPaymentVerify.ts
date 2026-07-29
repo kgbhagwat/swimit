@@ -8,6 +8,7 @@ import {
   uploadAbsolutePath,
 } from './paymentAmount.js';
 import { notifyPassIssued } from './whatsapp/notify.js';
+import { maybeNotifyBatchCoachOverLimit } from './batchCapacity.js';
 import { sendWhatsAppText } from './whatsapp/client.js';
 import { getWhatsAppConfig } from './whatsapp/config.js';
 
@@ -282,6 +283,16 @@ export async function processPassPaymentInbound(params: {
     accountCode: String(account.rows[0]?.account_code ?? ''),
     saasAccountId: params.saasAccountId,
   }).catch((err) => console.warn('[whatsapp] pass notify after WA payment failed', err));
+
+  void maybeNotifyBatchCoachOverLimit({
+    saasAccountId: params.saasAccountId,
+    registrationId,
+    swimmerName,
+    passType,
+    batch,
+    coach,
+    source: 'whatsapp_verified',
+  }).catch((err) => console.warn('[whatsapp] batch capacity notify failed', err));
 
   return true;
 }

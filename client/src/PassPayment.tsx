@@ -23,6 +23,8 @@ type PassTypeOption = {
   passCharges: number;
   coachingCharges: number;
   coach: string;
+  maxSwimmersPerCoach: number | null;
+  exceedingLimitAllowed: boolean;
 };
 
 type BatchSlot = {
@@ -171,6 +173,8 @@ export function PassPayment() {
   const [holidaysLoading, setHolidaysLoading] = useState(false);
   const [waRequesting, setWaRequesting] = useState(false);
   const [waInfo, setWaInfo] = useState('');
+  const [assignmentCount, setAssignmentCount] = useState<number | null>(null);
+  const [assignmentCountLoading, setAssignmentCountLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -211,8 +215,22 @@ export function PassPayment() {
       );
 
       if (passRes.ok) {
-        const passes = (await passRes.json()) as PassTypeOption[];
-        setPassTypes(passes);
+        const passes = (await passRes.json()) as Array<
+          PassTypeOption & {
+            maxSwimmersPerCoach?: number | null;
+            exceedingLimitAllowed?: boolean;
+          }
+        >;
+        setPassTypes(
+          passes.map((pass) => ({
+            ...pass,
+            maxSwimmersPerCoach:
+              pass.maxSwimmersPerCoach == null || Number(pass.maxSwimmersPerCoach) <= 0
+                ? null
+                : Number(pass.maxSwimmersPerCoach),
+            exceedingLimitAllowed: pass.exceedingLimitAllowed !== false,
+          })),
+        );
       }
       if (batchRes.ok) {
         const data = (await batchRes.json()) as { slots?: BatchSlot[] };
@@ -278,6 +296,8 @@ export function PassPayment() {
     setPaymentQrPath(null);
     setUpiDetails('');
     setWaInfo('');
+    setAssignmentCount(null);
+    setAssignmentCountLoading(false);
     setError('');
   }
 
@@ -431,6 +451,63 @@ export function PassPayment() {
     if (!stillAvailable) setCoach('');
   }, [batch, coach, coachesForBatch, coachingRequired]);
 
+  useEffect(() => {
+    if (!coachingRequired || !batch.trim() || !coach.trim()) {
+      setAssignmentCount(null);
+      setAssignmentCountLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setAssignmentCountLoading(true);
+    const params = new URLSearchParams({
+      batch: batch.trim(),
+      coach: coach.trim(),
+    });
+    if (paying?.id) params.set('excludeId', String(paying.id));
+
+    fetch(`/api/registrations/assignment-count?${params.toString()}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to load assignment count');
+        return res.json() as Promise<{ count?: number }>;
+      })
+      .then((data) => {
+        if (!cancelled) setAssignmentCount(Number(data.count ?? 0));
+      })
+      .catch(() => {
+        if (!cancelled) setAssignmentCount(null);
+      })
+      .finally(() => {
+        if (!cancelled) setAssignmentCountLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [batch, coach, coachingRequired, paying?.id]);
+
+  const maxSwimmersPerCoach = selectedPass?.maxSwimmersPerCoach ?? null;
+  const exceedingLimitAllowed = selectedPass?.exceedingLimitAllowed !== false;
+  const assignmentOverLimit =
+    assignmentCount != null &&
+    maxSwimmersPerCoach != null &&
+    assignmentCount >= maxSwimmersPerCoach;
+
+  function confirmAssignmentIfOverLimit() {
+    if (!assignmentOverLimit || assignmentCount == null || maxSwimmersPerCoach == null) {
+      return true;
+    }
+    if (!exceedingLimitAllowed) {
+      setError(
+        `This batch already has ${assignmentCount} swimmer${assignmentCount === 1 ? '' : 's'} with coach ${coach} (limit ${maxSwimmersPerCoach}). Exceeding this limit is not allowed for this pass type.`,
+      );
+      return false;
+    }
+    return window.confirm(
+      `This batch already has ${assignmentCount} swimmer${assignmentCount === 1 ? '' : 's'} with coach ${coach} (limit ${maxSwimmersPerCoach}). Do you still want to assign?\n\nThe account admin will be notified on WhatsApp.`,
+    );
+  }
+
   async function onRequestWhatsAppPayment() {
     if (!paying || !selectedPass) {
       setError('Select a pass type');
@@ -448,6 +525,7 @@ export function PassPayment() {
       setError('Pass end date is required');
       return;
     }
+    if (!confirmAssignmentIfOverLimit()) return;
 
     setWaRequesting(true);
     setError('');
@@ -512,6 +590,7 @@ export function PassPayment() {
       setError('Confirm that you saw payment completed successfully');
       return;
     }
+    if (!confirmAssignmentIfOverLimit()) return;
     setSaving(true);
     setError('');
     try {
@@ -731,6 +810,23 @@ export function PassPayment() {
                       ))}
                     </select>
                   )}
+                  {coach ? (
+                    <p
+                      className={`assignment-count${assignmentOverLimit ? ' assignment-count-over' : ''}`}
+                    >
+                      {assignmentCountLoading
+                        ? 'Counting swimmers in this batch with this coach…'
+                        : assignmentCount == null
+                          ? 'Could not load swimmer count for this batch and coach.'
+                          : maxSwimmersPerCoach == null
+                            ? `Swimmers in this batch with this coach: ${assignmentCount} (No Limit)`
+                            : `Swimmers in this batch with this coach: ${assignmentCount} / ${maxSwimmersPerCoach}${
+                                assignmentOverLimit && !exceedingLimitAllowed
+                                  ? ' — exceeding not allowed'
+                                  : ''
+                              }`}
+                    </p>
+                  ) : null}
                 </label>
               ) : null}
 

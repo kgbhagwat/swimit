@@ -10,6 +10,8 @@ type PassType = {
   passCharges: number;
   coachingCharges: number;
   coach: string;
+  maxSwimmersPerCoach: number | null;
+  exceedingLimitAllowed: boolean;
 };
 
 type PassForm = {
@@ -21,6 +23,8 @@ type PassForm = {
   passCharges: string;
   coachingCharges: string;
   coach: string;
+  maxSwimmersPerCoach: string;
+  exceedingLimitAllowed: 'Yes' | 'No';
 };
 
 const FOR_OPTIONS = [
@@ -53,6 +57,8 @@ const emptyForm: PassForm = {
   passCharges: '',
   coachingCharges: '',
   coach: 'Not Required',
+  maxSwimmersPerCoach: 'No Limit',
+  exceedingLimitAllowed: 'Yes',
 };
 
 type CoachOption = {
@@ -70,6 +76,19 @@ const STROKE_FILTER_OPTIONS = [
 
 function formatMoney(value: number) {
   return `₹${value.toLocaleString('en-IN')}`;
+}
+
+function formatMaxSwimmers(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value) || value <= 0) return 'No Limit';
+  return String(value);
+}
+
+function parseMaxSwimmersInput(value: string): number | null | 'invalid' {
+  const trimmed = value.trim();
+  if (!trimmed || /^no\s*limit$/i.test(trimmed)) return null;
+  const num = Number(trimmed);
+  if (!Number.isInteger(num) || num <= 0) return 'invalid';
+  return num;
 }
 
 function EditIcon() {
@@ -259,6 +278,8 @@ export function PassTypePage() {
       passCharges: String(item.passCharges),
       coachingCharges: String(item.coachingCharges),
       coach: item.coach || 'Not Required',
+      maxSwimmersPerCoach: formatMaxSwimmers(item.maxSwimmersPerCoach),
+      exceedingLimitAllowed: item.exceedingLimitAllowed === false ? 'No' : 'Yes',
     });
     setFormOpen(true);
     setError('');
@@ -280,6 +301,24 @@ export function PassTypePage() {
       setError('Select at least one prerequisite');
       return;
     }
+    if (form.coach !== 'Not Required') {
+      const coaching = Number(form.coachingCharges);
+      if (!String(form.coachingCharges).trim() || Number.isNaN(coaching) || coaching < 0) {
+        setError('Enter coaching charges when Coach is selected');
+        return;
+      }
+    }
+    const maxSwimmers = parseMaxSwimmersInput(form.maxSwimmersPerCoach);
+    if (maxSwimmers === 'invalid') {
+      setError('Max swimmers must be a positive number or No Limit');
+      return;
+    }
+    const passCharges = Number(form.passCharges);
+    const coachingCharges = Number(form.coachingCharges || 0);
+    if (!Number.isNaN(passCharges) && !Number.isNaN(coachingCharges) && coachingCharges >= passCharges) {
+      setError('Coaching charges must be less than pass charges');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -288,9 +327,11 @@ export function PassTypePage() {
         forAudience: form.forOptions.join(', '),
         prerequisite: form.prerequisites.join(', '),
         duration: `${form.durationValue} ${form.durationUnit}`,
-        passCharges: Number(form.passCharges),
-        coachingCharges: Number(form.coachingCharges || 0),
+        passCharges,
+        coachingCharges,
         coach: form.coach.trim() || 'Not Required',
+        maxSwimmersPerCoach: maxSwimmers,
+        exceedingLimitAllowed: form.exceedingLimitAllowed === 'Yes',
       };
       const res = await fetch(editingId ? `/api/pass-types/${editingId}` : '/api/pass-types', {
         method: editingId ? 'PUT' : 'POST',
@@ -346,54 +387,161 @@ export function PassTypePage() {
 
       {formOpen ? (
         <section className="pass-form-card" aria-labelledby="pass-form-title">
-          <h2 id="pass-form-title">{editingId ? 'Edit pass type' : 'Add pass type'}</h2>
           <form className="pass-form" onSubmit={onSubmit}>
-            <label className="field">
-              <span className="label">
+            <h2 id="pass-form-title">{editingId ? 'Edit pass type' : 'Add pass type'}</h2>
+            <label className="pass-name-field">
+              <span className="pass-option-label">
                 Pass name <span className="req">*</span>
               </span>
               <input
                 value={form.passName}
                 onChange={(e) => setForm({ ...form, passName: e.target.value })}
-                placeholder="e.g. Beginners, Advanced, Ladies only"
+                placeholder="e.g. General, Level 1, Level 2, Competitive etc"
                 required
+                aria-label="Pass name"
               />
             </label>
 
             <div className="pass-option-row">
               <span className="pass-option-label">For</span>
-              <div className="pass-check-row">
-                {FOR_OPTIONS.map((option) => (
-                  <label className="pass-check" key={option}>
-                    <input
-                      type="checkbox"
-                      checked={form.forOptions.includes(option)}
-                      onChange={() => updateForOptions(option)}
-                    />
-                    <span>{option}</span>
-                  </label>
-                ))}
+              <div className="pass-check-rows">
+                <div className="pass-check-row">
+                  {FOR_OPTIONS.slice(0, 5).map((option) => (
+                    <label className="pass-check" key={option}>
+                      <input
+                        type="checkbox"
+                        checked={form.forOptions.includes(option)}
+                        onChange={() => updateForOptions(option)}
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="pass-check-row">
+                  {FOR_OPTIONS.slice(5).map((option) => (
+                    <label className="pass-check" key={option}>
+                      <input
+                        type="checkbox"
+                        checked={form.forOptions.includes(option)}
+                        onChange={() => updateForOptions(option)}
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
             <div className="pass-option-row">
               <span className="pass-option-label">Prerequisite</span>
-              <div className="pass-check-row">
-                {PREREQ_OPTIONS.map((option) => (
-                  <label className="pass-check" key={option}>
-                    <input
-                      type="checkbox"
-                      checked={form.prerequisites.includes(option)}
-                      onChange={() =>
-                        setForm({
-                          ...form,
-                          prerequisites: togglePrerequisite(form.prerequisites, option),
-                        })
-                      }
-                    />
-                    <span>{option}</span>
-                  </label>
-                ))}
+              <div className="pass-check-rows">
+                <div className="pass-check-row">
+                  {PREREQ_OPTIONS.slice(0, 5).map((option) => (
+                    <label className="pass-check" key={option}>
+                      <input
+                        type="checkbox"
+                        checked={form.prerequisites.includes(option)}
+                        onChange={() =>
+                          setForm({
+                            ...form,
+                            prerequisites: togglePrerequisite(form.prerequisites, option),
+                          })
+                        }
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="pass-check-row">
+                  {PREREQ_OPTIONS.slice(5).map((option) => (
+                    <label className="pass-check" key={option}>
+                      <input
+                        type="checkbox"
+                        checked={form.prerequisites.includes(option)}
+                        onChange={() =>
+                          setForm({
+                            ...form,
+                            prerequisites: togglePrerequisite(form.prerequisites, option),
+                          })
+                        }
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pass-coach-row">
+              <div className="pass-inline-field pass-coach-field">
+                <span className="pass-option-label">Coach</span>
+                <select
+                  value={form.coach}
+                  onChange={(e) => {
+                    const coach = e.target.value;
+                    setForm({
+                      ...form,
+                      coach,
+                      coachingCharges: coach === 'Not Required' ? '' : form.coachingCharges,
+                    });
+                  }}
+                  aria-label="Coach"
+                >
+                  <option value="Not Required">Not Required</option>
+                  <option value="Any">Any</option>
+                  {matchingCoaches.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pass-inline-field pass-max-swimmers-field">
+                <span className="pass-option-label pass-option-label-wide">
+                  Max no of swimmers in a batch per coach
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.maxSwimmersPerCoach}
+                  onFocus={(e) => {
+                    if (/^no\s*limit$/i.test(e.target.value.trim())) {
+                      e.target.select();
+                    }
+                  }}
+                  onChange={(e) => setForm({ ...form, maxSwimmersPerCoach: e.target.value })}
+                  onBlur={() => {
+                    const parsed = parseMaxSwimmersInput(form.maxSwimmersPerCoach);
+                    if (parsed === null || !form.maxSwimmersPerCoach.trim()) {
+                      setForm({ ...form, maxSwimmersPerCoach: 'No Limit' });
+                    } else if (parsed !== 'invalid') {
+                      setForm({ ...form, maxSwimmersPerCoach: formatMaxSwimmers(parsed) });
+                    }
+                  }}
+                  placeholder="No Limit"
+                  aria-label="Max no of swimmers in a batch per coach"
+                />
+              </div>
+
+              <div className="pass-inline-field pass-exceed-limit-field">
+                <span className="pass-option-label pass-option-label-wide">
+                  Is Exceeding this limit allowed?
+                </span>
+                <div className="pass-yes-no" role="radiogroup" aria-label="Is Exceeding this limit allowed?">
+                  {(['Yes', 'No'] as const).map((option) => (
+                    <label key={option} className="pass-yes-no-option">
+                      <input
+                        type="radio"
+                        name="exceedingLimitAllowed"
+                        value={option}
+                        checked={form.exceedingLimitAllowed === option}
+                        onChange={() => setForm({ ...form, exceedingLimitAllowed: option })}
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -441,10 +589,14 @@ export function PassTypePage() {
                   />
                 </div>
               </div>
+            </div>
 
-              {form.coach !== 'Not Required' ? (
+            {form.coach !== 'Not Required' ? (
+              <div className="pass-charges-row pass-coaching-charges-row">
                 <div className="pass-inline-field">
-                  <span className="pass-option-label pass-option-label-wide">Coaching Charges</span>
+                  <span className="pass-option-label pass-option-label-wide">
+                    Coaching Charges <span className="req">*</span>
+                  </span>
                   <div className="money-input">
                     <span className="money-prefix" aria-hidden="true">
                       ₹
@@ -455,36 +607,15 @@ export function PassTypePage() {
                       step="1"
                       value={form.coachingCharges}
                       onChange={(e) => setForm({ ...form, coachingCharges: e.target.value })}
-                      placeholder="e.g. 2100"
+                      placeholder="e.g. 400"
+                      required
                       aria-label="Coaching charges"
                     />
                   </div>
+                  <span className="pass-coach-charges-note">(It should be part of pass charges)</span>
                 </div>
-              ) : null}
-            </div>
-
-            <label className="field">
-              <span className="label">Coach</span>
-              <select
-                value={form.coach}
-                onChange={(e) => {
-                  const coach = e.target.value;
-                  setForm({
-                    ...form,
-                    coach,
-                    coachingCharges: coach === 'Not Required' ? '' : form.coachingCharges,
-                  });
-                }}
-              >
-                <option value="Not Required">Not Required</option>
-                <option value="Any">Any</option>
-                {matchingCoaches.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              </div>
+            ) : null}
 
             {error && formOpen ? <p className="error">{error}</p> : null}
 

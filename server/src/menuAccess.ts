@@ -1,8 +1,8 @@
 export const ACCESS_PAGE_KEYS = [
   'create-user',
+  'pool-core-info',
   'batches',
   'pass-types',
-  'pool-core-info',
   'holiday-management',
   'pass-payment',
   'whatsapp',

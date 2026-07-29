@@ -3,6 +3,8 @@ import { MenuBackLink } from './MenuBackLink';
 
 type Period = 'AM' | 'PM';
 
+type Session = 'Morning' | 'Afternoon' | 'Evening' | 'Complete Day';
+
 type ClockTime = {
   hour: string;
   minute: string;
@@ -11,6 +13,7 @@ type ClockTime = {
 
 type ScheduleSettings = {
   id: string;
+  session: Session;
   batchMinutes: number;
   breakMinutes: number;
   firstStart: ClockTime;
@@ -26,24 +29,46 @@ type BatchSlot = {
 };
 
 const BATCH_TYPES = ['General', 'Ladies', 'Advance'];
+const SESSIONS: Session[] = ['Morning', 'Afternoon', 'Evening', 'Complete Day'];
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+const SESSION_DEFAULTS: Record<Session, { firstStart: ClockTime; lastEnd: ClockTime }> = {
+  Morning: {
+    firstStart: { hour: '06', minute: '00', period: 'AM' },
+    lastEnd: { hour: '12', minute: '00', period: 'PM' },
+  },
+  Afternoon: {
+    firstStart: { hour: '12', minute: '00', period: 'PM' },
+    lastEnd: { hour: '05', minute: '00', period: 'PM' },
+  },
+  Evening: {
+    firstStart: { hour: '05', minute: '00', period: 'PM' },
+    lastEnd: { hour: '08', minute: '00', period: 'PM' },
+  },
+  'Complete Day': {
+    firstStart: { hour: '06', minute: '00', period: 'AM' },
+    lastEnd: { hour: '08', minute: '00', period: 'PM' },
+  },
+};
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function defaultClock(hour = '06', minute = '00', period: Period = 'AM'): ClockTime {
-  return { hour, minute, period };
+function parseSession(value: unknown): Session {
+  return SESSIONS.includes(value as Session) ? (value as Session) : 'Complete Day';
 }
 
-function defaultSchedule(): ScheduleSettings {
+function defaultSchedule(session: Session = 'Complete Day'): ScheduleSettings {
+  const times = SESSION_DEFAULTS[session];
   return {
     id: createId(),
+    session,
     batchMinutes: 60,
     breakMinutes: 15,
-    firstStart: defaultClock('06', '00', 'AM'),
-    lastEnd: defaultClock('08', '00', 'PM'),
+    firstStart: { ...times.firstStart },
+    lastEnd: { ...times.lastEnd },
   };
 }
 
@@ -101,6 +126,28 @@ function generateSlotsFromSchedule(settings: ScheduleSettings, startIndex: numbe
   }
 
   return slots;
+}
+
+function sessionsOverlap(
+  a: { firstStart: ClockTime; lastEnd: ClockTime },
+  b: { firstStart: ClockTime; lastEnd: ClockTime },
+) {
+  const aStart = clockToMinutes(a.firstStart);
+  const aEnd = clockToMinutes(a.lastEnd);
+  const bStart = clockToMinutes(b.firstStart);
+  const bEnd = clockToMinutes(b.lastEnd);
+  return aStart < bEnd && bStart < aEnd;
+}
+
+function findSessionOverlapError(rows: ScheduleSettings[]) {
+  for (let i = 0; i < rows.length; i += 1) {
+    for (let j = i + 1; j < rows.length; j += 1) {
+      if (sessionsOverlap(rows[i], rows[j])) {
+        return `${rows[i].session} and ${rows[j].session} session times overlap`;
+      }
+    }
+  }
+  return null;
 }
 
 function TimeSelect({
@@ -162,6 +209,17 @@ function formatClockDisplay(time: ClockTime) {
   return `${Number(time.hour)}:${time.minute} ${time.period}`;
 }
 
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 export function BatchList() {
   const [schedules, setSchedules] = useState<ScheduleSettings[]>([defaultSchedule()]);
   const [slots, setSlots] = useState<BatchSlot[]>([]);
@@ -181,12 +239,14 @@ export function BatchList() {
         (data: {
           schedules?: Array<{
             id?: string;
+            session?: string;
             batchMinutes: number;
             breakMinutes: number;
             firstStart: string;
             lastEnd: string;
           }>;
           settings?: {
+            session?: string;
             batchMinutes: number;
             breakMinutes: number;
             firstStart: string;
@@ -204,6 +264,7 @@ export function BatchList() {
             setSchedules(
               data.schedules.map((row) => ({
                 id: row.id ?? createId(),
+                session: parseSession(row.session),
                 batchMinutes: row.batchMinutes,
                 breakMinutes: row.breakMinutes,
                 firstStart: parse24hToClock(row.firstStart),
@@ -214,6 +275,7 @@ export function BatchList() {
             setSchedules([
               {
                 id: createId(),
+                session: parseSession(data.settings.session),
                 batchMinutes: data.settings.batchMinutes,
                 breakMinutes: data.settings.breakMinutes,
                 firstStart: parse24hToClock(data.settings.firstStart),
@@ -240,6 +302,15 @@ export function BatchList() {
     setSchedules((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
 
+  function updateSession(id: string, session: Session) {
+    const times = SESSION_DEFAULTS[session];
+    updateSchedule(id, {
+      session,
+      firstStart: { ...times.firstStart },
+      lastEnd: { ...times.lastEnd },
+    });
+  }
+
   function addScheduleRow() {
     setSchedules((prev) => [...prev, defaultSchedule()]);
   }
@@ -258,6 +329,12 @@ export function BatchList() {
         setError('Each schedule must have start time before end time');
         return;
       }
+    }
+
+    const overlapError = findSessionOverlapError(schedules);
+    if (overlapError) {
+      setError(overlapError);
+      return;
     }
 
     const next: BatchSlot[] = [];
@@ -307,12 +384,19 @@ export function BatchList() {
     setSaving(true);
     setError('');
     setSuccess('');
+    const overlapError = findSessionOverlapError(schedules);
+    if (overlapError) {
+      setError(overlapError);
+      setSaving(false);
+      return;
+    }
     try {
       const res = await fetch('/api/batches', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           schedules: schedules.map((row) => ({
+            session: row.session,
             batchMinutes: row.batchMinutes,
             breakMinutes: row.breakMinutes,
             firstStart: clockTo24h(row.firstStart),
@@ -333,12 +417,14 @@ export function BatchList() {
           payload.schedules.map(
             (row: {
               id?: string;
+              session?: string;
               batchMinutes: number;
               breakMinutes: number;
               firstStart: string;
               lastEnd: string;
             }) => ({
               id: row.id ?? createId(),
+              session: parseSession(row.session),
               batchMinutes: row.batchMinutes,
               breakMinutes: row.breakMinutes,
               firstStart: parse24hToClock(row.firstStart),
@@ -401,16 +487,19 @@ export function BatchList() {
               <div className="saved-schedule" key={schedule.id}>
                 <h3>Schedule {index + 1}</h3>
                 <p>
-                  <strong>Batch time (minutes):</strong> {schedule.batchMinutes} minutes
+                  <strong>Session:</strong> {schedule.session}
+                </p>
+                <p>
+                  <strong>Batch Duration (minutes):</strong> {schedule.batchMinutes} minutes
                 </p>
                 <p>
                   <strong>Break time (minutes):</strong> {schedule.breakMinutes} minutes
                 </p>
                 <p>
-                  <strong>First batch start time:</strong> {formatClockDisplay(schedule.firstStart)}
+                  <strong>Session start time:</strong> {formatClockDisplay(schedule.firstStart)}
                 </p>
                 <p>
-                  <strong>Last batch end time:</strong> {formatClockDisplay(schedule.lastEnd)}
+                  <strong>Session end time:</strong> {formatClockDisplay(schedule.lastEnd)}
                 </p>
               </div>
             ))}
@@ -463,10 +552,13 @@ export function BatchList() {
 
       <h1>Batch List</h1>
       <p className="lede">Create and manage swimming batch time slots.</p>
-      <p className="required-note">Set up your batch schedule for the first time below.</p>
 
       <section className="card schedule-card">
         <h2>Schedule settings</h2>
+        <p className="schedule-session-note">
+          If there is major break (like lunch break) in batches, then please create session-wise
+          schedule
+        </p>
         <form onSubmit={onGenerate}>
           <div className="schedule-rows">
             {schedules.map((schedule, index) => {
@@ -475,7 +567,23 @@ export function BatchList() {
                 <div className="schedule-row" key={schedule.id}>
                   <label className="field">
                     <span className="label">
-                      Batch time (minutes) <span className="req">*</span>
+                      Session <span className="req">*</span>
+                    </span>
+                    <select
+                      value={schedule.session}
+                      onChange={(e) => updateSession(schedule.id, e.target.value as Session)}
+                      required
+                    >
+                      {SESSIONS.map((session) => (
+                        <option key={session} value={session}>
+                          {session}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="label">
+                      Batch Duration (minutes) <span className="req">*</span>
                     </span>
                     <input
                       type="number"
@@ -503,7 +611,7 @@ export function BatchList() {
                   </label>
                   <label className="field">
                     <span className="label">
-                      First batch start time <span className="req">*</span>
+                      Session start time <span className="req">*</span>
                     </span>
                     <TimeSelect
                       value={schedule.firstStart}
@@ -513,7 +621,7 @@ export function BatchList() {
                   </label>
                   <label className="field">
                     <span className="label">
-                      Last batch end time <span className="req">*</span>
+                      Session end time <span className="req">*</span>
                     </span>
                     <TimeSelect
                       value={schedule.lastEnd}
@@ -554,18 +662,16 @@ export function BatchList() {
         </form>
       </section>
 
-      <section className="card slots-card">
-        <div className="slots-head">
-          <h2>Batch time slots</h2>
-          <button type="button" className="btn ghost-btn" onClick={addSlot}>
-            Add slot
-          </button>
-        </div>
+      {slots.length > 0 ? (
+        <section className="card slots-card">
+          <div className="slots-head">
+            <h2>Batch time slots</h2>
+            <button type="button" className="btn ghost-btn" onClick={addSlot}>
+              Add slot
+            </button>
+          </div>
 
-        {slots.length === 0 ? (
-          <p className="muted">No slots yet. Use Generate slots to create them.</p>
-        ) : (
-          <>
+          <div className="slots-table-wrap">
             <div className="slots-table-head">
               <span>Batch</span>
               <span>Type</span>
@@ -595,26 +701,27 @@ export function BatchList() {
                     value={slot.endTime}
                     onChange={(endTime) => updateSlot(slot.id, { endTime })}
                   />
-                  <button type="button" className="remove-link" onClick={() => removeSlot(slot.id)}>
-                    Remove
+                  <button
+                    type="button"
+                    className="icon-action icon-action-danger slot-remove-btn"
+                    onClick={() => removeSlot(slot.id)}
+                    aria-label={`Remove ${slot.name}`}
+                    title="Remove"
+                  >
+                    <DeleteIcon />
                   </button>
                 </div>
               ))}
             </div>
-          </>
-        )}
+          </div>
 
-        <div className="slots-actions">
-          <button
-            type="button"
-            className="submit"
-            onClick={saveSlots}
-            disabled={saving || slots.length === 0}
-          >
-            {saving ? 'Saving…' : 'Save schedule'}
-          </button>
-        </div>
-      </section>
+          <div className="slots-actions">
+            <button type="button" className="submit" onClick={saveSlots} disabled={saving}>
+              {saving ? 'Saving…' : 'Save schedule'}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {error ? <p className="error">{error}</p> : null}
       {success ? <p className="success">{success}</p> : null}
