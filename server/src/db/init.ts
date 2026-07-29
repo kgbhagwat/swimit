@@ -376,6 +376,7 @@ ALTER TABLE pool_core_info DROP CONSTRAINT IF EXISTS pool_core_info_id_check;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS payment_accept_cash BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS payment_accept_online BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS setup_completed BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE holiday_settings DROP CONSTRAINT IF EXISTS holiday_settings_id_check;
 ALTER TABLE holiday_settings ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
@@ -433,6 +434,25 @@ async function ensureAccountAppShells() {
      WHERE NOT EXISTS (
        SELECT 1 FROM holiday_settings h WHERE h.saas_account_id = a.id
      )`,
+  );
+}
+
+/** Mark rows that already look fully configured (pre-setup_completed column). */
+async function backfillPoolCoreSetupCompleted() {
+  await pool.query(
+    `UPDATE pool_core_info
+     SET setup_completed = TRUE
+     WHERE setup_completed = FALSE
+       AND TRIM(COALESCE(pool_name, '')) <> ''
+       AND TRIM(COALESCE(pool_address, '')) <> ''
+       AND (
+         payment_accept_online = FALSE
+         OR (
+           payment_qr_path IS NOT NULL
+           AND TRIM(COALESCE(payment_qr_path, '')) <> ''
+           AND TRIM(COALESCE(upi_details, '')) <> ''
+         )
+       )`,
   );
 }
 
@@ -743,6 +763,7 @@ async function init() {
     await assignOrphanRowsToAccount(Number(firstAccount[0].id));
   }
   await ensureAccountAppShells();
+  await backfillPoolCoreSetupCompleted();
   await ensureDefaultServicePackages();
   await ensureAccountsHaveTrialPackage();
 

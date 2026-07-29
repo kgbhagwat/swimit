@@ -21,6 +21,8 @@ type AccountBody = {
   servicePackageId?: number | string | null;
   status?: string;
   notes?: string;
+  /** When set, overrides auto-computed subscription expiry. */
+  subscriptionExpiresAt?: string | null;
 };
 
 const STATUSES = ['Trial', 'Active', 'Suspended'] as const;
@@ -212,9 +214,12 @@ saasAccountsRouter.get('/check-code/:code', async (req, res) => {
       });
       return;
     }
+    const excludeId = Number(req.query.excludeId);
     const { rows } = await pool.query(
-      `SELECT id FROM saas_accounts WHERE LOWER(account_code) = $1 LIMIT 1`,
-      [code],
+      excludeId > 0
+        ? `SELECT id FROM saas_accounts WHERE LOWER(account_code) = $1 AND id <> $2 LIMIT 1`
+        : `SELECT id FROM saas_accounts WHERE LOWER(account_code) = $1 LIMIT 1`,
+      excludeId > 0 ? [code, excludeId] : [code],
     );
     res.json({
       code,
@@ -255,6 +260,70 @@ saasAccountsRouter.get('/', async (_req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load accounts' });
+  }
+});
+
+saasAccountsRouter.get('/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid account id' });
+      return;
+    }
+    const { rows } = await pool.query(`${ACCOUNT_SELECT} WHERE a.id = $1 LIMIT 1`, [id]);
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'Account not found' });
+      return;
+    }
+    res.json(mapRow(rows[0]));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load account' });
+  }
+});
+
+saasAccountsRouter.delete('/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid account id' });
+      return;
+    }
+
+    const existing = await pool.query(
+      `SELECT id, account_code, account_name FROM saas_accounts WHERE id = $1`,
+      [id],
+    );
+    if (existing.rowCount === 0) {
+      res.status(404).json({ error: 'Account not found' });
+      return;
+    }
+
+    const code = String(existing.rows[0].account_code ?? '')
+      .trim()
+      .toLowerCase();
+    if (code === 'swimit') {
+      res.status(400).json({ error: 'The SwimIT platform account cannot be deleted' });
+      return;
+    }
+
+    await pool.query(`DELETE FROM saas_accounts WHERE id = $1`, [id]);
+    res.json({
+      ok: true,
+      id,
+      accountName: String(existing.rows[0].account_name ?? ''),
+      accountCode: code,
+    });
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : '';
+    if (message.toLowerCase().includes('foreign key') || message.toLowerCase().includes('restrict')) {
+      res.status(400).json({
+        error: 'Cannot delete this account because related records still block removal',
+      });
+      return;
+    }
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 });
 
@@ -619,17 +688,55 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
       }
     }
 
-    let subscriptionExpiresAt: string | null = null;
     if (packageId != null) {
+      const pkgCheck = await pool.query(
+        `SELECT id FROM service_packages WHERE id = $1`,
+        [packageId],
+      );
+      if (pkgCheck.rowCount === 0) {
+        res.status(400).json({ error: 'Selected service package was not found' });
+        return;
+      }
+    }
+
+    let subscriptionExpiresAt: string | null = null;
+    const existing = await pool.query(
+      `SELECT created_at, service_package_id, subscription_expires_at
+       FROM saas_accounts WHERE id = $1`,
+      [id],
+    );
+    if (existing.rowCount === 0) {
+      res.status(404).json({ error: 'Account not found' });
+      return;
+    }
+    const prevPackageId =
+      existing.rows[0].service_package_id == null
+        ? null
+        : Number(existing.rows[0].service_package_id);
+    const prevExpires = toIsoDateOnly(existing.rows[0].subscription_expires_at);
+    const packageChanged = packageId !== prevPackageId;
+    const hasExplicitExpiry = Object.prototype.hasOwnProperty.call(
+      body,
+      'subscriptionExpiresAt',
+    );
+
+    if (hasExplicitExpiry) {
+      const raw = body.subscriptionExpiresAt;
+      if (raw == null || String(raw).trim() === '') {
+        subscriptionExpiresAt = null;
+      } else {
+        const parsed = toIsoDateOnly(raw);
+        if (!parsed) {
+          res.status(400).json({ error: 'Enter a valid expiry date (YYYY-MM-DD)' });
+          return;
+        }
+        subscriptionExpiresAt = parsed;
+      }
+    } else if (packageId != null && packageChanged) {
       const pkg = await pool.query(
         `SELECT trial_days, billing_period FROM service_packages WHERE id = $1`,
         [packageId],
       );
-      if (pkg.rowCount === 0) {
-        res.status(400).json({ error: 'Selected service package was not found' });
-        return;
-      }
-      const existing = await pool.query(`SELECT created_at FROM saas_accounts WHERE id = $1`, [id]);
       const openedAt = existing.rows[0]?.created_at
         ? new Date(String(existing.rows[0].created_at))
         : new Date();
@@ -638,6 +745,9 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
         trialDays: Number(pkg.rows[0].trial_days ?? 0),
         billingPeriod: String(pkg.rows[0].billing_period ?? 'Month'),
       });
+    } else {
+      // Keep current expiry when package is unchanged (or cleared).
+      subscriptionExpiresAt = prevExpires;
     }
 
     const { rows } = await pool.query(

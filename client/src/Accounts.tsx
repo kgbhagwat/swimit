@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MenuBackLink } from './MenuBackLink';
 import { PlatformNav } from './PlatformNav';
+import { hasPlatformAccess } from './platformAccess';
+import { getPlatformSession } from './platformSession';
 
 type Account = {
   id: number;
@@ -12,28 +14,27 @@ type Account = {
   city: string;
   poolAddress?: string;
   accountCode?: string;
+  servicePackageId?: number | null;
   packageName?: string;
+  status?: string;
   createdAt?: string;
   activeSwimmers?: number;
   subscriptionExpiresAt?: string | null;
 };
 
-type ResentCredentials = {
+type PackageOption = {
   id: number;
-  accountName: string;
-  contactName: string;
-  mobile: string;
-  email: string;
-  city: string;
-  poolAddress?: string;
-  accountCode: string;
-  loginUrl: string;
-  deliveryNote: string;
-  adminUser: {
-    userName: string;
-    temporaryPassword: string;
-  };
+  packageName: string;
+  isActive: boolean;
 };
+
+type EditDraft = {
+  servicePackageId: string;
+  status: string;
+  subscriptionExpiresAt: string;
+};
+
+const STATUSES = ['Trial', 'Active', 'Suspended'] as const;
 
 function formatCreated(value?: string) {
   if (!value) return '—';
@@ -57,293 +58,481 @@ function formatExpiry(value?: string | null) {
   });
 }
 
+function toDateInput(value?: string | null) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
 function accountLoginUrl(code: string) {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
   return `${origin}/${code}`;
 }
 
-function credentialsMailto(created: ResentCredentials) {
-  if (!created.email) return '';
-  return `mailto:${encodeURIComponent(created.email)}?subject=${encodeURIComponent(
-    `SwimIT account ${created.accountCode}`,
-  )}&body=${encodeURIComponent(
-    [
-      `Hello ${created.contactName},`,
-      '',
-      'Your SwimIT account login details were reset. Please sign in and change the password.',
-      '',
-      `Account / pool: ${created.accountName}`,
-      created.poolAddress ? `Pool address: ${created.poolAddress}` : null,
-      created.city ? `City: ${created.city}` : null,
-      `Account code: ${created.accountCode}`,
-      `Login URL: ${created.loginUrl}`,
-      `Admin user: ${created.adminUser.userName}`,
-      `Temporary password: ${created.adminUser.temporaryPassword}`,
-      '',
-      'Please change the admin password on next login.',
-    ]
-      .filter(Boolean)
-      .join('\n'),
-  )}`;
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
+function CancelIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
 }
 
 export function Accounts() {
+  const session = getPlatformSession();
+  const canManage = Boolean(
+    session && hasPlatformAccess(session.menuAccess, 'accounts', session.isAccountAdmin),
+  );
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [packages, setPackages] = useState<PackageOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [resendingId, setResendingId] = useState<number | null>(null);
-  const [resent, setResent] = useState<ResentCredentials | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Account | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [savingId, setSavingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError('');
-      try {
-        const res = await fetch('/api/saas-accounts');
-        const body = await res.json().catch(() => []);
-        if (!res.ok) throw new Error(body.error ?? 'Failed to load accounts');
-        if (!cancelled) setAccounts(Array.isArray(body) ? body : []);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load accounts');
-          setAccounts([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function onResend(account: Account) {
-    if (
-      !window.confirm(
-        `Reset admin password for "${account.accountName}" to temporary "admin" and show login details to send again?`,
-      )
-    ) {
-      return;
-    }
+  async function load() {
+    setLoading(true);
     setError('');
-    setResendingId(account.id);
     try {
-      const res = await fetch(`/api/saas-accounts/${account.id}/resend-credentials`, {
-        method: 'POST',
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Failed to resend credentials');
-      setResent({
-        id: Number(body.id),
-        accountName: String(body.accountName ?? ''),
-        contactName: String(body.contactName ?? ''),
-        mobile: String(body.mobile ?? ''),
-        email: String(body.email ?? ''),
-        city: String(body.city ?? ''),
-        poolAddress: String(body.poolAddress ?? ''),
-        accountCode: String(body.accountCode ?? ''),
-        loginUrl: String(body.loginUrl ?? accountLoginUrl(String(body.accountCode ?? ''))),
-        deliveryNote: String(body.deliveryNote ?? ''),
-        adminUser: {
-          userName: String(body.adminUser?.userName ?? 'admin'),
-          temporaryPassword: String(body.adminUser?.temporaryPassword ?? 'admin'),
-        },
-      });
+      const [accountsRes, packagesRes] = await Promise.all([
+        fetch('/api/saas-accounts'),
+        fetch('/api/service-packages'),
+      ]);
+      const accountsBody = await accountsRes.json().catch(() => []);
+      const packagesBody = await packagesRes.json().catch(() => []);
+      if (!accountsRes.ok) throw new Error(accountsBody.error ?? 'Failed to load accounts');
+      setAccounts(Array.isArray(accountsBody) ? accountsBody : []);
+      if (packagesRes.ok && Array.isArray(packagesBody)) {
+        setPackages(
+          packagesBody.map((row: Record<string, unknown>) => ({
+            id: Number(row.id),
+            packageName: String(row.packageName ?? ''),
+            isActive: row.isActive !== false,
+          })),
+        );
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to resend credentials');
+      setError(err instanceof Error ? err.message : 'Failed to load accounts');
+      setAccounts([]);
     } finally {
-      setResendingId(null);
+      setLoading(false);
     }
   }
 
-  if (resent) {
-    const mailto = credentialsMailto(resent);
-    return (
-      <>
-        <PlatformNav />
-        <div className="page">
-        <div className="top-row">
-          <button type="button" className="menu-link" onClick={() => setResent(null)}>
-            ← Accounts
-          </button>
-        </div>
+  useEffect(() => {
+    void load();
+  }, []);
 
-        <h1>Credentials ready to resend</h1>
-        <p className="lede">
-          Admin password was reset. Send these details to the pool operator again.
-        </p>
+  function startEdit(account: Account) {
+    setError('');
+    setEditingId(account.id);
+    setEditDraft({
+      servicePackageId:
+        account.servicePackageId != null && account.servicePackageId > 0
+          ? String(account.servicePackageId)
+          : '',
+      status: account.status?.trim() || 'Active',
+      subscriptionExpiresAt: toDateInput(account.subscriptionExpiresAt),
+    });
+  }
 
-        <section className="pass-form-card account-credentials-card">
-          <p className="success">{resent.deliveryNote}</p>
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft(null);
+  }
 
-          <dl className="account-credentials-list">
-            <div>
-              <dt>Account / pool</dt>
-              <dd>{resent.accountName}</dd>
-            </div>
-            {resent.poolAddress ? (
-              <div>
-                <dt>Pool address</dt>
-                <dd>{resent.poolAddress}</dd>
-              </div>
-            ) : null}
-            {resent.city ? (
-              <div>
-                <dt>City</dt>
-                <dd>{resent.city}</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>Contact</dt>
-              <dd>
-                {resent.contactName}
-                <br />
-                {resent.mobile}
-                {resent.email ? ` · ${resent.email}` : ''}
-              </dd>
-            </div>
-            <div>
-              <dt>Account code</dt>
-              <dd>
-                <code>{resent.accountCode}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Login URL</dt>
-              <dd>
-                <a className="terms-link" href={resent.loginUrl} target="_blank" rel="noreferrer">
-                  {resent.loginUrl}
-                </a>
-              </dd>
-            </div>
-            <div>
-              <dt>Admin user</dt>
-              <dd>
-                <code>{resent.adminUser.userName}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Temporary password</dt>
-              <dd>
-                <code className="temp-password">{resent.adminUser.temporaryPassword}</code>
-              </dd>
-            </div>
-          </dl>
+  async function saveEdit(account: Account) {
+    if (!editDraft) return;
+    if (!editDraft.servicePackageId) {
+      setError('Select a package');
+      return;
+    }
+    if (!(STATUSES as readonly string[]).includes(editDraft.status)) {
+      setError('Status must be Trial, Active, or Suspended');
+      return;
+    }
+    if (!editDraft.subscriptionExpiresAt) {
+      setError('Enter an expiry date');
+      return;
+    }
 
-          <div className="submit-wrap" style={{ marginTop: '1rem' }}>
-            {mailto ? (
-              <a className="ghost-btn" href={mailto}>
-                Email details
-              </a>
-            ) : null}
-            <button type="button" className="submit" onClick={() => setResent(null)}>
-              Back to Accounts
-            </button>
-          </div>
-        </section>
-      </div>
-      </>
-    );
+    setSavingId(account.id);
+    setError('');
+    try {
+      const currentRes = await fetch(`/api/saas-accounts/${account.id}`);
+      const current = await currentRes.json().catch(() => ({}));
+      if (!currentRes.ok) throw new Error(current.error ?? 'Failed to load account');
+
+      const res = await fetch(`/api/saas-accounts/${account.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountName: current.accountName,
+          accountCode: current.accountCode,
+          poolAddress: current.poolAddress ?? '',
+          contactName: current.contactName,
+          mobile: current.mobile,
+          email: current.email,
+          city: current.city ?? '',
+          notes: current.notes ?? '',
+          servicePackageId: Number(editDraft.servicePackageId),
+          status: editDraft.status,
+          subscriptionExpiresAt: editDraft.subscriptionExpiresAt,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to update account');
+
+      setAccounts((prev) =>
+        prev.map((row) =>
+          row.id === account.id
+            ? {
+                ...row,
+                servicePackageId:
+                  body.servicePackageId == null ? null : Number(body.servicePackageId),
+                packageName: String(body.packageName ?? row.packageName ?? ''),
+                status: String(body.status ?? editDraft.status),
+                subscriptionExpiresAt: body.subscriptionExpiresAt ?? editDraft.subscriptionExpiresAt,
+              }
+            : row,
+        ),
+      );
+      cancelEdit();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update account');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  function requestDelete(account: Account) {
+    const code = String(account.accountCode ?? '').toLowerCase();
+    if (code === 'swimit') {
+      setError('The SwimIT platform account cannot be deleted');
+      return;
+    }
+    setError('');
+    setPendingDelete(account);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const account = pendingDelete;
+    setDeletingId(account.id);
+    setError('');
+    try {
+      const res = await fetch(`/api/saas-accounts/${account.id}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to delete account');
+      setAccounts((prev) => prev.filter((row) => row.id !== account.id));
+      if (editingId === account.id) cancelEdit();
+      setPendingDelete(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete account');
+      setPendingDelete(null);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
     <>
       <PlatformNav />
       <div className="page accounts-page">
-      <div className="top-row">
-        <MenuBackLink />
-        <div className="top-row-right">
-          <Link className="submit" to="/create-account">
-            Create Account
-          </Link>
+        <div className="top-row">
+          <MenuBackLink />
+          <div className="top-row-right">
+            <Link className="submit" to="/create-account">
+              Create Account
+            </Link>
+          </div>
         </div>
+
+        <h1>Accounts</h1>
+
+        {error ? <p className="error">{error}</p> : null}
+
+        <section className="pass-table-card">
+          {loading ? (
+            <p className="muted">Loading…</p>
+          ) : accounts.length === 0 ? (
+            <p className="pass-empty">
+              No SaaS accounts yet.{' '}
+              <Link className="terms-link" to="/create-account">
+                Create the first account
+              </Link>
+              .
+            </p>
+          ) : (
+            <div className="batch-saved-table-wrap accounts-table-wrap">
+              <table className="batch-saved-table accounts-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Code</th>
+                    <th>Contact</th>
+                    <th>Opened</th>
+                    <th>Package</th>
+                    <th>Status</th>
+                    <th>Active swimmers</th>
+                    <th>Expires</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((item) => {
+                    const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
+                    const isEditing = editingId === item.id && editDraft != null;
+                    const busy = savingId === item.id || deletingId === item.id;
+                    return (
+                      <tr key={item.id} className={isEditing ? 'accounts-row-editing' : undefined}>
+                        <td className="accounts-col-account">
+                          <strong className="batch-saved-name">{item.accountName}</strong>
+                          {item.poolAddress ? (
+                            <div className="muted accounts-sub">{item.poolAddress}</div>
+                          ) : null}
+                          {item.city ? (
+                            <div className="muted accounts-sub">{item.city}</div>
+                          ) : null}
+                        </td>
+                        <td className="accounts-col-code">
+                          {item.accountCode ? (
+                            <a className="terms-link" href={accountLoginUrl(item.accountCode)}>
+                              {item.accountCode}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="accounts-col-contact">
+                          {item.contactName}
+                          <div className="muted accounts-sub">
+                            {item.mobile}
+                            {item.email ? (
+                              <>
+                                <br />
+                                {item.email}
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td>{formatCreated(item.createdAt)}</td>
+                        <td>
+                          {isEditing ? (
+                            <select
+                              className="accounts-inline-control"
+                              value={editDraft.servicePackageId}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setEditDraft((prev) =>
+                                  prev ? { ...prev, servicePackageId: e.target.value } : prev,
+                                )
+                              }
+                              aria-label="Package"
+                            >
+                              <option value="">Select package</option>
+                              {packages
+                                .filter(
+                                  (p) =>
+                                    p.isActive ||
+                                    String(p.id) === editDraft.servicePackageId,
+                                )
+                                .map((pkg) => (
+                                  <option key={pkg.id} value={pkg.id}>
+                                    {pkg.packageName}
+                                    {!pkg.isActive ? ' (inactive)' : ''}
+                                  </option>
+                                ))}
+                            </select>
+                          ) : (
+                            item.packageName?.trim() || '—'
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <select
+                              className="accounts-inline-control"
+                              value={editDraft.status}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setEditDraft((prev) =>
+                                  prev ? { ...prev, status: e.target.value } : prev,
+                                )
+                              }
+                              aria-label="Status"
+                            >
+                              {STATUSES.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            item.status?.trim() || '—'
+                          )}
+                        </td>
+                        <td className="accounts-col-num">{item.activeSwimmers ?? 0}</td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              type="date"
+                              className="accounts-inline-control accounts-inline-date"
+                              value={editDraft.subscriptionExpiresAt}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setEditDraft((prev) =>
+                                  prev
+                                    ? { ...prev, subscriptionExpiresAt: e.target.value }
+                                    : prev,
+                                )
+                              }
+                              aria-label="Expires"
+                            />
+                          ) : (
+                            formatExpiry(item.subscriptionExpiresAt)
+                          )}
+                        </td>
+                        <td className="accounts-col-actions">
+                          {canManage ? (
+                            <div className="accounts-action-icons">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="accounts-icon-btn accounts-icon-save"
+                                    disabled={busy}
+                                    onClick={() => void saveEdit(item)}
+                                    aria-label={`Save ${item.accountName}`}
+                                    title={savingId === item.id ? 'Saving…' : 'Save'}
+                                  >
+                                    <SaveIcon />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="accounts-icon-btn accounts-icon-cancel"
+                                    disabled={busy}
+                                    onClick={cancelEdit}
+                                    aria-label="Cancel edit"
+                                    title="Cancel"
+                                  >
+                                    <CancelIcon />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="accounts-icon-btn accounts-icon-edit"
+                                    disabled={editingId != null || busy}
+                                    onClick={() => startEdit(item)}
+                                    aria-label={`Edit ${item.accountName}`}
+                                    title="Edit"
+                                  >
+                                    <EditIcon />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="accounts-icon-btn accounts-icon-delete"
+                                    disabled={deletingId === item.id || isPlatform || editingId != null}
+                                    onClick={() => requestDelete(item)}
+                                    aria-label={`Delete ${item.accountName}`}
+                                    title={
+                                      isPlatform
+                                        ? 'Platform account cannot be deleted'
+                                        : deletingId === item.id
+                                          ? 'Deleting…'
+                                          : 'Delete'
+                                    }
+                                  >
+                                    <DeleteIcon />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
 
-      <h1>Accounts</h1>
-
-      {error ? <p className="error">{error}</p> : null}
-
-      <section className="pass-table-card">
-        {loading ? (
-          <p className="muted">Loading…</p>
-        ) : accounts.length === 0 ? (
-          <p className="pass-empty">
-            No SaaS accounts yet.{' '}
-            <Link className="terms-link" to="/create-account">
-              Create the first account
-            </Link>
-            .
-          </p>
-        ) : (
-          <div className="batch-saved-table-wrap accounts-table-wrap">
-            <table className="batch-saved-table accounts-table">
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Code</th>
-                  <th>Contact</th>
-                  <th>Opened</th>
-                  <th>Package</th>
-                  <th>Active swimmers</th>
-                  <th>Expires</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {accounts.map((item) => (
-                  <tr key={item.id}>
-                    <td className="accounts-col-account">
-                      <strong className="batch-saved-name">{item.accountName}</strong>
-                      {item.poolAddress ? (
-                        <div className="muted accounts-sub">{item.poolAddress}</div>
-                      ) : null}
-                      {item.city ? <div className="muted accounts-sub">{item.city}</div> : null}
-                    </td>
-                    <td className="accounts-col-code">
-                      {item.accountCode ? (
-                        <a className="terms-link" href={accountLoginUrl(item.accountCode)}>
-                          {item.accountCode}
-                        </a>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="accounts-col-contact">
-                      {item.contactName}
-                      <div className="muted accounts-sub">
-                        {item.mobile}
-                        {item.email ? (
-                          <>
-                            <br />
-                            {item.email}
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td>{formatCreated(item.createdAt)}</td>
-                    <td>{item.packageName?.trim() || '—'}</td>
-                    <td className="accounts-col-num">{item.activeSwimmers ?? 0}</td>
-                    <td>{formatExpiry(item.subscriptionExpiresAt)}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="ghost-btn"
-                        disabled={resendingId === item.id || !item.accountCode}
-                        onClick={() => void onResend(item)}
-                      >
-                        {resendingId === item.id ? 'Resetting…' : 'Resend'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {pendingDelete ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+          onClick={() => {
+            if (deletingId == null) setPendingDelete(null);
+          }}
+        >
+          <div
+            className="modal-panel accounts-delete-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="delete-account-title">Delete account?</h2>
+            <p className="modal-intro">
+              Delete <strong>{pendingDelete.accountName}</strong>
+              {pendingDelete.accountCode ? ` (${pendingDelete.accountCode})` : ''}?
+              This permanently removes the pool account and its data.
+            </p>
+            <div className="modal-footer accounts-delete-modal-footer">
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={deletingId != null}
+                onClick={() => setPendingDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="submit accounts-delete-confirm"
+                disabled={deletingId != null}
+                onClick={() => void confirmDelete()}
+              >
+                {deletingId != null ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
           </div>
-        )}
-      </section>
-    </div>
+        </div>
+      ) : null}
     </>
   );
 }

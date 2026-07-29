@@ -14,6 +14,7 @@ type PoolCoreInfoData = {
   paymentAcceptOnline: boolean;
   paymentQrPath: string | null;
   upiDetails: string;
+  setupCompleted: boolean;
 };
 
 function uploadUrl(filename: string | null | undefined) {
@@ -165,6 +166,7 @@ export function PoolCoreInfo() {
     paymentAcceptOnline: true,
     paymentQrPath: null,
     upiDetails: '',
+    setupCompleted: false,
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [qrFile, setQrFile] = useState<File | null>(null);
@@ -199,6 +201,7 @@ export function PoolCoreInfo() {
         paymentAcceptOnline: body.paymentAcceptOnline !== false,
         paymentQrPath: body.paymentQrPath ?? null,
         upiDetails: body.upiDetails ?? '',
+        setupCompleted: body.setupCompleted === true,
       };
       setForm(next);
       setLogoFile(null);
@@ -206,8 +209,8 @@ export function PoolCoreInfo() {
       setClearLogo(false);
       setClearQr(false);
       if (!opts?.keepEditing) {
-        const hasSaved = Boolean(String(next.poolName).trim());
-        setEditing(!hasSaved);
+        // Seeded account name/address alone is not a submitted setup.
+        setEditing(!next.setupCompleted);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
@@ -272,6 +275,7 @@ export function PoolCoreInfo() {
         paymentAcceptOnline: body.paymentAcceptOnline !== false,
         paymentQrPath: body.paymentQrPath ?? null,
         upiDetails: body.upiDetails ?? '',
+        setupCompleted: body.setupCompleted === true,
       });
       setLogoFile(null);
       setQrFile(null);

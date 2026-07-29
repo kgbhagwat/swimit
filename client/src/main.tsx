@@ -114,6 +114,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<MainMenu />} />
         <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
         <Route path="/create-account" element={<CreateAccount />} />
+        <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />
         <Route path="/service-packages" element={<ServicePackages />} />
         <Route
           path="/platform"

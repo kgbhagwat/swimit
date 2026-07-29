@@ -1185,9 +1185,8 @@ button.platform-rail-link {
 }
 
 .platform-nav-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 200;
+  position: relative;
+  z-index: 20;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -4977,30 +4976,29 @@ button.menu-link {
 .accounts-table th:nth-child(4),
 .accounts-table td:nth-child(4),
 .accounts-table th:nth-child(5),
-.accounts-table td:nth-child(5) {
-  width: 11%;
-  white-space: nowrap;
-}
-
+.accounts-table td:nth-child(5),
 .accounts-table th:nth-child(6),
 .accounts-table td:nth-child(6) {
-  width: 11%;
-  text-align: center;
+  width: 9%;
   white-space: nowrap;
-  padding-left: 0.75rem;
-  padding-right: 0.9rem;
 }
 
 .accounts-table th:nth-child(7),
 .accounts-table td:nth-child(7) {
-  width: 12%;
+  width: 9%;
+  text-align: center;
   white-space: nowrap;
-  padding-left: 0.9rem;
 }
 
 .accounts-table th:nth-child(8),
 .accounts-table td:nth-child(8) {
-  width: 9%;
+  width: 10%;
+  white-space: nowrap;
+}
+
+.accounts-table th:nth-child(9),
+.accounts-table td:nth-child(9) {
+  width: 7%;
   white-space: nowrap;
 }
 
@@ -5013,6 +5011,115 @@ button.menu-link {
 .accounts-col-num {
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.accounts-action-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.accounts-icon-btn {
+  width: auto;
+  height: auto;
+  padding: 0.15rem;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.accounts-icon-btn svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.accounts-icon-edit {
+  color: #2f6fed;
+}
+
+.accounts-icon-edit:hover {
+  color: #1a4fb8;
+  background: transparent;
+}
+
+.accounts-icon-delete {
+  color: #d92d20;
+}
+
+.accounts-icon-delete:hover:not(:disabled) {
+  color: #b42318;
+  background: transparent;
+}
+
+.accounts-icon-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.accounts-icon-save {
+  color: #1a7f37;
+}
+
+.accounts-icon-save:hover:not(:disabled) {
+  color: #0f5c28;
+  background: transparent;
+}
+
+.accounts-icon-cancel {
+  color: #667085;
+}
+
+.accounts-icon-cancel:hover:not(:disabled) {
+  color: #344054;
+  background: transparent;
+}
+
+.accounts-row-editing td {
+  background: #f7faff;
+}
+
+.accounts-inline-control {
+  width: 100%;
+  max-width: 9.5rem;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid #c5d3ea;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  color: #1a3568;
+}
+
+.accounts-inline-date {
+  max-width: 9.25rem;
+}
+
+.accounts-delete-modal {
+  width: min(420px, 100%);
+  max-height: none;
+}
+
+.accounts-delete-modal-footer {
+  gap: 0.65rem;
+}
+
+.accounts-delete-confirm {
+  background: #d92d20;
+  border-color: #d92d20;
+}
+
+.accounts-delete-confirm:hover:not(:disabled) {
+  background: #b42318;
+  border-color: #b42318;
 }
 
 .package-compare-wrap {

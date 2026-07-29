@@ -52,6 +52,7 @@ function mapRow(row: Record<string, unknown>) {
     paymentAcceptOnline: row.payment_accept_online !== false,
     paymentQrPath: row.payment_qr_path ? String(row.payment_qr_path) : null,
     upiDetails: String(row.upi_details ?? ''),
+    setupCompleted: row.setup_completed === true,
     updatedAt: row.updated_at,
   };
 }
@@ -163,6 +164,7 @@ poolCoreInfoRouter.put(
            payment_accept_online = $7,
            payment_qr_path = $8,
            upi_details = $9,
+           setup_completed = TRUE,
            updated_at = NOW()
          WHERE saas_account_id = $10
          RETURNING *`,
