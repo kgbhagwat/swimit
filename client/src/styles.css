@@ -1557,40 +1557,64 @@ button.platform-rail-link {
   z-index: 1;
 }
 
+/* ── Mobile: single column with down-arrows ── */
 @media (max-width: 720px) {
   .home-workflow-row,
   .home-workflow-row-rtl,
   .home-workflow-row-tail {
     grid-template-columns: 1fr;
     direction: ltr;
-    row-gap: 28px;
+    row-gap: 1.6rem;
+  }
+
+  .home-workflow-row-rtl .home-workflow-step {
+    direction: ltr;
   }
 
   .home-workflow-row + .home-workflow-row {
-    margin-top: 28px;
+    margin-top: 1.6rem;
+    position: relative;
   }
 
+  /* Down-arrow between rows */
   .home-workflow-row + .home-workflow-row::before {
-    content: none;
-  }
-
-  .home-workflow-row:not(.home-workflow-row-rtl) .home-workflow-step:not(:last-child)::after,
-  .home-workflow-row-rtl .home-workflow-step:not(:last-child)::after {
-    top: auto;
+    content: '';
+    position: absolute;
+    top: -1.25rem;
     left: 50%;
-    right: auto;
-    bottom: -21px;
-    border-left: 10px solid transparent;
-    border-right: 10px solid transparent;
-    border-top: 15px solid var(--workflow-arrow);
-    border-bottom: 0;
-    border-right-width: 10px;
+    width: 0;
+    height: 0;
+    border-left: 9px solid transparent;
+    border-right: 9px solid transparent;
+    border-top: 13px solid var(--workflow-arrow);
     transform: translateX(-50%);
   }
 
+  /* Down-arrow between steps within a row */
+  .home-workflow-row:not(.home-workflow-row-rtl) .home-workflow-step:not(:last-child)::after,
   .home-workflow-row-rtl .home-workflow-step:not(:last-child)::after {
-    border-right-color: transparent;
-    border-left-color: transparent;
+    content: '';
+    position: absolute;
+    top: auto;
+    left: 50%;
+    right: auto;
+    bottom: -1.25rem;
+    width: 0;
+    height: 0;
+    border-left: 9px solid transparent;
+    border-right: 9px solid transparent;
+    border-top: 13px solid var(--workflow-arrow);
+    border-bottom: 0;
+    transform: translateX(-50%);
+  }
+
+  .home-workflow-step {
+    padding: 0.45rem 0.35rem;
+    font-size: 0.68rem;
+    min-height: 2rem;
+    max-width: 65%;
+    margin: 0 auto;
+    width: 100%;
   }
 }
 
@@ -1640,8 +1664,8 @@ button.platform-rail-link {
 @media (max-width: 720px) {
   .home-info-flow {
     flex-direction: column;
-    gap: 0.45rem;
-    padding: 0.65rem;
+    gap: 0.35rem;
+    padding: 0.5rem;
   }
 
   .home-info-flow-step,
@@ -1649,8 +1673,17 @@ button.platform-rail-link {
   .home-info-flow-step:last-child {
     margin-right: 0;
     clip-path: none;
-    border-radius: 8px;
-    padding: 0.75rem 0.85rem;
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.68rem;
+    min-height: 2rem;
+    width: 65%;
+    max-width: 65%;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+    word-wrap: break-word;
+    box-sizing: border-box;
   }
 }
 

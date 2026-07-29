@@ -18,3 +18,4 @@ build/
 *.docx
 
 ~WRL*
+LightsailDefaultKey-ap-south-1.pem

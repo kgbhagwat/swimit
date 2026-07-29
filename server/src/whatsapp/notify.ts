@@ -285,6 +285,88 @@ export async function notifyPassExpiring(params: {
   }
 }
 
+export async function notifySubscriptionExpiring(params: {
+  mobile: string;
+  fullName: string;
+  accountName: string;
+  accountCode: string;
+  subscriptionExpiresAt: string;
+  saasAccountId: number;
+}): Promise<NotifyCredentialsResult> {
+  const cfg = getWhatsAppConfig();
+  const accountCodeLower = String(params.accountCode ?? '').trim().toLowerCase();
+  const renewPath = `/${accountCodeLower}/renew-payment`;
+  const renewUrl = cfg.publicAppUrl ? `${cfg.publicAppUrl}${renewPath}` : renewPath;
+
+  const body = [
+    `Hello ${params.fullName},`,
+    '',
+    `Your SwimIT subscription for ${params.accountName} will expire on ${params.subscriptionExpiresAt}.`,
+    '',
+    'Please renew now to keep your pool operations running.',
+    `Renew here: ${renewUrl}`,
+    '',
+    'After renewing and paying online, send the payment screenshot here on WhatsApp.',
+  ].join('\n');
+
+  if (!cfg.enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'saas_subscription_expiry_5d',
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    // Open / refresh the business chat.
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'saas_subscription_expiry_5d_session',
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch {
+      // Continue — free text often still works once a session is open.
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'saas_subscription_expiry_5d',
+      body,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+
+    return result.skipped
+      ? { ok: true, skipped: true }
+      : {
+          ok: true,
+          skipped: false,
+          to: result.to,
+          messageId: result.messageId,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'saas_subscription_expiry_5d',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
+}
+
 /** WhatsApp a public open-form link + QR to desk staff mobile. */
 export async function notifyOpenFormQr(params: {
   mobile: string;
