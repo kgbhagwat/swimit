@@ -1,18 +1,19 @@
 #!/bin/bash
-# Deploy SwimIT staging from your PC (SSH into Lightsail, then pull + rebuild).
+# Deploy SwimIT staging from your PC:
+#   1) build client+server locally (Vite never runs on Lightsail)
+#   2) git pull on the server
+#   3) rsync dist folders
+#   4) docker compose with Dockerfile.prebuilt
 #
 # Prerequisites (one-time):
-#   1. Download the Lightsail SSH key (Instance → Account → SSH keys, or
-#      Connect → Download default key). Save e.g. as:
+#   1. Download the Lightsail SSH key. Save e.g. as:
 #        ~/.ssh/swimit-staging.pem
 #   2. Restrict permissions (Git Bash / WSL):
 #        chmod 600 ~/.ssh/swimit-staging.pem
-#   3. Optional: set env vars below, or pass as arguments.
 #
-# Usage (from PC, repo root or anywhere):
+# Usage (from PC, repo root):
 #   bash scripts/deploy-staging-from-pc.sh
 #   bash scripts/deploy-staging-from-pc.sh ~/.ssh/swimit-staging.pem
-#   SWIMIT_SSH_KEY=~/.ssh/swimit-staging.pem bash scripts/deploy-staging-from-pc.sh
 
 set -euo pipefail
 
@@ -32,31 +33,54 @@ if [ ! -f "$KEY" ]; then
   exit 1
 fi
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+SSH=(ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes)
+RSYNC_RSH="ssh -i ${KEY} -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes"
+
 echo "==> Deploying to ${USER_NAME}@${HOST}:${REMOTE_DIR}"
 echo "==> Using key: $KEY"
 
-# Show local + origin tip so you can confirm after deploy
 if git rev-parse HEAD >/dev/null 2>&1; then
   LOCAL_COMMIT="$(git rev-parse HEAD)"
   LOCAL_SHORT="$(git rev-parse --short HEAD)"
   LOCAL_SUBJ="$(git log -1 --pretty=%s)"
-  echo "==> Expected commit (this PC / push to GitHub first if needed):"
+  echo "==> Expected commit (push to GitHub first if needed):"
   echo "    ${LOCAL_SHORT} ${LOCAL_SUBJ}"
   echo "    ${LOCAL_COMMIT}"
 fi
 
-ssh -i "$KEY" \
-  -o StrictHostKeyChecking=accept-new \
-  -o IdentitiesOnly=yes \
-  "${USER_NAME}@${HOST}" \
+echo "==> Building client + server on this PC (avoids Lightsail Vite hang)"
+npm run build
+
+if [ ! -f client/dist/index.html ] || [ ! -f server/dist/index.js ]; then
+  echo "ERROR: build did not produce client/dist and server/dist"
+  exit 1
+fi
+
+echo "==> git pull on server"
+"${SSH[@]}" "${USER_NAME}@${HOST}" \
   "set -euo pipefail
    cd '${REMOTE_DIR}'
-   echo '==> git pull'
    git pull --ff-only
-   echo '==> repo HEAD after pull:'
+   echo 'repo HEAD:'
    git rev-parse HEAD
    git log -1 --oneline
-   echo '==> deploy'
+   mkdir -p client/dist server/dist
+  "
+
+echo "==> rsync prebuilt dist to server"
+rsync -az --delete -e "$RSYNC_RSH" \
+  "${ROOT}/client/dist/" "${USER_NAME}@${HOST}:${REMOTE_DIR}/client/dist/"
+rsync -az --delete -e "$RSYNC_RSH" \
+  "${ROOT}/server/dist/" "${USER_NAME}@${HOST}:${REMOTE_DIR}/server/dist/"
+
+echo "==> docker deploy (prebuilt, no Vite)"
+"${SSH[@]}" "${USER_NAME}@${HOST}" \
+  "set -euo pipefail
+   cd '${REMOTE_DIR}'
+   export APP_DOCKERFILE=Dockerfile.prebuilt
    bash scripts/lightsail-deploy.sh
    echo '==> version'
    curl -sS -m 20 https://staging.swimit.co.in/api/version || true

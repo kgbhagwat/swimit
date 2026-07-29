@@ -2,6 +2,9 @@
 # Deploy / update SwimIT on Lightsail.
 # Run from the repo root on the server:
 #   bash scripts/lightsail-deploy.sh
+#
+# Prefer pre-built dist (from your PC) so Vite never runs on this small instance:
+#   APP_DOCKERFILE=Dockerfile.prebuilt bash scripts/lightsail-deploy.sh
 
 set -euo pipefail
 
@@ -62,7 +65,39 @@ if [ -d .git ]; then
   git pull --ff-only || true
 fi
 
-echo "==> Building and starting (domain: ${DOMAIN})"
+HAS_CLIENT_DIST=0
+HAS_SERVER_DIST=0
+[ -f client/dist/index.html ] && HAS_CLIENT_DIST=1
+[ -f server/dist/index.js ] && HAS_SERVER_DIST=1
+
+if [ -z "${APP_DOCKERFILE:-}" ]; then
+  if [ "$HAS_CLIENT_DIST" = 1 ] && [ "$HAS_SERVER_DIST" = 1 ]; then
+    APP_DOCKERFILE=Dockerfile.prebuilt
+  else
+    APP_DOCKERFILE=Dockerfile
+  fi
+fi
+export APP_DOCKERFILE
+
+if [ "$APP_DOCKERFILE" = "Dockerfile.prebuilt" ]; then
+  if [ "$HAS_CLIENT_DIST" != 1 ] || [ "$HAS_SERVER_DIST" != 1 ]; then
+    echo "ERROR: Dockerfile.prebuilt needs client/dist and server/dist on this machine."
+    echo "Build on your PC and deploy with:"
+    echo "  bash scripts/deploy-staging-from-pc.sh"
+    exit 1
+  fi
+  echo "==> Using prebuilt dist (no Vite on this server)"
+else
+  echo "==> WARNING: full Docker build runs Vite on this host."
+  echo "    Small Lightsail plans often hang / exhaust CPU burst credits."
+  echo "    Prefer: bash scripts/deploy-staging-from-pc.sh"
+  if [ "${CONFIRM_FULL_BUILD:-}" != "1" ]; then
+    echo "Refusing full in-server Vite build (set CONFIRM_FULL_BUILD=1 to override)."
+    exit 1
+  fi
+fi
+
+echo "==> Building and starting (domain: ${DOMAIN}, dockerfile: ${APP_DOCKERFILE})"
 GIT_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 GIT_SHORT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 GIT_SUBJ="$(git log -1 --pretty=%s 2>/dev/null || echo '')"

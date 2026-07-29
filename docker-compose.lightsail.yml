@@ -23,6 +23,7 @@ services:
   app:
     build:
       context: .
+      dockerfile: ${APP_DOCKERFILE:-Dockerfile}
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_TIME: ${BUILD_TIME:-unknown}
