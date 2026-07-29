@@ -153,8 +153,9 @@ export async function notifyRegistrationConfirmation(params: {
   const body = [
     `Hello ${params.fullName},`,
     '',
-    `Your SwimIT registration${atPool} is confirmed.`,
-    'Our desk will contact you for batch/pass activation if needed.',
+    `Your registration form${atPool} has been successfully submitted.`,
+    '',
+    'After online payment, please send the payment screenshot here.',
   ].join('\n');
 
   try {
@@ -419,4 +420,197 @@ export async function sendBroadcast(params: {
     }
   }
   return results;
+}
+
+export async function notifyPackageRenewalPayment(params: {
+  mobile: string;
+  accountName: string;
+  packageName: string;
+  months: number;
+  amount: number;
+  upiId: string;
+  paymentQrPath?: string | null;
+  saasAccountId: number;
+}): Promise<NotifyCredentialsResult> {
+  const amountLabel = `₹${params.amount.toLocaleString('en-IN')}`;
+  const body = [
+    `SwimIT subscription renewal for ${params.accountName}`,
+    '',
+    `You selected to renew for package: ${params.packageName}`,
+    `Duration: ${params.months} month${params.months === 1 ? '' : 's'}`,
+    `Amount: ${amountLabel}`,
+    '',
+    'Please pay the mentioned amount using the QR code shown and send the payment screenshot here.',
+    params.upiId ? `UPI ID: ${params.upiId}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'package_renewal_payment',
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'package_renewal_session',
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch (sessionErr) {
+      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'package_renewal_session',
+        body: 'hello_world',
+        status: 'failed',
+        error: sessionMessage,
+      });
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'package_renewal_payment',
+      body,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+
+    if (cfg.publicAppUrl && params.paymentQrPath && !result.skipped) {
+      const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+      try {
+        await sendWhatsAppImage(
+          params.mobile,
+          qrUrl,
+          `Pay ${amountLabel} for ${params.packageName}`,
+        );
+      } catch (qrErr) {
+        console.warn('[whatsapp] renewal QR image send failed', qrErr);
+      }
+    }
+
+    return result.skipped
+      ? { ok: true, skipped: true }
+      : {
+          ok: true,
+          skipped: false,
+          to: result.to,
+          messageId: result.messageId,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'package_renewal_payment',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
+}
+
+/** Ask swimmer to pay pool UPI/QR and send payment screenshot on WhatsApp. */
+export async function notifyPassPaymentRequest(params: {
+  mobile: string;
+  fullName: string;
+  passType: string;
+  amount: number;
+  passValidUntil: string;
+  upiId: string;
+  paymentQrPath?: string | null;
+  saasAccountId: number;
+}): Promise<NotifyCredentialsResult> {
+  const amountLabel = `₹${params.amount.toLocaleString('en-IN')}`;
+  const body = [
+    `Hello ${params.fullName},`,
+    '',
+    'Please complete your SwimIT pass payment.',
+    `Pass: ${params.passType}`,
+    `Amount: ${amountLabel}`,
+    `Valid until: ${params.passValidUntil}`,
+    '',
+    'Pay using the pool QR code / UPI shown and send the payment screenshot here.',
+    params.upiId ? `UPI ID: ${params.upiId}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'pass_payment_request',
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+    } catch {
+      // Session may already be open.
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'pass_payment_request',
+      body,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+
+    if (cfg.publicAppUrl && params.paymentQrPath && !result.skipped) {
+      const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+      try {
+        await sendWhatsAppImage(
+          params.mobile,
+          qrUrl,
+          `Pay ${amountLabel} for ${params.passType}`,
+        );
+      } catch (qrErr) {
+        console.warn('[whatsapp] pass payment QR send failed', qrErr);
+      }
+    }
+
+    return result.skipped
+      ? { ok: true, skipped: true }
+      : {
+          ok: true,
+          skipped: false,
+          to: result.to,
+          messageId: result.messageId,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'pass_payment_request',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
 }

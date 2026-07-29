@@ -39,6 +39,22 @@ const LINKS = [
     requiresAuth: false,
     accessKey: 'service-packages' as PlatformAccessPageKey,
   },
+  {
+    to: '/platform/payment',
+    label: 'Payment',
+    match: (path: string) =>
+      path === '/platform/payment' || path.startsWith('/platform/payment/'),
+    requiresAuth: true,
+    accessKey: 'payment' as PlatformAccessPageKey,
+  },
+  {
+    to: '/platform/whatsapp',
+    label: 'WhatsApp',
+    match: (path: string) =>
+      path === '/platform/whatsapp' || path.startsWith('/platform/whatsapp/'),
+    requiresAuth: true,
+    accessKey: 'whatsapp' as PlatformAccessPageKey,
+  },
 ] as const;
 
 const ACCOUNT_CODE_RE = /^[a-z0-9]{6}$/;

@@ -43,14 +43,9 @@ export function tenantPath(path: string): string {
   return `/${code}${normalized}`;
 }
 
-/** Paths for SaaS platform (swimit) staff user management. */
+/** Paths for SaaS platform (swimit) staff pages under /platform. */
 export function isPlatformUsersPath(pathname: string) {
-  return (
-    pathname === '/platform/user-management' ||
-    pathname.startsWith('/platform/user-management/') ||
-    pathname === '/platform/create-user' ||
-    pathname.startsWith('/platform/create-user/')
-  );
+  return pathname === '/platform' || pathname.startsWith('/platform/');
 }
 
 export function platformUsersPath(path: '/user-management' | '/create-user') {

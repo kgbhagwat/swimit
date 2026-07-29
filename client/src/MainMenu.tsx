@@ -47,6 +47,9 @@ export function MainMenu() {
             </li>
             <li>Role-based access so desk, gate, coaches, and admin see only what they need</li>
             <li>Optional finance tools for expenses, coach payouts, and a simple balance view</li>
+            <li>
+              Helps to send broadcast message to all active swimmers and All staff members.
+            </li>
           </ul>
 
           <h3>Workflow</h3>

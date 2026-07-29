@@ -5,8 +5,10 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
+import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import {
   notifyPassIssued,
+  notifyPassPaymentRequest,
   notifyRegistrationConfirmation,
 } from '../whatsapp/notify.js';
 
@@ -103,30 +105,95 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
     const accountId = tenantId(req);
     await deactivateExpiredPasses(accountId);
     const { rows } = await pool.query(
-      `SELECT id, full_name, email, whatsapp_mobile, birthdate, sex, blood_group,
-              is_active, pass_type, batch, coach, pass_valid_until, created_at,
+      `SELECT r.id, r.full_name, r.email, r.whatsapp_mobile, r.birthdate, r.sex, r.blood_group,
+              r.is_active, r.pass_type, r.batch, r.coach, r.pass_valid_until, r.created_at,
               CASE
-                WHEN pass_valid_until IS NULL THEN 'New'
+                WHEN r.pass_valid_until IS NULL THEN 'New'
                 ELSE 'Expired'
-              END AS pending_type
-       FROM registrations
-       WHERE saas_account_id = $1
+              END AS pending_type,
+              EXISTS (
+                SELECT 1 FROM pass_payment_intents i
+                WHERE i.registration_id = r.id AND i.status = 'pending'
+              ) AS awaiting_whatsapp
+       FROM registrations r
+       WHERE r.saas_account_id = $1
          AND (
-           pass_valid_until IS NULL
+           r.pass_valid_until IS NULL
            OR (
-             pass_valid_until < CURRENT_DATE
-             AND pass_valid_until >= (CURRENT_DATE - INTERVAL '3 days')
+             r.pass_valid_until < CURRENT_DATE
+             AND r.pass_valid_until >= (CURRENT_DATE - INTERVAL '3 days')
            )
          )
        ORDER BY
-         CASE WHEN pass_valid_until IS NULL THEN 0 ELSE 1 END,
-         created_at DESC`,
+         CASE WHEN r.pass_valid_until IS NULL THEN 0 ELSE 1 END,
+         r.created_at DESC`,
       [accountId],
     );
-    res.json(rows.map(mapRegistrationRow));
+    res.json(
+      rows.map((row) => ({
+        ...mapRegistrationRow(row),
+        awaitingWhatsApp: row.awaiting_whatsapp === true,
+      })),
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load pending payments' });
+  }
+});
+
+registrationsRouter.get('/pass-payments/recent', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const fromRaw = String(req.query.from ?? '').trim();
+    const toRaw = String(req.query.to ?? '').trim();
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(fromRaw) ? fromRaw : '';
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(toRaw) ? toRaw : '';
+
+    if ((from && !to) || (!from && to)) {
+      res.status(400).json({ error: 'Provide both from and to dates (YYYY-MM-DD)' });
+      return;
+    }
+    if (from && to && from > to) {
+      res.status(400).json({ error: 'From date must be on or before to date' });
+      return;
+    }
+
+    const params: Array<string | number> = [accountId];
+    let where = `WHERE p.saas_account_id = $1`;
+    let limitSql = 'LIMIT 10';
+    if (from && to) {
+      params.push(from, to);
+      where += ` AND p.payment_date >= $2::date AND p.payment_date <= $3::date`;
+      limitSql = 'LIMIT 500';
+    }
+
+    const { rows } = await pool.query(
+      `SELECT p.id, p.swimmer_name, p.pass_type, p.amount, p.payment_date, p.payment_mode,
+              p.transaction_id, r.whatsapp_mobile
+       FROM pass_payments p
+       LEFT JOIN registrations r ON r.id = p.registration_id
+       ${where}
+       ORDER BY p.payment_date DESC, p.id DESC
+       ${limitSql}`,
+      params,
+    );
+    res.json(
+      rows.map((row) => ({
+        id: Number(row.id),
+        swimmerName: String(row.swimmer_name ?? ''),
+        passType: String(row.pass_type ?? ''),
+        amount: Number(row.amount ?? 0),
+        paymentDate: row.payment_date
+          ? String(row.payment_date).slice(0, 10)
+          : null,
+        paymentMode: String(row.payment_mode ?? ''),
+        transactionId: String(row.transaction_id ?? '').trim() || '—',
+        mobile: String(row.whatsapp_mobile ?? ''),
+      })),
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load pass payments' });
   }
 });
 
@@ -329,6 +396,152 @@ registrationsRouter.patch('/:id', async (req, res) => {
   }
 });
 
+registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid swimmer id' });
+      return;
+    }
+
+    const body = req.body as {
+      passType?: string;
+      batch?: string;
+      coach?: string | null;
+      passValidUntil?: string;
+    };
+    const passType = String(body.passType ?? '').trim();
+    const batch = String(body.batch ?? '').trim();
+    const coach = String(body.coach ?? '').trim();
+    const passValidUntil = String(body.passValidUntil ?? '').trim().slice(0, 10);
+
+    if (!passType) {
+      res.status(400).json({ error: 'Select a pass type' });
+      return;
+    }
+    if (!batch) {
+      res.status(400).json({ error: 'Select a batch' });
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(passValidUntil)) {
+      res.status(400).json({ error: 'Pass valid-until date is required' });
+      return;
+    }
+
+    const { rows: regRows } = await pool.query(
+      `SELECT id, full_name, whatsapp_mobile
+       FROM registrations
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    if (!regRows[0]) {
+      res.status(404).json({ error: 'Swimmer not found' });
+      return;
+    }
+
+    const mobile = String(regRows[0].whatsapp_mobile ?? '').replace(/\D/g, '').slice(-10);
+    if (mobile.length !== 10) {
+      res.status(400).json({ error: 'Swimmer WhatsApp mobile is required' });
+      return;
+    }
+
+    const passRes = await pool.query(
+      `SELECT pass_charges, coaching_charges
+       FROM pass_types
+       WHERE saas_account_id = $1
+         AND LOWER(TRIM(pass_name)) = LOWER(TRIM($2))
+       LIMIT 1`,
+      [accountId, passType],
+    );
+    if (!passRes.rows[0]) {
+      res.status(400).json({ error: 'Pass type not found' });
+      return;
+    }
+    const passCharges = Number(passRes.rows[0].pass_charges ?? 0);
+    const coachingCharges = Number(passRes.rows[0].coaching_charges ?? 0);
+    const expectedAmount = Math.round((passCharges + coachingCharges) * 100) / 100;
+    if (expectedAmount <= 0) {
+      res.status(400).json({ error: 'Pass amount must be greater than zero' });
+      return;
+    }
+
+    const poolPay = await pool.query(
+      `SELECT upi_details, payment_qr_path, payment_accept_online
+       FROM pool_core_info WHERE saas_account_id = $1 LIMIT 1`,
+      [accountId],
+    );
+    if (poolPay.rows[0]?.payment_accept_online === false) {
+      res.status(400).json({ error: 'Online payment is not enabled for this pool' });
+      return;
+    }
+    const upiId = String(poolPay.rows[0]?.upi_details ?? '').trim();
+    const paymentQrPath = poolPay.rows[0]?.payment_qr_path
+      ? String(poolPay.rows[0].payment_qr_path)
+      : null;
+    if (!upiId && !paymentQrPath) {
+      res.status(400).json({
+        error: 'Set pool payment QR / UPI in Pool Core Info before requesting WhatsApp payment',
+      });
+      return;
+    }
+
+    await pool.query(
+      `UPDATE pass_payment_intents
+       SET status = 'cancelled', notes = 'Superseded by new payment request'
+       WHERE registration_id = $1 AND status = 'pending'`,
+      [id],
+    );
+
+    const { rows: intentRows } = await pool.query(
+      `INSERT INTO pass_payment_intents
+       (saas_account_id, registration_id, from_mobile, pass_type, batch, coach,
+        pass_valid_until, expected_amount, pass_charges, coaching_charges, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, 'pending')
+       RETURNING id, created_at`,
+      [
+        accountId,
+        id,
+        mobile,
+        passType,
+        batch,
+        coach,
+        passValidUntil,
+        expectedAmount,
+        passCharges,
+        coachingCharges,
+      ],
+    );
+
+    const notify = await notifyPassPaymentRequest({
+      mobile,
+      fullName: String(regRows[0].full_name),
+      passType,
+      amount: expectedAmount,
+      passValidUntil,
+      upiId,
+      paymentQrPath,
+      saasAccountId: accountId,
+    });
+
+    res.json({
+      ok: true,
+      intent: {
+        id: Number(intentRows[0].id),
+        expectedAmount,
+        passType,
+        passValidUntil,
+        createdAt: intentRows[0].created_at,
+      },
+      payment: { upiId, paymentQrPath },
+      whatsapp: notify,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create pass payment request' });
+  }
+});
+
 registrationsRouter.post(
   '/',
   upload.fields([
@@ -416,6 +629,30 @@ registrationsRouter.post(
         }
       }
 
+      // Adults: one WhatsApp mobile / email per account. Under-18 may share parent contact.
+      if (!needsParent) {
+        if (
+          await isMobileTakenInAccount({
+            accountId,
+            mobile: body.whatsappMobile,
+            kind: 'swimmer',
+          })
+        ) {
+          res.status(400).json({ error: duplicateMobileMessage('swimmer') });
+          return;
+        }
+        if (
+          await isEmailTakenInAccount({
+            accountId,
+            email: body.email,
+            kind: 'swimmer',
+          })
+        ) {
+          res.status(400).json({ error: duplicateEmailMessage('swimmer') });
+          return;
+        }
+      }
+
       const { rows } = await pool.query(
         `INSERT INTO registrations (
           saas_account_id, full_name, full_address, whatsapp_mobile, other_mobile, email, birthdate,
@@ -465,6 +702,12 @@ registrationsRouter.post(
       const message = err instanceof Error ? err.message : 'Registration failed';
       if (message.includes('File too large')) {
         res.status(400).json({ error: 'Each photo must be 200 KB or less' });
+        return;
+      }
+      if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {
+        res.status(400).json({
+          error: 'This WhatsApp mobile or email is already used by another adult swimmer in this account',
+        });
         return;
       }
       res.status(500).json({ error: message });

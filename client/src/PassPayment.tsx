@@ -13,6 +13,7 @@ type PendingSwimmer = {
   passType: string;
   coach: string;
   batch: string;
+  awaitingWhatsApp?: boolean;
 };
 
 type PassTypeOption = {
@@ -168,6 +169,8 @@ export function PassPayment() {
   const [onlineDetailsLoading, setOnlineDetailsLoading] = useState(false);
   const [holidayRecords, setHolidayRecords] = useState<HolidayRecord[]>([]);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
+  const [waRequesting, setWaRequesting] = useState(false);
+  const [waInfo, setWaInfo] = useState('');
 
   async function load() {
     setLoading(true);
@@ -190,6 +193,7 @@ export function PassPayment() {
         pass_type?: string | null;
         coach?: string | null;
         batch?: string | null;
+        awaitingWhatsApp?: boolean;
       }>;
 
       setRows(
@@ -202,6 +206,7 @@ export function PassPayment() {
           passType: row.pass_type?.trim() || '',
           coach: row.coach?.trim() || '',
           batch: row.batch?.trim() || '',
+          awaitingWhatsApp: Boolean(row.awaitingWhatsApp),
         })),
       );
 
@@ -272,6 +277,8 @@ export function PassPayment() {
     setTransactionId('');
     setPaymentQrPath(null);
     setUpiDetails('');
+    setWaInfo('');
+    setError('');
   }
 
   const selectedPass = passTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
@@ -424,6 +431,57 @@ export function PassPayment() {
     if (!stillAvailable) setCoach('');
   }, [batch, coach, coachesForBatch, coachingRequired]);
 
+  async function onRequestWhatsAppPayment() {
+    if (!paying || !selectedPass) {
+      setError('Select a pass type');
+      return;
+    }
+    if (!batch.trim()) {
+      setError('Select a batch');
+      return;
+    }
+    if (coachingRequired && !coach) {
+      setError('Select a coach for the chosen batch');
+      return;
+    }
+    if (!passValidUntil) {
+      setError('Pass end date is required');
+      return;
+    }
+
+    setWaRequesting(true);
+    setError('');
+    setWaInfo('');
+    try {
+      const assignedCoach = !coachingRequired
+        ? null
+        : coach || (selectedPass.coach !== 'Any' ? selectedPass.coach : null);
+      const res = await fetch(`/api/registrations/${paying.id}/pass-payment-intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          passType: selectedPass.passName,
+          coach: assignedCoach,
+          batch: batch.trim(),
+          passValidUntil,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to send payment request');
+
+      setWaInfo(
+        body.whatsapp?.ok === false
+          ? `Payment request saved, but WhatsApp failed: ${body.whatsapp.error || 'send failed'}. Swimmer can still send the screenshot to the business number.`
+          : `WhatsApp payment request sent to ${paying.contact}. When they pay ${formatMoney(Number(body.intent?.expectedAmount ?? 0))} to this pool UPI and send the screenshot, payment is confirmed automatically.`,
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send payment request');
+    } finally {
+      setWaRequesting(false);
+    }
+  }
+
   async function onConfirmPay(e: FormEvent) {
     e.preventDefault();
     if (!paying || !selectedPass) {
@@ -531,6 +589,9 @@ export function PassPayment() {
                     <span>
                       {row.type}
                       {row.passType ? ` · ${row.passType}` : ''}
+                      {row.awaitingWhatsApp ? (
+                        <span className="pass-wa-wait"> · Awaiting WhatsApp payment</span>
+                      ) : null}
                     </span>
                     <span className="pass-actions">
                       <button type="button" className="terms-link" onClick={() => openPay(row)}>
@@ -737,27 +798,50 @@ export function PassPayment() {
                       )}
                     </>
                   )}
-                  <label className="field transaction-id-field">
-                    <span className="label">
-                      Transaction ID <span className="req">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
-                      placeholder="Enter UPI / bank transaction ID"
-                      autoComplete="off"
-                      required
-                    />
-                  </label>
-                  <label className="payment-received-check">
-                    <input
-                      type="checkbox"
-                      checked={paymentReceived}
-                      onChange={(e) => setPaymentReceived(e.target.checked)}
-                    />
-                    <span>Yes, I saw payment completed successfully</span>
-                  </label>
+
+                  <p className="hint">
+                    Preferred: send a WhatsApp payment request. The swimmer pays this pool UPI /
+                    QR and sends the screenshot — amount and UPI are verified automatically.
+                  </p>
+                  <button
+                    type="button"
+                    className="csv-btn"
+                    disabled={
+                      waRequesting ||
+                      !selectedPass ||
+                      !batch ||
+                      batches.length === 0 ||
+                      (coachingRequired && (!coach || coachesForBatch.length === 0))
+                    }
+                    onClick={() => void onRequestWhatsAppPayment()}
+                  >
+                    {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
+                  </button>
+                  {waInfo ? <p className="success">{waInfo}</p> : null}
+
+                  <details className="pass-manual-online">
+                    <summary>Or confirm payment at desk</summary>
+                    <label className="field transaction-id-field">
+                      <span className="label">
+                        Transaction ID <span className="req">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        value={transactionId}
+                        onChange={(e) => setTransactionId(e.target.value)}
+                        placeholder="Enter UPI / bank transaction ID"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <label className="payment-received-check">
+                      <input
+                        type="checkbox"
+                        checked={paymentReceived}
+                        onChange={(e) => setPaymentReceived(e.target.checked)}
+                      />
+                      <span>Yes, I saw payment completed successfully</span>
+                    </label>
+                  </details>
                 </div>
               ) : null}
 
@@ -767,23 +851,26 @@ export function PassPayment() {
                 <button type="button" className="pass-cancel" onClick={closePay}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="submit"
-                  disabled={
-                    saving ||
-                    !selectedPass ||
-                    !batch ||
-                    batches.length === 0 ||
-                    !paymentMode ||
-                    (paymentMode === 'Cash' && !paymentReceived) ||
-                    (paymentMode === 'Online' &&
-                      (!transactionId.trim() || !paymentReceived)) ||
-                    (coachingRequired && (!coach || coachesForBatch.length === 0))
-                  }
-                >
-                  {saving ? 'Saving…' : 'Submit'}
-                </button>
+                {paymentMode === 'Cash' ||
+                (paymentMode === 'Online' && transactionId.trim() && paymentReceived) ? (
+                  <button
+                    type="submit"
+                    className="submit"
+                    disabled={
+                      saving ||
+                      !selectedPass ||
+                      !batch ||
+                      batches.length === 0 ||
+                      !paymentMode ||
+                      (paymentMode === 'Cash' && !paymentReceived) ||
+                      (paymentMode === 'Online' &&
+                        (!transactionId.trim() || !paymentReceived)) ||
+                      (coachingRequired && (!coach || coachesForBatch.length === 0))
+                    }
+                  >
+                    {saving ? 'Saving…' : 'Submit'}
+                  </button>
+                ) : null}
               </div>
             </form>
           </section>

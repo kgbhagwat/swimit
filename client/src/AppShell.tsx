@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import {
   ACCESS_PAGES,
   ALL_PAGE_KEYS,
+  featurePathFromLocation,
   isMenuSection,
   MENU_SECTIONS,
   pagesBySection,
@@ -48,10 +49,11 @@ function TenantUserBar({
   user,
   onLogout,
 }: {
-  account: { accountName: string; accountCode: string };
+  account: { accountName: string; accountCode: string; packageName?: string };
   user?: TenantUserInfo | null;
   onLogout?: () => void;
 }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -63,7 +65,38 @@ function TenantUserBar({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [saasPayment, setSaasPayment] = useState<{
+    paymentQrPath: string | null;
+    upiId: string;
+  } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user?.isAccountAdmin) {
+      setSaasPayment(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/platform-payment');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || cancelled) return;
+        const paymentQrPath = body.paymentQrPath ? String(body.paymentQrPath) : null;
+        const upiId = String(body.upiId ?? '').trim();
+        if (!paymentQrPath && !upiId) {
+          setSaasPayment(null);
+          return;
+        }
+        setSaasPayment({ paymentQrPath, upiId });
+      } catch {
+        if (!cancelled) setSaasPayment(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.isAccountAdmin]);
 
   useEffect(() => {
     if (!open) return;
@@ -158,6 +191,25 @@ function TenantUserBar({
 
   return (
     <div className="tenant-user-bar" ref={ref}>
+      {user.isAccountAdmin && account.packageName ? (
+        <span className="tenant-package-badge" title="Service package">
+          Package: <strong>{account.packageName}</strong>
+          <button
+            type="button"
+            className="tenant-package-edit"
+            aria-label="Edit package / renew"
+            title="Renew or change package"
+            onClick={() => {
+              navigate(`/${account.accountCode.toLowerCase()}/renew-payment`);
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+            </svg>
+          </button>
+        </span>
+      ) : null}
       <button
         type="button"
         className="tenant-profile-btn"
@@ -194,6 +246,30 @@ function TenantUserBar({
           <p className="tenant-profile-detail">
             Role: {user.isAccountAdmin ? 'Admin' : 'User'}
           </p>
+          {user.isAccountAdmin && account.packageName ? (
+            <p className="tenant-profile-detail">
+              Package: <strong>{account.packageName}</strong>
+            </p>
+          ) : null}
+          {user.isAccountAdmin && saasPayment ? (
+            <div className="tenant-saas-payment">
+              <p className="tenant-profile-detail">
+                <strong>Pay SwimIT subscription</strong>
+              </p>
+              {saasPayment.paymentQrPath ? (
+                <img
+                  src={`/uploads/${saasPayment.paymentQrPath}`}
+                  alt="SwimIT payment QR code"
+                  className="tenant-saas-payment-qr"
+                />
+              ) : null}
+              {saasPayment.upiId ? (
+                <p className="tenant-profile-detail">
+                  UPI: <code>{saasPayment.upiId}</code>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {!changingPassword ? (
             <div className="tenant-profile-actions">
@@ -306,9 +382,16 @@ function TenantUserBar({
 }
 
 export type AppShellProps = {
-  tenantAccount?: { id: number; accountName: string; accountCode: string } | null;
+  tenantAccount?: {
+    id: number;
+    accountName: string;
+    accountCode: string;
+    packageName?: string;
+  } | null;
   tenantUser?: TenantUserInfo | null;
   onTenantLogout?: () => void;
+  /** Matched feature page from AccountPortal's useOutlet(); omit for /application layout. */
+  featurePage?: ReactNode;
   children?: ReactNode;
 };
 
@@ -317,14 +400,19 @@ export function AppShell({
   tenantAccount,
   tenantUser,
   onTenantLogout,
+  featurePage,
   children,
 }: AppShellProps = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const routeOutlet = useOutlet();
-  // When used as a route layout (`/application`), useOutlet(); when wrapped by AccountPortal, use children.
-  const pageContent = children !== undefined ? children : routeOutlet;
-  const onHome = !pageContent;
+  const featurePath = featurePathFromLocation(location.pathname);
+  const onHome = featurePath === '/';
+  const pageContent = onHome
+    ? null
+    : featurePage !== undefined
+      ? featurePage
+      : (children ?? routeOutlet);
   const sectionFromNav = (location.state as { section?: unknown } | null)?.section;
 
   const homePath = tenantAccount?.accountCode
@@ -471,7 +559,14 @@ export function AppShell({
         </div>
 
         <div className="app-shell-body">
-          {pageContent ?? <MenuTiles items={visibleItems} appPath={appPath} section={section} />}
+          {pageContent ??
+            (onHome ? (
+              <MenuTiles items={visibleItems} appPath={appPath} section={section} />
+            ) : (
+              <div className="page">
+                <p className="error">Page not found ({featurePath}).</p>
+              </div>
+            ))}
         </div>
       </div>
     </div>

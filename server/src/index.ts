@@ -19,6 +19,7 @@ import { usersRouter } from './routes/users.js';
 import { servicePackagesRouter } from './routes/servicePackages.js';
 import { saasAccountsRouter } from './routes/saasAccounts.js';
 import { whatsappRouter } from './routes/whatsapp.js';
+import { platformPaymentRouter } from './routes/platformPayment.js';
 import { requireTenant } from './middleware/tenant.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,7 @@ app.use('/api/users', requireTenant, usersRouter);
 app.use('/api/service-packages', servicePackagesRouter);
 app.use('/api/saas-accounts', saasAccountsRouter);
 app.use('/api/whatsapp', whatsappRouter);
+app.use('/api/platform-payment', platformPaymentRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

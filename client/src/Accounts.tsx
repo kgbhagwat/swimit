@@ -12,7 +12,10 @@ type Account = {
   city: string;
   poolAddress?: string;
   accountCode?: string;
+  packageName?: string;
   createdAt?: string;
+  activeSwimmers?: number;
+  subscriptionExpiresAt?: string | null;
 };
 
 type ResentCredentials = {
@@ -35,6 +38,17 @@ type ResentCredentials = {
 function formatCreated(value?: string) {
   if (!value) return '—';
   const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatExpiry(value?: string | null) {
+  if (!value) return '—';
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleString('en-GB', {
     day: '2-digit',
@@ -237,7 +251,7 @@ export function Accounts() {
   return (
     <>
       <PlatformNav />
-      <div className="page">
+      <div className="page accounts-page">
       <div className="top-row">
         <MenuBackLink />
         <div className="top-row-right">
@@ -248,7 +262,6 @@ export function Accounts() {
       </div>
 
       <h1>Accounts</h1>
-      <p className="lede">All SwimIT SaaS pool operator accounts.</p>
 
       {error ? <p className="error">{error}</p> : null}
 
@@ -264,52 +277,55 @@ export function Accounts() {
             .
           </p>
         ) : (
-          <div className="batch-saved-table-wrap">
-            <table className="batch-saved-table">
+          <div className="batch-saved-table-wrap accounts-table-wrap">
+            <table className="batch-saved-table accounts-table">
               <thead>
                 <tr>
                   <th>Account</th>
                   <th>Code</th>
                   <th>Contact</th>
-                  <th>Login link</th>
-                  <th>Created</th>
+                  <th>Opened</th>
+                  <th>Package</th>
+                  <th>Active swimmers</th>
+                  <th>Expires</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {accounts.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td className="accounts-col-account">
                       <strong className="batch-saved-name">{item.accountName}</strong>
                       {item.poolAddress ? (
-                        <div className="muted" style={{ fontSize: '0.85rem' }}>
-                          {item.poolAddress}
-                        </div>
+                        <div className="muted accounts-sub">{item.poolAddress}</div>
                       ) : null}
-                      {item.city ? (
-                        <div className="muted" style={{ fontSize: '0.85rem' }}>
-                          {item.city}
-                        </div>
-                      ) : null}
+                      {item.city ? <div className="muted accounts-sub">{item.city}</div> : null}
                     </td>
-                    <td>{item.accountCode || '—'}</td>
-                    <td>
-                      {item.contactName}
-                      <div className="muted" style={{ fontSize: '0.85rem' }}>
-                        {item.mobile}
-                        {item.email ? ` · ${item.email}` : ''}
-                      </div>
-                    </td>
-                    <td>
+                    <td className="accounts-col-code">
                       {item.accountCode ? (
                         <a className="terms-link" href={accountLoginUrl(item.accountCode)}>
-                          /{item.accountCode}
+                          {item.accountCode}
                         </a>
                       ) : (
                         '—'
                       )}
                     </td>
+                    <td className="accounts-col-contact">
+                      {item.contactName}
+                      <div className="muted accounts-sub">
+                        {item.mobile}
+                        {item.email ? (
+                          <>
+                            <br />
+                            {item.email}
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
                     <td>{formatCreated(item.createdAt)}</td>
+                    <td>{item.packageName?.trim() || '—'}</td>
+                    <td className="accounts-col-num">{item.activeSwimmers ?? 0}</td>
+                    <td>{formatExpiry(item.subscriptionExpiresAt)}</td>
                     <td>
                       <button
                         type="button"

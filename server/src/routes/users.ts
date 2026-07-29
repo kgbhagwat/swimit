@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
-import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { sanitizeMenuAccess } from '../menuAccess.js';
+import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { generateTempPassword, hashPassword } from '../password.js';
 import { tenantId } from '../middleware/tenant.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
@@ -120,21 +120,13 @@ usersRouter.post('/', async (req, res) => {
     }
 
     const warnings: string[] = [];
-    const mobileExisting = await pool.query(
-      `SELECT id FROM app_users
-       WHERE saas_account_id = $1 AND mobile = $2
-       LIMIT 1`,
-      [accountId, mobile],
-    );
-    if (mobileExisting.rows[0]) {
-      if (allowDuplicateAccountMobile()) {
-        warnings.push(
-          'This mobile number is already used by another user. Allowed on staging only — production will block it.',
-        );
-      } else {
-        res.status(400).json({ error: 'Mobile No. already exists' });
-        return;
-      }
+    if (await isMobileTakenInAccount({ accountId, mobile, kind: 'user' })) {
+      res.status(400).json({ error: duplicateMobileMessage('user') });
+      return;
+    }
+    if (await isEmailTakenInAccount({ accountId, email, kind: 'user' })) {
+      res.status(400).json({ error: duplicateEmailMessage('user') });
+      return;
     }
 
     const passwordHash = await hashPassword(password);
@@ -192,9 +184,7 @@ usersRouter.post('/', async (req, res) => {
     const message = err instanceof Error ? err.message : '';
     if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {
       res.status(400).json({
-        error: allowDuplicateAccountMobile()
-          ? 'Could not create user (duplicate). Redeploy so staging mobile uniqueness is relaxed.'
-          : 'User Name or Mobile No. already exists',
+        error: 'User Name, Mobile No., or Email already exists in this account',
       });
       return;
     }

@@ -1,13 +1,20 @@
 /** SaaS platform (swimit) menus grantable in platform User Management. */
 
-export type PlatformAccessSection = 'Account management' | 'Packages' | 'Staff users';
+export type PlatformAccessSection =
+  | 'Account management'
+  | 'Packages'
+  | 'Billing'
+  | 'Staff users'
+  | 'Messaging';
 
 export type PlatformAccessPageKey =
   | 'accounts'
   | 'create-account'
   | 'service-packages'
+  | 'payment'
   | 'platform-users'
-  | 'platform-create-user';
+  | 'platform-create-user'
+  | 'whatsapp';
 
 export type PlatformAccessPageDef = {
   key: PlatformAccessPageKey;
@@ -19,7 +26,9 @@ export type PlatformAccessPageDef = {
 export const PLATFORM_ACCESS_SECTIONS: PlatformAccessSection[] = [
   'Account management',
   'Packages',
+  'Billing',
   'Staff users',
+  'Messaging',
 ];
 
 export const PLATFORM_ACCESS_PAGES: PlatformAccessPageDef[] = [
@@ -42,6 +51,12 @@ export const PLATFORM_ACCESS_PAGES: PlatformAccessPageDef[] = [
     label: 'Service Packages',
   },
   {
+    key: 'payment',
+    section: 'Billing',
+    to: '/platform/payment',
+    label: 'Payment',
+  },
+  {
     key: 'platform-users',
     section: 'Staff users',
     to: '/platform/user-management',
@@ -52,6 +67,12 @@ export const PLATFORM_ACCESS_PAGES: PlatformAccessPageDef[] = [
     section: 'Staff users',
     to: '/platform/create-user',
     label: 'Create User',
+  },
+  {
+    key: 'whatsapp',
+    section: 'Messaging',
+    to: '/platform/whatsapp',
+    label: 'WhatsApp',
   },
 ];
 

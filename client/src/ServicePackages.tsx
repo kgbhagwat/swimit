@@ -68,11 +68,16 @@ const PACKAGE_FEATURES: PackageFeature[] = [
   { label: 'Balance sheet', level: 'full' },
   { label: 'Holiday management', level: 'full' },
   { label: 'User management & access', level: 'full' },
+  { label: 'WhatsApp Broadcast messaging', level: 'full' },
 ];
 
-function packageHasFeature(modules: string, feature: PackageFeature) {
+function packageHasFeature(modules: string, feature: PackageFeature, packageName?: string) {
   if (feature.level === 'core') return true;
-  return String(modules ?? '').toLowerCase() === 'full';
+  const level = String(modules ?? '').toLowerCase().trim();
+  if (level === 'full') return true;
+  // Professional & Enterprise are full-module plans even if an older DB row still says core.
+  const name = String(packageName ?? '').toLowerCase().trim();
+  return name === 'professional' || name === 'enterprise';
 }
 
 function FeatureTick({ on }: { on: boolean }) {
@@ -470,7 +475,9 @@ export function ServicePackages() {
                     <th scope="row">{feature.label}</th>
                     {packages.map((item) => (
                       <td key={item.id}>
-                        <FeatureTick on={packageHasFeature(item.modules, feature)} />
+                        <FeatureTick
+                          on={packageHasFeature(item.modules, feature, item.packageName)}
+                        />
                       </td>
                     ))}
                   </tr>
@@ -485,7 +492,9 @@ export function ServicePackages() {
                     <th scope="row">{feature.label}</th>
                     {packages.map((item) => (
                       <td key={item.id}>
-                        <FeatureTick on={packageHasFeature(item.modules, feature)} />
+                        <FeatureTick
+                          on={packageHasFeature(item.modules, feature, item.packageName)}
+                        />
                       </td>
                     ))}
                   </tr>

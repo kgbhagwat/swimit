@@ -7,6 +7,8 @@ import { requireTenant, tenantId } from '../middleware/tenant.js';
 import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { notifyPassExpiring, notifyOpenFormQr, sendBroadcast } from '../whatsapp/notify.js';
+import { processPackageRenewalInbound } from '../packageRenewal.js';
+import { processPassPaymentInbound } from '../passPaymentVerify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadRoot = path.resolve(__dirname, '../../uploads/whatsapp');
@@ -46,10 +48,18 @@ function classifyInbound(caption: string, mimeType: string) {
   return 'other';
 }
 
-async function resolveInboundAccount(fromMobile: string) {
+/**
+ * Only accept inbound WhatsApp from registered mobiles:
+ * swimmer (registrations), staff (staff_registrations), or app user (app_users).
+ * Unknown numbers are ignored.
+ */
+async function resolveInboundAccount(fromMobile: string): Promise<{
+  last10: string;
+  saasAccountId: number;
+  registrationId: number | null;
+} | null> {
   const last10 = fromMobile.replace(/\D/g, '').slice(-10);
-  let saasAccountId: number | null = null;
-  let registrationId: number | null = null;
+  if (last10.length < 10) return null;
 
   const swimmer = await pool.query(
     `SELECT id, saas_account_id FROM registrations
@@ -57,28 +67,43 @@ async function resolveInboundAccount(fromMobile: string) {
      ORDER BY id DESC LIMIT 1`,
     [last10],
   );
-  if (swimmer.rows[0]) {
-    registrationId = Number(swimmer.rows[0].id);
-    saasAccountId = Number(swimmer.rows[0].saas_account_id);
-  } else {
-    const account = await pool.query(
-      `SELECT id FROM saas_accounts
-       WHERE RIGHT(regexp_replace(mobile, '\\D', '', 'g'), 10) = $1
-       ORDER BY id DESC LIMIT 1`,
-      [last10],
-    );
-    if (account.rows[0]) {
-      saasAccountId = Number(account.rows[0].id);
-    } else {
-      // Application preview / unmatched senders → SwimIT platform account
-      const platform = await pool.query(
-        `SELECT id FROM saas_accounts WHERE LOWER(account_code) = 'swimit' LIMIT 1`,
-      );
-      if (platform.rows[0]) saasAccountId = Number(platform.rows[0].id);
-    }
+  if (swimmer.rows[0]?.saas_account_id != null) {
+    return {
+      last10,
+      saasAccountId: Number(swimmer.rows[0].saas_account_id),
+      registrationId: Number(swimmer.rows[0].id),
+    };
   }
 
-  return { last10: last10 || fromMobile, saasAccountId, registrationId };
+  const staff = await pool.query(
+    `SELECT id, saas_account_id FROM staff_registrations
+     WHERE RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10) = $1
+     ORDER BY id DESC LIMIT 1`,
+    [last10],
+  );
+  if (staff.rows[0]?.saas_account_id != null) {
+    return {
+      last10,
+      saasAccountId: Number(staff.rows[0].saas_account_id),
+      registrationId: null,
+    };
+  }
+
+  const user = await pool.query(
+    `SELECT id, saas_account_id FROM app_users
+     WHERE RIGHT(regexp_replace(mobile, '\\D', '', 'g'), 10) = $1
+     ORDER BY id DESC LIMIT 1`,
+    [last10],
+  );
+  if (user.rows[0]?.saas_account_id != null) {
+    return {
+      last10,
+      saasAccountId: Number(user.rows[0].saas_account_id),
+      registrationId: null,
+    };
+  }
+
+  return null;
 }
 
 async function saveInboundMedia(params: {
@@ -89,8 +114,14 @@ async function saveInboundMedia(params: {
   waMessageId?: string;
   mediaUrl?: string;
 }) {
+  const resolved = await resolveInboundAccount(params.fromMobile);
+  if (!resolved) {
+    console.info('[whatsapp] ignored media from unregistered mobile', params.fromMobile);
+    return;
+  }
+  const { last10, saasAccountId, registrationId } = resolved;
+
   fs.mkdirSync(uploadRoot, { recursive: true });
-  const { last10, saasAccountId, registrationId } = await resolveInboundAccount(params.fromMobile);
   let relativePath: string | null = null;
   let mimeType = params.mimeType;
   let status = 'received';
@@ -119,10 +150,12 @@ async function saveInboundMedia(params: {
   }
 
   const kind = classifyInbound(params.caption, mimeType);
-  await pool.query(
+
+  const inserted = await pool.query(
     `INSERT INTO whatsapp_inbound
      (saas_account_id, registration_id, from_mobile, wa_message_id, kind, caption, mime_type, file_path, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id`,
     [
       saasAccountId,
       registrationId,
@@ -135,6 +168,33 @@ async function saveInboundMedia(params: {
       status,
     ],
   );
+
+  const inboundId = Number(inserted.rows[0]?.id);
+  if (inboundId && status === 'received' && relativePath) {
+    try {
+      await processPackageRenewalInbound({
+        saasAccountId,
+        fromMobileLast10: last10,
+        caption: params.caption || '',
+        relativeFilePath: relativePath,
+        inboundId,
+      });
+    } catch (err) {
+      console.error('[whatsapp] package renewal processing failed', err);
+    }
+    try {
+      await processPassPaymentInbound({
+        saasAccountId,
+        fromMobileLast10: last10,
+        caption: params.caption || '',
+        relativeFilePath: relativePath,
+        inboundId,
+        registrationId,
+      });
+    } catch (err) {
+      console.error('[whatsapp] pass payment processing failed', err);
+    }
+  }
 }
 
 /** Inbound webhook from Meta */
@@ -182,6 +242,13 @@ whatsappRouter.post('/webhook', async (req, res) => {
           const from = String(msg.from ?? '');
           if (!from) continue;
 
+          // Only registered swimmer / staff / user mobiles
+          if (!(await resolveInboundAccount(from))) {
+            console.info('[whatsapp] ignored message from unregistered mobile', from);
+            continue;
+          }
+
+          // Only images (optional caption text). Plain text, PDF, audio, etc. are ignored.
           if (msg.type === 'image' && msg.image?.id) {
             await saveInboundMedia({
               fromMobile: from,
@@ -191,38 +258,10 @@ whatsappRouter.post('/webhook', async (req, res) => {
               waMessageId: msg.id,
               mediaUrl: msg.image.url,
             });
-          } else if (msg.type === 'document' && msg.document?.id) {
-            await saveInboundMedia({
-              fromMobile: from,
-              mediaId: msg.document.id,
-              mimeType: String(msg.document.mime_type ?? 'application/pdf'),
-              caption: String(msg.document.caption ?? msg.document.filename ?? ''),
-              waMessageId: msg.id,
-              mediaUrl: msg.document.url,
-            });
-          } else if (msg.type === 'text' && msg.text?.body) {
-            const { last10, saasAccountId, registrationId } = await resolveInboundAccount(from);
-            await pool.query(
-              `INSERT INTO whatsapp_inbound
-               (saas_account_id, registration_id, from_mobile, wa_message_id, kind, caption, status)
-               VALUES ($1, $2, $3, $4, 'text', $5, 'received')`,
-              [saasAccountId, registrationId, last10, msg.id ?? null, msg.text.body],
-            );
           } else {
-            // Stickers, audio, etc. — still record so inbox is not empty
-            const { last10, saasAccountId, registrationId } = await resolveInboundAccount(from);
-            await pool.query(
-              `INSERT INTO whatsapp_inbound
-               (saas_account_id, registration_id, from_mobile, wa_message_id, kind, caption, status)
-               VALUES ($1, $2, $3, $4, $5, $6, 'received')`,
-              [
-                saasAccountId,
-                registrationId,
-                last10,
-                msg.id ?? null,
-                String(msg.type ?? 'other'),
-                'Unsupported message type for download',
-              ],
+            console.info(
+              '[whatsapp] ignored non-image inbound',
+              JSON.stringify({ from, type: msg.type ?? null }),
             );
           }
         }
@@ -250,11 +289,10 @@ whatsappRouter.get('/status', async (_req, res) => {
 whatsappRouter.get('/inbox', requireTenant, async (req, res) => {
   try {
     const accountId = tenantId(req);
-    // Include unmatched inbound (null account) so Application / early tests can see media
     const { rows } = await pool.query(
       `SELECT id, registration_id, from_mobile, kind, caption, mime_type, file_path, status, created_at
        FROM whatsapp_inbound
-       WHERE saas_account_id = $1 OR saas_account_id IS NULL
+       WHERE saas_account_id = $1
        ORDER BY created_at DESC
        LIMIT 100`,
       [accountId],
@@ -448,9 +486,9 @@ whatsappRouter.post('/broadcast', requireTenant, async (req, res) => {
         [accountId],
       );
       mobiles = rows.map((r) => String(r.whatsapp_mobile));
-    } else if (audience === 'all_swimmers') {
+    } else if (audience === 'all_staff') {
       const { rows } = await pool.query(
-        `SELECT DISTINCT whatsapp_mobile FROM registrations
+        `SELECT DISTINCT whatsapp_mobile FROM staff_registrations
          WHERE saas_account_id = $1 AND whatsapp_mobile IS NOT NULL`,
         [accountId],
       );

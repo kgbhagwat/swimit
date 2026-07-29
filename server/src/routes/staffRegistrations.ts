@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
+import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../uploads');
@@ -241,6 +242,28 @@ staffRegistrationsRouter.put(
         res.status(400).json({ error: 'Mobile numbers must be 10 digits' });
         return;
       }
+      if (
+        await isMobileTakenInAccount({
+          accountId,
+          mobile: body.whatsappMobile,
+          kind: 'staff',
+          excludeId: id,
+        })
+      ) {
+        res.status(400).json({ error: duplicateMobileMessage('staff') });
+        return;
+      }
+      if (
+        await isEmailTakenInAccount({
+          accountId,
+          email: body.email,
+          kind: 'staff',
+          excludeId: id,
+        })
+      ) {
+        res.status(400).json({ error: duplicateEmailMessage('staff') });
+        return;
+      }
       if (body.otherMobile && !mobileRe.test(body.otherMobile)) {
         res.status(400).json({ error: 'Other mobile number must be 10 digits' });
         return;
@@ -426,6 +449,12 @@ staffRegistrationsRouter.put(
         res.status(400).json({ error: 'Each photo must be 200 KB or less' });
         return;
       }
+      if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {
+        res.status(400).json({
+          error: 'This WhatsApp mobile or email is already used by another staff member in this account',
+        });
+        return;
+      }
       res.status(500).json({ error: message });
     }
   },
@@ -491,6 +520,26 @@ staffRegistrationsRouter.post(
       const mobileRe = /^\d{10}$/;
       if (!mobileRe.test(body.whatsappMobile) || !mobileRe.test(body.emergencyMobile)) {
         res.status(400).json({ error: 'Mobile numbers must be 10 digits' });
+        return;
+      }
+      if (
+        await isMobileTakenInAccount({
+          accountId,
+          mobile: body.whatsappMobile,
+          kind: 'staff',
+        })
+      ) {
+        res.status(400).json({ error: duplicateMobileMessage('staff') });
+        return;
+      }
+      if (
+        await isEmailTakenInAccount({
+          accountId,
+          email: body.email,
+          kind: 'staff',
+        })
+      ) {
+        res.status(400).json({ error: duplicateEmailMessage('staff') });
         return;
       }
       if (body.otherMobile && !mobileRe.test(body.otherMobile)) {
@@ -612,6 +661,12 @@ staffRegistrationsRouter.post(
       const message = err instanceof Error ? err.message : 'Registration failed';
       if (message.includes('File too large')) {
         res.status(400).json({ error: 'Each photo must be 200 KB or less' });
+        return;
+      }
+      if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {
+        res.status(400).json({
+          error: 'This WhatsApp mobile or email is already used by another staff member in this account',
+        });
         return;
       }
       res.status(500).json({ error: message });

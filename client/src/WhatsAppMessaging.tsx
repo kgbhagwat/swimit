@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
 import { MenuBackLink } from './MenuBackLink';
 import { getActiveSaasAccountId, setActiveTenant } from './tenantSession';
@@ -37,6 +38,9 @@ async function ensureApplicationTenant() {
 }
 
 export function WhatsAppMessaging() {
+  const { pathname } = useLocation();
+  const showTestSend = pathname.startsWith('/platform/whatsapp');
+
   const [status, setStatus] = useState<WaStatus | null>(null);
   const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [message, setMessage] = useState('');
@@ -156,16 +160,9 @@ export function WhatsAppMessaging() {
 
       <h1>WhatsApp</h1>
       <p className="lede">
-        Send pool messages on WhatsApp and review inbound payment screenshots / certificates.
+        Send messages on WhatsApp and review inbound images from registered mobiles (payment
+        screenshots / certificates).
       </p>
-
-      {isApplicationDemo() ? (
-        <p className="muted">
-          Application preview is connected to live WhatsApp on staging. Use{' '}
-          <strong>Send test message</strong> below (number must be on Meta’s allow list while the app
-          is unpublished).
-        </p>
-      ) : null}
 
       {loading ? <p className="pass-empty">Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
@@ -196,68 +193,72 @@ export function WhatsAppMessaging() {
         </section>
       ) : null}
 
-      <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
-        <h2>Send test message</h2>
-        <p className="muted" style={{ marginTop: 0 }}>
-          <strong>App → WhatsApp:</strong> messages you send from here.
-          <br />
-          <strong>WhatsApp → App:</strong> photos/docs people send to the business number show in Inbound inbox
-          below.
-        </p>
-        <form onSubmit={onTestSend}>
-          <label className="field">
-            <span className="label">WhatsApp mobile (10 digits)</span>
-            <input
-              value={testMobile}
-              onChange={(e) => setTestMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              inputMode="numeric"
-              placeholder="98XXXXXXXX"
-              required
-            />
-          </label>
-          <label className="field">
-            <span className="label">Send as</span>
-            <select
-              value={sendMode}
-              onChange={(e) => setSendMode(e.target.value === 'template' ? 'template' : 'text')}
-            >
-              <option value="text">Custom text (message box below)</option>
-              <option value="template">Meta hello_world template (sample text)</option>
-            </select>
-          </label>
-          <label className="field">
-            <span className="label">Message (used for custom text)</span>
-            <textarea
-              rows={3}
-              value={testMessage}
-              onChange={(e) => setTestMessage(e.target.value)}
-              required={sendMode === 'text'}
-              disabled={sendMode === 'template'}
-            />
-          </label>
-          {sendMode === 'text' ? (
-            <p className="muted">
-              Custom text usually works only after that person replies once to the Meta test chat (+1 555…). Reply
-              “Hi” there, then send.
-            </p>
-          ) : (
-            <p className="muted">Template always sends Meta’s fixed “Welcome and congratulations…” sample.</p>
-          )}
-          <div className="pass-form-actions">
-            <button
-              type="submit"
-              className="submit"
-              disabled={
-                testSending ||
-                testMobile.length !== 10 ||
-                (sendMode === 'text' && !testMessage.trim())
-              }
-            >
-              {testSending ? 'Sending…' : 'Send test message'}
-            </button>
-          </div>
-        </form>
-      </section>
+      {showTestSend ? (
+        <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
+          <h2>Send test message</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            <strong>App → WhatsApp:</strong> messages you send from here.
+            <br />
+            <strong>WhatsApp → App:</strong> photos people send to the business number show in Inbound
+            inbox below.
+          </p>
+          <form onSubmit={onTestSend}>
+            <label className="field">
+              <span className="label">WhatsApp mobile (10 digits)</span>
+              <input
+                value={testMobile}
+                onChange={(e) => setTestMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                inputMode="numeric"
+                placeholder="98XXXXXXXX"
+                required
+              />
+            </label>
+            <label className="field">
+              <span className="label">Send as</span>
+              <select
+                value={sendMode}
+                onChange={(e) => setSendMode(e.target.value === 'template' ? 'template' : 'text')}
+              >
+                <option value="text">Custom text (message box below)</option>
+                <option value="template">Meta hello_world template (sample text)</option>
+              </select>
+            </label>
+            <label className="field">
+              <span className="label">Message (used for custom text)</span>
+              <textarea
+                rows={3}
+                value={testMessage}
+                onChange={(e) => setTestMessage(e.target.value)}
+                required={sendMode === 'text'}
+                disabled={sendMode === 'template'}
+              />
+            </label>
+            {sendMode === 'text' ? (
+              <p className="muted">
+                Custom text usually works only after that person replies once to the Meta test chat (+1
+                555…). Reply “Hi” there, then send.
+              </p>
+            ) : (
+              <p className="muted">
+                Template always sends Meta’s fixed “Welcome and congratulations…” sample.
+              </p>
+            )}
+            <div className="pass-form-actions">
+              <button
+                type="submit"
+                className="submit"
+                disabled={
+                  testSending ||
+                  testMobile.length !== 10 ||
+                  (sendMode === 'text' && !testMessage.trim())
+                }
+              >
+                {testSending ? 'Sending…' : 'Send test message'}
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
         <h2>Broadcast</h2>
@@ -265,8 +266,8 @@ export function WhatsAppMessaging() {
           <label className="field">
             <span className="label">Audience</span>
             <select value={audience} onChange={(e) => setAudience(e.target.value)}>
-              <option value="active_swimmers">Active swimmers</option>
-              <option value="all_swimmers">All swimmers</option>
+              <option value="active_swimmers">Active Swimmers</option>
+              <option value="all_staff">All staff</option>
             </select>
           </label>
           <label className="field">
@@ -299,9 +300,8 @@ export function WhatsAppMessaging() {
         </div>
         {inbox.length === 0 ? (
           <p className="pass-empty">
-            No inbound WhatsApp media yet. Send a photo/text to Meta’s test number, then Refresh. In Meta → Step
-            2 → Configure Webhooks, confirm <code>messages</code> is subscribed. While the app is unpublished,
-            also check Meta’s “Check test webhooks” log after you send.
+            No inbound WhatsApp images yet. Registered mobiles can send a photo (optional caption) to
+            the business number, then Refresh.
           </p>
         ) : (
           <div className="batch-saved-table-wrap">

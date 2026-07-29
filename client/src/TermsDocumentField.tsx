@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import {
   createTunedOcrWorker,
+  extractTextFromPdfFile,
   type OcrLanguageMode,
   recognizeImageFile,
 } from './termsOcr';
@@ -33,35 +34,67 @@ function joinPages(existing: string, pages: string[]) {
   return next;
 }
 
-async function extractPagesFromFiles(files: File[], mode: OcrLanguageMode): Promise<string[]> {
+function isImageFile(file: File) {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  return type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|tif{1,2})$/i.test(name);
+}
+
+function isTextFile(file: File) {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  return type.startsWith('text/') || /\.(txt|md|csv)$/i.test(name);
+}
+
+function isPdfFile(file: File) {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  return type === 'application/pdf' || name.endsWith('.pdf');
+}
+
+async function extractPagesFromFiles(
+  files: File[],
+  mode: OcrLanguageMode,
+  onProgress: (message: string) => void,
+): Promise<string[]> {
   const texts: string[] = [];
   const imageFiles: File[] = [];
-  const otherFiles: File[] = [];
+  const textFiles: File[] = [];
+  const pdfFiles: File[] = [];
 
   for (const file of files) {
-    const name = file.name.toLowerCase();
-    const type = file.type.toLowerCase();
-    if (
-      type.startsWith('image/') ||
-      /\.(png|jpe?g|webp|gif|bmp|tif{1,2})$/i.test(name)
-    ) {
-      imageFiles.push(file);
-    } else if (type.startsWith('text/') || /\.(txt|md|csv)$/i.test(name)) {
-      otherFiles.push(file);
-    } else {
-      throw new Error(`Unsupported file: ${file.name}. Use photos/images or .txt`);
+    if (isImageFile(file)) imageFiles.push(file);
+    else if (isTextFile(file)) textFiles.push(file);
+    else if (isPdfFile(file)) pdfFiles.push(file);
+    else {
+      throw new Error(
+        `Unsupported file: ${file.name}. Use images, .txt, or .pdf`,
+      );
     }
   }
 
-  for (const file of otherFiles) {
+  for (const file of textFiles) {
+    onProgress(`Reading ${file.name}…`);
     const text = (await file.text()).trim();
     if (text) texts.push(text);
+  }
+
+  for (const file of pdfFiles) {
+    onProgress(`Opening PDF ${file.name}…`);
+    const pages = await extractTextFromPdfFile(file, mode, onProgress);
+    texts.push(...pages);
   }
 
   if (imageFiles.length > 0) {
     const worker = await createTunedOcrWorker(mode);
     try {
-      for (const file of imageFiles) {
+      for (let i = 0; i < imageFiles.length; i += 1) {
+        const file = imageFiles[i];
+        onProgress(
+          imageFiles.length > 1
+            ? `Scanning image ${i + 1} of ${imageFiles.length}…`
+            : `Scanning ${file.name}…`,
+        );
         const text = await recognizeImageFile(worker, file);
         if (text) texts.push(text);
       }
@@ -98,18 +131,14 @@ export function TermsDocumentField({
     setError('');
     const langLabel =
       langMode === 'marathi' ? 'Marathi' : langMode === 'english' ? 'English' : 'Marathi + English';
-    setStatus(
-      files.length > 1
-        ? `Scanning ${files.length} pages (${langLabel}, enhanced)…`
-        : files[0].type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(files[0].name)
-          ? `Scanning page (${langLabel}, enhanced)…`
-          : 'Reading file…',
-    );
+    setStatus(`Reading file(s) (${langLabel})…`);
 
     try {
-      const pages = await extractPagesFromFiles(files, langMode);
+      const pages = await extractPagesFromFiles(files, langMode, setStatus);
       if (pages.length === 0) {
-        throw new Error('No text found. Try a clearer photo or switch OCR language mode.');
+        throw new Error(
+          'No text found. Try a clearer photo/PDF, a .txt file, or switch OCR language mode.',
+        );
       }
       const beforePages = countPages(valueRef.current);
       const next = joinPages(valueRef.current, pages);
@@ -117,8 +146,8 @@ export function TermsDocumentField({
       const added = countPages(next) - beforePages;
       setStatus(
         added > 1
-          ? `Added ${added} pages. Scan more pages anytime — they append below.`
-          : `Added page ${countPages(next)}. Scan more pages anytime — they append below.`,
+          ? `Added ${added} pages/sections. Upload more anytime — they append below.`
+          : `Added page ${countPages(next)}. Upload more anytime — they append below.`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to read document');
@@ -133,7 +162,7 @@ export function TermsDocumentField({
   return (
     <div className="field terms-document-field">
       <span className="label">{label}</span>
-      <p className="hint">Scan or upload one page at a time.</p>
+      <p className="hint">Scan or upload text (.txt), PDF, or image — one or more files.</p>
       <div className="terms-toolbar">
         <label className="terms-ocr-lang">
           <span className="label">Language of Document</span>
@@ -193,7 +222,7 @@ export function TermsDocumentField({
       <input
         ref={fileRef}
         type="file"
-        accept="image/*,.txt,.md,text/plain"
+        accept="image/*,.txt,.md,text/plain,application/pdf,.pdf"
         multiple
         hidden
         onChange={(e) => void handleFiles(e.target.files)}

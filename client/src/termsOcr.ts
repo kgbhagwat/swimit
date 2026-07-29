@@ -110,3 +110,67 @@ export async function recognizeImageFile(worker: Worker, file: File): Promise<st
   const result = await worker.recognize(prepared);
   return cleanupOcrText(String(result.data.text ?? ''));
 }
+
+async function loadPdfJs() {
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
+  return pdfjs;
+}
+
+/** Extract text from a PDF. Text pages use embedded text; scanned pages are OCR’d. */
+export async function extractTextFromPdfFile(
+  file: File,
+  mode: OcrLanguageMode,
+  onProgress?: (message: string) => void,
+): Promise<string[]> {
+  const pdfjs = await loadPdfJs();
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjs.getDocument({ data }).promise;
+  const pages: string[] = [];
+  let ocrWorker: Worker | null = null;
+
+  try {
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+      onProgress?.(`Reading PDF page ${pageNo} of ${pdf.numPages}…`);
+      const page = await pdf.getPage(pageNo);
+      const content = await page.getTextContent();
+      const embedded = content.items
+        .map((item) => ('str' in item ? String(item.str) : ''))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (embedded.length >= 40) {
+        pages.push(cleanupOcrText(embedded.replace(/ (?=[.?!,:;])/g, '')));
+        continue;
+      }
+
+      // Likely a scanned page — render and OCR
+      onProgress?.(`OCR PDF page ${pageNo} of ${pdf.numPages}…`);
+      if (!ocrWorker) ocrWorker = await createTunedOcrWorker(mode);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas not available for PDF OCR');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error('Failed to render PDF page'))),
+          'image/png',
+        );
+      });
+      const ocrFile = new File([blob], `${file.name}-page-${pageNo}.png`, { type: 'image/png' });
+      const text = await recognizeImageFile(ocrWorker, ocrFile);
+      if (text) pages.push(text);
+    }
+  } finally {
+    if (ocrWorker) await ocrWorker.terminate();
+  }
+
+  return pages;
+}

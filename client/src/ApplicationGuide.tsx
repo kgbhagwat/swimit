@@ -131,6 +131,10 @@ export function ApplicationGuide() {
               <strong>Pass Payment</strong> — activate or renew swimmer passes
             </li>
             <li>
+              <strong>WhatsApp</strong> — broadcast to active swimmers and all staff{' '}
+              <em>(Full)</em>
+            </li>
+            <li>
               <strong>Pass Scanner</strong> — scan QR / ID and mark attendance
             </li>
             <li>
@@ -332,7 +336,7 @@ export function ApplicationGuide() {
           </p>
           <p>
             <strong>Full</strong> — Core plus: coach payment, expenses, balance sheet, holidays, user
-            management &amp; access control.
+            management &amp; access control, and WhatsApp Broadcast messaging.
           </p>
         </section>
 

@@ -13,6 +13,7 @@ export const ACCESS_PAGE_KEYS = [
   'attendance-sheet',
   'coaches',
   'balance-sheet',
+  'payment-details',
   'register',
   'staff-register',
 ] as const;
@@ -22,8 +23,10 @@ export const PLATFORM_ACCESS_PAGE_KEYS = [
   'accounts',
   'create-account',
   'service-packages',
+  'payment',
   'platform-users',
   'platform-create-user',
+  'whatsapp',
 ] as const;
 
 export type AccessPageKey = (typeof ACCESS_PAGE_KEYS)[number];

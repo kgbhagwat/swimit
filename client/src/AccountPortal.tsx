@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, Navigate, Outlet, useMatch, useParams } from 'react-router-dom';
+import { Link, Navigate, useOutlet, useParams } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { isSaasManagementCode, setPlatformSession } from './platformSession';
 import { setActiveTenant } from './tenantSession';
@@ -9,6 +9,7 @@ type AccountInfo = {
   accountName: string;
   accountCode: string;
   status: string;
+  packageName?: string;
 };
 
 type SessionUser = {
@@ -85,7 +86,7 @@ function PasswordEyeButton({
 export function AccountPortal() {
   const { accountCode = '' } = useParams();
   const code = normalizeAccountCode(accountCode);
-  const atAccountRoot = useMatch({ path: '/:accountCode', end: true });
+  const featurePage = useOutlet();
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(() =>
     ACCOUNT_CODE_RE.test(code) ? readSession(code) : null,
@@ -127,6 +128,7 @@ export function AccountPortal() {
           accountName: String(body.accountName ?? ''),
           accountCode: String(body.accountCode ?? code),
           status: String(body.status ?? 'Active'),
+          packageName: String(body.packageName ?? '').trim(),
         };
         if (info.status === 'Suspended') {
           setError('This account is suspended.');
@@ -504,8 +506,7 @@ export function AccountPortal() {
       tenantAccount={account}
       tenantUser={sessionUser}
       onTenantLogout={onLogout}
-    >
-      {atAccountRoot ? null : <Outlet />}
-    </AppShell>
+      featurePage={featurePage}
+    />
   );
 }

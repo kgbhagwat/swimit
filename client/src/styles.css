@@ -53,6 +53,11 @@ a {
   box-shadow: 0 18px 48px rgba(10, 35, 70, 0.28);
 }
 
+.accounts-page {
+  width: min(1180px, calc(100% - 1.25rem));
+  padding: 1.15rem 1.1rem 1.6rem;
+}
+
 /* Feature pages under permanent AppShell chrome sit flush in the shell card */
 .app-shell-body .page,
 .menu-card .app-shell-body .page {
@@ -324,6 +329,16 @@ h1 {
   padding: 0.7rem 0.8rem;
   background: #fff;
   color: var(--ink);
+}
+
+.create-account-package-field {
+  max-width: 14rem;
+}
+
+.create-account-package-field select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
 }
 
 .field textarea {
@@ -600,6 +615,223 @@ h1 {
   justify-content: flex-end;
   gap: 0.55rem;
   margin: -0.35rem 0 0.85rem;
+}
+
+.tenant-package-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #163a6b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tenant-package-badge strong {
+  font-weight: 800;
+  color: #0f2d55;
+}
+
+.tenant-package-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.25rem;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #c45c26;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.tenant-package-edit svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.tenant-package-edit:hover {
+  background: transparent;
+  border: none;
+  color: #a3481a;
+}
+
+.renew-amount-line {
+  margin: 0.35rem 0 0.85rem;
+  font-size: 1.05rem;
+}
+
+.renew-form .renew-field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem 0.85rem;
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.renew-form .renew-field-main {
+  flex: 0 1 auto;
+  margin-bottom: 0;
+  min-width: 0;
+  width: max-content;
+  max-width: 11rem;
+}
+
+.renew-form .renew-field-main input,
+.renew-form .renew-field-main select {
+  width: 100%;
+  max-width: 11rem;
+  box-sizing: border-box;
+}
+
+.renew-form .renew-field-duration {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 6.5rem;
+}
+
+.renew-form .renew-field-duration input {
+  width: 5rem;
+  max-width: 5rem;
+}
+
+.renew-form .renew-field-aside {
+  margin: 0 0 0.55rem;
+  font-size: 0.9rem;
+  color: #0b6e4f;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.renew-form .renew-field-aside strong {
+  color: #085c42;
+  font-weight: 700;
+}
+
+.renew-pay-card {
+  margin-top: 1rem;
+}
+
+.renew-confirm-card {
+  margin-bottom: 1rem;
+  border-color: #9fd5b8;
+  background: #f3fbf7;
+}
+
+.renew-confirm-list {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.1rem;
+  color: #163a6b;
+}
+
+.renew-confirm-list li {
+  margin: 0.25rem 0;
+}
+
+.pass-wa-wait {
+  color: #0b6e4f;
+  font-weight: 700;
+}
+
+.pass-manual-online {
+  margin-top: 0.85rem;
+}
+
+.pass-manual-online summary {
+  cursor: pointer;
+  color: #1a4f8c;
+  font-weight: 600;
+  margin-bottom: 0.55rem;
+}
+
+.platform-payment-txns-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.platform-payment-txns-head h2 {
+  margin: 0 0 0.25rem;
+}
+
+.platform-payment-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.platform-payment-range .field {
+  margin: 0;
+  min-width: 9.5rem;
+}
+
+.platform-payment-range-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.platform-payment-txn-table {
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 560px) {
+  .renew-form .renew-field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .renew-form .renew-field-main,
+  .renew-form .renew-field-duration {
+    max-width: none;
+    width: 100%;
+  }
+
+  .renew-form .renew-field-main input,
+  .renew-form .renew-field-main select,
+  .renew-form .renew-field-duration input {
+    max-width: none;
+    width: 100%;
+  }
+
+  .renew-form .renew-field-aside {
+    margin: 0.15rem 0 0;
+    white-space: normal;
+  }
+}
+
+.tenant-saas-payment {
+  margin: 0.55rem 0 0.35rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.tenant-saas-payment-qr {
+  display: block;
+  width: 9.5rem;
+  max-width: 100%;
+  height: auto;
+  margin: 0.45rem 0 0.35rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d5deeb;
+  background: #fff;
 }
 
 .tenant-profile-btn {
@@ -4643,6 +4875,80 @@ button.menu-link {
 
 .batch-saved-table tbody tr:hover td {
   background: #f7faff;
+}
+
+.accounts-table-wrap {
+  overflow-x: visible;
+}
+
+.accounts-table {
+  min-width: 0;
+  table-layout: fixed;
+  font-size: 0.86rem;
+}
+
+.accounts-table th,
+.accounts-table td {
+  padding: 0.55rem 0.45rem;
+  white-space: normal;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.accounts-table th:nth-child(1),
+.accounts-table td:nth-child(1) {
+  width: 18%;
+}
+
+.accounts-table th:nth-child(2),
+.accounts-table td:nth-child(2) {
+  width: 8%;
+}
+
+.accounts-table th:nth-child(3),
+.accounts-table td:nth-child(3) {
+  width: 18%;
+}
+
+.accounts-table th:nth-child(4),
+.accounts-table td:nth-child(4),
+.accounts-table th:nth-child(5),
+.accounts-table td:nth-child(5) {
+  width: 11%;
+  white-space: nowrap;
+}
+
+.accounts-table th:nth-child(6),
+.accounts-table td:nth-child(6) {
+  width: 11%;
+  text-align: center;
+  white-space: nowrap;
+  padding-left: 0.75rem;
+  padding-right: 0.9rem;
+}
+
+.accounts-table th:nth-child(7),
+.accounts-table td:nth-child(7) {
+  width: 12%;
+  white-space: nowrap;
+  padding-left: 0.9rem;
+}
+
+.accounts-table th:nth-child(8),
+.accounts-table td:nth-child(8) {
+  width: 9%;
+  white-space: nowrap;
+}
+
+.accounts-sub {
+  font-size: 0.78rem;
+  line-height: 1.25;
+  margin-top: 0.15rem;
+}
+
+.accounts-col-num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .package-compare-wrap {

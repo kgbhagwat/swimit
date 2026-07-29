@@ -20,6 +20,7 @@ export type MenuPageKey =
   | 'coach-payment'
   | 'pool-expenses'
   | 'balance-sheet'
+  | 'payment-details'
   | 'pool-core-info'
   | 'holiday-management'
   | 'whatsapp';
@@ -55,6 +56,7 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'attendance-sheet', section: 'Information', to: '/attendance-sheet', label: 'Attendance Sheet' },
   { key: 'coaches', section: 'Information', to: '/coaches', label: 'Staff List' },
   { key: 'balance-sheet', section: 'Information', to: '/balance-sheet', label: 'Balance Sheet' },
+  { key: 'payment-details', section: 'Information', to: '/payment-details', label: 'Payment Details' },
   { key: 'register', section: 'Forms', to: '/register', label: 'Registration form' },
   { key: 'staff-register', section: 'Forms', to: '/staff-register', label: 'Staff registration' },
 ];

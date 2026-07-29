@@ -218,6 +218,13 @@ CREATE TABLE IF NOT EXISTS service_packages (
   CHECK (max_users >= 1)
 );
 
+CREATE TABLE IF NOT EXISTS platform_payment_settings (
+  id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  payment_qr_path TEXT,
+  upi_id TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS max_active_swimmers INT;
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS trial_days INT NOT NULL DEFAULT 0;
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS modules TEXT NOT NULL DEFAULT 'core';
@@ -242,6 +249,7 @@ CREATE TABLE IF NOT EXISTS saas_accounts (
 
 ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS account_code TEXT;
 ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS pool_address TEXT NOT NULL DEFAULT '';
+ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS subscription_expires_at DATE;
 CREATE UNIQUE INDEX IF NOT EXISTS saas_accounts_account_code_uidx
   ON saas_accounts (account_code)
   WHERE account_code IS NOT NULL;
@@ -273,6 +281,64 @@ CREATE TABLE IF NOT EXISTS whatsapp_inbound (
 
 CREATE INDEX IF NOT EXISTS idx_whatsapp_inbound_account ON whatsapp_inbound (saas_account_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_outbound_account ON whatsapp_outbound (saas_account_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS saas_package_renewals (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  requested_by_user_id INT REFERENCES app_users(id) ON DELETE SET NULL,
+  from_mobile TEXT NOT NULL DEFAULT '',
+  current_package_id INT REFERENCES service_packages(id) ON DELETE SET NULL,
+  renew_package_id INT NOT NULL REFERENCES service_packages(id) ON DELETE RESTRICT,
+  months INT NOT NULL DEFAULT 1,
+  expected_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  renew_from DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  inbound_id INT REFERENCES whatsapp_inbound(id) ON DELETE SET NULL,
+  detected_amount NUMERIC(12, 2),
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  verified_at TIMESTAMPTZ,
+  CHECK (months >= 1 AND months <= 36),
+  CHECK (expected_amount >= 0),
+  CHECK (status IN ('pending', 'verified', 'mismatch', 'cancelled'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_saas_package_renewals_pending
+  ON saas_package_renewals (saas_account_id, status, created_at DESC);
+
+ALTER TABLE saas_package_renewals ADD COLUMN IF NOT EXISTS transaction_id TEXT NOT NULL DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_saas_package_renewals_verified
+  ON saas_package_renewals (status, verified_at DESC);
+
+CREATE TABLE IF NOT EXISTS pass_payment_intents (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  registration_id INT NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
+  from_mobile TEXT NOT NULL DEFAULT '',
+  pass_type TEXT NOT NULL,
+  batch TEXT NOT NULL DEFAULT '',
+  coach TEXT NOT NULL DEFAULT '',
+  pass_valid_until DATE NOT NULL,
+  expected_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  pass_charges NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  coaching_charges NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  inbound_id INT REFERENCES whatsapp_inbound(id) ON DELETE SET NULL,
+  detected_amount NUMERIC(12, 2),
+  transaction_id TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  verified_at TIMESTAMPTZ,
+  CHECK (expected_amount >= 0),
+  CHECK (status IN ('pending', 'verified', 'cancelled', 'mismatch'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pass_payment_intents_pending
+  ON pass_payment_intents (saas_account_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pass_payment_intents_reg
+  ON pass_payment_intents (registration_id, status);
+
 CREATE UNIQUE INDEX IF NOT EXISTS saas_accounts_email_lower_uidx
   ON saas_accounts (LOWER(TRIM(email)))
   WHERE TRIM(email) <> '';
@@ -293,7 +359,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS app_users_platform_mobile_uidx
 CREATE UNIQUE INDEX IF NOT EXISTS app_users_tenant_user_name_uidx
   ON app_users (saas_account_id, LOWER(user_name))
   WHERE saas_account_id IS NOT NULL;
--- Tenant mobile uniqueness is applied after schema bootstrap (skipped may skip it).
+-- Tenant mobile uniqueness is applied in ensurePerAccountMobileUniqueIndexes().
 
 -- Per-account app data (fresh empty app for each SaaS account)
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
@@ -459,6 +525,164 @@ async function ensureDefaultServicePackages() {
     seeded += 1;
   }
   if (seeded > 0) console.log(`Seeded ${seeded} default service package(s)`);
+
+  // Existing Professional / Enterprise rows may still have modules=core from older seeds.
+  const synced = await pool.query(
+    `UPDATE service_packages
+     SET modules = 'full',
+         features = CASE
+           WHEN features IS NULL OR TRIM(features) = '' THEN
+             CASE LOWER(package_name)
+               WHEN 'professional' THEN 'swimmers:300; modules:full; support:priority'
+               WHEN 'enterprise' THEN 'swimmers:unlimited; modules:full; support:onboarding'
+               ELSE features
+             END
+           ELSE regexp_replace(features, 'modules:\\s*core', 'modules:full', 'i')
+         END
+     WHERE LOWER(package_name) IN ('professional', 'enterprise')
+       AND LOWER(COALESCE(modules, 'core')) IS DISTINCT FROM 'full'`,
+  );
+  const syncedN = synced.rowCount ?? 0;
+  if (syncedN > 0) {
+    console.log(`Updated ${syncedN} package(s) to full modules (Professional/Enterprise)`);
+  }
+}
+
+/** Assign Trial package to any account that has no service package. */
+async function ensureAccountsHaveTrialPackage() {
+  const trial = await pool.query<{ id: number; trial_days: number }>(
+    `SELECT id, trial_days FROM service_packages WHERE LOWER(package_name) = 'trial' LIMIT 1`,
+  );
+  if (!trial.rows[0]) return;
+
+  const trialId = Number(trial.rows[0].id);
+  const trialDays = Math.max(0, Number(trial.rows[0].trial_days ?? 30));
+
+  const result = await pool.query(
+    `UPDATE saas_accounts a
+     SET service_package_id = $1,
+         subscription_expires_at = COALESCE(
+           a.subscription_expires_at,
+           CASE
+             WHEN $2::int > 0 THEN (a.created_at::date + ($2::int * INTERVAL '1 day'))::date
+             ELSE NULL
+           END
+         )
+     WHERE a.service_package_id IS NULL`,
+    [trialId, trialDays],
+  );
+  const n = result.rowCount ?? 0;
+  if (n > 0) console.log(`Assigned Trial package to ${n} account(s) without a package`);
+}
+
+/** Unique mobile within one SaaS account; same mobile OK in another account. Skip if duplicates already exist. */
+async function ensurePerAccountMobileUniqueIndexes() {
+  const specs: Array<{
+    name: string;
+    dupCheck: string;
+    createSql: string;
+  }> = [
+    {
+      name: 'app_users_tenant_mobile_uidx',
+      dupCheck: `
+        SELECT 1
+        FROM (
+          SELECT saas_account_id, RIGHT(regexp_replace(mobile, '\\D', '', 'g'), 10) AS m
+          FROM app_users
+          WHERE saas_account_id IS NOT NULL
+        ) t
+        GROUP BY saas_account_id, m
+        HAVING COUNT(*) > 1
+        LIMIT 1`,
+      createSql: `
+        CREATE UNIQUE INDEX IF NOT EXISTS app_users_tenant_mobile_uidx
+          ON app_users (saas_account_id, RIGHT(regexp_replace(mobile, '\\D', '', 'g'), 10))
+          WHERE saas_account_id IS NOT NULL`,
+    },
+    {
+      name: 'app_users_tenant_email_uidx',
+      dupCheck: `
+        SELECT 1
+        FROM (
+          SELECT saas_account_id, LOWER(TRIM(email)) AS e
+          FROM app_users
+          WHERE saas_account_id IS NOT NULL AND TRIM(email) <> ''
+        ) t
+        GROUP BY saas_account_id, e
+        HAVING COUNT(*) > 1
+        LIMIT 1`,
+      createSql: `
+        CREATE UNIQUE INDEX IF NOT EXISTS app_users_tenant_email_uidx
+          ON app_users (saas_account_id, LOWER(TRIM(email)))
+          WHERE saas_account_id IS NOT NULL AND TRIM(email) <> ''`,
+    },
+    {
+      name: 'staff_registrations_tenant_whatsapp_mobile_uidx',
+      dupCheck: `
+        SELECT 1
+        FROM (
+          SELECT saas_account_id, RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10) AS m
+          FROM staff_registrations
+          WHERE saas_account_id IS NOT NULL
+        ) t
+        GROUP BY saas_account_id, m
+        HAVING COUNT(*) > 1
+        LIMIT 1`,
+      createSql: `
+        CREATE UNIQUE INDEX IF NOT EXISTS staff_registrations_tenant_whatsapp_mobile_uidx
+          ON staff_registrations (saas_account_id, RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10))
+          WHERE saas_account_id IS NOT NULL`,
+    },
+    {
+      name: 'staff_registrations_tenant_email_uidx',
+      dupCheck: `
+        SELECT 1
+        FROM (
+          SELECT saas_account_id, LOWER(TRIM(email)) AS e
+          FROM staff_registrations
+          WHERE saas_account_id IS NOT NULL AND TRIM(email) <> ''
+        ) t
+        GROUP BY saas_account_id, e
+        HAVING COUNT(*) > 1
+        LIMIT 1`,
+      createSql: `
+        CREATE UNIQUE INDEX IF NOT EXISTS staff_registrations_tenant_email_uidx
+          ON staff_registrations (saas_account_id, LOWER(TRIM(email)))
+          WHERE saas_account_id IS NOT NULL AND TRIM(email) <> ''`,
+    },
+  ];
+
+  // Swimmers: no DB unique on WhatsApp/email — under-18 may share parent contact.
+  // Adult uniqueness is enforced in the registrations API.
+  await pool.query(`DROP INDEX IF EXISTS registrations_tenant_whatsapp_mobile_uidx`);
+  await pool.query(`DROP INDEX IF EXISTS registrations_tenant_email_uidx`);
+
+  for (const spec of specs) {
+    try {
+      // Drop old plain-text mobile index if present (replaced by digit-normalized)
+      if (spec.name === 'app_users_tenant_mobile_uidx') {
+        const old = await pool.query(`
+          SELECT indexdef FROM pg_indexes
+          WHERE indexname = 'app_users_tenant_mobile_uidx'
+        `);
+        const def = String(old.rows[0]?.indexdef ?? '');
+        if (def && !def.includes('regexp_replace')) {
+          await pool.query(`DROP INDEX IF EXISTS app_users_tenant_mobile_uidx`);
+        }
+      }
+
+      const dup = await pool.query(spec.dupCheck);
+      if (dup.rows[0]) {
+        console.warn(
+          `[db] skip ${spec.name}: duplicate mobiles already exist within an account — clean duplicates then redeploy`,
+        );
+        continue;
+      }
+      await pool.query(spec.createSql);
+    } catch (err) {
+      console.warn(`[db] could not ensure ${spec.name}`, err);
+    }
+  }
 }
 
 async function init() {
@@ -484,20 +708,14 @@ async function init() {
 
   await pool.query(sql);
 
-  // Staging may reuse mobiles; production keeps unique constraints.
-  // Important: never CREATE the unique index before this branch — staging can already
-  // have duplicate mobiles, and CREATE UNIQUE INDEX would crash boot (502).
+  // Staging may reuse SaaS account contact mobiles across accounts.
+  // User / swimmer / staff mobiles stay unique within each account (reuse across accounts OK).
   if (allowDuplicateAccountMobile()) {
     await pool.query(`ALTER TABLE saas_accounts DROP CONSTRAINT IF EXISTS saas_accounts_mobile_key`);
-    await pool.query(`DROP INDEX IF EXISTS app_users_tenant_mobile_uidx`);
-    console.info('[db] staging: allowed duplicate account/user mobiles');
-  } else {
-    await pool.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS app_users_tenant_mobile_uidx
-        ON app_users (saas_account_id, mobile)
-        WHERE saas_account_id IS NOT NULL
-    `);
+    console.info('[db] staging: allowed duplicate SaaS account contact mobiles');
   }
+
+  await ensurePerAccountMobileUniqueIndexes();
 
   // Ensure singleton legacy tables can insert new per-account rows
   await pool.query(`
@@ -526,6 +744,7 @@ async function init() {
   }
   await ensureAccountAppShells();
   await ensureDefaultServicePackages();
+  await ensureAccountsHaveTrialPackage();
 
   const { rows: missing } = await pool.query(
     `SELECT a.id, a.mobile, a.account_code
@@ -644,6 +863,16 @@ async function ensureSwimItSuperadmin() {
     );
     console.log(`Created user "${userName}" on account "${code}"`);
   }
+
+  // Grant WhatsApp to existing SwimIT platform staff who were created before this key existed
+  await pool.query(
+    `UPDATE app_users u
+     SET menu_access = array_append(menu_access, 'whatsapp')
+     FROM saas_accounts a
+     WHERE u.saas_account_id = a.id
+       AND LOWER(a.account_code) = 'swimit'
+       AND NOT ('whatsapp' = ANY (u.menu_access))`,
+  );
 }
 
 init().catch((err) => {

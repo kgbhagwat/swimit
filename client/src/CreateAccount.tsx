@@ -12,6 +12,14 @@ type AccountForm = {
   mobile: string;
   email: string;
   city: string;
+  servicePackageId: string;
+};
+
+type ServicePackageOption = {
+  id: number;
+  packageName: string;
+  isActive: boolean;
+  trialDays: number;
 };
 
 type CodeCheck = {
@@ -27,6 +35,7 @@ type CreatedCredentials = {
   mobile: string;
   email: string;
   city: string;
+  packageName: string;
   loginUrl: string;
   adminUserName: string;
   temporaryPassword: string;
@@ -43,10 +52,19 @@ const emptyForm: AccountForm = {
   mobile: '',
   email: '',
   city: '',
+  servicePackageId: '',
 };
 
 function normalizeAccountCodeInput(value: string) {
   return value.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toLowerCase();
+}
+
+/** Build a 6-char a-z0-9 code from the swimming pool name (user may still edit it). */
+function suggestAccountCode(name: string) {
+  const base = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!base) return '';
+  if (base.length >= 6) return base.slice(0, 6);
+  return (base + '000000').slice(0, 6);
 }
 
 function accountLoginUrl(code: string) {
@@ -54,14 +72,48 @@ function accountLoginUrl(code: string) {
   return `${origin}/${code}`;
 }
 
+function defaultPackageId(packages: ServicePackageOption[]) {
+  const active = packages.filter((p) => p.isActive);
+  const list = active.length ? active : packages;
+  const trial =
+    list.find((p) => p.packageName.trim().toLowerCase() === 'trial') ||
+    list.find((p) => p.trialDays > 0);
+  return String((trial ?? list[0])?.id ?? '');
+}
+
 export function CreateAccount() {
   const canManageAccounts = Boolean(getPlatformSession());
   const [form, setForm] = useState<AccountForm>(emptyForm);
+  const [packages, setPackages] = useState<ServicePackageOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [codeCheck, setCodeCheck] = useState<CodeCheck>({ status: 'idle', message: '' });
   const [created, setCreated] = useState<CreatedCredentials | null>(null);
+  /** When true, account code is user-controlled and no longer auto-filled from the name. */
+  const [codeEditedByUser, setCodeEditedByUser] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/service-packages');
+        const body = await res.json().catch(() => []);
+        if (!res.ok || !Array.isArray(body)) return;
+        const options: ServicePackageOption[] = body.map((row: Record<string, unknown>) => ({
+          id: Number(row.id),
+          packageName: String(row.packageName ?? ''),
+          isActive: row.isActive !== false,
+          trialDays: Number(row.trialDays ?? 0),
+        }));
+        setPackages(options);
+        setForm((prev) =>
+          prev.servicePackageId ? prev : { ...prev, servicePackageId: defaultPackageId(options) },
+        );
+      } catch {
+        /* ignore — validate on submit */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const code = form.accountCode;
@@ -106,8 +158,22 @@ export function CreateAccount() {
   }, [form.accountCode]);
 
   function setField<K extends keyof AccountForm>(key: K, value: AccountForm[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
     setError('');
+    if (key === 'accountName') {
+      const name = String(value);
+      setForm((prev) => ({
+        ...prev,
+        accountName: name,
+        accountCode: codeEditedByUser ? prev.accountCode : suggestAccountCode(name),
+      }));
+      return;
+    }
+    if (key === 'accountCode') {
+      setCodeEditedByUser(true);
+      setForm((prev) => ({ ...prev, accountCode: value as string }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   async function onSubmit(e: FormEvent) {
@@ -115,7 +181,7 @@ export function CreateAccount() {
     setError('');
 
     if (!form.accountName.trim()) {
-      setError('Enter account / pool name');
+      setError('Enter account / Swimming Pool name');
       return;
     }
     if (!ACCOUNT_CODE_RE.test(form.accountCode)) {
@@ -128,6 +194,11 @@ export function CreateAccount() {
     }
     if (codeCheck.status === 'checking') {
       setError('Wait for account code check to finish');
+      return;
+    }
+    const packageId = Number(form.servicePackageId);
+    if (!Number.isFinite(packageId) || packageId <= 0) {
+      setError('Select a service package');
       return;
     }
     if (!form.contactName.trim()) {
@@ -162,7 +233,7 @@ export function CreateAccount() {
           mobile: form.mobile.trim(),
           email: form.email.trim(),
           city: form.city.trim(),
-          servicePackageId: null,
+          servicePackageId: packageId,
           status: 'Active',
           notes: '',
         }),
@@ -173,6 +244,9 @@ export function CreateAccount() {
       const code = String(body.accountCode ?? form.accountCode);
       const warnList = Array.isArray(body.warnings) ? body.warnings.map(String) : [];
       if (warnList.length) setWarning(warnList.join(' '));
+      const selectedPackage =
+        packages.find((p) => p.id === packageId)?.packageName ||
+        String(body.packageName ?? '');
       setCreated({
         accountName: String(body.accountName ?? form.accountName),
         accountCode: code,
@@ -181,6 +255,7 @@ export function CreateAccount() {
         mobile: String(body.mobile ?? form.mobile),
         email: String(body.email ?? form.email),
         city: String(body.city ?? form.city),
+        packageName: selectedPackage,
         loginUrl: String(body.loginUrl ?? accountLoginUrl(code)),
         adminUserName: String(body.adminUser?.userName ?? 'admin'),
         temporaryPassword: String(body.adminUser?.temporaryPassword ?? ''),
@@ -189,7 +264,8 @@ export function CreateAccount() {
             'Share these details with the pool operator. They must change the password on first login.',
         ),
       });
-      setForm(emptyForm);
+      setForm({ ...emptyForm, servicePackageId: defaultPackageId(packages) });
+      setCodeEditedByUser(false);
       setCodeCheck({ status: 'idle', message: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
@@ -208,7 +284,8 @@ export function CreateAccount() {
             '',
             'Your SwimIT account is ready.',
             '',
-            `Account / pool: ${created.accountName}`,
+            `Account / Swimming Pool: ${created.accountName}`,
+            created.packageName ? `Package: ${created.packageName}` : null,
             created.poolAddress ? `Pool address: ${created.poolAddress}` : null,
             created.city ? `City: ${created.city}` : null,
             `Account code: ${created.accountCode}`,
@@ -244,9 +321,15 @@ export function CreateAccount() {
 
           <dl className="account-credentials-list">
             <div>
-              <dt>Account / pool</dt>
+              <dt>Account / Swimming Pool</dt>
               <dd>{created.accountName}</dd>
             </div>
+            {created.packageName ? (
+              <div>
+                <dt>Package</dt>
+                <dd>{created.packageName}</dd>
+              </div>
+            ) : null}
             {created.poolAddress ? (
               <div>
                 <dt>Pool address</dt>
@@ -334,9 +417,29 @@ export function CreateAccount() {
       <p className="lede">Onboard a pool operator onto SwimIT SaaS.</p>
 
       <form className="pass-form-card" onSubmit={onSubmit}>
+        <label className="field create-account-package-field">
+          <span className="label">
+            Package <span className="req">*</span>
+          </span>
+          <select
+            value={form.servicePackageId}
+            onChange={(e) => setField('servicePackageId', e.target.value)}
+            required
+          >
+            {packages.length === 0 ? <option value="">Loading packages…</option> : null}
+            {packages
+              .filter((p) => p.isActive)
+              .map((pkg) => (
+                <option key={pkg.id} value={pkg.id}>
+                  {pkg.packageName}
+                </option>
+              ))}
+          </select>
+        </label>
+
         <label className="field">
           <span className="label">
-            Account / pool name <span className="req">*</span>
+            Account / Swimming Pool name <span className="req">*</span>
           </span>
           <input
             value={form.accountName}
@@ -367,7 +470,9 @@ export function CreateAccount() {
           {codeCheck.status === 'available' ? (
             <span className="hint">Login link: {accountLoginUrl(form.accountCode)}</span>
           ) : (
-            <span className="hint">Used as login URL: http://localhost:5173/&lt;account-code&gt;</span>
+            <span className="hint">
+              Suggested from Swimming Pool name — you can change it. Login URL uses this code.
+            </span>
           )}
         </label>
 

@@ -12,6 +12,7 @@ import { PassScanner } from './PassScanner';
 import { CoachPayment } from './CoachPayment';
 import { AttendanceSheet } from './AttendanceSheet';
 import { BalanceSheet } from './BalanceSheet';
+import { PaymentDetails } from './PaymentDetails';
 import { PoolExpenses } from './PoolExpenses';
 import { PassPayment } from './PassPayment';
 import { PassTypePage } from './PassTypePage';
@@ -21,6 +22,7 @@ import { SwimmerList } from './SwimmerList';
 import { StaffRegistration } from './StaffRegistration';
 import { PoolCoreInfo } from './PoolCoreInfo';
 import { HolidayManagement } from './HolidayManagement';
+import { RenewPayment } from './RenewPayment';
 import { CreateUser } from './CreateUser';
 import { UserManagement } from './UserManagement';
 import { WhatsAppMessaging } from './WhatsAppMessaging';
@@ -32,6 +34,7 @@ import { AccountPortal } from './AccountPortal';
 import { ApplicationDemoSync } from './ApplicationDemoSync';
 import { RequirePlatformSession } from './RequirePlatformSession';
 import { PlatformUsersLayout } from './PlatformUsersLayout';
+import { PlatformPayment } from './PlatformPayment';
 import { PublicOpenForm } from './PublicOpenForm';
 
 installTenantFetch();
@@ -47,30 +50,34 @@ function RedirectToApplication() {
 }
 
 /** Feature pages nested under AppShell (`/application/...` or `/:accountCode/...`). */
-const appFeatureRoutes = (
-  <>
-    <Route path="register" element={<App />} />
-    <Route path="staff-register" element={<StaffRegistration />} />
-    <Route path="staff-register/:id" element={<StaffRegistration />} />
-    <Route path="user-management" element={<UserManagement />} />
-    <Route path="create-user" element={<CreateUser />} />
-    <Route path="batches" element={<BatchList />} />
-    <Route path="pass-types" element={<PassTypePage />} />
-    <Route path="coaches" element={<CoachList />} />
-    <Route path="swimmers" element={<SwimmerList />} />
-    <Route path="pass/:id" element={<PassView />} />
-    <Route path="id-card/:id" element={<IdCardView />} />
-    <Route path="pass-payment" element={<PassPayment />} />
-    <Route path="whatsapp" element={<WhatsAppMessaging />} />
-    <Route path="pool-expenses" element={<PoolExpenses />} />
-    <Route path="pass-scanner" element={<PassScanner />} />
-    <Route path="coach-payment" element={<CoachPayment />} />
-    <Route path="attendance-sheet" element={<AttendanceSheet />} />
-    <Route path="balance-sheet" element={<BalanceSheet />} />
-    <Route path="pool-core-info" element={<PoolCoreInfo />} />
-    <Route path="holiday-management" element={<HolidayManagement />} />
-  </>
-);
+function appFeatureRoutes() {
+  return (
+    <>
+      <Route path="register" element={<App />} />
+      <Route path="staff-register" element={<StaffRegistration />} />
+      <Route path="staff-register/:id" element={<StaffRegistration />} />
+      <Route path="user-management" element={<UserManagement />} />
+      <Route path="create-user" element={<CreateUser />} />
+      <Route path="batches" element={<BatchList />} />
+      <Route path="pass-types" element={<PassTypePage />} />
+      <Route path="coaches" element={<CoachList />} />
+      <Route path="swimmers" element={<SwimmerList />} />
+      <Route path="pass/:id" element={<PassView />} />
+      <Route path="id-card/:id" element={<IdCardView />} />
+      <Route path="pass-payment" element={<PassPayment />} />
+      <Route path="whatsapp" element={<WhatsAppMessaging />} />
+      <Route path="pool-expenses" element={<PoolExpenses />} />
+      <Route path="pass-scanner" element={<PassScanner />} />
+      <Route path="coach-payment" element={<CoachPayment />} />
+      <Route path="attendance-sheet" element={<AttendanceSheet />} />
+      <Route path="balance-sheet" element={<BalanceSheet />} />
+      <Route path="payment-details" element={<PaymentDetails />} />
+      <Route path="pool-core-info" element={<PoolCoreInfo />} />
+      <Route path="holiday-management" element={<HolidayManagement />} />
+      <Route path="renew-payment" element={<RenewPayment />} />
+    </>
+  );
+}
 
 /** Old root feature paths → `/application/...` */
 const legacyFeatureRedirects = (
@@ -93,6 +100,7 @@ const legacyFeatureRedirects = (
     <Route path="/coach-payment" element={<RedirectToApplication />} />
     <Route path="/attendance-sheet" element={<RedirectToApplication />} />
     <Route path="/balance-sheet" element={<RedirectToApplication />} />
+    <Route path="/payment-details" element={<RedirectToApplication />} />
     <Route path="/pool-core-info" element={<RedirectToApplication />} />
     <Route path="/holiday-management" element={<RedirectToApplication />} />
   </>
@@ -113,10 +121,12 @@ createRoot(document.getElementById('root')!).render(
         >
           <Route path="user-management" element={<UserManagement />} />
           <Route path="create-user" element={<CreateUser />} />
+          <Route path="whatsapp" element={<WhatsAppMessaging />} />
+          <Route path="payment" element={<PlatformPayment />} />
         </Route>
         <Route path="/application-guide" element={<ApplicationGuide />} />
         <Route path="/application" element={<AppShell />}>
-          {appFeatureRoutes}
+          {appFeatureRoutes()}
         </Route>
         {legacyFeatureRedirects}
         <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
@@ -125,7 +135,7 @@ createRoot(document.getElementById('root')!).render(
           element={<PublicOpenForm kind="staff" />}
         />
         <Route path="/:accountCode" element={<AccountPortal />}>
-          {appFeatureRoutes}
+          {appFeatureRoutes()}
         </Route>
       </Routes>
     </BrowserRouter>

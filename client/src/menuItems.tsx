@@ -200,6 +200,20 @@ export const MENU_ITEMS: MenuItem[] = [
     ),
   },
   {
+    section: 'Information',
+    to: '/payment-details',
+    label: 'Payment Details',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M7 15h3" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
     section: 'Setup',
     to: '/pool-core-info',
     label: 'Pool Core Info',
