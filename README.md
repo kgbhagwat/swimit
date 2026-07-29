@@ -28,3 +28,9 @@ npm run dev
 - English / Marathi / Hindi language toggle
 - Camera capture + file upload (max 200 KB per photo)
 - Form data saved to PostgreSQL
+
+## WhatsApp
+
+Staging and production should use a **permanent System User token**, not Meta’s temporary API Setup token (those expire and cause OAuth error 190).
+
+See [docs/whatsapp-permanent-token.md](docs/whatsapp-permanent-token.md).
