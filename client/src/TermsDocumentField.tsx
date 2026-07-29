@@ -1,11 +1,6 @@
 import { useRef, useState } from 'react';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
-import {
-  createTunedOcrWorker,
-  extractTextFromPdfFile,
-  type OcrLanguageMode,
-  recognizeImageFile,
-} from './termsOcr';
+import type { OcrLanguageMode } from './termsOcr';
 
 type Props = {
   label: string;
@@ -59,6 +54,11 @@ async function extractPagesFromFiles(
   mode: OcrLanguageMode,
   onProgress: (message: string) => void,
 ): Promise<string[]> {
+  // Lazy-load OCR/PDF stack only when the user scans or uploads a document.
+  const { createTunedOcrWorker, extractTextFromPdfFile, recognizeImageFile } = await import(
+    './termsOcr'
+  );
+
   const texts: string[] = [];
   const imageFiles: File[] = [];
   const textFiles: File[] = [];

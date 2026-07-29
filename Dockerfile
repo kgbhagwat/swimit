@@ -2,6 +2,8 @@ FROM node:22-alpine AS build
 WORKDIR /app
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
+# Vite + OCR deps need headroom on small staging hosts during "rendering chunks".
+ENV NODE_OPTIONS=--max-old-space-size=2048
 
 COPY package.json package-lock.json ./
 COPY client/package.json ./client/

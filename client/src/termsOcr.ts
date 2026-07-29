@@ -2,6 +2,11 @@ import type { Worker } from 'tesseract.js';
 
 export type OcrLanguageMode = 'marathi' | 'mixed' | 'english';
 
+/** Pinned CDN assets — keeps WASM / PDF worker out of the Vite production bundle. */
+const TESSERACT_JS = '7.0.0';
+const TESSERACT_CORE = '7.0.0';
+const PDFJS = '4.10.38';
+
 const DEV_DIGITS = '०१२३४५६७८९';
 
 /** Upscale + grayscale + contrast so Devanagari and bullets read more clearly. */
@@ -94,8 +99,14 @@ function langsForMode(mode: OcrLanguageMode): string[] {
 }
 
 export async function createTunedOcrWorker(mode: OcrLanguageMode): Promise<Worker> {
+  // JS API from npm (small); WASM + worker script load from CDN at runtime.
   const { createWorker, PSM, OEM } = await import('tesseract.js');
-  const worker = await createWorker(langsForMode(mode), OEM.LSTM_ONLY);
+  const worker = await createWorker(langsForMode(mode), OEM.LSTM_ONLY, {
+    workerPath: `https://cdn.jsdelivr.net/npm/tesseract.js@${TESSERACT_JS}/dist/worker.min.js`,
+    // Directory (not a single .js) so the library picks the right WASM variant.
+    corePath: `https://cdn.jsdelivr.net/npm/tesseract.js-core@${TESSERACT_CORE}`,
+    langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+  });
   await worker.setParameters({
     // Single column of text — better for terms with bullets/numbered lists
     tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
@@ -112,11 +123,9 @@ export async function recognizeImageFile(worker: Worker, file: File): Promise<st
 }
 
 async function loadPdfJs() {
+  // Main API is code-split by Vite; worker stays on CDN (avoids ~1.4MB minify during Docker build).
   const pdfjs = await import('pdfjs-dist');
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).toString();
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS}/build/pdf.worker.min.mjs`;
   return pdfjs;
 }
 
