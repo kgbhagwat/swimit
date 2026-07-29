@@ -1,4 +1,5 @@
 import { pool } from './db/pool.js';
+import { pageKeysForModules } from './menuAccess.js';
 import {
   addMonthsDateOnly,
   amountsMatch,
@@ -196,6 +197,21 @@ export async function processPackageRenewalInbound(params: {
            subscription_expires_at = $2::date
        WHERE id = $3`,
       [renewPackageId, newExpires, params.saasAccountId],
+    );
+
+    const pkg = await client.query<{ modules: string | null; package_name: string | null }>(
+      `SELECT modules, package_name FROM service_packages WHERE id = $1`,
+      [renewPackageId],
+    );
+    const packageMenuKeys = pageKeysForModules(
+      pkg.rows[0]?.modules,
+      pkg.rows[0]?.package_name,
+    );
+    await client.query(
+      `UPDATE app_users
+       SET menu_access = $1
+       WHERE saas_account_id = $2 AND COALESCE(is_account_admin, FALSE) = TRUE`,
+      [packageMenuKeys, params.saasAccountId],
     );
 
     await client.query(

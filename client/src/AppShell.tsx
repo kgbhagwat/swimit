@@ -6,8 +6,10 @@ import {
   featurePathFromLocation,
   isMenuSection,
   MENU_SECTIONS,
+  pageKeysForModules,
   pagesBySection,
   readStoredMenuSection,
+  resolvePackageModules,
   sectionForPath,
   storeMenuSection,
   type MenuPageKey,
@@ -387,6 +389,7 @@ export type AppShellProps = {
     accountName: string;
     accountCode: string;
     packageName?: string;
+    modules?: string;
   } | null;
   tenantUser?: TenantUserInfo | null;
   onTenantLogout?: () => void;
@@ -431,15 +434,24 @@ export function AppShell({
 
   const allowedKeys = useMemo<Set<MenuPageKey>>(() => {
     if (!tenantAccount || !tenantUser) return new Set<MenuPageKey>();
-    if (tenantUser.isAccountAdmin) return new Set<MenuPageKey>(ALL_PAGE_KEYS);
+    const packageKeys = new Set(
+      pageKeysForModules(tenantAccount.modules, tenantAccount.packageName),
+    );
+    if (tenantUser.isAccountAdmin) return packageKeys;
 
     const next = new Set<MenuPageKey>();
     for (const k of tenantUser.menuAccess ?? []) {
       const key = k as MenuPageKey;
-      if (ALL_PAGE_KEYS.includes(key)) next.add(key);
+      if (packageKeys.has(key) && ALL_PAGE_KEYS.includes(key)) next.add(key);
     }
     return next;
   }, [tenantAccount, tenantUser]);
+
+  const packageIsFull = useMemo(
+    () =>
+      resolvePackageModules(tenantAccount?.modules, tenantAccount?.packageName) === 'full',
+    [tenantAccount?.modules, tenantAccount?.packageName],
+  );
 
   const allowedSections = useMemo(() => {
     if (!tenantAccount) return new Set<MenuSection>();
@@ -448,8 +460,12 @@ export function AppShell({
       const pages = pagesBySection(name);
       if (pages.some((p) => allowedKeys.has(p.key))) set.add(name);
     }
+    // User Management tile is admin-only and not in ACCESS_PAGES; show tab on full packages.
+    if (tenantUser?.isAccountAdmin && packageIsFull) {
+      set.add('User Management');
+    }
     return set;
-  }, [tenantAccount, allowedKeys]);
+  }, [tenantAccount, tenantUser, allowedKeys, packageIsFull]);
 
   const firstAllowedSection = useMemo(() => {
     return (allowedSections.values().next().value ?? 'Setup') as MenuSection;
@@ -502,13 +518,13 @@ export function AppShell({
         if (item.section !== section) return false;
         if (item.to === '/user-management') {
           if (!tenantAccount || !tenantUser) return true;
-          return Boolean(tenantUser.isAccountAdmin);
+          return Boolean(tenantUser.isAccountAdmin) && packageIsFull;
         }
         const page = ACCESS_PAGES.find((p) => p.to === item.to);
         if (!page) return true;
         return tenantAccount && tenantUser ? allowedKeys.has(page.key) : true;
       }),
-    [section, tenantAccount, tenantUser, allowedKeys],
+    [section, tenantAccount, tenantUser, allowedKeys, packageIsFull],
   );
 
   function onSectionClick(name: MenuSection) {

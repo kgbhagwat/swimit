@@ -4,6 +4,7 @@ import { MenuBackLink } from './MenuBackLink';
 import {
   ACCESS_PAGES,
   MENU_SECTIONS,
+  pageKeysForModules,
   type MenuPageKey,
   pagesBySection,
 } from './menuCatalog';
@@ -14,6 +15,7 @@ import {
   platformPagesBySection,
 } from './platformAccess';
 import {
+  getActiveAccountCode,
   isPlatformUsersPath,
   platformUsersPath,
   tenantPath,
@@ -50,15 +52,19 @@ function toAccessSet(keys: string[], allowed: readonly { key: string }[]) {
 function UserRow({
   user,
   platformMode,
+  packagePageKeys,
   onUpdated,
   onMessage,
 }: {
   user: AppUser;
   platformMode: boolean;
+  packagePageKeys: Set<string> | null;
   onUpdated: (user: AppUser) => void;
   onMessage: (type: 'error' | 'info', text: string) => void;
 }) {
-  const allowedPages = platformMode ? PLATFORM_ACCESS_PAGES : ACCESS_PAGES;
+  const allowedPages = platformMode
+    ? PLATFORM_ACCESS_PAGES
+    : ACCESS_PAGES.filter((page) => !packagePageKeys || packagePageKeys.has(page.key));
   const [accessDraft, setAccessDraft] = useState(() =>
     toAccessSet(user.menuAccess, allowedPages),
   );
@@ -67,16 +73,19 @@ function UserRow({
 
   useEffect(() => {
     setAccessDraft(toAccessSet(user.menuAccess, allowedPages));
-  }, [user.id, user.menuAccess.join('|'), platformMode]);
+  }, [user.id, user.menuAccess.join('|'), platformMode, packagePageKeys?.size]);
 
   const accessSections = platformMode
     ? PLATFORM_ACCESS_SECTIONS.filter((section) => platformPagesBySection(section).length > 0)
-    : MENU_SECTIONS.filter((section) => pagesBySection(section).length > 0);
+    : MENU_SECTIONS.filter((section) =>
+        pagesBySection(section).some((page) => allowedPages.some((p) => p.key === page.key)),
+      );
 
   function pagesForSection(section: string) {
-    return platformMode
+    const pages = platformMode
       ? platformPagesBySection(section as (typeof PLATFORM_ACCESS_SECTIONS)[number])
       : pagesBySection(section as (typeof MENU_SECTIONS)[number]);
+    return pages.filter((page) => allowedPages.some((p) => p.key === page.key));
   }
 
   function togglePage(key: AccessKey) {
@@ -228,6 +237,7 @@ export function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [packagePageKeys, setPackagePageKeys] = useState<Set<string> | null>(null);
 
   async function load() {
     setLoading(true);
@@ -248,6 +258,38 @@ export function UserManagement() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (platformMode) {
+      setPackagePageKeys(null);
+      return;
+    }
+    const code = getActiveAccountCode();
+    if (!code) {
+      setPackagePageKeys(new Set(pageKeysForModules('core')));
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}`)
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || cancelled) return;
+        setPackagePageKeys(
+          new Set(
+            pageKeysForModules(
+              String(body.modules ?? 'core'),
+              String(body.packageName ?? ''),
+            ),
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setPackagePageKeys(new Set(pageKeysForModules('core')));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [platformMode]);
 
   function onMessage(type: 'error' | 'info', text: string) {
     if (type === 'error') {
@@ -309,6 +351,7 @@ export function UserManagement() {
                   key={user.id}
                   user={user}
                   platformMode={platformMode}
+                  packagePageKeys={packagePageKeys}
                   onUpdated={(updated) =>
                     setUsers((prev) => prev.map((row) => (row.id === updated.id ? updated : row)))
                   }

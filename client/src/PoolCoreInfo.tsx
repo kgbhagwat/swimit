@@ -40,6 +40,7 @@ function ImageField({
   file,
   preview,
   existingUrl,
+  editable,
   onPick,
   onClear,
 }: {
@@ -48,6 +49,7 @@ function ImageField({
   file: File | null;
   preview: string | null;
   existingUrl: string | null;
+  editable: boolean;
   onPick: (file: File | null) => void;
   onClear: () => void;
 }) {
@@ -78,69 +80,75 @@ function ImageField({
   return (
     <div className="photo-field">
       <span className="label">{label}</span>
-      <p className="hint">{hint}</p>
+      {editable ? <p className="hint">{hint}</p> : null}
       {compressing ? <p className="hint">Compressing image…</p> : null}
       {display ? (
-        <div className="preview-wrap preview-wrap--deletable">
+        <div className={`preview-wrap${editable ? ' preview-wrap--deletable' : ''}`}>
           <img src={display} alt={label} className="preview pool-core-preview" />
-          <button
-            type="button"
-            className="preview-delete-btn"
-            aria-label={`Delete ${label}`}
-            title="Delete image"
-            disabled={compressing}
-            onClick={onClear}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M4 7h16" />
-              <path d="M9 7V5h6v2" />
-              <path d="M7 7l1 13h8l1-13" />
-              <path d="M10 11v6M14 11v6" />
-            </svg>
-          </button>
+          {editable ? (
+            <button
+              type="button"
+              className="preview-delete-btn"
+              aria-label={`Delete ${label}`}
+              title="Delete image"
+              disabled={compressing}
+              onClick={onClear}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M4 7h16" />
+                <path d="M9 7V5h6v2" />
+                <path d="M7 7l1 13h8l1-13" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       ) : (
         <p className="hint">No image uploaded yet.</p>
       )}
-      <div className="photo-actions">
-        <button
-          type="button"
-          className="photo-btn"
-          disabled={compressing}
-          onClick={() => cameraRef.current?.click()}
-        >
-          <CameraActionIcon />
-          Take photo
-        </button>
-        <button
-          type="button"
-          className="photo-btn"
-          disabled={compressing}
-          onClick={() => fileRef.current?.click()}
-        >
-          <UploadActionIcon />
-          Upload image
-        </button>
-      </div>
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-      />
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-      />
-      {file ? (
-        <p className="file-name">
-          {file.name} ({Math.ceil(file.size / 1024)} KB)
-        </p>
+      {editable ? (
+        <>
+          <div className="photo-actions">
+            <button
+              type="button"
+              className="photo-btn"
+              disabled={compressing}
+              onClick={() => cameraRef.current?.click()}
+            >
+              <CameraActionIcon />
+              Take photo
+            </button>
+            <button
+              type="button"
+              className="photo-btn"
+              disabled={compressing}
+              onClick={() => fileRef.current?.click()}
+            >
+              <UploadActionIcon />
+              Upload image
+            </button>
+          </div>
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
+          />
+          {file ? (
+            <p className="file-name">
+              {file.name} ({Math.ceil(file.size / 1024)} KB)
+            </p>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -162,6 +170,7 @@ export function PoolCoreInfo() {
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [clearLogo, setClearLogo] = useState(false);
   const [clearQr, setClearQr] = useState(false);
+  const [editing, setEditing] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -173,14 +182,14 @@ export function PoolCoreInfo() {
   );
   const qrPreview = useMemo(() => (qrFile ? URL.createObjectURL(qrFile) : null), [qrFile]);
 
-  async function load() {
+  async function load(opts?: { keepEditing?: boolean }) {
     setLoading(true);
     setError('');
     try {
       const res = await fetch('/api/pool-core-info');
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to load pool core info');
-      setForm({
+      const next: PoolCoreInfoData = {
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
         poolLogoPath: body.poolLogoPath ?? null,
@@ -190,11 +199,16 @@ export function PoolCoreInfo() {
         paymentAcceptOnline: body.paymentAcceptOnline !== false,
         paymentQrPath: body.paymentQrPath ?? null,
         upiDetails: body.upiDetails ?? '',
-      });
+      };
+      setForm(next);
       setLogoFile(null);
       setQrFile(null);
       setClearLogo(false);
       setClearQr(false);
+      if (!opts?.keepEditing) {
+        const hasSaved = Boolean(String(next.poolName).trim());
+        setEditing(!hasSaved);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -208,6 +222,7 @@ export function PoolCoreInfo() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!editing) return;
     setError('');
     setSuccess('');
     if (!form.paymentAcceptCash && !form.paymentAcceptOnline) {
@@ -262,6 +277,7 @@ export function PoolCoreInfo() {
       setQrFile(null);
       setClearLogo(false);
       setClearQr(false);
+      setEditing(false);
       setSuccess('Pool core info saved successfully.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -278,9 +294,105 @@ export function PoolCoreInfo() {
 
       <h1>Pool Core Info</h1>
 
-      {loading ? (
-        <p className="pass-empty">Loading…</p>
-      ) : (
+      {loading ? <p className="pass-empty">Loading…</p> : null}
+      {error && !editing ? <p className="error">{error}</p> : null}
+      {success && !editing ? <p className="success">{success}</p> : null}
+
+      {!loading && !editing ? (
+        <section className="pass-form-card pool-core-form pool-core-view">
+          <div className="pool-core-view-row">
+            <span className="label">Pool Name</span>
+            <p className="pool-core-view-value">{form.poolName.trim() || '—'}</p>
+          </div>
+
+          <div className="pool-core-view-row">
+            <span className="label">Pool Address</span>
+            <p className="pool-core-view-value pool-core-view-multiline">
+              {form.poolAddress.trim() || '—'}
+            </p>
+          </div>
+
+          <div className="pool-core-view-row">
+            <span className="label">Payment Option</span>
+            <p className="pool-core-view-value">
+              {[
+                form.paymentAcceptCash ? 'Cash' : null,
+                form.paymentAcceptOnline ? 'Online' : null,
+              ]
+                .filter(Boolean)
+                .join(', ') || '—'}
+            </p>
+          </div>
+
+          <div className="grid-2 photos">
+            <div className="photo-field">
+              <span className="label">Pool Logo</span>
+              {uploadUrl(form.poolLogoPath) ? (
+                <div className="preview-wrap">
+                  <img
+                    src={uploadUrl(form.poolLogoPath)!}
+                    alt="Pool Logo"
+                    className="preview pool-core-preview"
+                  />
+                </div>
+              ) : (
+                <p className="hint">No logo uploaded.</p>
+              )}
+            </div>
+            <div className="photo-field">
+              <span className="label">Payment QR code</span>
+              {uploadUrl(form.paymentQrPath) ? (
+                <div className="preview-wrap">
+                  <img
+                    src={uploadUrl(form.paymentQrPath)!}
+                    alt="Payment QR code"
+                    className="preview pool-core-preview"
+                  />
+                </div>
+              ) : (
+                <p className="hint">No payment QR uploaded.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="pool-core-view-row">
+            <span className="label">UPI ID</span>
+            <p className="pool-core-view-value">
+              {form.upiDetails.trim() ? <code>{form.upiDetails.trim()}</code> : '—'}
+            </p>
+          </div>
+
+          <div className="pool-core-view-row">
+            <span className="label">Terms & Conditions for swimmer</span>
+            <div className="pool-core-view-text">
+              {form.swimmerTerms.trim() || '—'}
+            </div>
+          </div>
+
+          <div className="pool-core-view-row">
+            <span className="label">Terms & Conditions for staff</span>
+            <div className="pool-core-view-text">
+              {form.staffTerms.trim() || '—'}
+            </div>
+          </div>
+
+          <div className="pass-form-actions">
+            <button
+              type="button"
+              className="submit"
+              onClick={() => {
+                setEditing(true);
+                setSuccess('');
+                setError('');
+              }}
+            >
+              Edit
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {!loading && editing ? (
         <form className="pass-form-card pool-core-form" onSubmit={onSubmit}>
           <label className="field">
             <span className="label">
@@ -346,6 +458,7 @@ export function PoolCoreInfo() {
               file={logoFile}
               preview={logoPreview}
               existingUrl={clearLogo ? null : uploadUrl(form.poolLogoPath)}
+              editable
               onPick={(file) => {
                 setLogoFile(file);
                 if (file) setClearLogo(false);
@@ -365,6 +478,7 @@ export function PoolCoreInfo() {
               file={qrFile}
               preview={qrPreview}
               existingUrl={clearQr ? null : uploadUrl(form.paymentQrPath)}
+              editable
               onPick={(file) => {
                 setQrFile(file);
                 if (file) setClearQr(false);
@@ -403,6 +517,7 @@ export function PoolCoreInfo() {
             onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
             placeholder="Shown on swimmer registration"
             rows={10}
+            editable
           />
 
           <TermsDocumentField
@@ -411,13 +526,19 @@ export function PoolCoreInfo() {
             onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
             placeholder="Shown on staff registration"
             rows={10}
+            editable
           />
 
           {error ? <p className="error">{error}</p> : null}
           {success ? <p className="success">{success}</p> : null}
 
           <div className="pass-form-actions">
-            <button type="button" className="pass-cancel" onClick={() => void load()} disabled={saving}>
+            <button
+              type="button"
+              className="pass-cancel"
+              onClick={() => void load({ keepEditing: true })}
+              disabled={saving}
+            >
               Reset
             </button>
             <button type="submit" className="submit" disabled={saving}>
@@ -425,7 +546,7 @@ export function PoolCoreInfo() {
             </button>
           </div>
         </form>
-      )}
+      ) : null}
     </div>
   );
 }

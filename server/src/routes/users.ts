@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
-import { sanitizeMenuAccess } from '../menuAccess.js';
+import { clipMenuAccessToPackage, sanitizeMenuAccess } from '../menuAccess.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { generateTempPassword, hashPassword } from '../password.js';
 import { tenantId } from '../middleware/tenant.js';
@@ -31,6 +31,21 @@ function loginOriginFromRequest(req: { get: (name: string) => string | undefined
   return String(
     req.get('origin') || process.env.PUBLIC_APP_URL || process.env.CORS_ORIGIN || 'http://localhost:5173',
   ).replace(/\/$/, '');
+}
+
+async function packageMenuKeysForAccount(accountId: number) {
+  const { rows } = await pool.query<{ modules: string | null; package_name: string | null }>(
+    `SELECT p.modules, p.package_name
+     FROM saas_accounts a
+     LEFT JOIN service_packages p ON p.id = a.service_package_id
+     WHERE a.id = $1
+     LIMIT 1`,
+    [accountId],
+  );
+  return {
+    modules: rows[0]?.modules ?? 'core',
+    packageName: rows[0]?.package_name ?? '',
+  };
 }
 
 export const usersRouter = Router();
@@ -92,7 +107,12 @@ usersRouter.post('/', async (req, res) => {
     const userName = String(body.userName ?? '').trim();
     const mobile = String(body.mobile ?? '').trim();
     const email = String(body.email ?? '').trim().toLowerCase();
-    const menuAccess = sanitizeMenuAccess(body.menuAccess);
+    const pkg = await packageMenuKeysForAccount(accountId);
+    const menuAccess = clipMenuAccessToPackage(
+      sanitizeMenuAccess(body.menuAccess),
+      pkg.modules,
+      pkg.packageName,
+    );
     const password = generateTempPassword(8);
 
     if (!userName) {
@@ -285,7 +305,12 @@ usersRouter.patch('/:id/access', async (req, res) => {
       return;
     }
 
-    const menuAccess = sanitizeMenuAccess((req.body as { menuAccess?: unknown }).menuAccess);
+    const pkg = await packageMenuKeysForAccount(accountId);
+    const menuAccess = clipMenuAccessToPackage(
+      sanitizeMenuAccess((req.body as { menuAccess?: unknown }).menuAccess),
+      pkg.modules,
+      pkg.packageName,
+    );
     const { rows } = await pool.query(
       `UPDATE app_users
        SET menu_access = $1

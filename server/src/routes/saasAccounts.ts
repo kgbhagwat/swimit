@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
-import { ACCESS_PAGE_KEYS } from '../menuAccess.js';
+import { pageKeysForModules } from '../menuAccess.js';
 import { hashPassword, generateTempPassword, verifyPassword } from '../password.js';
 import { notifyLoginCredentials, notifyPackageRenewalPayment } from '../whatsapp/notify.js';
 import {
@@ -51,6 +51,7 @@ function mapRow(row: Record<string, unknown>) {
     accountCode: String(row.account_code ?? ''),
     servicePackageId: row.service_package_id == null ? null : Number(row.service_package_id),
     packageName: String(row.package_name ?? ''),
+    modules: String(row.modules ?? 'core') || 'core',
     status: String(row.status ?? 'Active'),
     notes: String(row.notes ?? ''),
     createdAt: row.created_at,
@@ -177,6 +178,7 @@ function duplicateConflictMessage(message: string) {
 const ACCOUNT_SELECT = `SELECT a.id, a.account_name, a.contact_name, a.mobile, a.email, a.city,
               a.pool_address, a.account_code, a.service_package_id, a.status, a.notes, a.created_at,
               p.package_name,
+              COALESCE(NULLIF(TRIM(p.modules), ''), 'core') AS modules,
               COALESCE(
                 a.subscription_expires_at,
                 CASE
@@ -284,18 +286,33 @@ saasAccountsRouter.post('/', async (req, res) => {
       packageId = trial.rows[0] ? Number(trial.rows[0].id) : null;
     }
 
-    let packageMeta: { trial_days?: number; billing_period?: string } | null = null;
+    let packageMeta: {
+      trial_days?: number;
+      billing_period?: string;
+      modules?: string;
+      package_name?: string;
+    } | null = null;
     if (packageId != null) {
       const pkg = await client.query(
-        `SELECT id, trial_days, billing_period FROM service_packages WHERE id = $1`,
+        `SELECT id, trial_days, billing_period, modules, package_name FROM service_packages WHERE id = $1`,
         [packageId],
       );
       if (pkg.rowCount === 0) {
         res.status(400).json({ error: 'Selected service package was not found' });
         return;
       }
-      packageMeta = pkg.rows[0] as { trial_days?: number; billing_period?: string };
+      packageMeta = pkg.rows[0] as {
+        trial_days?: number;
+        billing_period?: string;
+        modules?: string;
+        package_name?: string;
+      };
     }
+
+    const packageMenuKeys = pageKeysForModules(
+      packageMeta?.modules,
+      packageMeta?.package_name,
+    );
 
     const existing = await client.query(
       `SELECT id FROM saas_accounts WHERE LOWER(account_code) = $1 LIMIT 1`,
@@ -366,7 +383,7 @@ saasAccountsRouter.post('/', async (req, res) => {
        (user_name, mobile, email, password_hash, menu_access, saas_account_id, must_change_password, is_account_admin)
        VALUES ($1, $2, $3, $4, $5, $6, TRUE, TRUE)
        RETURNING id, user_name, mobile, email`,
-      [adminUserName, mobile, email, passwordHash, [...ACCESS_PAGE_KEYS], accountId],
+      [adminUserName, mobile, email, passwordHash, packageMenuKeys, accountId],
     );
 
     // Empty app shell for this account only (no shared / demo data)
@@ -384,14 +401,21 @@ saasAccountsRouter.post('/', async (req, res) => {
     await client.query('COMMIT');
 
     let packageName = '';
+    let packageModules = 'core';
     if (created.service_package_id != null) {
-      const pkg = await pool.query(`SELECT package_name FROM service_packages WHERE id = $1`, [
-        created.service_package_id,
-      ]);
+      const pkg = await pool.query(
+        `SELECT package_name, modules FROM service_packages WHERE id = $1`,
+        [created.service_package_id],
+      );
       packageName = String(pkg.rows[0]?.package_name ?? '');
+      packageModules = String(pkg.rows[0]?.modules ?? 'core') || 'core';
     }
 
-    const account = mapRow({ ...created, package_name: packageName });
+    const account = mapRow({
+      ...created,
+      package_name: packageName,
+      modules: packageModules,
+    });
     const loginOrigin = String(req.get('origin') || process.env.CORS_ORIGIN || 'http://localhost:5173').replace(
       /\/$/,
       '',
@@ -485,7 +509,13 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
          (user_name, mobile, email, password_hash, menu_access, saas_account_id, must_change_password, is_account_admin)
          VALUES ('admin', $1, $2, $3, $4, $5, TRUE, TRUE)
          RETURNING id, user_name, mobile, email`,
-        [account.mobile, account.email, passwordHash, [...ACCESS_PAGE_KEYS], id],
+        [
+          account.mobile,
+          account.email,
+          passwordHash,
+          pageKeysForModules(account.modules, account.packageName),
+          id,
+        ],
       );
     } else {
       await pool.query(
@@ -648,15 +678,27 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
 
     const updated = rows[0];
     let packageName = '';
+    let packageModules = 'core';
     if (updated.service_package_id != null) {
-      const pkg = await pool.query(`SELECT package_name FROM service_packages WHERE id = $1`, [
-        updated.service_package_id,
-      ]);
+      const pkg = await pool.query(
+        `SELECT package_name, modules FROM service_packages WHERE id = $1`,
+        [updated.service_package_id],
+      );
       packageName = String(pkg.rows[0]?.package_name ?? '');
+      packageModules = String(pkg.rows[0]?.modules ?? 'core') || 'core';
     }
 
+    // Keep account-admin menu_access aligned with the selected package.
+    const packageMenuKeys = pageKeysForModules(packageModules, packageName);
+    await pool.query(
+      `UPDATE app_users
+       SET menu_access = $1
+       WHERE saas_account_id = $2 AND COALESCE(is_account_admin, FALSE) = TRUE`,
+      [packageMenuKeys, id],
+    );
+
     res.json({
-      ...mapRow({ ...updated, package_name: packageName }),
+      ...mapRow({ ...updated, package_name: packageName, modules: packageModules }),
       warnings,
     });
   } catch (err) {

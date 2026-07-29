@@ -10,6 +10,7 @@ type AccountInfo = {
   accountCode: string;
   status: string;
   packageName?: string;
+  modules?: string;
 };
 
 type SessionUser = {
@@ -129,6 +130,7 @@ export function AccountPortal() {
           accountCode: String(body.accountCode ?? code),
           status: String(body.status ?? 'Active'),
           packageName: String(body.packageName ?? '').trim(),
+          modules: String(body.modules ?? 'core').trim() || 'core',
         };
         if (info.status === 'Suspended') {
           setError('This account is suspended.');

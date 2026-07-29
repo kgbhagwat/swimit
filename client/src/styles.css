@@ -3531,6 +3531,37 @@ button.coach-payment-back {
   border-color: #c5d4ea;
 }
 
+.pool-core-view-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.pool-core-view-value {
+  margin: 0;
+  color: #1a2b45;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.pool-core-view-multiline {
+  white-space: pre-wrap;
+}
+
+.pool-core-view-text {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #c5d4ea;
+  color: #1a2b45;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  max-height: 18rem;
+  overflow: auto;
+}
+
 .pool-core-form .photo-actions {
   background: rgba(255, 255, 255, 0.85);
   border-color: #a8bdd8;

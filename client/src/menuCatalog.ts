@@ -63,6 +63,53 @@ export const ACCESS_PAGES: MenuPageDef[] = [
 
 export const ALL_PAGE_KEYS = ACCESS_PAGES.map((page) => page.key);
 
+/** Pages included in Trial / Starter (modules: core). */
+export const CORE_PAGE_KEYS: MenuPageKey[] = [
+  'register',
+  'staff-register',
+  'batches',
+  'pass-types',
+  'pass-payment',
+  'pass-scanner',
+  'swimmers',
+  'attendance-sheet',
+  'pool-core-info',
+  'coaches',
+];
+
+/** Extra pages for Professional / Enterprise (modules: full). */
+export const FULL_ONLY_PAGE_KEYS: MenuPageKey[] = [
+  'coach-payment',
+  'pool-expenses',
+  'balance-sheet',
+  'holiday-management',
+  'whatsapp',
+  'create-user',
+  'payment-details',
+];
+
+export function resolvePackageModules(
+  modules?: string | null,
+  packageName?: string | null,
+): 'core' | 'full' {
+  const level = String(modules ?? '').toLowerCase().trim();
+  if (level === 'full') return 'full';
+  const name = String(packageName ?? '').toLowerCase().trim();
+  if (name === 'professional' || name === 'enterprise') return 'full';
+  return 'core';
+}
+
+/** Menu page keys allowed for a service package. */
+export function pageKeysForModules(
+  modules?: string | null,
+  packageName?: string | null,
+): MenuPageKey[] {
+  if (resolvePackageModules(modules, packageName) === 'full') {
+    return [...CORE_PAGE_KEYS, ...FULL_ONLY_PAGE_KEYS];
+  }
+  return [...CORE_PAGE_KEYS];
+}
+
 export function isMenuSection(value: unknown): value is MenuSection {
   return typeof value === 'string' && MENU_SECTIONS.includes(value as MenuSection);
 }

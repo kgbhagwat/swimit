@@ -27,13 +27,13 @@ function uploadUrl(filename: string | null | undefined) {
 
 function isValidUpiId(value: string) {
   const v = value.trim();
-  if (!v) return true;
+  if (!v) return false;
   return /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,63}$/.test(v);
 }
 
 function upiHint(value: string) {
   const v = value.trim();
-  if (!v) return '';
+  if (!v) return 'UPI ID is required';
   if (!isValidUpiId(v)) return 'Enter a valid UPI ID (e.g. name@upi)';
   return '';
 }
@@ -44,6 +44,7 @@ function ImageField({
   file,
   preview,
   existingUrl,
+  editable,
   onPick,
   onClear,
 }: {
@@ -52,6 +53,7 @@ function ImageField({
   file: File | null;
   preview: string | null;
   existingUrl: string | null;
+  editable: boolean;
   onPick: (file: File | null) => void;
   onClear: () => void;
 }) {
@@ -82,69 +84,75 @@ function ImageField({
   return (
     <div className="photo-field">
       <span className="label">{label}</span>
-      <p className="hint">{hint}</p>
+      {editable ? <p className="hint">{hint}</p> : null}
       {compressing ? <p className="hint">Compressing image…</p> : null}
       {display ? (
-        <div className="preview-wrap preview-wrap--deletable">
+        <div className={`preview-wrap${editable ? ' preview-wrap--deletable' : ''}`}>
           <img src={display} alt={label} className="preview pool-core-preview" />
-          <button
-            type="button"
-            className="preview-delete-btn"
-            aria-label={`Delete ${label}`}
-            title="Delete image"
-            disabled={compressing}
-            onClick={onClear}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M4 7h16" />
-              <path d="M9 7V5h6v2" />
-              <path d="M7 7l1 13h8l1-13" />
-              <path d="M10 11v6M14 11v6" />
-            </svg>
-          </button>
+          {editable ? (
+            <button
+              type="button"
+              className="preview-delete-btn"
+              aria-label={`Delete ${label}`}
+              title="Delete image"
+              disabled={compressing}
+              onClick={onClear}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M4 7h16" />
+                <path d="M9 7V5h6v2" />
+                <path d="M7 7l1 13h8l1-13" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       ) : (
         <p className="hint">No image uploaded yet.</p>
       )}
-      <div className="photo-actions">
-        <button
-          type="button"
-          className="photo-btn"
-          disabled={compressing}
-          onClick={() => cameraRef.current?.click()}
-        >
-          <CameraActionIcon />
-          Take photo
-        </button>
-        <button
-          type="button"
-          className="photo-btn"
-          disabled={compressing}
-          onClick={() => fileRef.current?.click()}
-        >
-          <UploadActionIcon />
-          Upload image
-        </button>
-      </div>
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-      />
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-      />
-      {file ? (
-        <p className="file-name">
-          {file.name} ({Math.ceil(file.size / 1024)} KB)
-        </p>
+      {editable ? (
+        <>
+          <div className="photo-actions">
+            <button
+              type="button"
+              className="photo-btn"
+              disabled={compressing}
+              onClick={() => cameraRef.current?.click()}
+            >
+              <CameraActionIcon />
+              Take photo
+            </button>
+            <button
+              type="button"
+              className="photo-btn"
+              disabled={compressing}
+              onClick={() => fileRef.current?.click()}
+            >
+              <UploadActionIcon />
+              Upload image
+            </button>
+          </div>
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
+          />
+          {file ? (
+            <p className="file-name">
+              {file.name} ({Math.ceil(file.size / 1024)} KB)
+            </p>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -169,6 +177,7 @@ export function PlatformPayment() {
   const [txnError, setTxnError] = useState('');
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [clearQr, setClearQr] = useState(false);
+  const [editing, setEditing] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -228,6 +237,9 @@ export function PlatformPayment() {
       });
       setQrFile(null);
       setClearQr(false);
+      const hasSaved =
+        Boolean(body.paymentQrPath) || Boolean(String(body.upiId ?? '').trim());
+      setEditing(!hasSaved);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -241,10 +253,14 @@ export function PlatformPayment() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!canManage) return;
+    if (!canManage || !editing) return;
     setError('');
     setSuccess('');
 
+    if (!form.upiId.trim()) {
+      setError('UPI ID is required');
+      return;
+    }
     if (!isValidUpiId(form.upiId)) {
       setError('Enter a valid UPI ID (e.g. name@upi)');
       return;
@@ -267,6 +283,7 @@ export function PlatformPayment() {
       });
       setQrFile(null);
       setClearQr(false);
+      setEditing(false);
       setSuccess('Payment details saved. Account holders can use these to pay.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -288,57 +305,102 @@ export function PlatformPayment() {
       {success ? <p className="success">{success}</p> : null}
 
       {!loading ? (
-        <form className="pass-form-card" onSubmit={onSubmit}>
-          <ImageField
-            label="SaaS payment QR code"
-            hint="Max 200 KB — upload the UPI / payment QR image account holders will scan"
-            file={qrFile}
-            preview={qrPreview}
-            existingUrl={clearQr ? null : uploadUrl(form.paymentQrPath)}
-            onPick={(file) => {
-              setQrFile(file);
-              setClearQr(false);
-              setError('');
-              setSuccess('');
-            }}
-            onClear={() => {
-              setQrFile(null);
-              setClearQr(true);
-              setError('');
-              setSuccess('');
-            }}
-          />
+        editing && canManage ? (
+          <form className="pass-form-card" onSubmit={onSubmit}>
+            <ImageField
+              label="SaaS payment QR code"
+              hint="Max 200 KB — upload the UPI / payment QR image account holders will scan"
+              file={qrFile}
+              preview={qrPreview}
+              existingUrl={clearQr ? null : uploadUrl(form.paymentQrPath)}
+              editable
+              onPick={(file) => {
+                setQrFile(file);
+                setClearQr(false);
+                setError('');
+                setSuccess('');
+              }}
+              onClear={() => {
+                setQrFile(null);
+                setClearQr(true);
+                setError('');
+                setSuccess('');
+              }}
+            />
 
-          <div className="field upi-id-field">
-            <div className="upi-id-row">
-              <span className="label">UPI ID</span>
-              <input
-                value={form.upiId}
-                onChange={(e) => {
-                  setForm((prev) => ({ ...prev, upiId: e.target.value }));
-                  setError('');
-                  setSuccess('');
-                }}
-                placeholder="name@upi"
-                autoComplete="off"
-                disabled={!canManage}
-                aria-invalid={Boolean(upiHint(form.upiId))}
-                aria-label="UPI ID"
-              />
+            <div className="field upi-id-field">
+              <div className="upi-id-row">
+                <span className="label">
+                  UPI ID<span className="req"> *</span>
+                </span>
+                <input
+                  value={form.upiId}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, upiId: e.target.value }));
+                    setError('');
+                    setSuccess('');
+                  }}
+                  placeholder="name@upi"
+                  autoComplete="off"
+                  required
+                  aria-invalid={Boolean(upiHint(form.upiId))}
+                  aria-label="UPI ID"
+                />
+              </div>
+              {upiHint(form.upiId) ? (
+                <span className="field-error">{upiHint(form.upiId)}</span>
+              ) : null}
             </div>
-            {upiHint(form.upiId) ? <span className="field-error">{upiHint(form.upiId)}</span> : null}
-          </div>
 
-          {canManage ? (
             <div className="pass-form-actions">
               <button type="submit" className="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save payment details'}
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
-          ) : (
-            <p className="muted">You do not have permission to edit payment settings.</p>
-          )}
-        </form>
+          </form>
+        ) : (
+          <section className="pass-form-card pool-core-view">
+            <div className="photo-field">
+              <span className="label">SaaS payment QR code</span>
+              {uploadUrl(form.paymentQrPath) ? (
+                <div className="preview-wrap">
+                  <img
+                    src={uploadUrl(form.paymentQrPath)!}
+                    alt="SaaS payment QR code"
+                    className="preview pool-core-preview"
+                  />
+                </div>
+              ) : (
+                <p className="hint">No image uploaded yet.</p>
+              )}
+            </div>
+
+            <div className="pool-core-view-row">
+              <span className="label">UPI ID</span>
+              <p className="pool-core-view-value">
+                {form.upiId.trim() ? <code>{form.upiId.trim()}</code> : '—'}
+              </p>
+            </div>
+
+            {canManage ? (
+              <div className="pass-form-actions">
+                <button
+                  type="button"
+                  className="submit"
+                  onClick={() => {
+                    setEditing(true);
+                    setSuccess('');
+                    setError('');
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
+            ) : (
+              <p className="muted">You do not have permission to edit payment settings.</p>
+            )}
+          </section>
+        )
       ) : null}
 
       {!loading ? (

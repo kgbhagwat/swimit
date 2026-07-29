@@ -13,6 +13,8 @@ type Props = {
   onChange: (next: string) => void;
   placeholder?: string;
   rows?: number;
+  /** When false, hide scan/upload toolbar and make the textarea read-only. */
+  editable?: boolean;
 };
 
 function countPages(text: string) {
@@ -112,6 +114,7 @@ export function TermsDocumentField({
   onChange,
   placeholder,
   rows = 10,
+  editable = true,
 }: Props) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -162,82 +165,96 @@ export function TermsDocumentField({
   return (
     <div className="field terms-document-field">
       <span className="label">{label}</span>
-      <p className="hint">Scan or upload text (.txt), PDF, or image — one or more files.</p>
-      <div className="terms-toolbar">
-        <label className="terms-ocr-lang">
-          <span className="label">Language of Document</span>
-          <select
-            value={langMode}
-            disabled={busy}
-            onChange={(e) => setLangMode(e.target.value as OcrLanguageMode)}
-          >
-            <option value="marathi">Marathi</option>
-            <option value="mixed">Marathi+English</option>
-            <option value="english">English</option>
-          </select>
-        </label>
-        <div className="terms-toolbar-actions">
-          <button
-            type="button"
-            className="photo-btn terms-toolbar-btn"
-            disabled={busy}
-            onClick={() => cameraRef.current?.click()}
-          >
-            <CameraActionIcon />
-            {value.trim() ? 'Scan next page' : 'Scan photo'}
-          </button>
-          <button
-            type="button"
-            className="photo-btn terms-toolbar-btn"
-            disabled={busy}
-            onClick={() => fileRef.current?.click()}
-          >
-            <UploadActionIcon />
-            Upload page(s)
-          </button>
-          <button
-            type="button"
-            className="photo-btn terms-toolbar-btn"
-            disabled={busy || !value.trim()}
-            onClick={() => {
-              if (confirm('Clear all terms text?')) {
-                onChange('');
-                setStatus('');
-                setError('');
-              }
-            }}
-          >
-            Clear text
-          </button>
+      {editable ? (
+        <p className="hint">Scan or upload text (.txt), PDF, or image — one or more files.</p>
+      ) : null}
+      {editable ? (
+        <div className="terms-toolbar">
+          <label className="terms-ocr-lang">
+            <span className="label">Language of Document</span>
+            <select
+              value={langMode}
+              disabled={busy}
+              onChange={(e) => setLangMode(e.target.value as OcrLanguageMode)}
+            >
+              <option value="marathi">Marathi</option>
+              <option value="mixed">Marathi+English</option>
+              <option value="english">English</option>
+            </select>
+          </label>
+          <div className="terms-toolbar-actions">
+            <button
+              type="button"
+              className="photo-btn terms-toolbar-btn"
+              disabled={busy}
+              onClick={() => cameraRef.current?.click()}
+            >
+              <CameraActionIcon />
+              {value.trim() ? 'Scan next page' : 'Scan photo'}
+            </button>
+            <button
+              type="button"
+              className="photo-btn terms-toolbar-btn"
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+            >
+              <UploadActionIcon />
+              Upload page(s)
+            </button>
+            <button
+              type="button"
+              className="photo-btn terms-toolbar-btn"
+              disabled={busy || !value.trim()}
+              onClick={() => {
+                if (confirm('Clear all terms text?')) {
+                  onChange('');
+                  setStatus('');
+                  setError('');
+                }
+              }}
+            >
+              Clear text
+            </button>
+          </div>
         </div>
-      </div>
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        hidden
-        onChange={(e) => void handleFiles(e.target.files)}
-      />
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*,.txt,.md,text/plain,application/pdf,.pdf"
-        multiple
-        hidden
-        onChange={(e) => void handleFiles(e.target.files)}
-      />
-      {busy ? <p className="hint">{status || 'Working…'}</p> : null}
-      {!busy && status ? <p className="success">{status}</p> : null}
-      {error ? <p className="field-error">{error}</p> : null}
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        className="terms-textarea"
-        disabled={busy}
-      />
+      ) : null}
+      {editable ? (
+        <>
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => void handleFiles(e.target.files)}
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.txt,.md,text/plain,application/pdf,.pdf"
+            multiple
+            hidden
+            onChange={(e) => void handleFiles(e.target.files)}
+          />
+        </>
+      ) : null}
+      {editable && busy ? <p className="hint">{status || 'Working…'}</p> : null}
+      {editable && !busy && status ? <p className="success">{status}</p> : null}
+      {editable && error ? <p className="field-error">{error}</p> : null}
+      {editable ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+          className="terms-textarea"
+          disabled={busy}
+        />
+      ) : (
+        <div className="pool-core-view-text">
+          {value.trim() ? value : '—'}
+        </div>
+      )}
     </div>
   );
 }

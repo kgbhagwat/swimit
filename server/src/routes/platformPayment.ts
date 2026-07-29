@@ -134,7 +134,11 @@ platformPaymentRouter.put('/', upload.single('paymentQr'), async (req, res) => {
     const upiId = String(body.upiId ?? '').trim();
     const clearPaymentQr = String(body.clearPaymentQr ?? '') === '1';
 
-    if (upiId && !UPI_RE.test(upiId)) {
+    if (!upiId) {
+      res.status(400).json({ error: 'UPI ID is required' });
+      return;
+    }
+    if (!UPI_RE.test(upiId)) {
       res.status(400).json({ error: 'Enter a valid UPI ID (e.g. name@upi)' });
       return;
     }

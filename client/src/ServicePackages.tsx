@@ -66,6 +66,7 @@ const PACKAGE_FEATURES: PackageFeature[] = [
   { label: 'Coach payment', level: 'full' },
   { label: 'Pool expenses', level: 'full' },
   { label: 'Balance sheet', level: 'full' },
+  { label: 'Payment details', level: 'full' },
   { label: 'Holiday management', level: 'full' },
   { label: 'User management & access', level: 'full' },
   { label: 'WhatsApp Broadcast messaging', level: 'full' },
