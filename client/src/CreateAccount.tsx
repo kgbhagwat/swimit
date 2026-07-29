@@ -40,8 +40,8 @@ type CreatedCredentials = {
   packageName: string;
   loginUrl: string;
   adminUserName: string;
-  temporaryPassword: string;
   deliveryNote: string;
+  whatsappOk: boolean;
 };
 
 const ACCOUNT_CODE_RE = /^[a-z0-9]{6}$/;
@@ -346,11 +346,10 @@ export function CreateAccount() {
         packageName: selectedPackage,
         loginUrl: String(body.loginUrl ?? accountLoginUrl(code)),
         adminUserName: String(body.adminUser?.userName ?? 'admin'),
-        temporaryPassword: String(body.adminUser?.temporaryPassword ?? ''),
         deliveryNote: String(
-          body.deliveryNote ??
-            'Share these details with the pool operator. They must change the password on first login.',
+          body.deliveryNote ?? 'Account created and WhatsApp message sent for password.',
         ),
+        whatsappOk: body.whatsapp?.ok === true && !body.whatsapp?.skipped,
       });
       setForm({ ...emptyForm, servicePackageId: defaultPackageId(packages) });
       setCodeEditedByUser(false);
@@ -379,9 +378,8 @@ export function CreateAccount() {
             `Account code: ${created.accountCode}`,
             `Login URL: ${created.loginUrl}`,
             `Admin user: ${created.adminUserName}`,
-            `Temporary password: ${created.temporaryPassword}`,
             '',
-            'Please change the admin password on first login.',
+            'Temporary password was sent to your WhatsApp mobile. Please change it on first login.',
           ]
             .filter(Boolean)
             .join('\n'),
@@ -401,11 +399,11 @@ export function CreateAccount() {
         ) : null}
 
         <h1>Account created</h1>
-        <p className="lede">Send these details to the pool operator. Shown only once.</p>
+        <p className="lede">Account details for the pool operator.</p>
         {warning ? <p className="error">{warning}</p> : null}
 
         <section className="pass-form-card account-credentials-card">
-          <p className="success">{created.deliveryNote}</p>
+          <p className={created.whatsappOk ? 'success' : 'error'}>{created.deliveryNote}</p>
 
           <dl className="account-credentials-list">
             <div>
@@ -457,12 +455,6 @@ export function CreateAccount() {
               <dt>Admin user</dt>
               <dd>
                 <code>{created.adminUserName}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Temporary password</dt>
-              <dd>
-                <code className="temp-password">{created.temporaryPassword}</code>
               </dd>
             </div>
           </dl>

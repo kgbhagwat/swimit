@@ -491,21 +491,7 @@ saasAccountsRouter.post('/', async (req, res) => {
     );
     const loginUrl = `${loginOrigin}/${accountCode}`;
 
-    res.status(201).json({
-      ...account,
-      loginUrl,
-      adminUser: {
-        userName: String(adminRows[0].user_name),
-        mobile: String(adminRows[0].mobile),
-        temporaryPassword: adminPassword,
-        mustChangePassword: true,
-      },
-      warnings,
-      deliveryNote:
-        'Temporary password is random (8 characters). They must change it on first login.',
-    });
-
-    void notifyLoginCredentials({
+    const whatsapp = await notifyLoginCredentials({
       mobile,
       accountName: account.accountName,
       accountCode,
@@ -513,9 +499,41 @@ saasAccountsRouter.post('/', async (req, res) => {
       userName: adminUserName,
       temporaryPassword: adminPassword,
       saasAccountId: accountId,
-    }).then((result) => {
-      if (!result.ok) console.warn('[whatsapp] credentials notify failed', result.error);
-      else if (result.skipped) console.info('[whatsapp] credentials skipped (not configured)');
+    });
+
+    let deliveryNote = 'Account created and WhatsApp message sent for password.';
+    let whatsappOk = false;
+    let whatsappSkipped = false;
+    let whatsappError: string | null = null;
+
+    if (whatsapp.ok && whatsapp.skipped) {
+      whatsappSkipped = true;
+      deliveryNote =
+        'Account created, but WhatsApp is not configured — password could not be sent. Configure WhatsApp and use Resend credentials.';
+      console.info('[whatsapp] credentials skipped (not configured)');
+    } else if (whatsapp.ok) {
+      whatsappOk = true;
+    } else {
+      whatsappError = whatsapp.error || 'send failed';
+      deliveryNote = `Account created, but WhatsApp message failed: ${whatsappError}. Use Resend credentials after fixing WhatsApp.`;
+      console.warn('[whatsapp] credentials notify failed', whatsappError);
+    }
+
+    res.status(201).json({
+      ...account,
+      loginUrl,
+      adminUser: {
+        userName: String(adminRows[0].user_name),
+        mobile: String(adminRows[0].mobile),
+        mustChangePassword: true,
+      },
+      warnings,
+      whatsapp: {
+        ok: whatsappOk,
+        skipped: whatsappSkipped,
+        error: whatsappError,
+      },
+      deliveryNote,
     });
   } catch (err) {
     try {

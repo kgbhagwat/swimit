@@ -4559,6 +4559,10 @@ button.icon-action.icon-action-danger svg {
   align-items: center;
 }
 
+.pass-block-row {
+  display: contents;
+}
+
 .pass-table-head {
   padding: 0.75rem 0.9rem;
   background: #eef3f9;
@@ -4838,17 +4842,88 @@ button.menu-link {
 }
 
 @media (max-width: 980px) {
+  .pass-table-card {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
   .pass-table-head {
     display: none;
   }
 
-  .pass-row {
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
+  .pass-table-body {
+    gap: 0.7rem;
   }
 
-  .pass-row span::before {
+  .pass-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: stretch;
+    padding: 0.75rem 0.7rem 0.8rem;
+    border: 1px solid rgba(26, 53, 104, 0.08);
+    border-radius: 12px;
+    border-top: 1px solid rgba(26, 53, 104, 0.08);
+    font-size: 0.78rem;
+    line-height: 1.3;
+  }
+
+  .pass-row-tone-0 {
+    background: #eaf2ff;
+  }
+
+  .pass-row-tone-1 {
+    background: #e9f7ef;
+  }
+
+  .pass-row-tone-2 {
+    background: #fff4e5;
+  }
+
+  .pass-row-tone-3 {
+    background: #f3f1fb;
+  }
+
+  .pass-block-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem 0.35rem;
+    align-items: start;
+  }
+
+  .pass-block-row + .pass-block-row {
+    margin-top: 0.55rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid rgba(26, 53, 104, 0.32);
+  }
+
+  .pass-block-row > * {
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  .pass-block-row > *::before {
     content: attr(data-label);
+    display: block;
+    margin-bottom: 0.12rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #5a6f8f;
+    text-transform: uppercase;
+  }
+
+  .pass-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.45rem;
+  }
+
+  .pass-actions .accounts-icon-btn {
+    text-decoration: none;
   }
 }
 
@@ -5120,6 +5195,117 @@ button.menu-link {
 .accounts-delete-confirm:hover:not(:disabled) {
   background: #b42318;
   border-color: #b42318;
+}
+
+.accounts-mobile-list {
+  display: none;
+}
+
+.accounts-block {
+  border-radius: 12px;
+  padding: 0.75rem 0.7rem 0.8rem;
+  margin: 0 0 0.7rem;
+  border: 1px solid rgba(26, 53, 104, 0.08);
+}
+
+.accounts-block-tone-0 {
+  background: #eaf2ff;
+}
+
+.accounts-block-tone-1 {
+  background: #e9f7ef;
+}
+
+.accounts-block-tone-2 {
+  background: #fff4e5;
+}
+
+.accounts-block-tone-3 {
+  background: #f3f1fb;
+}
+
+.accounts-block-editing {
+  outline: 2px solid #6b93e8;
+  outline-offset: 1px;
+}
+
+.accounts-block-row {
+  display: grid;
+  /* Keep columns aligned across both rows (and between blocks) */
+  grid-template-columns:
+    minmax(0, 1.45fr)
+    minmax(0, 0.72fr)
+    minmax(0, 1.25fr)
+    minmax(0, 0.9fr)
+    3.4rem;
+  gap: 0.4rem 0.45rem;
+  align-items: start;
+}
+
+.accounts-block-row + .accounts-block-row {
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(26, 53, 104, 0.32);
+}
+
+.accounts-block-actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding-top: 0.95rem;
+  min-width: 0;
+}
+
+.accounts-block-actions {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+}
+
+.accounts-block-field {
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: #1a3568;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.accounts-block-field::before {
+  content: attr(data-label);
+  display: block;
+  margin-bottom: 0.12rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #5a6f8f;
+  text-transform: uppercase;
+}
+
+.accounts-block-field .accounts-inline-control {
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.75rem;
+}
+
+.accounts-block-field .accounts-sub {
+  font-size: 0.7rem;
+}
+
+@media (max-width: 980px) {
+  .accounts-desktop-only {
+    display: none !important;
+  }
+
+  .accounts-mobile-list {
+    display: block;
+  }
+
+  .accounts-page {
+    width: min(100%, calc(100% - 0.75rem));
+    padding: 0.85rem 0.7rem 1.2rem;
+  }
 }
 
 .package-compare-wrap {

@@ -293,29 +293,220 @@ export function Accounts() {
               .
             </p>
           ) : (
-            <div className="batch-saved-table-wrap accounts-table-wrap">
-              <table className="batch-saved-table accounts-table">
-                <thead>
-                  <tr>
-                    <th>Account</th>
-                    <th>Code</th>
-                    <th>Contact</th>
-                    <th>Opened</th>
-                    <th>Package</th>
-                    <th>Status</th>
-                    <th>Active swimmers</th>
-                    <th>Expires</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.map((item) => {
-                    const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
-                    const isEditing = editingId === item.id && editDraft != null;
-                    const busy = savingId === item.id || deletingId === item.id;
-                    return (
-                      <tr key={item.id} className={isEditing ? 'accounts-row-editing' : undefined}>
-                        <td className="accounts-col-account">
+            <>
+              <div className="batch-saved-table-wrap accounts-table-wrap accounts-desktop-only">
+                <table className="batch-saved-table accounts-table">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Code</th>
+                      <th>Contact</th>
+                      <th>Opened</th>
+                      <th>Package</th>
+                      <th>Status</th>
+                      <th>Active swimmers</th>
+                      <th>Expires</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accounts.map((item) => {
+                      const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
+                      const isEditing = editingId === item.id && editDraft != null;
+                      const busy = savingId === item.id || deletingId === item.id;
+                      return (
+                        <tr key={item.id} className={isEditing ? 'accounts-row-editing' : undefined}>
+                          <td className="accounts-col-account">
+                            <strong className="batch-saved-name">{item.accountName}</strong>
+                            {item.poolAddress ? (
+                              <div className="muted accounts-sub">{item.poolAddress}</div>
+                            ) : null}
+                            {item.city ? (
+                              <div className="muted accounts-sub">{item.city}</div>
+                            ) : null}
+                          </td>
+                          <td className="accounts-col-code">
+                            {item.accountCode ? (
+                              <a className="terms-link" href={accountLoginUrl(item.accountCode)}>
+                                {item.accountCode}
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="accounts-col-contact">
+                            {item.contactName}
+                            <div className="muted accounts-sub">
+                              {item.mobile}
+                              {item.email ? (
+                                <>
+                                  <br />
+                                  {item.email}
+                                </>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td>{formatCreated(item.createdAt)}</td>
+                          <td>
+                            {isEditing ? (
+                              <select
+                                className="accounts-inline-control"
+                                value={editDraft.servicePackageId}
+                                disabled={busy}
+                                onChange={(e) =>
+                                  setEditDraft((prev) =>
+                                    prev ? { ...prev, servicePackageId: e.target.value } : prev,
+                                  )
+                                }
+                                aria-label="Package"
+                              >
+                                <option value="">Select package</option>
+                                {packages
+                                  .filter(
+                                    (p) =>
+                                      p.isActive ||
+                                      String(p.id) === editDraft.servicePackageId,
+                                  )
+                                  .map((pkg) => (
+                                    <option key={pkg.id} value={pkg.id}>
+                                      {pkg.packageName}
+                                      {!pkg.isActive ? ' (inactive)' : ''}
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : (
+                              item.packageName?.trim() || '—'
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <select
+                                className="accounts-inline-control"
+                                value={editDraft.status}
+                                disabled={busy}
+                                onChange={(e) =>
+                                  setEditDraft((prev) =>
+                                    prev ? { ...prev, status: e.target.value } : prev,
+                                  )
+                                }
+                                aria-label="Status"
+                              >
+                                {STATUSES.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              item.status?.trim() || '—'
+                            )}
+                          </td>
+                          <td className="accounts-col-num">{item.activeSwimmers ?? 0}</td>
+                          <td>
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                className="accounts-inline-control accounts-inline-date"
+                                value={editDraft.subscriptionExpiresAt}
+                                disabled={busy}
+                                onChange={(e) =>
+                                  setEditDraft((prev) =>
+                                    prev
+                                      ? { ...prev, subscriptionExpiresAt: e.target.value }
+                                      : prev,
+                                  )
+                                }
+                                aria-label="Expires"
+                              />
+                            ) : (
+                              formatExpiry(item.subscriptionExpiresAt)
+                            )}
+                          </td>
+                          <td className="accounts-col-actions">
+                            {canManage ? (
+                              <div className="accounts-action-icons">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="accounts-icon-btn accounts-icon-save"
+                                      disabled={busy}
+                                      onClick={() => void saveEdit(item)}
+                                      aria-label={`Save ${item.accountName}`}
+                                      title={savingId === item.id ? 'Saving…' : 'Save'}
+                                    >
+                                      <SaveIcon />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="accounts-icon-btn accounts-icon-cancel"
+                                      disabled={busy}
+                                      onClick={cancelEdit}
+                                      aria-label="Cancel edit"
+                                      title="Cancel"
+                                    >
+                                      <CancelIcon />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="accounts-icon-btn accounts-icon-edit"
+                                      disabled={editingId != null || busy}
+                                      onClick={() => startEdit(item)}
+                                      aria-label={`Edit ${item.accountName}`}
+                                      title="Edit"
+                                    >
+                                      <EditIcon />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="accounts-icon-btn accounts-icon-delete"
+                                      disabled={
+                                        deletingId === item.id || isPlatform || editingId != null
+                                      }
+                                      onClick={() => requestDelete(item)}
+                                      aria-label={`Delete ${item.accountName}`}
+                                      title={
+                                        isPlatform
+                                          ? 'Platform account cannot be deleted'
+                                          : deletingId === item.id
+                                            ? 'Deleting…'
+                                            : 'Delete'
+                                      }
+                                    >
+                                      <DeleteIcon />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="accounts-mobile-list" aria-label="Accounts">
+                {accounts.map((item, index) => {
+                  const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
+                  const isEditing = editingId === item.id && editDraft != null;
+                  const busy = savingId === item.id || deletingId === item.id;
+                  const tone = index % 4;
+                  return (
+                    <article
+                      key={item.id}
+                      className={`accounts-block accounts-block-tone-${tone}${
+                        isEditing ? ' accounts-block-editing' : ''
+                      }`}
+                    >
+                      <div className="accounts-block-row">
+                        <div className="accounts-block-field" data-label="Account">
                           <strong className="batch-saved-name">{item.accountName}</strong>
                           {item.poolAddress ? (
                             <div className="muted accounts-sub">{item.poolAddress}</div>
@@ -323,8 +514,8 @@ export function Accounts() {
                           {item.city ? (
                             <div className="muted accounts-sub">{item.city}</div>
                           ) : null}
-                        </td>
-                        <td className="accounts-col-code">
+                        </div>
+                        <div className="accounts-block-field" data-label="Code">
                           {item.accountCode ? (
                             <a className="terms-link" href={accountLoginUrl(item.accountCode)}>
                               {item.accountCode}
@@ -332,8 +523,8 @@ export function Accounts() {
                           ) : (
                             '—'
                           )}
-                        </td>
-                        <td className="accounts-col-contact">
+                        </div>
+                        <div className="accounts-block-field" data-label="Contact">
                           {item.contactName}
                           <div className="muted accounts-sub">
                             {item.mobile}
@@ -344,9 +535,14 @@ export function Accounts() {
                               </>
                             ) : null}
                           </div>
-                        </td>
-                        <td>{formatCreated(item.createdAt)}</td>
-                        <td>
+                        </div>
+                        <div className="accounts-block-field" data-label="Opened">
+                          {formatCreated(item.createdAt)}
+                        </div>
+                        <div className="accounts-block-actions-cell" aria-hidden="true" />
+                      </div>
+                      <div className="accounts-block-row">
+                        <div className="accounts-block-field" data-label="Package">
                           {isEditing ? (
                             <select
                               className="accounts-inline-control"
@@ -363,8 +559,7 @@ export function Accounts() {
                               {packages
                                 .filter(
                                   (p) =>
-                                    p.isActive ||
-                                    String(p.id) === editDraft.servicePackageId,
+                                    p.isActive || String(p.id) === editDraft.servicePackageId,
                                 )
                                 .map((pkg) => (
                                   <option key={pkg.id} value={pkg.id}>
@@ -376,8 +571,8 @@ export function Accounts() {
                           ) : (
                             item.packageName?.trim() || '—'
                           )}
-                        </td>
-                        <td>
+                        </div>
+                        <div className="accounts-block-field" data-label="Status">
                           {isEditing ? (
                             <select
                               className="accounts-inline-control"
@@ -399,9 +594,11 @@ export function Accounts() {
                           ) : (
                             item.status?.trim() || '—'
                           )}
-                        </td>
-                        <td className="accounts-col-num">{item.activeSwimmers ?? 0}</td>
-                        <td>
+                        </div>
+                        <div className="accounts-block-field" data-label="Active swimmers">
+                          {item.activeSwimmers ?? 0}
+                        </div>
+                        <div className="accounts-block-field" data-label="Expires">
                           {isEditing ? (
                             <input
                               type="date"
@@ -420,10 +617,10 @@ export function Accounts() {
                           ) : (
                             formatExpiry(item.subscriptionExpiresAt)
                           )}
-                        </td>
-                        <td className="accounts-col-actions">
+                        </div>
+                        <div className="accounts-block-actions-cell">
                           {canManage ? (
-                            <div className="accounts-action-icons">
+                            <div className="accounts-action-icons accounts-block-actions">
                               {isEditing ? (
                                 <>
                                   <button
@@ -462,7 +659,9 @@ export function Accounts() {
                                   <button
                                     type="button"
                                     className="accounts-icon-btn accounts-icon-delete"
-                                    disabled={deletingId === item.id || isPlatform || editingId != null}
+                                    disabled={
+                                      deletingId === item.id || isPlatform || editingId != null
+                                    }
                                     onClick={() => requestDelete(item)}
                                     aria-label={`Delete ${item.accountName}`}
                                     title={
@@ -478,16 +677,14 @@ export function Accounts() {
                                 </>
                               )}
                             </div>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
           )}
         </section>
       </div>

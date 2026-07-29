@@ -72,6 +72,26 @@ function formatMoney(value: number) {
   return `₹${value.toLocaleString('en-IN')}`;
 }
 
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 function splitList(value: string) {
   return value
     .split(',')
@@ -499,23 +519,39 @@ export function PassTypePage() {
             <p className="pass-empty">No pass types defined yet. Use Add pass type to create one.</p>
           ) : (
             <div className="pass-table-body">
-              {items.map((item) => (
-                <div className="pass-row" key={item.id}>
-                  <strong>{item.passName}</strong>
-                  <span>{item.forAudience}</span>
-                  <span>{item.prerequisite}</span>
-                  <span>{item.duration}</span>
-                  <span>{formatMoney(item.passCharges)}</span>
-                  <span>{formatMoney(item.coachingCharges)}</span>
-                  <span>{item.coach || 'Not Required'}</span>
-                  <span className="pass-actions">
-                    <button type="button" className="terms-link" onClick={() => openEdit(item)}>
-                      Edit
-                    </button>
-                    <button type="button" className="remove-link" onClick={() => onDelete(item.id)}>
-                      Delete
-                    </button>
-                  </span>
+              {items.map((item, index) => (
+                <div className={`pass-row pass-row-tone-${index % 4}`} key={item.id}>
+                  <div className="pass-block-row">
+                    <strong data-label="Pass name">{item.passName}</strong>
+                    <span data-label="For">{item.forAudience}</span>
+                    <span data-label="Prerequisite">{item.prerequisite}</span>
+                    <span data-label="Duration">{item.duration}</span>
+                  </div>
+                  <div className="pass-block-row">
+                    <span data-label="Pass Charges">{formatMoney(item.passCharges)}</span>
+                    <span data-label="Coaching Charges">{formatMoney(item.coachingCharges)}</span>
+                    <span data-label="Coach">{item.coach || 'Not Required'}</span>
+                    <span className="pass-actions" data-label="Actions">
+                      <button
+                        type="button"
+                        className="accounts-icon-btn accounts-icon-edit"
+                        onClick={() => openEdit(item)}
+                        aria-label={`Edit ${item.passName}`}
+                        title="Edit"
+                      >
+                        <EditIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="accounts-icon-btn accounts-icon-delete"
+                        onClick={() => onDelete(item.id)}
+                        aria-label={`Delete ${item.passName}`}
+                        title="Delete"
+                      >
+                        <DeleteIcon />
+                      </button>
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

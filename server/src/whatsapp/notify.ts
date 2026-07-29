@@ -53,16 +53,22 @@ export async function notifyLoginCredentials(params: {
   temporaryPassword: string;
   saasAccountId?: number;
 }): Promise<NotifyCredentialsResult> {
+  // Put the password alone on the next line (monospace) so it is easy to select.
+  // A second bubble with only the password lets them long-press → Copy that bubble alone.
+  const passwordLine = String(params.temporaryPassword).trim();
   const body = [
     `SwimIT login for ${params.accountName}`,
     '',
     `Account code: ${params.accountCode}`,
     `Login URL: ${params.loginUrl}`,
     `User name: ${params.userName}`,
-    `Temporary password: ${params.temporaryPassword}`,
+    'Temporary password:',
+    `\`${passwordLine}\``,
     '',
     'Please change the password after first login.',
+    'Tip: the next message is only the password — long-press it to copy.',
   ].join('\n');
+  const passwordOnlyBody = passwordLine;
 
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -120,6 +126,31 @@ export async function notifyLoginCredentials(params: {
       body,
       status: 'sent',
     });
+
+    // Separate bubble: long-press → Copy selects only the password.
+    try {
+      const passwordMsg = await sendWhatsAppText(params.mobile, passwordOnlyBody);
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_credentials_password',
+        body: passwordOnlyBody,
+        status: passwordMsg.skipped ? 'skipped' : 'sent',
+      });
+    } catch (passwordErr) {
+      const passwordMessage =
+        passwordErr instanceof Error ? passwordErr.message : 'Password-only send failed';
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_credentials_password',
+        body: passwordOnlyBody,
+        status: 'failed',
+        error: passwordMessage,
+      });
+      // Main credentials already sent — treat overall as success.
+    }
+
     return {
       ok: true,
       skipped: false,
