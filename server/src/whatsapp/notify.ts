@@ -354,7 +354,11 @@ export async function notifyOpenFormQr(params: {
     if (cfg.publicAppUrl) {
       const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(formUrl)}`;
       try {
-        await sendWhatsAppImage(params.mobile, qrApi, `${title} QR`);
+        await sendWhatsAppImage(
+          params.mobile,
+          qrApi,
+          params.poolName ? `${params.poolName} — ${title} QR` : `${title} QR`,
+        );
       } catch (qrErr) {
         console.warn('[whatsapp] form QR image send failed', qrErr);
       }
