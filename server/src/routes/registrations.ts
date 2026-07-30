@@ -12,6 +12,7 @@ import {
   notifyRegistrationConfirmation,
 } from '../whatsapp/notify.js';
 import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
+import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
 
 function isLadiesBatchLabel(batch: string) {
   return /—\s*Ladies\s*—/i.test(batch.trim());
@@ -478,7 +479,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
         `SELECT account_code FROM saas_accounts WHERE id = $1`,
         [accountId],
       );
-      void notifyPassIssued({
+      const whatsapp = await notifyPassIssued({
         mobile: String(updated.whatsapp_mobile),
         fullName: String(updated.full_name),
         passType: passName,
@@ -486,7 +487,13 @@ registrationsRouter.patch('/:id', async (req, res) => {
         registrationId: Number(updated.id),
         accountCode: String(account.rows[0]?.account_code ?? ''),
         saasAccountId: accountId,
-      }).catch((err) => console.warn('[whatsapp] pass notify failed', err));
+      }).catch((err) => {
+        console.warn('[whatsapp] pass notify failed', err);
+        return {
+          skipped: true as const,
+          error: err instanceof Error ? err.message : 'WhatsApp send failed',
+        };
+      });
 
       void maybeNotifyBatchCoachOverLimit({
         saasAccountId: accountId,
@@ -497,6 +504,19 @@ registrationsRouter.patch('/:id', async (req, res) => {
         coach: updated.coach,
         source: 'desk_payment',
       }).catch((err) => console.warn('[whatsapp] batch capacity notify failed', err));
+
+      void maybeNotifyPackageSwimmerCapacity(accountId).catch((err) =>
+        console.warn('[whatsapp] package capacity notify failed', err),
+      );
+
+      res.json({ ...updated, whatsapp });
+      return;
+    }
+
+    if (body.isActive === true) {
+      void maybeNotifyPackageSwimmerCapacity(accountId).catch((err) =>
+        console.warn('[whatsapp] package capacity notify failed', err),
+      );
     }
 
     res.json(updated);
@@ -572,7 +592,7 @@ registrationsRouter.post('/:id/resend-pass', async (req, res) => {
 
     res.json({
       ok: true,
-      message: 'Pass and QR resent on WhatsApp',
+      message: 'Full pass and QR resent on WhatsApp',
       whatsapp: notify,
     });
   } catch (err) {

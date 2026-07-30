@@ -200,6 +200,65 @@ export async function sendWhatsAppImage(toMobile: string, imageUrl: string, capt
   return { skipped: false as const, result };
 }
 
+export async function uploadWhatsAppMedia(params: {
+  buffer: Buffer;
+  mimeType: string;
+  filename: string;
+}) {
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    throw new Error('WhatsApp is not configured');
+  }
+
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', params.mimeType);
+  form.append(
+    'file',
+    new Blob([new Uint8Array(params.buffer)], { type: params.mimeType }),
+    params.filename,
+  );
+
+  const res = await fetch(
+    `https://graph.facebook.com/${cfg.apiVersion}/${cfg.phoneNumberId}/media`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.token}` },
+      body: form,
+    },
+  );
+  const json = (await res.json().catch(() => ({}))) as GraphError & { id?: string };
+  if (!res.ok || !json.id) {
+    throw new Error(graphErrorMessage(json, res.status) || 'WhatsApp media upload failed');
+  }
+  return String(json.id);
+}
+
+export async function sendWhatsAppImageByMediaId(
+  toMobile: string,
+  mediaId: string,
+  caption?: string,
+) {
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    console.info('[whatsapp] skipped image media (not configured)');
+    return { skipped: true as const };
+  }
+  const to = toE164(toMobile);
+  if (!to) throw new Error('Invalid WhatsApp mobile number');
+
+  const result = await graphPost(`${cfg.phoneNumberId}/messages`, {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'image',
+    image: {
+      id: mediaId,
+      ...(caption ? { caption } : {}),
+    },
+  });
+  return { skipped: false as const, result };
+}
+
 export async function downloadWhatsAppMedia(mediaId: string, directUrl?: string) {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) throw new Error('WhatsApp is not configured');

@@ -1,10 +1,13 @@
 import { pool } from '../db/pool.js';
+import { renderPassCardPng, renderPassQrPng } from '../passCardImage.js';
 import { getWhatsAppConfig } from './config.js';
 import {
   formatWhatsAppUserError,
   sendWhatsAppImage,
+  sendWhatsAppImageByMediaId,
   sendWhatsAppTemplate,
   sendWhatsAppText,
+  uploadWhatsAppMedia,
 } from './client.js';
 
 async function logOutbound(params: {
@@ -32,6 +35,20 @@ async function logOutbound(params: {
   } catch (err) {
     console.error('[whatsapp] failed to log outbound', err);
   }
+}
+
+function formatWhatsAppPassDate(value: string) {
+  const raw = String(value ?? '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return String(value ?? '').trim() || '—';
+  const date = new Date(`${raw}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date
+    .toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })
+    .replace(',', '');
 }
 
 export type NotifyCredentialsResult =
@@ -222,64 +239,211 @@ export async function notifyPassIssued(params: {
   accountCode: string;
   saasAccountId: number;
 }) {
-  const body = [
+  const validUntil = formatWhatsAppPassDate(params.passValidUntil);
+  const passCaption = [
     `Hello ${params.fullName},`,
-    '',
     'Your SwimIT pass is active.',
     `Pass type: ${params.passType}`,
-    `Valid until: ${params.passValidUntil}`,
-    '',
-    'Show the QR image at the gate for attendance.',
+    `Valid until: ${validUntil}`,
   ].join('\n');
-
-  const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
-    `SWIMIT:${params.registrationId}`,
-  )}`;
-  const imageCaption = [
+  const qrCaption = [
     `Hello ${params.fullName},`,
     'Your SwimIT pass is active.',
     `Pass type: ${params.passType}`,
-    `Valid until: ${params.passValidUntil}`,
+    `Valid until: ${validUntil}`,
     'Show this QR at the gate for attendance.',
   ].join('\n');
 
-  try {
-    // Prefer the pass QR image (no website / ID-card links).
-    try {
-      const imageResult = await sendWhatsAppImage(params.mobile, qrApi, imageCaption);
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'pass_issued',
-        body: `${imageCaption}\n[pass QR image]`,
-        status: imageResult.skipped ? 'skipped' : 'sent',
-      });
-      return imageResult;
-    } catch (qrErr) {
-      console.warn('[whatsapp] pass QR image send failed; falling back to text', qrErr);
-    }
-
-    const result = await sendWhatsAppText(params.mobile, body);
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
     await logOutbound({
       saasAccountId: params.saasAccountId,
       toMobile: params.mobile,
       kind: 'pass_issued',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-      error: 'Pass QR image failed; text sent without links',
+      body: passCaption,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
     });
-    return result;
+    return { skipped: true as const };
+  }
+
+  try {
+    // Open / refresh the business chat (needed on Meta sandbox for free-form messages).
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'pass_issued_session',
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch (sessionErr) {
+      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'pass_issued_session',
+        body: 'hello_world',
+        status: 'failed',
+        error: sessionMessage,
+      });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT r.id, r.full_name, r.pass_type, r.batch, r.coach, r.pass_valid_until,
+              r.swimmer_photo_path, pt.duration AS pass_duration,
+              pci.pool_name, pci.pool_address, pci.pool_logo_path
+       FROM registrations r
+       LEFT JOIN pass_types pt
+         ON LOWER(TRIM(pt.pass_name)) = LOWER(TRIM(COALESCE(r.pass_type, '')))
+        AND pt.saas_account_id = r.saas_account_id
+       LEFT JOIN pool_core_info pci ON pci.saas_account_id = r.saas_account_id
+       WHERE r.id = $1 AND r.saas_account_id = $2
+       LIMIT 1`,
+      [params.registrationId, params.saasAccountId],
+    );
+    const row = rows[0];
+
+    let passSent = false;
+    let qrSent = false;
+    let lastError = '';
+
+    // 1) Full pass card image
+    try {
+      const passPng = await renderPassCardPng({
+        id: params.registrationId,
+        fullName: String(row?.full_name ?? params.fullName),
+        passType: String(row?.pass_type ?? params.passType),
+        duration: row?.pass_duration ? String(row.pass_duration) : undefined,
+        batch: String(row?.batch ?? ''),
+        coach: String(row?.coach ?? ''),
+        passValidUntil: String(row?.pass_valid_until ?? params.passValidUntil).slice(0, 10),
+        photoPath: row?.swimmer_photo_path ? String(row.swimmer_photo_path) : null,
+        poolName: String(row?.pool_name ?? ''),
+        poolAddress: String(row?.pool_address ?? ''),
+        poolLogoPath: row?.pool_logo_path ? String(row.pool_logo_path) : null,
+      });
+      const passMediaId = await uploadWhatsAppMedia({
+        buffer: passPng,
+        mimeType: 'image/png',
+        filename: `pass-${params.registrationId}.png`,
+      });
+      const passResult = await sendWhatsAppImageByMediaId(params.mobile, passMediaId, passCaption);
+      passSent = !passResult.skipped;
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'pass_issued_card',
+        body: `${passCaption}\n[full pass image]`,
+        status: passResult.skipped ? 'skipped' : 'sent',
+      });
+    } catch (passErr) {
+      console.warn('[whatsapp] full pass image send failed', passErr);
+      lastError = passErr instanceof Error ? passErr.message : 'Full pass image failed';
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'pass_issued_card',
+        body: passCaption,
+        status: 'failed',
+        error: lastError,
+      });
+    }
+
+    // 2) Pass QR image
+    try {
+      const qrPng = await renderPassQrPng(params.registrationId);
+      const qrMediaId = await uploadWhatsAppMedia({
+        buffer: qrPng,
+        mimeType: 'image/png',
+        filename: `pass-qr-${params.registrationId}.png`,
+      });
+      const qrResult = await sendWhatsAppImageByMediaId(params.mobile, qrMediaId, qrCaption);
+      qrSent = !qrResult.skipped;
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'pass_issued_qr',
+        body: `${qrCaption}\n[pass QR image]`,
+        status: qrResult.skipped ? 'skipped' : 'sent',
+      });
+    } catch (qrErr) {
+      console.warn('[whatsapp] pass QR image send failed; trying public QR link', qrErr);
+      try {
+        const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
+          `SWIMIT:${params.registrationId}`,
+        )}`;
+        const imageResult = await sendWhatsAppImage(params.mobile, qrApi, qrCaption);
+        qrSent = !imageResult.skipped;
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: params.mobile,
+          kind: 'pass_issued_qr',
+          body: `${qrCaption}\n[pass QR image link]`,
+          status: imageResult.skipped ? 'skipped' : 'sent',
+        });
+      } catch (qrLinkErr) {
+        const qrMessage = qrLinkErr instanceof Error ? qrLinkErr.message : 'Pass QR image failed';
+        lastError = qrMessage;
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: params.mobile,
+          kind: 'pass_issued_qr',
+          body: qrCaption,
+          status: 'failed',
+          error: qrMessage,
+        });
+      }
+    }
+
+    if (!passSent && !qrSent) {
+      // Last resort: text only so the swimmer still gets something.
+      try {
+        await sendWhatsAppText(
+          params.mobile,
+          [
+            passCaption,
+            '',
+            'Show your pass QR at the gate for attendance.',
+            '(Pass/QR images could not be sent right now — ask the desk to Resend.)',
+          ].join('\n'),
+        );
+      } catch {
+        /* ignore */
+      }
+      return {
+        skipped: true as const,
+        error: formatWhatsAppUserError(lastError || 'Pass and QR send failed', params.mobile),
+      };
+    }
+
+    if (passSent && qrSent) {
+      return { skipped: false as const, result: 'pass_and_qr' as const };
+    }
+
+    return {
+      skipped: false as const,
+      result: passSent ? ('pass_only' as const) : ('qr_only' as const),
+      error: formatWhatsAppUserError(
+        lastError || (passSent ? 'Pass QR image failed' : 'Full pass image failed'),
+        params.mobile,
+      ),
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Send failed';
     await logOutbound({
       saasAccountId: params.saasAccountId,
       toMobile: params.mobile,
       kind: 'pass_issued',
-      body,
+      body: passCaption,
       status: 'failed',
       error: message,
     });
-    return { skipped: true as const, error: message };
+    return {
+      skipped: true as const,
+      error: formatWhatsAppUserError(message, params.mobile),
+    };
   }
 }
 
@@ -820,6 +984,98 @@ export async function notifyAccountAdminBatchOverLimit(params: {
       saasAccountId: params.saasAccountId,
       toMobile: params.mobile,
       kind: 'batch_coach_over_limit',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
+}
+
+export async function notifyPackageCapacityWarning(params: {
+  saasAccountId: number;
+  mobile: string;
+  adminName: string;
+  accountName: string;
+  accountCode: string;
+  packageName: string;
+  activeSwimmers: number;
+  maxActiveSwimmers: number;
+  thresholdPct: number;
+  reminderKind: string;
+}): Promise<NotifyCredentialsResult> {
+  const cfg = getWhatsAppConfig();
+  const accountCodeLower = String(params.accountCode ?? '').trim().toLowerCase();
+  const renewPath = `/${accountCodeLower}/renew-payment`;
+  const renewUrl = cfg.publicAppUrl ? `${cfg.publicAppUrl}${renewPath}` : renewPath;
+  const usedPct = Math.min(
+    100,
+    Math.round((params.activeSwimmers / Math.max(1, params.maxActiveSwimmers)) * 100),
+  );
+
+  const body = [
+    `Hello ${params.adminName || 'Admin'},`,
+    '',
+    `Warning: active swimmer capacity for ${params.accountName} has reached ${params.thresholdPct}%.`,
+    '',
+    `Package: ${params.packageName}`,
+    `Active swimmers: ${params.activeSwimmers} / ${params.maxActiveSwimmers} (${usedPct}%)`,
+    '',
+    'Please renew or upgrade your SwimIT package so new swimmers can keep joining.',
+    `Renew / upgrade here: ${renewUrl}`,
+    '',
+    'After paying online, send the payment screenshot here on WhatsApp.',
+  ].join('\n');
+
+  if (!cfg.enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: params.reminderKind,
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: `${params.reminderKind}_session`,
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch {
+      // Continue — free text may still work with an open session.
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: params.reminderKind,
+      body,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+
+    return result.skipped
+      ? { ok: true, skipped: true }
+      : {
+          ok: true,
+          skipped: false,
+          to: result.to,
+          messageId: result.messageId,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: params.reminderKind,
       body,
       status: 'failed',
       error: message,

@@ -9,6 +9,7 @@ import {
 } from './paymentAmount.js';
 import { notifyPassIssued } from './whatsapp/notify.js';
 import { maybeNotifyBatchCoachOverLimit } from './batchCapacity.js';
+import { maybeNotifyPackageSwimmerCapacity } from './packageCapacityWarnings.js';
 import { sendWhatsAppText } from './whatsapp/client.js';
 import { getWhatsAppConfig } from './whatsapp/config.js';
 
@@ -293,6 +294,10 @@ export async function processPassPaymentInbound(params: {
     coach,
     source: 'whatsapp_verified',
   }).catch((err) => console.warn('[whatsapp] batch capacity notify failed', err));
+
+  void maybeNotifyPackageSwimmerCapacity(params.saasAccountId).catch((err) =>
+    console.warn('[whatsapp] package capacity notify failed', err),
+  );
 
   return true;
 }

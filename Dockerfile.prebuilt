@@ -12,6 +12,8 @@ ARG BUILD_TIME=unknown
 ENV GIT_COMMIT=$GIT_COMMIT
 ENV BUILD_TIME=$BUILD_TIME
 
+RUN apk add --no-cache font-dejavu
+
 COPY package.json package-lock.json ./
 COPY client/package.json ./client/
 COPY server/package.json ./server/

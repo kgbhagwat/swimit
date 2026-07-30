@@ -30,6 +30,7 @@ type AppUser = {
   email?: string;
   menuAccess: string[];
   createdAt: string;
+  isAccountAdmin?: boolean;
 };
 
 type AccessKey = MenuPageKey | PlatformAccessPageKey;
@@ -209,14 +210,16 @@ function UserRow({
         <p>
           <strong>Created</strong> {formatCreatedAt(String(user.createdAt ?? ''))}
         </p>
-        <button
-          type="button"
-          className="terms-link"
-          disabled={savingPassword}
-          onClick={() => void onResetPassword()}
-        >
-          {savingPassword ? 'Sending…' : 'Reset Password'}
-        </button>
+        {!user.isAccountAdmin ? (
+          <button
+            type="button"
+            className="terms-link"
+            disabled={savingPassword}
+            onClick={() => void onResetPassword()}
+          >
+            {savingPassword ? 'Sending…' : 'Reset Password'}
+          </button>
+        ) : null}
       </td>
 
       <td className="user-col-access">

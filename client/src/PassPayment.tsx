@@ -697,12 +697,35 @@ export function PassPayment() {
       if (!res.ok) throw new Error(body.error ?? 'Payment update failed');
       const paidName = paying.fullName;
       const paidContact = paying.contact;
+      const wa = body.whatsapp as
+        | { skipped?: boolean; error?: string; result?: string }
+        | undefined;
       closePay();
-      setSuccessMessage(
-        `Pass generated for ${paidName} and sent on WhatsApp${
-          paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
-        }.`,
-      );
+      if (wa?.skipped) {
+        setSuccessMessage(
+          `Pass generated for ${paidName}, but WhatsApp was not sent${
+            wa.error ? `: ${wa.error}` : ''
+          }. Use Resend on Swimmer List to send the full pass and QR.`,
+        );
+      } else if (wa?.result === 'pass_only') {
+        setSuccessMessage(
+          `Full pass image sent on WhatsApp to ${paidName}${
+            paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
+          }, but the QR failed${wa.error ? `: ${wa.error}` : ''}. Use Resend if needed.`,
+        );
+      } else if (wa?.result === 'qr_only') {
+        setSuccessMessage(
+          `Pass QR sent on WhatsApp to ${paidName}${
+            paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
+          }, but the full pass image failed${wa.error ? `: ${wa.error}` : ''}. Use Resend if needed.`,
+        );
+      } else {
+        setSuccessMessage(
+          `Full pass image and Pass QR sent on WhatsApp to ${paidName}${
+            paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
+          }.`,
+        );
+      }
       await load();
     } catch (err) {
       setMissingFields([]);

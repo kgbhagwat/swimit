@@ -11,11 +11,13 @@
     "db:init:prod": "node dist/db/init.js"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "multer": "^1.4.5-lts.2",
     "pg": "^8.14.1",
+    "qrcode": "^1.5.4",
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
@@ -24,6 +26,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.13.10",
     "@types/pg": "^8.11.11",
+    "@types/qrcode": "^1.5.6",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }
