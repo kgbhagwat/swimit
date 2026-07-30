@@ -177,7 +177,7 @@ attendanceSheetRouter.get('/', async (req, res) => {
         [accountId],
       ),
       pool.query(
-        `SELECT name, start_date, end_date
+        `SELECT name, start_date, end_date, COALESCE(day_span, 'full') AS day_span
          FROM holidays
          WHERE saas_account_id = $1
            AND start_date <= $3::date
@@ -208,6 +208,8 @@ attendanceSheetRouter.get('/', async (req, res) => {
 
     const holidayNameByDate = new Map<string, string>();
     for (const row of holidayRows) {
+      // Partial-day surprise leaves do not close the whole attendance day.
+      if (String(row.day_span ?? 'full') === 'partial') continue;
       const start = formatDateValue(row.start_date);
       const end = formatDateValue(row.end_date);
       const name = String(row.name ?? 'Holiday');

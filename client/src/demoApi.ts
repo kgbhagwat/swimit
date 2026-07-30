@@ -47,10 +47,18 @@ function formString(body: Record<string, unknown>, key: string) {
 
 function handleBatches(method: string, body: Record<string, unknown>, store: DemoStore) {
   if (method === 'GET') {
+    const slots = [...store.batches.slots].sort((a, b) => {
+      const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+      if (startDiff !== 0) return startDiff;
+      return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
     return jsonResponse({
       schedules: store.batches.schedules,
       settings: store.batches.schedules[0],
-      slots: store.batches.slots,
+      slots,
     });
   }
   if (method === 'PUT') {
@@ -77,16 +85,25 @@ function handleBatches(method: string, body: Record<string, unknown>, store: Dem
         },
       ];
     }
-    store.batches.slots = slotsIn.map((row, index) => {
-      const r = row as Record<string, unknown>;
-      return {
-        id: String(r.id ?? allocDemoId(store)),
-        name: String(r.name ?? `Batch ${index + 1}`),
-        type: String(r.type ?? 'Regular'),
-        startTime: String(r.startTime ?? '06:00').slice(0, 5),
-        endTime: String(r.endTime ?? '07:00').slice(0, 5),
-      };
-    });
+    store.batches.slots = [...slotsIn]
+      .map((row, index) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: String(r.id ?? allocDemoId(store)),
+          name: String(r.name ?? `Batch ${index + 1}`),
+          type: String(r.type ?? 'Regular'),
+          startTime: String(r.startTime ?? '06:00').slice(0, 5),
+          endTime: String(r.endTime ?? '07:00').slice(0, 5),
+        };
+      })
+      .sort((a, b) => {
+        const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+        if (startDiff !== 0) return startDiff;
+        return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+      });
     writeDemoStore(store);
     return jsonResponse({
       schedules: store.batches.schedules,
@@ -216,12 +233,18 @@ function handleHolidays(
     return jsonResponse({ weeklyHolidays: store.holidaysWeekly });
   }
   if (method === 'POST' && pathname === '/api/holidays') {
+    const holidayType = formString(body, 'holidayType') || 'Special';
+    const daySpan =
+      holidayType === 'surprise' && String(body.daySpan ?? '') === 'partial' ? 'partial' : 'full';
     const row = {
       id: allocDemoId(store),
-      holidayType: formString(body, 'holidayType') || 'Special',
+      holidayType,
       name: formString(body, 'name'),
       startDate: formString(body, 'startDate'),
       endDate: formString(body, 'endDate') || formString(body, 'startDate'),
+      daySpan,
+      startTime: daySpan === 'partial' ? formString(body, 'startTime').slice(0, 5) : '',
+      endTime: daySpan === 'partial' ? formString(body, 'endTime').slice(0, 5) : '',
       notes: formString(body, 'notes'),
       extendPassHolders: Boolean(body.extendPassHolders),
       createdAt: new Date().toISOString(),
@@ -397,6 +420,18 @@ function handleRegistrations(
     };
     writeDemoStore(store);
     return jsonResponse(store.registrations[idx]);
+  }
+  const resend = pathname.match(/^\/api\/registrations\/(\d+)\/resend-pass$/);
+  if (resend && method === 'POST') {
+    const row = store.registrations.find((r) => Number(r.id) === Number(resend[1]));
+    if (!row) return jsonResponse({ error: 'Not found' }, 404);
+    if (!row.is_active) {
+      return jsonResponse({ error: 'Only active swimmers can receive a pass resend' }, 400);
+    }
+    if (!String(row.pass_type ?? '').trim()) {
+      return jsonResponse({ error: 'Swimmer does not have an active pass type' }, 400);
+    }
+    return jsonResponse({ ok: true, message: 'Pass and QR resent on WhatsApp (demo)' });
   }
   return jsonResponse({ error: 'Method not allowed' }, 405);
 }

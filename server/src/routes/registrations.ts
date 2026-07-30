@@ -506,6 +506,297 @@ registrationsRouter.patch('/:id', async (req, res) => {
   }
 });
 
+registrationsRouter.post('/:id/resend-pass', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid swimmer id' });
+      return;
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, full_name, whatsapp_mobile, is_active, pass_type, pass_valid_until
+       FROM registrations
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    const swimmer = rows[0];
+    if (!swimmer) {
+      res.status(404).json({ error: 'Swimmer not found' });
+      return;
+    }
+    if (!swimmer.is_active) {
+      res.status(400).json({ error: 'Only active swimmers can receive a pass resend' });
+      return;
+    }
+    const passType = String(swimmer.pass_type ?? '').trim();
+    if (!passType) {
+      res.status(400).json({ error: 'Swimmer does not have an active pass type' });
+      return;
+    }
+    const mobile = String(swimmer.whatsapp_mobile ?? '').trim();
+    if (!mobile) {
+      res.status(400).json({ error: 'Swimmer WhatsApp mobile is missing' });
+      return;
+    }
+    if (!swimmer.pass_valid_until) {
+      res.status(400).json({ error: 'Swimmer pass validity date is missing' });
+      return;
+    }
+
+    const account = await pool.query(
+      `SELECT account_code FROM saas_accounts WHERE id = $1`,
+      [accountId],
+    );
+    const notify = await notifyPassIssued({
+      mobile,
+      fullName: String(swimmer.full_name),
+      passType,
+      passValidUntil: String(swimmer.pass_valid_until).slice(0, 10),
+      registrationId: Number(swimmer.id),
+      accountCode: String(account.rows[0]?.account_code ?? ''),
+      saasAccountId: accountId,
+    });
+
+    if ('skipped' in notify && notify.skipped) {
+      res.status(502).json({
+        error:
+          'error' in notify && typeof notify.error === 'string'
+            ? notify.error
+            : 'WhatsApp is not configured or send was skipped',
+        whatsapp: notify,
+      });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      message: 'Pass and QR resent on WhatsApp',
+      whatsapp: notify,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to resend pass on WhatsApp',
+    });
+  }
+});
+
+registrationsRouter.put(
+  '/:id',
+  upload.fields([
+    { name: 'identityPhoto', maxCount: 1 },
+    { name: 'swimmerPhoto', maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const accountId = tenantId(req);
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid swimmer id' });
+        return;
+      }
+
+      const body = req.body as Record<string, string>;
+      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+
+      const existing = await pool.query(
+        `SELECT * FROM registrations WHERE id = $1 AND saas_account_id = $2`,
+        [id, accountId],
+      );
+      if (!existing.rows[0]) {
+        res.status(404).json({ error: 'Swimmer not found' });
+        return;
+      }
+      const current = existing.rows[0] as Record<string, unknown>;
+
+      const required = [
+        'fullName',
+        'fullAddress',
+        'whatsappMobile',
+        'birthdate',
+        'sex',
+        'bloodGroup',
+        'emergencyName',
+        'emergencyRelation',
+        'emergencyMobile',
+        'hasHealthIssue',
+        'identityDocument',
+      ] as const;
+
+      for (const key of required) {
+        if (!String(body[key] ?? '').trim()) {
+          res.status(400).json({ error: `${key} is required` });
+          return;
+        }
+      }
+
+      const identityPhoto = files?.identityPhoto?.[0];
+      const swimmerPhoto = files?.swimmerPhoto?.[0];
+      const identityPhotoPath = identityPhoto?.filename
+        ? identityPhoto.filename
+        : current.identity_photo_path
+          ? String(current.identity_photo_path)
+          : null;
+      const swimmerPhotoPath = swimmerPhoto?.filename
+        ? swimmerPhoto.filename
+        : current.swimmer_photo_path
+          ? String(current.swimmer_photo_path)
+          : null;
+
+      if (!identityPhotoPath || !swimmerPhotoPath) {
+        res.status(400).json({ error: 'Identity proof and swimmer photo are required' });
+        return;
+      }
+
+      const mobileRe = /^\d{10}$/;
+      if (!mobileRe.test(body.whatsappMobile) || !mobileRe.test(body.emergencyMobile)) {
+        res.status(400).json({ error: 'Mobile numbers must be a valid 10-digit number' });
+        return;
+      }
+      if (body.otherMobile && !mobileRe.test(body.otherMobile)) {
+        res.status(400).json({ error: 'Other mobile number must be a valid 10-digit number' });
+        return;
+      }
+      if (body.doctorNo && !mobileRe.test(body.doctorNo)) {
+        res.status(400).json({ error: 'Doctor number must be a valid 10-digit number' });
+        return;
+      }
+      const email = String(body.email ?? '').trim();
+      if (email && (!email.includes('@') || !email.includes('.') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+        res.status(400).json({ error: 'Email must include @ and .' });
+        return;
+      }
+      if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
+        res.status(400).json({ error: 'Disease / health issue is required' });
+        return;
+      }
+
+      const birth = new Date(`${body.birthdate}T00:00:00`);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
+      const needsParent = !Number.isNaN(birth.getTime()) && age < 18;
+      if (needsParent) {
+        if (!String(body.parentName ?? '').trim() || !String(body.parentRelation ?? '').trim()) {
+          res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
+          return;
+        }
+        if (!mobileRe.test(String(body.parentMobile ?? ''))) {
+          res.status(400).json({ error: 'Parent contact number must be 10 digits' });
+          return;
+        }
+      } else {
+        const emergency = body.emergencyMobile.trim();
+        if (
+          emergency === body.whatsappMobile.trim() ||
+          (body.otherMobile?.trim() && emergency === body.otherMobile.trim())
+        ) {
+          res.status(400).json({
+            error: 'Emergency contact number cannot be the same as the applicant mobile number',
+          });
+          return;
+        }
+      }
+
+      if (!needsParent) {
+        if (
+          await isMobileTakenInAccount({
+            accountId,
+            mobile: body.whatsappMobile,
+            kind: 'swimmer',
+            excludeId: id,
+          })
+        ) {
+          res.status(400).json({ error: duplicateMobileMessage('swimmer') });
+          return;
+        }
+        if (
+          await isEmailTakenInAccount({
+            accountId,
+            email: body.email,
+            kind: 'swimmer',
+            excludeId: id,
+          })
+        ) {
+          res.status(400).json({ error: duplicateEmailMessage('swimmer') });
+          return;
+        }
+      }
+
+      const { rows } = await pool.query(
+        `UPDATE registrations SET
+          full_name = $1,
+          full_address = $2,
+          whatsapp_mobile = $3,
+          other_mobile = $4,
+          email = $5,
+          birthdate = $6,
+          sex = $7,
+          blood_group = $8,
+          emergency_name = $9,
+          emergency_relation = $10,
+          emergency_mobile = $11,
+          has_health_issue = $12,
+          health_issue_details = $13,
+          doctor_name = $14,
+          doctor_no = $15,
+          identity_document = $16,
+          identity_photo_path = $17,
+          swimmer_photo_path = $18,
+          parent_name = $19,
+          parent_relation = $20,
+          parent_mobile = $21
+         WHERE id = $22 AND saas_account_id = $23
+         RETURNING id, full_name, email`,
+        [
+          body.fullName.trim(),
+          body.fullAddress.trim(),
+          body.whatsappMobile.trim(),
+          body.otherMobile?.trim() || null,
+          String(body.email ?? '').trim().toLowerCase(),
+          body.birthdate,
+          body.sex,
+          body.bloodGroup,
+          body.emergencyName.trim(),
+          body.emergencyRelation,
+          body.emergencyMobile.trim(),
+          body.hasHealthIssue,
+          body.hasHealthIssue === 'Yes' ? body.healthIssueDetails?.trim() || null : null,
+          body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
+          body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
+          body.identityDocument,
+          identityPhotoPath,
+          swimmerPhotoPath,
+          needsParent ? body.parentName.trim() : null,
+          needsParent ? body.parentRelation.trim() : null,
+          needsParent ? body.parentMobile.trim() : null,
+          id,
+          accountId,
+        ],
+      );
+
+      res.json(rows[0]);
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : 'Failed to update swimmer';
+      if (message.includes('File too large')) {
+        res.status(400).json({ error: 'Each photo must be 200 KB or less' });
+        return;
+      }
+      if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {
+        res.status(400).json({
+          error: 'This WhatsApp mobile or email is already used by another adult swimmer in this account',
+        });
+        return;
+      }
+      res.status(500).json({ error: message });
+    }
+  },
+);
+
 registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
   try {
     const accountId = tenantId(req);
@@ -698,7 +989,6 @@ registrationsRouter.post(
         'fullName',
         'fullAddress',
         'whatsappMobile',
-        'email',
         'birthdate',
         'sex',
         'bloodGroup',
@@ -743,7 +1033,7 @@ registrationsRouter.post(
         return;
       }
       const email = String(body.email ?? '').trim();
-      if (!email.includes('@') || !email.includes('.') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (email && (!email.includes('@') || !email.includes('.') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         res.status(400).json({ error: 'Email must include @ and .' });
         return;
       }
@@ -821,7 +1111,7 @@ registrationsRouter.post(
           body.fullAddress.trim(),
           body.whatsappMobile.trim(),
           body.otherMobile?.trim() || null,
-          body.email.trim().toLowerCase(),
+          String(body.email ?? '').trim().toLowerCase(),
           body.birthdate,
           body.sex,
           body.bloodGroup,

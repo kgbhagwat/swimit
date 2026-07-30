@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { InPageSelect } from './InPageSelect';
 import { MenuBackLink } from './MenuBackLink';
-import { openPassPopup } from './swimmerPass';
+import { canEditPage } from './pageAccess';
 import {
   fetchSwimmerProfile,
   SwimmerProfile,
@@ -45,6 +46,7 @@ type CoachOption = {
   fullName: string;
   suitableBatchIds: string[];
   isActive: boolean;
+  isApproved: boolean;
 };
 
 type HolidayRecord = {
@@ -162,6 +164,8 @@ function holidaysInPassPeriod(
 }
 
 export function PassPayment() {
+  const navigate = useNavigate();
+  const canEdit = canEditPage('swimmers');
   const [rows, setRows] = useState<PendingSwimmer[]>([]);
   const [passTypes, setPassTypes] = useState<PassTypeOption[]>([]);
   const [batches, setBatches] = useState<BatchSlot[]>([]);
@@ -169,6 +173,8 @@ export function PassPayment() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [successMessage, setSuccessMessage] = useState('');
   const [paying, setPaying] = useState<PendingSwimmer | null>(null);
   const [passTypeId, setPassTypeId] = useState('');
   const [batch, setBatch] = useState('');
@@ -258,6 +264,7 @@ export function PassPayment() {
           full_name: string;
           suitable_batch_ids: string[] | null;
           is_active?: boolean;
+          is_approved?: boolean;
         }>;
         setCoaches(
           staff
@@ -269,6 +276,7 @@ export function PassPayment() {
                 ? row.suitable_batch_ids.map(String)
                 : [],
               isActive: row.is_active !== false,
+              isApproved: row.is_approved === true,
             })),
         );
       }
@@ -297,6 +305,8 @@ export function PassPayment() {
     setPaymentQrPath(null);
     setUpiDetails('');
     setError('');
+    setMissingFields([]);
+    setSuccessMessage('');
     setDetailsConfirmed(false);
     setSwimmerProfile(null);
     setProfileLoading(true);
@@ -326,6 +336,8 @@ export function PassPayment() {
     setProfileLoading(false);
     setDetailsConfirmed(false);
     setError('');
+    setMissingFields([]);
+    setSuccessMessage('');
   }
 
   const selectedPass = passTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
@@ -457,7 +469,15 @@ export function PassPayment() {
   );
 
   const availableBatches = useMemo(
-    () => batchesForSwimmerSex(batches, swimmerProfile?.sex),
+    () =>
+      [...batchesForSwimmerSex(batches, swimmerProfile?.sex)].sort((a, b) => {
+        const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+        if (startDiff !== 0) return startDiff;
+        return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+      }),
     [batches, swimmerProfile?.sex],
   );
 
@@ -476,7 +496,9 @@ export function PassPayment() {
     return coaches
       .filter(
         (item) =>
-          item.isActive && item.suitableBatchIds.some((id) => String(id) === batchId),
+          item.isActive &&
+          item.isApproved &&
+          item.suitableBatchIds.some((id) => String(id) === batchId),
       )
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [coaches, selectedBatchSlot]);
@@ -539,6 +561,7 @@ export function PassPayment() {
       return true;
     }
     if (!exceedingLimitAllowed) {
+      setMissingFields([]);
       setError(
         `This batch already has ${assignmentCount} swimmer${assignmentCount === 1 ? '' : 's'} with coach ${coach} (limit ${maxSwimmersPerCoach}). Exceeding this limit is not allowed for this pass type.`,
       );
@@ -549,31 +572,63 @@ export function PassPayment() {
     );
   }
 
+  function collectSharedMissing(): string[] {
+    const missing: string[] = [];
+    if (profileLoading) missing.push('Wait for swimmer details to finish loading');
+    if (!profileLoading && !swimmerProfile) missing.push('Swimmer details could not be loaded');
+    if (!detailsConfirmed) missing.push('Confirm swimmer details, documents and photo');
+    if (!selectedPass) missing.push('Pass type');
+    if (selectedPass && !passValidUntil) missing.push('Pass period end date');
+    if (availableBatches.length === 0) {
+      missing.push('Batch (set up batches first)');
+    } else if (!batch.trim()) {
+      missing.push('Batch');
+    }
+    if (coachingRequired) {
+      if (coachesForBatch.length === 0) {
+        missing.push('Coach (approve a coach for this batch in Staff List)');
+      } else if (!coach.trim()) {
+        missing.push('Coach');
+      }
+    }
+    return missing;
+  }
+
+  function collectSubmitMissing(): string[] {
+    const missing = collectSharedMissing();
+    if (paymentMode !== 'Cash' && paymentMode !== 'Online') {
+      missing.push('Payment mode');
+    }
+    if (paymentMode === 'Cash' && !paymentReceived) {
+      missing.push('Payment Received checkbox');
+    }
+    if (paymentMode === 'Online') {
+      if (!transactionId.trim()) missing.push('Transaction ID (open “Or confirm payment at desk”)');
+      if (!paymentReceived) missing.push('Yes, I saw payment completed successfully');
+    }
+    return missing;
+  }
+
+  function showMissing(missing: string[]) {
+    setMissingFields(missing);
+    setError(missing.length ? 'Please complete the missing items below.' : '');
+  }
+
   async function onRequestWhatsAppPayment() {
+    const missing = collectSharedMissing();
+    if (missing.length) {
+      showMissing(missing);
+      return;
+    }
     if (!paying || !selectedPass) {
-      setError('Select a pass type');
-      return;
-    }
-    if (!batch.trim()) {
-      setError('Select a batch');
-      return;
-    }
-    if (coachingRequired && !coach) {
-      setError('Select a coach for the chosen batch');
-      return;
-    }
-    if (!passValidUntil) {
-      setError('Pass end date is required');
-      return;
-    }
-    if (!detailsConfirmed) {
-      setError('Confirm swimmer details, documents and photo before continuing');
+      showMissing(['Pass type']);
       return;
     }
     if (!confirmAssignmentIfOverLimit()) return;
 
     setWaRequesting(true);
     setError('');
+    setMissingFields([]);
     setWaInfo('');
     try {
       const assignedCoach = !coachingRequired
@@ -599,6 +654,7 @@ export function PassPayment() {
       );
       await load();
     } catch (err) {
+      setMissingFields([]);
       setError(err instanceof Error ? err.message : 'Failed to send payment request');
     } finally {
       setWaRequesting(false);
@@ -607,41 +663,19 @@ export function PassPayment() {
 
   async function onConfirmPay(e: FormEvent) {
     e.preventDefault();
+    const missing = collectSubmitMissing();
+    if (missing.length) {
+      showMissing(missing);
+      return;
+    }
     if (!paying || !selectedPass) {
-      setError('Select a pass type');
-      return;
-    }
-    if (!batch.trim()) {
-      setError('Select a batch');
-      return;
-    }
-    if (coachingRequired && !coach) {
-      setError('Select a coach for the chosen batch');
-      return;
-    }
-    if (paymentMode !== 'Cash' && paymentMode !== 'Online') {
-      setError('Select payment mode');
-      return;
-    }
-    if (paymentMode === 'Cash' && !paymentReceived) {
-      setError('Confirm Payment Received for cash');
-      return;
-    }
-    if (paymentMode === 'Online' && !transactionId.trim()) {
-      setError('Enter transaction ID');
-      return;
-    }
-    if (paymentMode === 'Online' && !paymentReceived) {
-      setError('Confirm that you saw payment completed successfully');
-      return;
-    }
-    if (!detailsConfirmed) {
-      setError('Confirm swimmer details, documents and photo before continuing');
+      showMissing(['Pass type']);
       return;
     }
     if (!confirmAssignmentIfOverLimit()) return;
     setSaving(true);
     setError('');
+    setMissingFields([]);
     try {
       const assignedCoach = !coachingRequired
         ? null
@@ -661,11 +695,17 @@ export function PassPayment() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Payment update failed');
-      const paidId = paying.id;
+      const paidName = paying.fullName;
+      const paidContact = paying.contact;
       closePay();
-      openPassPopup('qr', paidId);
+      setSuccessMessage(
+        `Pass generated for ${paidName} and sent on WhatsApp${
+          paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
+        }.`,
+      );
       await load();
     } catch (err) {
+      setMissingFields([]);
       setError(err instanceof Error ? err.message : 'Payment update failed');
     } finally {
       setSaving(false);
@@ -689,45 +729,52 @@ export function PassPayment() {
         <p className="pass-count">
           {rows.length} swimmer{rows.length === 1 ? '' : 's'} pending payment for today
         </p>
+        {successMessage && !paying ? <p className="success">{successMessage}</p> : null}
 
         {!paying ? (
           <section className="pass-table-card payment-table-card">
-            <div className="payment-table-head">
-              <span>Swimmer</span>
-              <span>Contact</span>
-              <span>Type</span>
-              <span>Actions</span>
-            </div>
-
             {loading ? (
               <p className="pass-empty">Loading…</p>
             ) : rows.length === 0 ? (
               <p className="pass-empty">No swimmers pending payment for today.</p>
             ) : (
-              <div className="pass-table-body">
-                {rows.map((row) => (
-                  <div className="payment-row" key={row.id}>
-                    <strong>{row.fullName}</strong>
-                    <span>
-                      <span className="coach-contact">{row.contact}</span>
-                      {row.email !== '—' ? (
-                        <span className="coach-email">{row.email}</span>
-                      ) : null}
-                    </span>
-                    <span>
-                      {row.type}
-                      {row.passType ? ` · ${row.passType}` : ''}
-                      {row.awaitingWhatsApp ? (
-                        <span className="pass-wa-wait"> · Awaiting WhatsApp payment</span>
-                      ) : null}
-                    </span>
-                    <span className="pass-actions">
-                      <button type="button" className="terms-link" onClick={() => openPay(row)}>
-                        Pay
-                      </button>
-                    </span>
-                  </div>
-                ))}
+              <div className="payment-table-wrap">
+                <table className="payment-info-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Swimmer</th>
+                      <th scope="col">Contact</th>
+                      <th scope="col">Email</th>
+                      <th scope="col">Type</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.id}>
+                        <td className="payment-swimmer-name">{row.fullName}</td>
+                        <td>{row.contact}</td>
+                        <td>{row.email !== '—' ? row.email : '—'}</td>
+                        <td>
+                          {row.type}
+                          {row.passType ? ` · ${row.passType}` : ''}
+                          {row.awaitingWhatsApp ? (
+                            <span className="pass-wa-wait"> · Awaiting WhatsApp payment</span>
+                          ) : null}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="terms-link"
+                            onClick={() => openPay(row)}
+                          >
+                            Pay
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
@@ -750,13 +797,31 @@ export function PassPayment() {
               loading={profileLoading}
               title="Confirm swimmer details"
               hint="Review documents, photo and registration information before collecting payment."
+              actions={
+                canEdit && swimmerProfile ? (
+                  <button
+                    type="button"
+                    className="submit"
+                    onClick={() =>
+                      navigate(tenantPath(`/register/${paying.id}`), {
+                        state: { returnTo: tenantPath('/pass-payment') },
+                      })
+                    }
+                  >
+                    Edit
+                  </button>
+                ) : null
+              }
               footer={
                 swimmerProfile ? (
                   <label className="payment-received-check swimmer-review-confirm">
                     <input
                       type="checkbox"
                       checked={detailsConfirmed}
-                      onChange={(e) => setDetailsConfirmed(e.target.checked)}
+                      onChange={(e) => {
+                        setDetailsConfirmed(e.target.checked);
+                        setMissingFields([]);
+                      }}
                     />
                     <span>
                       I have verified the swimmer details, identity document and photo
@@ -766,26 +831,29 @@ export function PassPayment() {
               }
             />
 
-            <form className="swimmer-edit-form payment-collect-form" onSubmit={onConfirmPay}>
+            <form
+              className="swimmer-edit-form payment-collect-form"
+              onSubmit={onConfirmPay}
+              noValidate
+            >
               <label className="field">
                 <span className="label">
                   Pass type <span className="req">*</span>
                 </span>
-                <select
+                <InPageSelect
+                  aria-label="Pass type"
                   value={passTypeId}
-                  onChange={(e) => {
-                    setPassTypeId(e.target.value);
+                  placeholder="Select pass type"
+                  onChange={(next) => {
+                    setPassTypeId(next);
                     setCoach('');
+                    setMissingFields([]);
                   }}
-                  required
-                >
-                  <option value="">Select pass type</option>
-                  {passTypes.map((pass) => (
-                    <option key={pass.id} value={pass.id}>
-                      {pass.passName} · {pass.duration} · {formatMoney(pass.passCharges)}
-                    </option>
-                  ))}
-                </select>
+                  options={passTypes.map((pass) => ({
+                    value: String(pass.id),
+                    label: `${pass.passName} · ${pass.duration} · ${formatMoney(pass.passCharges)}`,
+                  }))}
+                />
               </label>
 
               {selectedPass ? (
@@ -842,24 +910,20 @@ export function PassPayment() {
                     </Link>
                   </p>
                 ) : (
-                  <select
+                  <InPageSelect
+                    aria-label="Batch details"
                     value={batch}
-                    onChange={(e) => {
-                      setBatch(e.target.value);
+                    placeholder="Select batch"
+                    onChange={(next) => {
+                      setBatch(next);
                       setCoach('');
+                      setMissingFields([]);
                     }}
-                    required
-                  >
-                    <option value="">Select batch</option>
-                    {availableBatches.map((slot) => {
+                    options={availableBatches.map((slot) => {
                       const label = batchLabel(slot);
-                      return (
-                        <option key={slot.id} value={label}>
-                          {label}
-                        </option>
-                      );
+                      return { value: label, label };
                     })}
-                  </select>
+                  />
                 )}
               </label>
 
@@ -869,16 +933,24 @@ export function PassPayment() {
                     Coach <span className="req">*</span>
                   </span>
                   {coachesForBatch.length === 0 ? (
-                    <p className="batch-empty">No coaches are available for this batch.</p>
+                    <p className="batch-empty">
+                      No approved coaches are available for this batch. Approve coaches in Staff
+                      List first.
+                    </p>
                   ) : (
-                    <select value={coach} onChange={(e) => setCoach(e.target.value)} required>
-                      <option value="">Select coach</option>
-                      {coachesForBatch.map((item) => (
-                        <option key={item.id} value={item.fullName}>
-                          {item.fullName}
-                        </option>
-                      ))}
-                    </select>
+                    <InPageSelect
+                      aria-label="Coach"
+                      value={coach}
+                      placeholder="Select coach"
+                      onChange={(next) => {
+                        setCoach(next);
+                        setMissingFields([]);
+                      }}
+                      options={coachesForBatch.map((item) => ({
+                        value: item.fullName,
+                        label: item.fullName,
+                      }))}
+                    />
                   )}
                   {coach ? (
                     <p
@@ -972,16 +1044,7 @@ export function PassPayment() {
                   <button
                     type="button"
                     className="csv-btn"
-                    disabled={
-                      waRequesting ||
-                      !detailsConfirmed ||
-                      profileLoading ||
-                      !swimmerProfile ||
-                      !selectedPass ||
-                      !batch ||
-                      availableBatches.length === 0 ||
-                      (coachingRequired && (!coach || coachesForBatch.length === 0))
-                    }
+                    disabled={waRequesting}
                     onClick={() => void onRequestWhatsAppPayment()}
                   >
                     {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
@@ -1015,34 +1078,24 @@ export function PassPayment() {
               ) : null}
 
               {error ? <p className="error">{error}</p> : null}
+              {missingFields.length > 0 ? (
+                <div className="payment-missing-box" role="alert">
+                  <strong>Missing:</strong>
+                  <ul>
+                    {missingFields.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               <div className="pass-form-actions">
                 <button type="button" className="pass-cancel" onClick={closePay}>
                   Cancel
                 </button>
-                {paymentMode === 'Cash' ||
-                (paymentMode === 'Online' && transactionId.trim() && paymentReceived) ? (
-                  <button
-                    type="submit"
-                    className="submit"
-                    disabled={
-                      saving ||
-                      !detailsConfirmed ||
-                      profileLoading ||
-                      !swimmerProfile ||
-                      !selectedPass ||
-                      !batch ||
-                      availableBatches.length === 0 ||
-                      !paymentMode ||
-                      (paymentMode === 'Cash' && !paymentReceived) ||
-                      (paymentMode === 'Online' &&
-                        (!transactionId.trim() || !paymentReceived)) ||
-                      (coachingRequired && (!coach || coachesForBatch.length === 0))
-                    }
-                  >
-                    {saving ? 'Saving…' : 'Submit'}
-                  </button>
-                ) : null}
+                <button type="submit" className="submit" disabled={saving}>
+                  {saving ? 'Saving…' : 'Submit'}
+                </button>
               </div>
             </form>
           </section>

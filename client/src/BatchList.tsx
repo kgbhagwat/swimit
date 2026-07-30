@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { MenuBackLink } from './MenuBackLink';
 
 type Period = 'AM' | 'PM';
@@ -26,6 +26,14 @@ type BatchSlot = {
   type: string;
   startTime: ClockTime;
   endTime: ClockTime;
+};
+
+type BatchCoach = {
+  id: number;
+  fullName: string;
+  suitableBatchIds: string[];
+  isActive: boolean;
+  isApproved: boolean;
 };
 
 const BATCH_TYPES = ['General', 'Ladies', 'Advance'];
@@ -223,6 +231,7 @@ function DeleteIcon() {
 export function BatchList() {
   const [schedules, setSchedules] = useState<ScheduleSettings[]>([defaultSchedule()]);
   const [slots, setSlots] = useState<BatchSlot[]>([]);
+  const [coaches, setCoaches] = useState<BatchCoach[]>([]);
   const [mode, setMode] = useState<'edit' | 'saved'>('edit');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -230,13 +239,10 @@ export function BatchList() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    fetch('/api/batches')
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Failed to load batches');
-        return res.json();
-      })
-      .then(
-        (data: {
+    Promise.all([fetch('/api/batches'), fetch('/api/staff-registrations')])
+      .then(async ([batchRes, staffRes]) => {
+        if (!batchRes.ok) throw new Error('Failed to load batches');
+        const data = (await batchRes.json()) as {
           schedules?: Array<{
             id?: string;
             session?: string;
@@ -259,44 +265,99 @@ export function BatchList() {
             startTime: string;
             endTime: string;
           }>;
-        }) => {
-          if (data.schedules?.length) {
-            setSchedules(
-              data.schedules.map((row) => ({
-                id: row.id ?? createId(),
-                session: parseSession(row.session),
-                batchMinutes: row.batchMinutes,
-                breakMinutes: row.breakMinutes,
-                firstStart: parse24hToClock(row.firstStart),
-                lastEnd: parse24hToClock(row.lastEnd),
-              })),
-            );
-          } else if (data.settings) {
-            setSchedules([
-              {
-                id: createId(),
-                session: parseSession(data.settings.session),
-                batchMinutes: data.settings.batchMinutes,
-                breakMinutes: data.settings.breakMinutes,
-                firstStart: parse24hToClock(data.settings.firstStart),
-                lastEnd: parse24hToClock(data.settings.lastEnd),
-              },
-            ]);
-          }
+        };
 
-          const loadedSlots =
-            data.slots?.map((slot) => ({
-              ...slot,
-              startTime: parse24hToClock(slot.startTime),
-              endTime: parse24hToClock(slot.endTime),
-            })) ?? [];
-          setSlots(loadedSlots);
-          if (loadedSlots.length > 0) setMode('saved');
-        },
-      )
+        if (data.schedules?.length) {
+          setSchedules(
+            data.schedules.map((row) => ({
+              id: row.id ?? createId(),
+              session: parseSession(row.session),
+              batchMinutes: row.batchMinutes,
+              breakMinutes: row.breakMinutes,
+              firstStart: parse24hToClock(row.firstStart),
+              lastEnd: parse24hToClock(row.lastEnd),
+            })),
+          );
+        } else if (data.settings) {
+          setSchedules([
+            {
+              id: createId(),
+              session: parseSession(data.settings.session),
+              batchMinutes: data.settings.batchMinutes,
+              breakMinutes: data.settings.breakMinutes,
+              firstStart: parse24hToClock(data.settings.firstStart),
+              lastEnd: parse24hToClock(data.settings.lastEnd),
+            },
+          ]);
+        }
+
+        const loadedSlots = [...(data.slots ?? [])]
+          .sort((a, b) => {
+            const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+            if (startDiff !== 0) return startDiff;
+            return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            });
+          })
+          .map((slot) => ({
+            ...slot,
+            startTime: parse24hToClock(slot.startTime),
+            endTime: parse24hToClock(slot.endTime),
+          }));
+        setSlots(loadedSlots);
+        if (loadedSlots.length > 0) setMode('saved');
+
+        if (staffRes.ok) {
+          const staff = (await staffRes.json()) as Array<{
+            id: number;
+            registration_for: string;
+            full_name: string;
+            suitable_batch_ids: string[] | null;
+            is_active?: boolean;
+            is_approved?: boolean;
+          }>;
+          setCoaches(
+            staff
+              .filter((row) => row.registration_for === 'Coach')
+              .map((row) => ({
+                id: row.id,
+                fullName: row.full_name,
+                suitableBatchIds: Array.isArray(row.suitable_batch_ids)
+                  ? row.suitable_batch_ids.map(String)
+                  : [],
+                isActive: row.is_active !== false,
+                isApproved: row.is_approved === true,
+              })),
+          );
+        } else {
+          setCoaches([]);
+        }
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setLoading(false));
   }, []);
+
+  const coachesByBatchId = useMemo(() => {
+    const map = new Map<string, BatchCoach[]>();
+    for (const coach of coaches) {
+      if (!coach.isActive) continue;
+      for (const batchId of coach.suitableBatchIds) {
+        const key = String(batchId);
+        const list = map.get(key) ?? [];
+        list.push(coach);
+        map.set(key, list);
+      }
+    }
+    for (const [key, list] of map) {
+      list.sort((a, b) => {
+        if (a.isApproved !== b.isApproved) return a.isApproved ? -1 : 1;
+        return a.fullName.localeCompare(b.fullName);
+      });
+      map.set(key, list);
+    }
+    return map;
+  }, [coaches]);
 
   function updateSchedule(id: string, patch: Partial<ScheduleSettings>) {
     setSchedules((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -523,17 +584,46 @@ export function BatchList() {
                 <th scope="col">Type</th>
                 <th scope="col">Start time</th>
                 <th scope="col">End time</th>
+                <th scope="col">Approved coach</th>
+                <th scope="col">Non approved coach</th>
               </tr>
             </thead>
             <tbody>
-              {slots.map((slot) => (
-                <tr key={slot.id}>
-                  <td className="batch-saved-name">{slot.name}</td>
-                  <td>{slot.type}</td>
-                  <td>{formatClockDisplay(slot.startTime)}</td>
-                  <td>{formatClockDisplay(slot.endTime)}</td>
-                </tr>
-              ))}
+              {slots.map((slot) => {
+                const batchCoaches = coachesByBatchId.get(String(slot.id)) ?? [];
+                const approved = batchCoaches.filter((coach) => coach.isApproved);
+                const unapproved = batchCoaches.filter((coach) => !coach.isApproved);
+                return (
+                  <tr key={slot.id}>
+                    <td className="batch-saved-name">{slot.name}</td>
+                    <td>{slot.type}</td>
+                    <td>{formatClockDisplay(slot.startTime)}</td>
+                    <td>{formatClockDisplay(slot.endTime)}</td>
+                    <td className="batch-saved-coaches">
+                      {approved.length === 0 ? (
+                        <span className="batch-coach-empty">—</span>
+                      ) : (
+                        <ul className="batch-coach-list">
+                          {approved.map((coach) => (
+                            <li key={coach.id}>{coach.fullName}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="batch-saved-coaches">
+                      {unapproved.length === 0 ? (
+                        <span className="batch-coach-empty">—</span>
+                      ) : (
+                        <ul className="batch-coach-list">
+                          {unapproved.map((coach) => (
+                            <li key={coach.id}>{coach.fullName}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

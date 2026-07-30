@@ -659,7 +659,15 @@ export function StaffRegistration() {
         return res.json();
       })
       .then((data: { slots?: AvailableBatch[] }) => {
-        setAvailableBatches(data.slots ?? []);
+        const slots = [...(data.slots ?? [])].sort((a, b) => {
+          const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+          if (startDiff !== 0) return startDiff;
+          return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          });
+        });
+        setAvailableBatches(slots);
       })
       .catch(() => setAvailableBatches([]))
       .finally(() => setBatchesLoading(false));

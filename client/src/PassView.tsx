@@ -78,6 +78,7 @@ export function PassView() {
         {!loading && pass ? (
           <section className="pass-qr-only" aria-label="Pass QR code">
             <QrImage value={qrValue} alt={`QR code for pass ${pass.id}`} size={240} />
+            {pass.fullName ? <p className="pass-qr-hint">{pass.fullName}</p> : null}
           </section>
         ) : null}
       </div>

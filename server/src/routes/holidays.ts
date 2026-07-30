@@ -21,13 +21,28 @@ function formatDate(value: unknown) {
   return String(value).slice(0, 10);
 }
 
+function formatTime(value: unknown) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 5);
+  if (value instanceof Date) {
+    const h = String(value.getUTCHours()).padStart(2, '0');
+    const m = String(value.getUTCMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+  return String(value).slice(0, 5);
+}
+
 function mapHoliday(row: Record<string, unknown>) {
+  const daySpan = String(row.day_span ?? 'full') === 'partial' ? 'partial' : 'full';
   return {
     id: Number(row.id),
     holidayType: String(row.holiday_type),
     name: String(row.name ?? ''),
     startDate: formatDate(row.start_date),
     endDate: formatDate(row.end_date),
+    daySpan,
+    startTime: daySpan === 'partial' ? formatTime(row.start_time) : '',
+    endTime: daySpan === 'partial' ? formatTime(row.end_time) : '',
     notes: String(row.notes ?? ''),
     extendPassHolders: row.extend_pass_holders === true,
     createdAt: row.created_at,
@@ -120,6 +135,9 @@ holidaysRouter.post('/', async (req, res) => {
       endDate?: string;
       notes?: string;
       extendPassHolders?: boolean;
+      daySpan?: string;
+      startTime?: string;
+      endTime?: string;
     };
 
     const holidayType = String(body.holidayType ?? '').trim();
@@ -128,6 +146,12 @@ holidaysRouter.post('/', async (req, res) => {
     const endDate = String(body.endDate ?? body.startDate ?? '').trim();
     const notes = String(body.notes ?? '').trim();
     const extendPassHolders = holidayType === 'surprise' && Boolean(body.extendPassHolders);
+    const daySpan =
+      holidayType === 'surprise' && String(body.daySpan ?? '').trim() === 'partial'
+        ? 'partial'
+        : 'full';
+    const startTime = daySpan === 'partial' ? String(body.startTime ?? '').trim().slice(0, 5) : null;
+    const endTime = daySpan === 'partial' ? String(body.endTime ?? '').trim().slice(0, 5) : null;
 
     if (holidayType !== 'annual' && holidayType !== 'surprise') {
       res.status(400).json({ error: 'Holiday type must be annual or surprise' });
@@ -145,12 +169,39 @@ holidaysRouter.post('/', async (req, res) => {
       res.status(400).json({ error: 'End date cannot be before start date' });
       return;
     }
+    if (daySpan === 'partial') {
+      if (!startTime || !endTime) {
+        res.status(400).json({ error: 'Start time and end time are required for partial day' });
+        return;
+      }
+      if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+        res.status(400).json({ error: 'Invalid start or end time' });
+        return;
+      }
+      if (endTime <= startTime) {
+        res.status(400).json({ error: 'End time must be after start time' });
+        return;
+      }
+    }
 
     const { rows } = await pool.query(
-      `INSERT INTO holidays (saas_account_id, holiday_type, name, start_date, end_date, notes, extend_pass_holders)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO holidays
+         (saas_account_id, holiday_type, name, start_date, end_date, notes, extend_pass_holders,
+          day_span, start_time, end_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [accountId, holidayType, name, startDate, endDate, notes, extendPassHolders],
+      [
+        accountId,
+        holidayType,
+        name,
+        startDate,
+        endDate,
+        notes,
+        extendPassHolders,
+        daySpan,
+        startTime,
+        endTime,
+      ],
     );
 
     let extendedPassHolders = 0;

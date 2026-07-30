@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IdCard } from './IdCard';
+import { IdCard, fetchPoolBrand, type PoolBrand } from './IdCard';
 import { QrImage } from './QrImage';
 import {
   PASS_POPUP_EVENT,
@@ -15,11 +15,13 @@ import {
 
 export type { PassPopupKind };
 
+const emptyBrand: PoolBrand = { poolName: '', poolAddress: '', poolLogoUrl: null };
+
 /** In-page Pass QR / Pass card overlay (avoids a new browser tab). */
 export function PassPopupOverlay() {
   const [request, setRequest] = useState<PassPopupRequest | null>(null);
   const [pass, setPass] = useState<SwimmerPassDetails | null>(null);
-  const [poolName, setPoolName] = useState('');
+  const [brand, setBrand] = useState<PoolBrand>(emptyBrand);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,24 +42,17 @@ export function PassPopupOverlay() {
     setLoading(true);
     setError('');
     setPass(null);
-    setPoolName('');
+    setBrand(emptyBrand);
 
     const load =
       request.kind === 'pass'
-        ? Promise.all([
-            fetchSwimmerPass(request.id),
-            fetch('/api/pool-core-info')
-              .then(async (res) => {
-                const body = await res.json().catch(() => ({}));
-                if (!res.ok) return '';
-                return String(body.poolName ?? '').trim();
-              })
-              .catch(() => ''),
-          ]).then(([details, name]) => {
-            if (cancelled) return;
-            setPass(details);
-            setPoolName(name);
-          })
+        ? Promise.all([fetchSwimmerPass(request.id), fetchPoolBrand()]).then(
+            ([details, poolBrand]) => {
+              if (cancelled) return;
+              setPass(details);
+              setBrand(poolBrand);
+            },
+          )
         : fetchSwimmerPass(request.id).then((details) => {
             if (cancelled) return;
             setPass(details);
@@ -106,15 +101,23 @@ export function PassPopupOverlay() {
       }}
     >
       <div
-        className="modal-panel pass-popup-panel"
+        className={`modal-panel pass-popup-panel${
+          request.kind === 'pass' ? ' pass-popup-panel-wide' : ''
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="pass-popup-title"
       >
         <div className="pass-popup-panel-head">
           <h2 id="pass-popup-title">{title}</h2>
-          <button type="button" className="menu-link" onClick={() => setRequest(null)}>
-            Close
+          <button
+            type="button"
+            className="pass-popup-close-x"
+            onClick={() => setRequest(null)}
+            aria-label="Close"
+            title="Close"
+          >
+            ×
           </button>
         </div>
 
@@ -139,7 +142,9 @@ export function PassPopupOverlay() {
               batch: pass.batch,
               coach: pass.coach,
               passValidUntil: pass.passValidUntil,
-              poolName,
+              poolName: brand.poolName,
+              poolAddress: brand.poolAddress,
+              poolLogoUrl: brand.poolLogoUrl,
             }}
           />
         ) : null}

@@ -27,15 +27,7 @@ type PassForm = {
   exceedingLimitAllowed: 'Yes' | 'No';
 };
 
-const FOR_OPTIONS = [
-  'Swimming',
-  'Free Style',
-  'Back Stroke',
-  'Breast Stroke',
-  'Butterfly',
-  'Any Stroke',
-  'Competitive',
-] as const;
+const FOR_OPTIONS = ['Swimming', 'Competitive'] as const;
 
 const PREREQ_OPTIONS = [
   'Free Style',
@@ -129,25 +121,8 @@ function parseDuration(duration: string) {
   return { durationValue: match[1], durationUnit: unit };
 }
 
-const STROKE_OPTIONS = ['Free Style', 'Back Stroke', 'Breast Stroke', 'Butterfly'] as const;
-
 function toggleForOption(current: string[], option: string): string[] {
-  const has = current.includes(option);
-  if (option === 'Any Stroke') {
-    if (has) return current.filter((item) => item !== option);
-    return [
-      ...current.filter(
-        (item) => !(STROKE_OPTIONS as readonly string[]).includes(item) && item !== 'Any Stroke',
-      ),
-      'Any Stroke',
-    ];
-  }
-  if ((STROKE_OPTIONS as readonly string[]).includes(option)) {
-    const withoutAny = current.filter((item) => item !== 'Any Stroke');
-    if (has) return withoutAny.filter((item) => item !== option);
-    return [...withoutAny, option];
-  }
-  if (has) return current.filter((item) => item !== option);
+  if (current.includes(option)) return current.filter((item) => item !== option);
   return [...current, option];
 }
 
@@ -268,10 +243,13 @@ export function PassTypePage() {
 
   function openEdit(item: PassType) {
     const { durationValue, durationUnit } = parseDuration(item.duration);
+    const forOptions = splitList(item.forAudience).filter((option) =>
+      (FOR_OPTIONS as readonly string[]).includes(option),
+    );
     setEditingId(item.id);
     setForm({
       passName: item.passName,
-      forOptions: splitList(item.forAudience),
+      forOptions: forOptions.length > 0 ? forOptions : ['Swimming'],
       prerequisites: splitList(item.prerequisite),
       durationValue,
       durationUnit,
@@ -406,19 +384,7 @@ export function PassTypePage() {
               <span className="pass-option-label">For</span>
               <div className="pass-check-rows">
                 <div className="pass-check-row">
-                  {FOR_OPTIONS.slice(0, 5).map((option) => (
-                    <label className="pass-check" key={option}>
-                      <input
-                        type="checkbox"
-                        checked={form.forOptions.includes(option)}
-                        onChange={() => updateForOptions(option)}
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="pass-check-row">
-                  {FOR_OPTIONS.slice(5).map((option) => (
+                  {FOR_OPTIONS.map((option) => (
                     <label className="pass-check" key={option}>
                       <input
                         type="checkbox"

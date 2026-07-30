@@ -14,6 +14,7 @@ type CoachRow = {
   email: string;
   batches: string[];
   teachStrokes: string;
+  isApproved: boolean;
 };
 
 type SimpleStaffRow = {
@@ -34,6 +35,7 @@ type StaffApiRow = {
   suitable_batch_ids: string[] | null;
   post_name?: string | null;
   salary?: string | number | null;
+  is_approved?: boolean;
 };
 
 type BatchSlot = {
@@ -73,6 +75,7 @@ export function CoachList() {
   const [others, setOthers] = useState<SimpleStaffRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [approvingId, setApprovingId] = useState<number | null>(null);
   const canEdit = canEditPage('coaches');
 
   async function load() {
@@ -89,8 +92,16 @@ export function CoachList() {
       const batchesData = batchesRes.ok
         ? ((await batchesRes.json()) as { slots?: BatchSlot[] })
         : { slots: [] };
+      const slotsSorted = [...(batchesData.slots ?? [])].sort((a, b) => {
+        const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+        if (startDiff !== 0) return startDiff;
+        return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+      });
       const slotMap = new Map(
-        (batchesData.slots ?? []).map((slot) => [
+        slotsSorted.map((slot) => [
           slot.id,
           `${slot.name} — ${slot.type} — ${formatBatchTime(slot.startTime)} to ${formatBatchTime(slot.endTime)}`,
         ]),
@@ -108,8 +119,10 @@ export function CoachList() {
         staffRows
           .filter((row) => row.registration_for === 'Coach')
           .map((row) => {
-            const batchLabels = (row.suitable_batch_ids ?? [])
-              .map((id) => slotMap.get(String(id)) ?? id)
+            const selectedIds = new Set((row.suitable_batch_ids ?? []).map(String));
+            const batchLabels = slotsSorted
+              .filter((slot) => selectedIds.has(String(slot.id)))
+              .map((slot) => slotMap.get(slot.id)!)
               .filter(Boolean);
             return {
               id: row.id,
@@ -121,6 +134,7 @@ export function CoachList() {
                 Array.isArray(row.teach_strokes) && row.teach_strokes.length > 0
                   ? row.teach_strokes.join(', ')
                   : '—',
+              isApproved: row.is_approved === true,
             };
           }),
       );
@@ -190,6 +204,51 @@ export function CoachList() {
     );
   }
 
+  async function toggleCoachApproval(coach: CoachRow) {
+    setApprovingId(coach.id);
+    setError('');
+    try {
+      const res = await fetch(`/api/staff-registrations/${coach.id}/approve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isApproved: !coach.isApproved }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to update approval');
+      setCoaches((prev) =>
+        prev.map((row) =>
+          row.id === coach.id ? { ...row, isApproved: Boolean(body.isApproved) } : row,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update approval');
+    } finally {
+      setApprovingId(null);
+    }
+  }
+
+  function ApproveIconButton({ coach }: { coach: CoachRow }) {
+    const approved = coach.isApproved;
+    const busy = approvingId === coach.id;
+    return (
+      <button
+        type="button"
+        className={`icon-action${approved ? ' icon-action-approved' : ' icon-action-unapproved'}`}
+        onClick={() => void toggleCoachApproval(coach)}
+        disabled={busy}
+        aria-label={
+          approved ? `Revoke approval for ${coach.fullName}` : `Approve ${coach.fullName}`
+        }
+        title={approved ? 'Approved — click to revoke' : 'Approve for payment'}
+        aria-pressed={approved}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      </button>
+    );
+  }
+
   return (
     <div className="page">
       <div className="top-row">
@@ -248,11 +307,16 @@ export function CoachList() {
             </p>
           ) : (
             <div className="pass-table-body">
-              {coaches.map((coach) => (
-                <div className="coach-row" key={coach.id}>
-                  <strong>{coach.fullName}</strong>
-                  <span className="coach-contact">{coach.contact}</span>
-                  <span className="coach-batches">
+              {coaches.map((coach, index) => (
+                <div
+                  className={`coach-row${index % 2 === 1 ? ' coach-row-alt' : ''}`}
+                  key={coach.id}
+                >
+                  <strong data-label="Coach name">{coach.fullName}</strong>
+                  <span className="coach-contact" data-label="Contact">
+                    {coach.contact}
+                  </span>
+                  <span className="coach-batches" data-label="Batches">
                     {coach.batches.length > 0 ? (
                       coach.batches.map((batch) => (
                         <span className="coach-batch-line" key={batch}>
@@ -263,8 +327,9 @@ export function CoachList() {
                       <span>—</span>
                     )}
                   </span>
-                  <span>{coach.teachStrokes}</span>
-                  <span className="pass-actions">
+                  <span data-label="Interested to teach">{coach.teachStrokes}</span>
+                  <span className="pass-actions" data-label="Actions -">
+                    <ApproveIconButton coach={coach} />
                     {canEdit ? (
                       <EditIconButton
                         to={tenantPath(`/staff-register/${coach.id}`)}

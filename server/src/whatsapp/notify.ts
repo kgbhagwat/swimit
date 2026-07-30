@@ -222,12 +222,6 @@ export async function notifyPassIssued(params: {
   accountCode: string;
   saasAccountId: number;
 }) {
-  const cfg = getWhatsAppConfig();
-  const passPath = `/${params.accountCode}/pass/${params.registrationId}`;
-  const passUrl = cfg.publicAppUrl ? `${cfg.publicAppUrl}${passPath}` : passPath;
-  const idPath = `/${params.accountCode}/id-card/${params.registrationId}`;
-  const idUrl = cfg.publicAppUrl ? `${cfg.publicAppUrl}${idPath}` : idPath;
-
   const body = [
     `Hello ${params.fullName},`,
     '',
@@ -235,13 +229,36 @@ export async function notifyPassIssued(params: {
     `Pass type: ${params.passType}`,
     `Valid until: ${params.passValidUntil}`,
     '',
-    `Digital pass: ${passUrl}`,
-    `ID card: ${idUrl}`,
-    '',
-    'Show the QR at the gate for attendance.',
+    'Show the QR image at the gate for attendance.',
+  ].join('\n');
+
+  const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
+    `SWIMIT:${params.registrationId}`,
+  )}`;
+  const imageCaption = [
+    `Hello ${params.fullName},`,
+    'Your SwimIT pass is active.',
+    `Pass type: ${params.passType}`,
+    `Valid until: ${params.passValidUntil}`,
+    'Show this QR at the gate for attendance.',
   ].join('\n');
 
   try {
+    // Prefer the pass QR image (no website / ID-card links).
+    try {
+      const imageResult = await sendWhatsAppImage(params.mobile, qrApi, imageCaption);
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'pass_issued',
+        body: `${imageCaption}\n[pass QR image]`,
+        status: imageResult.skipped ? 'skipped' : 'sent',
+      });
+      return imageResult;
+    } catch (qrErr) {
+      console.warn('[whatsapp] pass QR image send failed; falling back to text', qrErr);
+    }
+
     const result = await sendWhatsAppText(params.mobile, body);
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -249,17 +266,8 @@ export async function notifyPassIssued(params: {
       kind: 'pass_issued',
       body,
       status: result.skipped ? 'skipped' : 'sent',
+      error: 'Pass QR image failed; text sent without links',
     });
-
-    // Public URL image for QR works when PUBLIC_APP_URL is reachable by Meta
-    if (cfg.publicAppUrl && !result.skipped) {
-      const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`SWIMIT:${params.registrationId}`)}`;
-      try {
-        await sendWhatsAppImage(params.mobile, qrApi, 'Your SwimIT pass QR');
-      } catch (qrErr) {
-        console.warn('[whatsapp] QR image send failed', qrErr);
-      }
-    }
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Send failed';

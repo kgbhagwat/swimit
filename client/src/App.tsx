@@ -1,9 +1,12 @@
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { MenuBackLink } from './MenuBackLink';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint } from './formValidation';
+import { canEditPage } from './pageAccess';
 import { SendFormQrButton } from './SendFormQrButton';
+import { tenantPath } from './tenantSession';
 import { TermsModal } from './TermsModal';
 
 type Lang = 'en' | 'mr' | 'hi';
@@ -58,6 +61,8 @@ const copy = {
   en: {
     mainMenu: '← Back',
     title: 'Registration form',
+    editTitle: 'Edit swimmer',
+    saveChanges: 'Save changes',
     requiredNote: 'Required information.',
     personal: 'Personal details',
     fullName: 'Full name',
@@ -135,6 +140,8 @@ const copy = {
   mr: {
     mainMenu: '← मागे',
     title: 'नोंदणी फॉर्म',
+    editTitle: 'पोहणाऱ्याचे तपशील संपादित करा',
+    saveChanges: 'बदल जतन करा',
     requiredNote: 'आवश्यक माहिती.',
     personal: 'वैयक्तिक तपशील',
     fullName: 'पूर्ण नाव',
@@ -212,6 +219,8 @@ const copy = {
   hi: {
     mainMenu: '← वापस',
     title: 'पंजीकरण फॉर्म',
+    editTitle: 'तैराक विवरण संपादित करें',
+    saveChanges: 'परिवर्तन सहेजें',
     requiredNote: 'आवश्यक जानकारी।',
     personal: 'व्यक्तिगत विवरण',
     fullName: 'पूरा नाम',
@@ -303,6 +312,7 @@ function PhotoField({
   required,
   file,
   preview,
+  existingUrl,
   takeLabel,
   uploadLabel,
   onPick,
@@ -313,6 +323,7 @@ function PhotoField({
   required?: boolean;
   file: File | null;
   preview: string | null;
+  existingUrl?: string | null;
   takeLabel: string;
   uploadLabel: string;
   onPick: (file: File | null) => void;
@@ -320,6 +331,7 @@ function PhotoField({
 }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const displayPreview = preview || existingUrl || null;
   const [compressing, setCompressing] = useState(false);
 
   async function handleFile(selected: File | null) {
@@ -346,12 +358,18 @@ function PhotoField({
       <Label required={required}>{label}</Label>
       <p className="hint">{hint}</p>
       {compressing ? <p className="hint">Compressing image…</p> : null}
-      {preview ? (
+      {displayPreview ? (
         <div className="preview-wrap">
-          <img src={preview} alt={label} className="preview" />
-          <button type="button" className="linkish" onClick={() => onPick(null)}>
-            Remove
-          </button>
+          <img src={displayPreview} alt={label} className="preview" />
+          {file ? (
+            <button type="button" className="linkish" onClick={() => onPick(null)}>
+              Remove
+            </button>
+          ) : (
+            <button type="button" className="linkish" onClick={() => fileRef.current?.click()}>
+              Change
+            </button>
+          )}
         </div>
       ) : (
         <div className="photo-actions">
@@ -413,6 +431,12 @@ function getAgeYears(birthdate: string) {
 }
 
 export function App() {
+  const { id: editIdParam } = useParams();
+  const editId = Number(editIdParam);
+  const isEdit = Number.isFinite(editId) && editId > 0;
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [lang, setLang] = useState<Lang>('en');
   const t = copy[lang];
   const [form, setForm] = useState<FormState>(initialForm);
@@ -425,6 +449,57 @@ export function App() {
   const [submitted, setSubmitted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [parentOnly, setParentOnly] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(isEdit);
+  const [loadError, setLoadError] = useState('');
+  const [existingIdentityUrl, setExistingIdentityUrl] = useState<string | null>(null);
+  const [existingSwimmerUrl, setExistingSwimmerUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isEdit) return;
+    if (!canEditPage('swimmers')) {
+      setLoadError('You do not have permission to edit swimmers');
+      setLoadingEdit(false);
+      return;
+    }
+    setLoadingEdit(true);
+    setLoadError('');
+    fetch(`/api/registrations/${editId}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? 'Failed to load swimmer');
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setForm({
+          fullName: data.fullName ?? '',
+          fullAddress: data.fullAddress ?? '',
+          whatsappMobile: data.whatsappMobile ?? '',
+          otherMobile: data.otherMobile ?? '',
+          email: data.email ?? '',
+          birthdate: data.birthdate ?? '',
+          sex: data.sex ?? '',
+          bloodGroup: data.bloodGroup ?? '',
+          parentName: data.parentName ?? '',
+          parentRelation: data.parentRelation ?? '',
+          parentMobile: data.parentMobile ?? '',
+          emergencyName: data.emergencyName ?? '',
+          emergencyRelation: data.emergencyRelation ?? '',
+          emergencyMobile: data.emergencyMobile ?? '',
+          hasHealthIssue: data.hasHealthIssue ?? 'No',
+          healthIssueDetails: data.healthIssueDetails ?? '',
+          doctorName: data.doctorName ?? '',
+          doctorNo: data.doctorNo ?? '',
+          identityDocument: data.identityDocument ?? '',
+          acceptedTerms: true,
+        });
+        setExistingIdentityUrl(data.identityPhotoUrl ?? null);
+        setExistingSwimmerUrl(data.photoUrl ?? null);
+      })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load swimmer'))
+      .finally(() => setLoadingEdit(false));
+  }, [editId, isEdit]);
 
   const ageYears = useMemo(() => getAgeYears(form.birthdate), [form.birthdate]);
   const needsParentInfo = ageYears !== null && ageYears < 18;
@@ -517,7 +592,7 @@ export function App() {
     if (form.otherMobile.trim() && !isValidMobile(form.otherMobile)) {
       fields.add('otherMobile');
     }
-    if (!form.email.trim() || !isValidEmail(form.email)) fields.add('email');
+    if (form.email.trim() && !isValidEmail(form.email)) fields.add('email');
     if (!form.birthdate) fields.add('birthdate');
     if (!form.sex) fields.add('sex');
     if (!form.bloodGroup) fields.add('bloodGroup');
@@ -553,9 +628,14 @@ export function App() {
     }
 
     if (!form.identityDocument) fields.add('identityDocument');
-    if (!identityPhoto) fields.add('identityPhoto');
-    if (!swimmerPhoto) fields.add('swimmerPhoto');
-    if (!form.acceptedTerms) fields.add('acceptedTerms');
+    if (isEdit) {
+      if (!identityPhoto && !existingIdentityUrl) fields.add('identityPhoto');
+      if (!swimmerPhoto && !existingSwimmerUrl) fields.add('swimmerPhoto');
+    } else {
+      if (!identityPhoto) fields.add('identityPhoto');
+      if (!swimmerPhoto) fields.add('swimmerPhoto');
+    }
+    if (!isEdit && !form.acceptedTerms) fields.add('acceptedTerms');
 
     return fields;
   }
@@ -576,15 +656,23 @@ export function App() {
     Object.entries(form).forEach(([key, value]) => {
       data.append(key, String(value));
     });
-    data.append('identityPhoto', identityPhoto!);
-    data.append('swimmerPhoto', swimmerPhoto!);
+    if (identityPhoto) data.append('identityPhoto', identityPhoto);
+    if (swimmerPhoto) data.append('swimmerPhoto', swimmerPhoto);
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/registrations', { method: 'POST', body: data });
+      const res = await fetch(
+        isEdit ? `/api/registrations/${editId}` : '/api/registrations',
+        { method: isEdit ? 'PUT' : 'POST', body: data },
+      );
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(payload.error ?? 'Registration failed');
+        throw new Error(payload.error ?? (isEdit ? 'Update failed' : 'Registration failed'));
+      }
+      if (isEdit) {
+        const returnTo = (location.state as { returnTo?: string } | null)?.returnTo;
+        navigate(typeof returnTo === 'string' && returnTo ? returnTo : tenantPath('/swimmers'));
+        return;
       }
       setForm(initialForm);
       setParentOnly(false);
@@ -596,7 +684,7 @@ export function App() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setErrorCount(1);
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : isEdit ? 'Update failed' : 'Registration failed');
     } finally {
       setSubmitting(false);
     }
@@ -607,6 +695,25 @@ export function App() {
     setError('');
     setErrorCount(0);
     setInvalidFields(new Set());
+  }
+
+  if (isEdit && loadingEdit) {
+    return (
+      <div className="page">
+        <p className="pass-empty">Loading…</p>
+      </div>
+    );
+  }
+
+  if (isEdit && loadError) {
+    return (
+      <div className="page">
+        <div className="top-row">
+          <MenuBackLink label={t.mainMenu} />
+        </div>
+        <p className="error">{loadError}</p>
+      </div>
+    );
   }
 
   if (submitted) {
@@ -650,7 +757,7 @@ export function App() {
       <div className="top-row">
         <MenuBackLink label={t.mainMenu} />
         <div className="top-row-right">
-          <SendFormQrButton form="swimmer" />
+          {isEdit ? null : <SendFormQrButton form="swimmer" />}
           <div className="langs">
             {(['en', 'mr', 'hi'] as const).map((code, i) => (
               <span key={code}>
@@ -668,7 +775,7 @@ export function App() {
         </div>
       </div>
 
-      <h1>{t.title}</h1>
+      <h1>{isEdit ? t.editTitle : t.title}</h1>
       <p className="required-note">
         <span className="req">*</span> {t.requiredNote}
       </p>
@@ -734,7 +841,7 @@ export function App() {
 
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.email}</Label>
+              <Label>{t.email}</Label>
               <input
                 type="email"
                 value={form.email}
@@ -742,7 +849,6 @@ export function App() {
                 placeholder={t.emailPh}
                 pattern="[^@\s]+@[^@\s]+\.[^@\s]+"
                 title="Email must include @ and ."
-                required
                 aria-invalid={isInvalid('email') || Boolean(emailHint(form.email))}
               />
               {emailHint(form.email) ? <span className="field-error">{emailHint(form.email)}</span> : null}
@@ -993,6 +1099,7 @@ export function App() {
               required
               file={identityPhoto}
               preview={identityPreview}
+              existingUrl={existingIdentityUrl}
               takeLabel={t.takePhoto}
               uploadLabel={t.upload}
               invalid={isInvalid('identityPhoto')}
@@ -1013,6 +1120,7 @@ export function App() {
               required
               file={swimmerPhoto}
               preview={swimmerPreview}
+              existingUrl={existingSwimmerUrl}
               takeLabel={t.takePhoto}
               uploadLabel={t.upload}
               invalid={isInvalid('swimmerPhoto')}
@@ -1031,21 +1139,25 @@ export function App() {
         </section>
 
         <div className="footer-row">
-          <label className={`terms${isInvalid('acceptedTerms') ? ' field-box-invalid' : ''}`}>
-            <input
-              type="checkbox"
-              checked={form.acceptedTerms}
-              onChange={(e) => setField('acceptedTerms', e.target.checked)}
-              required
-              aria-invalid={isInvalid('acceptedTerms')}
-            />
-            <span>
-              {t.terms}{' '}
-              <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
-                {t.termsLink}
-              </button>
-            </span>
-          </label>
+          {isEdit ? (
+            <span />
+          ) : (
+            <label className={`terms${isInvalid('acceptedTerms') ? ' field-box-invalid' : ''}`}>
+              <input
+                type="checkbox"
+                checked={form.acceptedTerms}
+                onChange={(e) => setField('acceptedTerms', e.target.checked)}
+                required
+                aria-invalid={isInvalid('acceptedTerms')}
+              />
+              <span>
+                {t.terms}{' '}
+                <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
+                  {t.termsLink}
+                </button>
+              </span>
+            </label>
+          )}
           <div className="submit-wrap">
             {errorCount > 0 ? (
               <p className="error submit-error-count">
@@ -1055,7 +1167,7 @@ export function App() {
               </p>
             ) : null}
             <button className="submit" type="submit" disabled={submitting}>
-              {submitting ? t.submitting : t.submit}
+              {submitting ? t.submitting : isEdit ? t.saveChanges : t.submit}
             </button>
           </div>
         </div>

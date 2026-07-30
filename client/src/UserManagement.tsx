@@ -47,6 +47,22 @@ function formatCreatedAt(value: string) {
   });
 }
 
+function AccessEditIcon() {
+  return (
+    <svg
+      className="user-access-edit-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden
+    >
+      <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
+      <path d="M13.5 6.5l3 3" />
+    </svg>
+  );
+}
+
 function toAccessSet(keys: string[], allowed: readonly { key: string }[]) {
   const allowedKeys = new Set(allowed.map((page) => page.key));
   const next = new Set<string>();
@@ -242,8 +258,15 @@ function UserRow({
                   </th>
                   <td>
                     <div className="user-access-pages">
-                      {pages.map((page) => (
-                          <span key={page.key} className="user-access-page-group">
+                      {pages.map((page) => {
+                        const withEdit = isEditableInformationPage(page.key);
+                        return (
+                          <span
+                            key={page.key}
+                            className={
+                              withEdit ? 'user-access-page-group' : 'user-access-page-solo'
+                            }
+                          >
                             <label className="user-access-page">
                               <input
                                 type="checkbox"
@@ -257,6 +280,8 @@ function UserRow({
                                 className={`user-access-page user-access-edit${
                                   accessDraft.has(page.key) ? '' : ' is-disabled'
                                 }`}
+                                title="Edit"
+                                aria-label={`Edit access for ${page.label}`}
                               >
                                 <input
                                   type="checkbox"
@@ -268,11 +293,12 @@ function UserRow({
                                     }
                                   }}
                                 />
-                                <span>Edit</span>
+                                <AccessEditIcon />
                               </label>
                             ) : null}
                           </span>
-                        ))}
+                        );
+                      })}
                     </div>
                   </td>
                 </tr>

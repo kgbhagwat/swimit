@@ -1,14 +1,15 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { DownloadButton } from './DownloadButton';
+import { formatBatchDisplay } from './IdCard';
 import { MenuBackLink } from './MenuBackLink';
+import { canEditPage } from './pageAccess';
 import { openPassPopup } from './swimmerPass';
 import {
   fetchSwimmerProfile,
   SwimmerProfile,
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
-import { canEditPage } from './pageAccess';
 import { tenantPath } from './tenantSession';
 
 type SwimmerStatus = 'active' | 'inactive';
@@ -151,6 +152,7 @@ function mapRow(row: RegistrationApiRow): SwimmerRow {
 }
 
 export function SwimmerList() {
+  const navigate = useNavigate();
   const [status, setStatus] = useState<SwimmerStatus>('active');
   const [rows, setRows] = useState<SwimmerRow[]>([]);
   const [batches, setBatches] = useState<BatchSlot[]>([]);
@@ -165,7 +167,40 @@ export function SwimmerList() {
   const [viewing, setViewing] = useState<SwimmerRow | null>(null);
   const [viewProfile, setViewProfile] = useState<SwimmerProfile | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const [resendingId, setResendingId] = useState<number | null>(null);
+  const [success, setSuccess] = useState('');
   const canEdit = canEditPage('swimmers');
+
+  async function resendPass(row: SwimmerRow) {
+    if (!row.passType || row.passType === '—') {
+      setError('This swimmer does not have a pass to resend');
+      setSuccess('');
+      return;
+    }
+    setResendingId(row.id);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`/api/registrations/${row.id}/resend-pass`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to resend pass on WhatsApp');
+      setSuccess(`Pass and QR resent on WhatsApp to ${row.swimmer} (${row.contact}).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend pass on WhatsApp');
+    } finally {
+      setResendingId(null);
+    }
+  }
+
+  function openProfileEdit(row: SwimmerRow) {
+    if (!canEditPage('swimmers')) {
+      setError('You do not have permission to edit swimmers');
+      return;
+    }
+    navigate(tenantPath(`/register/${row.id}`), {
+      state: { returnTo: tenantPath('/swimmers') },
+    });
+  }
 
   async function load() {
     setLoading(true);
@@ -181,7 +216,15 @@ export function SwimmerList() {
 
       if (batchesRes.ok) {
         const batchesData = (await batchesRes.json()) as { slots?: BatchSlot[] };
-        setBatches(batchesData.slots ?? []);
+        const slots = [...(batchesData.slots ?? [])].sort((a, b) => {
+          const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+          if (startDiff !== 0) return startDiff;
+          return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          });
+        });
+        setBatches(slots);
       } else {
         setBatches([]);
       }
@@ -330,7 +373,7 @@ export function SwimmerList() {
                   <button
                     type="button"
                     className="submit"
-                    onClick={() => openEdit(viewing)}
+                    onClick={() => openProfileEdit(viewing)}
                   >
                     Edit
                   </button>
@@ -349,7 +392,7 @@ export function SwimmerList() {
               title="Complete registration form"
               hint={
                 canEdit
-                  ? 'Full swimmer registration details. Use Edit to change batch or active status.'
+                  ? 'Full swimmer registration details. Use Edit to update the registration form.'
                   : 'Full swimmer registration details (view only).'
               }
             />
@@ -386,6 +429,7 @@ export function SwimmerList() {
                 disabled={visibleRows.length === 0}
               />
             </div>
+            {success ? <p className="success">{success}</p> : null}
 
             <section className="pass-table-card swimmer-table-card">
               <div className="swimmer-table-head">
@@ -455,19 +499,34 @@ export function SwimmerList() {
                 </p>
               ) : (
                 <div className="pass-table-body">
-                  {visibleRows.map((row) => (
-                    <div className="swimmer-row" key={row.id}>
-                      <strong>{row.swimmer}</strong>
-                      <span>
+                  {visibleRows.map((row, index) => (
+                    <div
+                      className={`swimmer-row${index % 2 === 1 ? ' swimmer-row-alt' : ''}`}
+                      key={row.id}
+                    >
+                      <strong data-label="Swimmer">{row.swimmer}</strong>
+                      <span data-label="Contact">
                         <span className="coach-contact">{row.contact}</span>
                         {row.email !== '—' ? (
                           <span className="coach-email">{row.email}</span>
                         ) : null}
                       </span>
-                      <span>{row.passType}</span>
-                      <span>{row.batch}</span>
-                      <span>{row.coach}</span>
-                      <span className="pass-actions">
+                      <span data-label="Pass type">{row.passType}</span>
+                      <span data-label="Batch">
+                        {(() => {
+                          const batch = formatBatchDisplay(row.batch);
+                          return (
+                            <>
+                              <span className="swimmer-batch-title">{batch.title}</span>
+                              {batch.time ? (
+                                <span className="swimmer-batch-time">{batch.time}</span>
+                              ) : null}
+                            </>
+                          );
+                        })()}
+                      </span>
+                      <span data-label="Coach">{row.coach}</span>
+                      <span className="pass-actions" data-label="Actions -">
                         {row.passType && row.passType !== '—' ? (
                           <>
                             <button
@@ -483,6 +542,15 @@ export function SwimmerList() {
                               onClick={() => openPassPopup('pass', row.id)}
                             >
                               Pass
+                            </button>
+                            <button
+                              type="button"
+                              className="terms-link"
+                              onClick={() => void resendPass(row)}
+                              disabled={resendingId === row.id}
+                              title="Resend pass & QR on WhatsApp"
+                            >
+                              {resendingId === row.id ? 'Sending…' : 'Resend'}
                             </button>
                           </>
                         ) : null}

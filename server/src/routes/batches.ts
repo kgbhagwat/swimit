@@ -86,7 +86,7 @@ batchesRouter.get('/', async (req, res) => {
     `SELECT id, name, type, start_time, end_time
      FROM batch_slots
      WHERE saas_account_id = $1
-     ORDER BY sort_order ASC, id ASC`,
+     ORDER BY start_time ASC, name ASC, id ASC`,
     [accountId],
   );
 
@@ -186,8 +186,16 @@ batchesRouter.put('/', async (req, res) => {
     }
 
     await pool.query('DELETE FROM batch_slots WHERE saas_account_id = $1', [accountId]);
-    for (let i = 0; i < slots.length; i += 1) {
-      const slot = slots[i];
+    const orderedSlots = [...slots].sort((a, b) => {
+      const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+      if (startDiff !== 0) return startDiff;
+      return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
+    for (let i = 0; i < orderedSlots.length; i += 1) {
+      const slot = orderedSlots[i];
       if (!slot.name || !slot.type || !slot.startTime || !slot.endTime) {
         throw new Error('Each slot needs name, type, start time and end time');
       }
@@ -211,7 +219,7 @@ batchesRouter.put('/', async (req, res) => {
       `SELECT id, name, type, start_time, end_time
        FROM batch_slots
        WHERE saas_account_id = $1
-       ORDER BY sort_order ASC, id ASC`,
+       ORDER BY start_time ASC, name ASC, id ASC`,
       [accountId],
     );
 

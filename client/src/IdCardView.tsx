@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { IdCard } from './IdCard';
+import { IdCard, fetchPoolBrand } from './IdCard';
 import { MenuBackLink } from './MenuBackLink';
 import { tenantPath } from './tenantSession';
 import {
@@ -16,6 +16,8 @@ export function IdCardView() {
   const asPopup = searchParams.get('popup') === '1' || isPassPopupWindow();
   const [pass, setPass] = useState<SwimmerPassDetails | null>(null);
   const [poolName, setPoolName] = useState('');
+  const [poolAddress, setPoolAddress] = useState('');
+  const [poolLogoUrl, setPoolLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -30,20 +32,13 @@ export function IdCardView() {
     setLoading(true);
     setError('');
 
-    Promise.all([
-      fetchSwimmerPass(passId),
-      fetch('/api/pool-core-info')
-        .then(async (res) => {
-          const body = await res.json().catch(() => ({}));
-          if (!res.ok) return '';
-          return String(body.poolName ?? '').trim();
-        })
-        .catch(() => ''),
-    ])
-      .then(([details, name]) => {
+    Promise.all([fetchSwimmerPass(passId), fetchPoolBrand()])
+      .then(([details, brand]) => {
         if (cancelled) return;
         setPass(details);
-        setPoolName(name);
+        setPoolName(brand.poolName);
+        setPoolAddress(brand.poolAddress);
+        setPoolLogoUrl(brand.poolLogoUrl);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -94,6 +89,8 @@ export function IdCardView() {
               coach: pass.coach,
               passValidUntil: pass.passValidUntil,
               poolName,
+              poolAddress,
+              poolLogoUrl,
             }}
           />
         ) : null}

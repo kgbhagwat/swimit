@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { IdCard } from './IdCard';
+import { IdCard, fetchPoolBrand, type PoolBrand } from './IdCard';
 import { MenuBackLink } from './MenuBackLink';
 
 type ScannedSwimmer = {
@@ -27,10 +27,12 @@ type ScannedSwimmer = {
 
 type View = 'idle' | 'scanning' | 'preview' | 'done';
 
+const emptyBrand: PoolBrand = { poolName: '', poolAddress: '', poolLogoUrl: null };
+
 export function PassScanner() {
   const [view, setView] = useState<View>('idle');
   const [swimmer, setSwimmer] = useState<ScannedSwimmer | null>(null);
-  const [poolName, setPoolName] = useState('');
+  const [brand, setBrand] = useState<PoolBrand>(emptyBrand);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [passNo, setPassNo] = useState('');
@@ -42,18 +44,9 @@ export function PassScanner() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/pool-core-info')
-      .then(async (res) => {
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) return '';
-        return String(body.poolName ?? '').trim();
-      })
-      .then((name) => {
-        if (!cancelled) setPoolName(name);
-      })
-      .catch(() => {
-        if (!cancelled) setPoolName('');
-      });
+    void fetchPoolBrand().then((poolBrand) => {
+      if (!cancelled) setBrand(poolBrand);
+    });
     return () => {
       cancelled = true;
     };
@@ -235,7 +228,9 @@ export function PassScanner() {
                 batch: swimmer.batch,
                 coach: swimmer.coach,
                 passValidUntil: swimmer.passValidUntil,
-                poolName,
+                poolName: brand.poolName,
+                poolAddress: brand.poolAddress,
+                poolLogoUrl: brand.poolLogoUrl,
               }}
             />
             <p className="scanner-attendance-status">

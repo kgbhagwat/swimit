@@ -90,6 +90,7 @@ function mapStaffDetail(row: Record<string, unknown>) {
     postName: row.post_name ?? '',
     salary: row.salary === null || row.salary === undefined ? '' : String(row.salary),
     isActive: row.is_active !== false,
+    isApproved: row.is_approved === true,
     createdAt: row.created_at,
   };
 }
@@ -121,17 +122,34 @@ async function validateCoachBatchRules(
   return null;
 }
 
-staffRegistrationsRouter.get('/', async (req, res) => {
-  const accountId = tenantId(req);
-  const { rows } = await pool.query(
-    `SELECT id, registration_for, full_name, email, whatsapp_mobile, teach_strokes,
-            suitable_batch_ids, post_name, salary, is_active, created_at
-     FROM staff_registrations
-     WHERE saas_account_id = $1
-     ORDER BY created_at DESC`,
-    [accountId],
+let approvedColumnReady = false;
+
+async function ensureCoachApprovedColumn() {
+  if (approvedColumnReady) return;
+  await pool.query(
+    `ALTER TABLE staff_registrations
+     ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT FALSE`,
   );
-  res.json(rows);
+  approvedColumnReady = true;
+}
+
+staffRegistrationsRouter.get('/', async (req, res) => {
+  try {
+    await ensureCoachApprovedColumn();
+    const accountId = tenantId(req);
+    const { rows } = await pool.query(
+      `SELECT id, registration_for, full_name, email, whatsapp_mobile, teach_strokes,
+              suitable_batch_ids, post_name, salary, is_active, is_approved, created_at
+       FROM staff_registrations
+       WHERE saas_account_id = $1
+       ORDER BY created_at DESC`,
+      [accountId],
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load staff' });
+  }
 });
 
 staffRegistrationsRouter.get('/:id', async (req, res) => {
@@ -172,6 +190,44 @@ staffRegistrationsRouter.patch('/:id/status', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+staffRegistrationsRouter.patch('/:id/approve', async (req, res) => {
+  try {
+    await ensureCoachApprovedColumn();
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid staff id' });
+      return;
+    }
+
+    const existing = await pool.query(
+      `SELECT id, registration_for FROM staff_registrations
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    if (!existing.rows[0]) {
+      res.status(404).json({ error: 'Staff registration not found' });
+      return;
+    }
+    if (String(existing.rows[0].registration_for) !== 'Coach') {
+      res.status(400).json({ error: 'Only coaches can be approved for payment assignment' });
+      return;
+    }
+
+    const isApproved = Boolean(req.body?.isApproved);
+    const { rows } = await pool.query(
+      `UPDATE staff_registrations SET is_approved = $1
+       WHERE id = $2 AND saas_account_id = $3
+       RETURNING id, is_approved`,
+      [isApproved, id, accountId],
+    );
+    res.json({ id: rows[0].id, isApproved: rows[0].is_approved === true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update approval' });
   }
 });
 

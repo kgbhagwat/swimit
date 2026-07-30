@@ -3,6 +3,7 @@ import { MenuBackLink } from './MenuBackLink';
 import { nationalHolidaysForYear } from './nationalHolidays';
 
 type HolidayType = 'annual' | 'surprise';
+type DaySpan = 'full' | 'partial';
 
 type HolidayItem = {
   id: number;
@@ -10,6 +11,9 @@ type HolidayItem = {
   name: string;
   startDate: string;
   endDate: string;
+  daySpan?: DaySpan;
+  startTime?: string;
+  endTime?: string;
   notes: string;
   extendPassHolders?: boolean;
 };
@@ -39,11 +43,21 @@ function formatRange(start: string, end: string) {
   return `${start} to ${end}`;
 }
 
+function formatSurpriseWhen(item: HolidayItem) {
+  const dateLabel = formatRange(item.startDate, item.endDate);
+  if (item.daySpan === 'partial' && item.startTime && item.endTime) {
+    return `${dateLabel} · ${item.startTime}–${item.endTime} (Partial day)`;
+  }
+  return `${dateLabel} (Full day)`;
+}
+
 const emptyForm = {
   name: '',
   startDate: '',
   endDate: '',
   notes: '',
+  startTime: '',
+  endTime: '',
 };
 
 export function HolidayManagement() {
@@ -57,6 +71,7 @@ export function HolidayManagement() {
   const [success, setSuccess] = useState('');
   const [annualForm, setAnnualForm] = useState(emptyForm);
   const [surpriseForm, setSurpriseForm] = useState(emptyForm);
+  const [surpriseDaySpan, setSurpriseDaySpan] = useState<DaySpan>('full');
   const [extendPassHolders, setExtendPassHolders] = useState(false);
   const [selectedNationalIds, setSelectedNationalIds] = useState<string[]>([]);
   const [showCustomAnnual, setShowCustomAnnual] = useState(false);
@@ -141,6 +156,7 @@ export function HolidayManagement() {
     setSelectedNationalIds([]);
     setAnnualForm(emptyForm);
     setSurpriseForm(emptyForm);
+    setSurpriseDaySpan('full');
     setExtendPassHolders(false);
     setShowCustomAnnual(false);
   }, [year]);
@@ -218,12 +234,13 @@ export function HolidayManagement() {
   async function addLeave(
     type: HolidayType,
     form: typeof emptyForm,
-    options?: { extendPassHolders?: boolean },
+    options?: { extendPassHolders?: boolean; daySpan?: DaySpan },
   ) {
     setSavingLeave(true);
     setError('');
     setSuccess('');
     try {
+      const daySpan = type === 'surprise' ? options?.daySpan ?? 'full' : 'full';
       const res = await fetch('/api/holidays', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -234,6 +251,9 @@ export function HolidayManagement() {
           endDate: form.endDate || form.startDate,
           notes: form.notes.trim(),
           extendPassHolders: Boolean(options?.extendPassHolders),
+          daySpan,
+          startTime: daySpan === 'partial' ? form.startTime : undefined,
+          endTime: daySpan === 'partial' ? form.endTime : undefined,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -243,6 +263,7 @@ export function HolidayManagement() {
         setShowCustomAnnual(false);
       } else {
         setSurpriseForm(emptyForm);
+        setSurpriseDaySpan('full');
         setExtendPassHolders(false);
       }
       if (type === 'surprise' && options?.extendPassHolders) {
@@ -314,7 +335,20 @@ export function HolidayManagement() {
 
   async function onAddSurprise(e: FormEvent) {
     e.preventDefault();
-    await addLeave('surprise', surpriseForm, { extendPassHolders });
+    if (surpriseDaySpan === 'partial') {
+      if (!surpriseForm.startTime || !surpriseForm.endTime) {
+        setError('Start time and end time are required for partial day');
+        return;
+      }
+      if (surpriseForm.endTime <= surpriseForm.startTime) {
+        setError('End time must be after start time');
+        return;
+      }
+    }
+    await addLeave('surprise', surpriseForm, {
+      extendPassHolders,
+      daySpan: surpriseDaySpan,
+    });
   }
 
   async function removeLeave(id: number) {
@@ -590,6 +624,36 @@ export function HolidayManagement() {
                     required
                   />
                 </label>
+                <fieldset className="field surprise-span-field">
+                  <legend className="label">
+                    Day type <span className="req">*</span>
+                  </legend>
+                  <div className="surprise-span-options" role="radiogroup" aria-label="Day type">
+                    <label className="surprise-span-option">
+                      <input
+                        type="radio"
+                        name="surprise-day-span"
+                        checked={surpriseDaySpan === 'full'}
+                        onChange={() => {
+                          setSurpriseDaySpan('full');
+                          setSurpriseForm((prev) => ({ ...prev, startTime: '', endTime: '' }));
+                        }}
+                      />
+                      <span>Full day</span>
+                    </label>
+                    <label className="surprise-span-option">
+                      <input
+                        type="radio"
+                        name="surprise-day-span"
+                        checked={surpriseDaySpan === 'partial'}
+                        onChange={() => setSurpriseDaySpan('partial')}
+                      />
+                      <span>Partial day</span>
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+              <div className="surprise-datetime-row">
                 <label className="field surprise-date-field">
                   <span className="label">
                     Date <span className="req">*</span>
@@ -607,6 +671,36 @@ export function HolidayManagement() {
                     required
                   />
                 </label>
+                {surpriseDaySpan === 'partial' ? (
+                  <div className="surprise-time-row">
+                    <label className="field surprise-time-field">
+                      <span className="label">
+                        Start time <span className="req">*</span>
+                      </span>
+                      <input
+                        type="time"
+                        value={surpriseForm.startTime}
+                        onChange={(e) =>
+                          setSurpriseForm((prev) => ({ ...prev, startTime: e.target.value }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="field surprise-time-field">
+                      <span className="label">
+                        End time <span className="req">*</span>
+                      </span>
+                      <input
+                        type="time"
+                        value={surpriseForm.endTime}
+                        onChange={(e) =>
+                          setSurpriseForm((prev) => ({ ...prev, endTime: e.target.value }))
+                        }
+                        required
+                      />
+                    </label>
+                  </div>
+                ) : null}
               </div>
               <label className="field">
                 <span className="label">Notes</span>
@@ -639,7 +733,7 @@ export function HolidayManagement() {
                   <div className="holiday-list-row" key={item.id}>
                     <div>
                       <strong>{item.name}</strong>
-                      <span className="holiday-list-meta">{formatRange(item.startDate, item.endDate)}</span>
+                      <span className="holiday-list-meta">{formatSurpriseWhen(item)}</span>
                       {item.extendPassHolders ? (
                         <span className="holiday-list-notes">Pass holders extended by 1 day</span>
                       ) : null}

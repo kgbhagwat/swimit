@@ -48,30 +48,147 @@ export async function fetchSwimmerProfile(id: number): Promise<SwimmerProfile> {
   return body as SwimmerProfile;
 }
 
+function ReviewField({
+  label,
+  value,
+  wide,
+}: {
+  label: string;
+  value: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div className={wide ? 'swimmer-review-wide' : undefined}>
+      <span className="swimmer-review-label">{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}
+
 export function SwimmerProfileReview({
   profile,
   loading,
   title = 'Confirm swimmer details',
   hint,
+  actions,
   footer,
 }: {
   profile: SwimmerProfile | null;
   loading?: boolean;
   title?: string;
   hint?: string;
+  actions?: ReactNode;
   footer?: ReactNode;
 }) {
+  const showParent = Boolean(
+    profile &&
+      (String(profile.parentName ?? '').trim() ||
+        String(profile.parentMobile ?? '').trim() ||
+        String(profile.parentRelation ?? '').trim()),
+  );
+  const showHealthDetails = profile?.hasHealthIssue === 'Yes';
+
   return (
     <section className="swimmer-review-card" aria-label={title}>
-      <h3>{title}</h3>
-      {hint ? <p className="hint">{hint}</p> : null}
+      <div className="swimmer-review-head">
+        <div>
+          <h3>{title}</h3>
+          {hint ? <p className="hint">{hint}</p> : null}
+        </div>
+        {actions ? <div className="swimmer-review-actions">{actions}</div> : null}
+      </div>
       {loading ? (
         <p className="muted">Loading swimmer form…</p>
       ) : !profile ? (
         <p className="error">Could not load swimmer details.</p>
       ) : (
         <>
+          <div className="swimmer-review-grid">
+            <ReviewField label="Full name" value={displayProfileValue(profile.fullName)} wide />
+            <ReviewField label="Full address" value={displayProfileValue(profile.fullAddress)} wide />
+            <ReviewField
+              label="WhatsApp mobile"
+              value={displayProfileValue(profile.whatsappMobile)}
+            />
+            <ReviewField label="Other mobile" value={displayProfileValue(profile.otherMobile)} />
+            <ReviewField label="Email" value={displayProfileValue(profile.email)} />
+            <ReviewField label="Birth date" value={formatProfileDate(profile.birthdate)} />
+            <ReviewField label="Sex" value={displayProfileValue(profile.sex)} />
+            <ReviewField label="Blood group" value={displayProfileValue(profile.bloodGroup)} />
+          </div>
+
+          {showParent ? (
+            <>
+              <h4 className="swimmer-review-section">Parent / guardian</h4>
+              <div className="swimmer-review-grid">
+                <ReviewField label="Parent name" value={displayProfileValue(profile.parentName)} />
+                <ReviewField
+                  label="Relation"
+                  value={displayProfileValue(profile.parentRelation)}
+                />
+                <ReviewField
+                  label="Parent contact"
+                  value={displayProfileValue(profile.parentMobile)}
+                />
+              </div>
+            </>
+          ) : null}
+
+          <h4 className="swimmer-review-section">Emergency contact</h4>
+          <div className="swimmer-review-grid">
+            <ReviewField
+              label="Emergency name"
+              value={displayProfileValue(profile.emergencyName)}
+            />
+            <ReviewField
+              label="Relation"
+              value={displayProfileValue(profile.emergencyRelation)}
+            />
+            <ReviewField
+              label="Emergency mobile"
+              value={displayProfileValue(profile.emergencyMobile)}
+            />
+          </div>
+
+          <h4 className="swimmer-review-section">Medical</h4>
+          <div className="swimmer-review-grid">
+            <ReviewField
+              label="Any disease / health issue"
+              value={displayProfileValue(profile.hasHealthIssue)}
+            />
+            {showHealthDetails ? (
+              <>
+                <ReviewField
+                  label="Disease / health issue"
+                  value={displayProfileValue(profile.healthIssueDetails)}
+                  wide
+                />
+                <ReviewField label="Doctor name" value={displayProfileValue(profile.doctorName)} />
+                <ReviewField label="Doctor no." value={displayProfileValue(profile.doctorNo)} />
+              </>
+            ) : null}
+          </div>
+
+          <h4 className="swimmer-review-section">Identity</h4>
+          <div className="swimmer-review-grid">
+            <ReviewField
+              label="Identity document"
+              value={displayProfileValue(profile.identityDocument)}
+            />
+          </div>
           <div className="swimmer-review-photos">
+            <figure className="swimmer-review-photo">
+              {profile.identityPhotoUrl ? (
+                <img
+                  className="swimmer-review-photo-doc"
+                  src={profile.identityPhotoUrl}
+                  alt={`${profile.fullName} identity proof`}
+                />
+              ) : (
+                <div className="swimmer-review-photo-empty">No identity photo</div>
+              )}
+              <figcaption>Identity proof photo</figcaption>
+            </figure>
             <figure className="swimmer-review-photo">
               {profile.photoUrl ? (
                 <img src={profile.photoUrl} alt={`${profile.fullName} photo`} />
@@ -80,96 +197,6 @@ export function SwimmerProfileReview({
               )}
               <figcaption>Swimmer photo</figcaption>
             </figure>
-            <figure className="swimmer-review-photo">
-              {profile.identityPhotoUrl ? (
-                <img
-                  src={profile.identityPhotoUrl}
-                  alt={`${profile.fullName} identity proof`}
-                />
-              ) : (
-                <div className="swimmer-review-photo-empty">No identity photo</div>
-              )}
-              <figcaption>
-                Identity proof ({displayProfileValue(profile.identityDocument)})
-              </figcaption>
-            </figure>
-          </div>
-
-          <div className="swimmer-review-grid">
-            <div>
-              <span className="swimmer-review-label">Full name</span>
-              <strong>{displayProfileValue(profile.fullName)}</strong>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Birth date</span>
-              <span>{formatProfileDate(profile.birthdate)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Sex</span>
-              <span>{displayProfileValue(profile.sex)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Blood group</span>
-              <span>{displayProfileValue(profile.bloodGroup)}</span>
-            </div>
-            <div className="swimmer-review-wide">
-              <span className="swimmer-review-label">Full address</span>
-              <span>{displayProfileValue(profile.fullAddress)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">WhatsApp mobile</span>
-              <span>{displayProfileValue(profile.whatsappMobile)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Other mobile</span>
-              <span>{displayProfileValue(profile.otherMobile)}</span>
-            </div>
-            <div className="swimmer-review-wide">
-              <span className="swimmer-review-label">Email</span>
-              <span>{displayProfileValue(profile.email)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Emergency contact</span>
-              <span>
-                {displayProfileValue(profile.emergencyName)}
-                {profile.emergencyRelation ? ` (${profile.emergencyRelation})` : ''}
-              </span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Emergency mobile</span>
-              <span>{displayProfileValue(profile.emergencyMobile)}</span>
-            </div>
-            {profile.parentName || profile.parentMobile ? (
-              <>
-                <div>
-                  <span className="swimmer-review-label">Parent / guardian</span>
-                  <span>
-                    {displayProfileValue(profile.parentName)}
-                    {profile.parentRelation ? ` (${profile.parentRelation})` : ''}
-                  </span>
-                </div>
-                <div>
-                  <span className="swimmer-review-label">Parent mobile</span>
-                  <span>{displayProfileValue(profile.parentMobile)}</span>
-                </div>
-              </>
-            ) : null}
-            <div>
-              <span className="swimmer-review-label">Health issue</span>
-              <span>{displayProfileValue(profile.hasHealthIssue)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Health details</span>
-              <span>{displayProfileValue(profile.healthIssueDetails)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Doctor name</span>
-              <span>{displayProfileValue(profile.doctorName)}</span>
-            </div>
-            <div>
-              <span className="swimmer-review-label">Doctor no.</span>
-              <span>{displayProfileValue(profile.doctorNo)}</span>
-            </div>
           </div>
           {footer}
         </>

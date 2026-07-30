@@ -54,6 +54,7 @@ function appFeatureRoutes() {
   return (
     <>
       <Route path="register" element={<App />} />
+      <Route path="register/:id" element={<App />} />
       <Route path="staff-register" element={<StaffRegistration />} />
       <Route path="staff-register/:id" element={<StaffRegistration />} />
       <Route path="user-management" element={<UserManagement />} />
@@ -83,6 +84,7 @@ function appFeatureRoutes() {
 const legacyFeatureRedirects = (
   <>
     <Route path="/register" element={<RedirectToApplication />} />
+    <Route path="/register/:id" element={<RedirectToApplication />} />
     <Route path="/staff-register" element={<RedirectToApplication />} />
     <Route path="/staff-register/:id" element={<RedirectToApplication />} />
     <Route path="/user-management" element={<RedirectToApplication />} />
