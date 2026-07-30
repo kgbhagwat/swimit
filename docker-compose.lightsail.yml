@@ -44,6 +44,7 @@ services:
       WHATSAPP_DEFAULT_COUNTRY_CODE: ${WHATSAPP_DEFAULT_COUNTRY_CODE:-91}
       ALLOW_DUPLICATE_ACCOUNT_MOBILE: ${ALLOW_DUPLICATE_ACCOUNT_MOBILE:-}
       DOMAIN: ${DOMAIN:-}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-}
     volumes:
       - swimit_uploads:/app/server/uploads
     depends_on:
