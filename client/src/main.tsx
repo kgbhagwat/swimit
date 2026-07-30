@@ -1,46 +1,93 @@
-import { StrictMode, type ReactElement } from 'react';
+import { StrictMode, Suspense, lazy, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './styles.css';
 import { installTenantFetch } from './tenantSession';
-import { App } from './App';
-import { BatchList } from './BatchList';
-import { CoachList } from './CoachList';
-import { MainMenu } from './MainMenu';
-import { AppShell } from './AppShell';
-import { PassScanner } from './PassScanner';
-import { CoachPayment } from './CoachPayment';
-import { AttendanceSheet } from './AttendanceSheet';
-import { BalanceSheet } from './BalanceSheet';
-import { PaymentDetails } from './PaymentDetails';
-import { PoolExpenses } from './PoolExpenses';
-import { PassPayment } from './PassPayment';
-import { PassTypePage } from './PassTypePage';
-import { PassView } from './PassView';
-import { IdCardView } from './IdCardView';
-import { SwimmerList } from './SwimmerList';
-import { StaffRegistration } from './StaffRegistration';
-import { PoolCoreInfo } from './PoolCoreInfo';
-import { HolidayManagement } from './HolidayManagement';
-import { RenewPayment } from './RenewPayment';
-import { CreateUser } from './CreateUser';
-import { UserManagement } from './UserManagement';
-import { WhatsAppMessaging } from './WhatsAppMessaging';
-import { CreateAccount } from './CreateAccount';
-import { Accounts } from './Accounts';
-import { ServicePackages } from './ServicePackages';
-import { ApplicationGuide } from './ApplicationGuide';
-import { AccountPortal } from './AccountPortal';
 import { ApplicationDemoSync } from './ApplicationDemoSync';
 import { RequirePlatformSession } from './RequirePlatformSession';
-import { PlatformUsersLayout } from './PlatformUsersLayout';
-import { PlatformPayment } from './PlatformPayment';
-import { PublicOpenForm } from './PublicOpenForm';
 
 installTenantFetch();
 
+const App = lazy(() => import('./App').then((m) => ({ default: m.App })));
+const BatchList = lazy(() => import('./BatchList').then((m) => ({ default: m.BatchList })));
+const CoachList = lazy(() => import('./CoachList').then((m) => ({ default: m.CoachList })));
+const MainMenu = lazy(() => import('./MainMenu').then((m) => ({ default: m.MainMenu })));
+const AppShell = lazy(() => import('./AppShell').then((m) => ({ default: m.AppShell })));
+const PassScanner = lazy(() => import('./PassScanner').then((m) => ({ default: m.PassScanner })));
+const CoachPayment = lazy(() =>
+  import('./CoachPayment').then((m) => ({ default: m.CoachPayment })),
+);
+const AttendanceSheet = lazy(() =>
+  import('./AttendanceSheet').then((m) => ({ default: m.AttendanceSheet })),
+);
+const BalanceSheet = lazy(() =>
+  import('./BalanceSheet').then((m) => ({ default: m.BalanceSheet })),
+);
+const PaymentDetails = lazy(() =>
+  import('./PaymentDetails').then((m) => ({ default: m.PaymentDetails })),
+);
+const PoolExpenses = lazy(() =>
+  import('./PoolExpenses').then((m) => ({ default: m.PoolExpenses })),
+);
+const PassPayment = lazy(() => import('./PassPayment').then((m) => ({ default: m.PassPayment })));
+const PassTypePage = lazy(() =>
+  import('./PassTypePage').then((m) => ({ default: m.PassTypePage })),
+);
+const PassView = lazy(() => import('./PassView').then((m) => ({ default: m.PassView })));
+const IdCardView = lazy(() => import('./IdCardView').then((m) => ({ default: m.IdCardView })));
+const SwimmerList = lazy(() => import('./SwimmerList').then((m) => ({ default: m.SwimmerList })));
+const StaffRegistration = lazy(() =>
+  import('./StaffRegistration').then((m) => ({ default: m.StaffRegistration })),
+);
+const PoolCoreInfo = lazy(() =>
+  import('./PoolCoreInfo').then((m) => ({ default: m.PoolCoreInfo })),
+);
+const HolidayManagement = lazy(() =>
+  import('./HolidayManagement').then((m) => ({ default: m.HolidayManagement })),
+);
+const RenewPayment = lazy(() =>
+  import('./RenewPayment').then((m) => ({ default: m.RenewPayment })),
+);
+const CreateUser = lazy(() => import('./CreateUser').then((m) => ({ default: m.CreateUser })));
+const UserManagement = lazy(() =>
+  import('./UserManagement').then((m) => ({ default: m.UserManagement })),
+);
+const WhatsAppMessaging = lazy(() =>
+  import('./WhatsAppMessaging').then((m) => ({ default: m.WhatsAppMessaging })),
+);
+const CreateAccount = lazy(() =>
+  import('./CreateAccount').then((m) => ({ default: m.CreateAccount })),
+);
+const Accounts = lazy(() => import('./Accounts').then((m) => ({ default: m.Accounts })));
+const ServicePackages = lazy(() =>
+  import('./ServicePackages').then((m) => ({ default: m.ServicePackages })),
+);
+const ApplicationGuide = lazy(() =>
+  import('./ApplicationGuide').then((m) => ({ default: m.ApplicationGuide })),
+);
+const AccountPortal = lazy(() =>
+  import('./AccountPortal').then((m) => ({ default: m.AccountPortal })),
+);
+const PlatformUsersLayout = lazy(() =>
+  import('./PlatformUsersLayout').then((m) => ({ default: m.PlatformUsersLayout })),
+);
+const PlatformPayment = lazy(() =>
+  import('./PlatformPayment').then((m) => ({ default: m.PlatformPayment })),
+);
+const PublicOpenForm = lazy(() =>
+  import('./PublicOpenForm').then((m) => ({ default: m.PublicOpenForm })),
+);
+
 function withPlatformAuth(element: ReactElement) {
   return <RequirePlatformSession>{element}</RequirePlatformSession>;
+}
+
+function RouteFallback() {
+  return (
+    <div className="page">
+      <p className="muted">Loading…</p>
+    </div>
+  );
 }
 
 /** Preserve path + search when moving old root features under `/application`. */
@@ -112,35 +159,34 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ApplicationDemoSync />
-      <Routes>
-        <Route path="/" element={<MainMenu />} />
-        <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
-        <Route path="/create-account" element={<CreateAccount />} />
-        <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />
-        <Route path="/service-packages" element={<ServicePackages />} />
-        <Route
-          path="/platform"
-          element={withPlatformAuth(<PlatformUsersLayout />)}
-        >
-          <Route path="user-management" element={<UserManagement />} />
-          <Route path="create-user" element={<CreateUser />} />
-          <Route path="whatsapp" element={<WhatsAppMessaging />} />
-          <Route path="payment" element={<PlatformPayment />} />
-        </Route>
-        <Route path="/application-guide" element={<ApplicationGuide />} />
-        <Route path="/application" element={<AppShell />}>
-          {appFeatureRoutes()}
-        </Route>
-        {legacyFeatureRedirects}
-        <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
-        <Route
-          path="/:accountCode/open/staff-register"
-          element={<PublicOpenForm kind="staff" />}
-        />
-        <Route path="/:accountCode" element={<AccountPortal />}>
-          {appFeatureRoutes()}
-        </Route>
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<MainMenu />} />
+          <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
+          <Route path="/create-account" element={<CreateAccount />} />
+          <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />
+          <Route path="/service-packages" element={<ServicePackages />} />
+          <Route path="/platform" element={withPlatformAuth(<PlatformUsersLayout />)}>
+            <Route path="user-management" element={<UserManagement />} />
+            <Route path="create-user" element={<CreateUser />} />
+            <Route path="whatsapp" element={<WhatsAppMessaging />} />
+            <Route path="payment" element={<PlatformPayment />} />
+          </Route>
+          <Route path="/application-guide" element={<ApplicationGuide />} />
+          <Route path="/application" element={<AppShell />}>
+            {appFeatureRoutes()}
+          </Route>
+          {legacyFeatureRedirects}
+          <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
+          <Route
+            path="/:accountCode/open/staff-register"
+            element={<PublicOpenForm kind="staff" />}
+          />
+          <Route path="/:accountCode" element={<AccountPortal />}>
+            {appFeatureRoutes()}
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   </StrictMode>,
 );

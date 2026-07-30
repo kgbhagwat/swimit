@@ -9,7 +9,11 @@ declare module 'express-serve-static-core' {
 
 /** Resolve and validate X-Saas-Account-Id for tenant-scoped APIs. */
 export async function requireTenant(req: Request, res: Response, next: NextFunction) {
-  const raw = req.header('x-saas-account-id');
+  // Header is preferred; query fallback supports <img src> for sealed identity photos.
+  const raw =
+    req.header('x-saas-account-id') ??
+    (typeof req.query.accountId === 'string' ? req.query.accountId : undefined) ??
+    (typeof req.query.saasAccountId === 'string' ? req.query.saasAccountId : undefined);
   const id = Number(raw);
   if (!Number.isFinite(id) || id <= 0) {
     res.status(400).json({

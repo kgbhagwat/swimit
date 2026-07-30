@@ -6,6 +6,15 @@ import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
+import {
+  guessImageContentType,
+  normalizeBirthdate,
+  openSealedUploadFile,
+  revealIdentityDocument,
+  sealBirthdate,
+  sealIdentityDocument,
+  sealUploadFile,
+} from '../sensitiveData.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../uploads');
@@ -48,14 +57,28 @@ function isOver18(birthdate: string) {
 
 export const staffRegistrationsRouter = Router();
 
-function formatDateValue(value: unknown) {
+function formatPlainDate(value: unknown) {
   if (!value) return '';
-  if (typeof value === 'string') return value.slice(0, 10);
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'string') return value.slice(0, 10);
   return String(value).slice(0, 10);
 }
 
-function mapStaffDetail(row: Record<string, unknown>) {
+function formatBirthdate(value: unknown) {
+  if (!value) return '';
+  try {
+    const normalized = normalizeBirthdate(value);
+    if (normalized) return normalized.slice(0, 10);
+  } catch (err) {
+    console.warn('[pii] birthdate decrypt failed', err);
+  }
+  return formatPlainDate(value);
+}
+
+function mapStaffDetail(row: Record<string, unknown>, accountId?: number) {
+  const id = row.id;
+  const accountQs =
+    accountId && Number.isFinite(accountId) ? `?accountId=${accountId}` : '';
   return {
     id: row.id,
     registrationFor: row.registration_for,
@@ -64,7 +87,7 @@ function mapStaffDetail(row: Record<string, unknown>) {
     whatsappMobile: row.whatsapp_mobile,
     otherMobile: row.other_mobile ?? '',
     email: row.email,
-    birthdate: formatDateValue(row.birthdate),
+    birthdate: formatBirthdate(row.birthdate),
     sex: row.sex,
     bloodGroup: row.blood_group,
     emergencyName: row.emergency_name,
@@ -74,14 +97,17 @@ function mapStaffDetail(row: Record<string, unknown>) {
     healthIssueDetails: row.health_issue_details ?? '',
     doctorName: row.doctor_name ?? '',
     doctorNo: row.doctor_no ?? '',
-    identityDocument: row.identity_document,
-    identityPhotoPath: row.identity_photo_path,
+    identityDocument: revealIdentityDocument(row.identity_document),
+    identityPhotoUrl: row.identity_photo_path
+      ? `/api/staff-registrations/${id}/identity-photo${accountQs}`
+      : null,
+    identityPhotoPath: null,
     staffPhotoPath: row.staff_photo_path,
     teachStrokes: row.teach_strokes ?? [],
     suitableBatchIds: row.suitable_batch_ids ?? [],
     achievements: row.achievements ?? '',
     hasLifeguardCert: row.has_lifeguard_cert ?? 'No',
-    lifeguardExpiry: formatDateValue(row.lifeguard_expiry),
+    lifeguardExpiry: formatPlainDate(row.lifeguard_expiry),
     lifeguardPhotoPath: row.lifeguard_photo_path,
     certificateDetails: row.certificate_details ?? '',
     certificatePhoto1: row.certificate_photo_1,
@@ -164,10 +190,39 @@ staffRegistrationsRouter.get('/:id', async (req, res) => {
       res.status(404).json({ error: 'Staff registration not found' });
       return;
     }
-    res.json(mapStaffDetail(rows[0]));
+    res.json(mapStaffDetail(rows[0], accountId));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load staff registration' });
+  }
+});
+
+staffRegistrationsRouter.get('/:id/identity-photo', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid staff id' });
+      return;
+    }
+    const { rows } = await pool.query(
+      `SELECT identity_photo_path
+       FROM staff_registrations
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    const filename = String(rows[0]?.identity_photo_path ?? '').trim();
+    if (!filename) {
+      res.status(404).json({ error: 'Identity proof not found' });
+      return;
+    }
+    const buffer = await openSealedUploadFile(uploadDir, filename);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.type(guessImageContentType(filename));
+    res.send(buffer);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load identity proof' });
   }
 });
 
@@ -403,13 +458,18 @@ staffRegistrationsRouter.put(
         }
       }
 
-      const identityPhotoPath =
+      const identityPhotoPathRaw =
         files?.identityPhoto?.[0]?.filename || String(current.identity_photo_path ?? '');
+      let identityPhotoPath = identityPhotoPathRaw;
       const staffPhotoPath =
         files?.staffPhoto?.[0]?.filename || String(current.staff_photo_path ?? '');
       if (!identityPhotoPath || !staffPhotoPath) {
         res.status(400).json({ error: 'Identity proof and photo are required' });
         return;
+      }
+
+      if (files?.identityPhoto?.[0]?.filename) {
+        identityPhotoPath = await sealUploadFile(uploadDir, files.identityPhoto[0].filename);
       }
 
       let lifeguardPhotoPath: string | null = null;
@@ -439,6 +499,8 @@ staffRegistrationsRouter.put(
         res.status(400).json({ error: 'Salary is required' });
         return;
       }
+
+      const sealedBirth = sealBirthdate(body.birthdate);
 
       const { rows } = await pool.query(
         `UPDATE staff_registrations SET
@@ -473,8 +535,9 @@ staffRegistrationsRouter.put(
           certificate_photo_3 = $29,
           is_active = $30,
           post_name = $31,
-          salary = $32
-        WHERE id = $33 AND saas_account_id = $34
+          salary = $32,
+          is_adult = $33
+        WHERE id = $34 AND saas_account_id = $35
         RETURNING *`,
         [
           body.registrationFor,
@@ -483,7 +546,7 @@ staffRegistrationsRouter.put(
           body.whatsappMobile.trim(),
           body.otherMobile?.trim() || null,
           body.email.trim().toLowerCase(),
-          body.birthdate,
+          sealedBirth.sealed,
           body.sex,
           body.bloodGroup,
           body.emergencyName.trim(),
@@ -493,7 +556,7 @@ staffRegistrationsRouter.put(
           body.hasHealthIssue === 'Yes' ? body.healthIssueDetails?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
-          body.identityDocument,
+          sealIdentityDocument(body.identityDocument),
           identityPhotoPath,
           staffPhotoPath,
           isCoach ? teachStrokes : null,
@@ -518,12 +581,13 @@ staffRegistrationsRouter.put(
           isActive,
           isOther ? body.postName!.trim() : null,
           isOther ? Number(body.salary) : null,
+          sealedBirth.isAdult,
           id,
           accountId,
         ],
       );
 
-      res.json(mapStaffDetail(rows[0]));
+      res.json(mapStaffDetail(rows[0], accountId));
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'Update failed';
@@ -703,6 +767,9 @@ staffRegistrationsRouter.post(
         return;
       }
 
+      const sealedBirth = sealBirthdate(body.birthdate);
+      const sealedIdentityPhoto = await sealUploadFile(uploadDir, identityPhoto.filename);
+
       const { rows } = await pool.query(
         `INSERT INTO staff_registrations (
           saas_account_id, registration_for, full_name, full_address, whatsapp_mobile, other_mobile, email, birthdate,
@@ -710,9 +777,9 @@ staffRegistrationsRouter.post(
           has_health_issue, health_issue_details, doctor_name, doctor_no, identity_document,
           identity_photo_path, staff_photo_path, teach_strokes, suitable_batch_ids, achievements,
           has_lifeguard_cert, lifeguard_expiry, lifeguard_photo_path, certificate_details,
-          certificate_photo_1, certificate_photo_2, certificate_photo_3, accepted_terms
+          certificate_photo_1, certificate_photo_2, certificate_photo_3, accepted_terms, is_adult
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,TRUE
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,TRUE,$31
         )
         RETURNING id, registration_for, full_name, email, created_at`,
         [
@@ -723,7 +790,7 @@ staffRegistrationsRouter.post(
           body.whatsappMobile.trim(),
           body.otherMobile?.trim() || null,
           body.email.trim().toLowerCase(),
-          body.birthdate,
+          sealedBirth.sealed,
           body.sex,
           body.bloodGroup,
           body.emergencyName.trim(),
@@ -733,8 +800,8 @@ staffRegistrationsRouter.post(
           body.hasHealthIssue === 'Yes' ? body.healthIssueDetails?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
-          body.identityDocument,
-          identityPhoto.filename,
+          sealIdentityDocument(body.identityDocument),
+          sealedIdentityPhoto,
           staffPhoto.filename,
           isCoach ? teachStrokes : null,
           isCoach ? suitableBatchIds : null,
@@ -748,6 +815,7 @@ staffRegistrationsRouter.post(
           isCoach ? files?.certificatePhoto1?.[0]?.filename || null : null,
           isCoach ? files?.certificatePhoto2?.[0]?.filename || null : null,
           isCoach ? files?.certificatePhoto3?.[0]?.filename || null : null,
+          sealedBirth.isAdult,
         ],
       );
 

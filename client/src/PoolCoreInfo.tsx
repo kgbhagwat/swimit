@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { MenuBackLink } from './MenuBackLink';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { TermsDocumentField } from './TermsDocumentField';
+import { useObjectUrl } from './useObjectUrl';
 
 type PoolCoreInfoData = {
   poolName: string;
@@ -178,11 +179,8 @@ export function PoolCoreInfo() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const logoPreview = useMemo(
-    () => (logoFile ? URL.createObjectURL(logoFile) : null),
-    [logoFile],
-  );
-  const qrPreview = useMemo(() => (qrFile ? URL.createObjectURL(qrFile) : null), [qrFile]);
+  const logoPreview = useObjectUrl(logoFile);
+  const qrPreview = useObjectUrl(qrFile);
 
   async function load(opts?: { keepEditing?: boolean }) {
     setLoading(true);

@@ -29,8 +29,18 @@ body {
   color: var(--ink);
   background:
     linear-gradient(180deg, rgba(8, 40, 72, 0.28), rgba(8, 40, 72, 0.38)),
-    url('/pool-bg.png') center / cover no-repeat fixed;
+    image-set(
+      url('/pool-bg.webp') type('image/webp'),
+      url('/pool-bg.jpg') type('image/jpeg')
+    )
+      center / cover no-repeat fixed;
   background-color: #0a2848;
+}
+
+@media (max-width: 720px) {
+  body {
+    background-attachment: scroll;
+  }
 }
 
 button,

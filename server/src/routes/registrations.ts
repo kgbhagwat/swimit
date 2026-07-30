@@ -13,6 +13,15 @@ import {
 } from '../whatsapp/notify.js';
 import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
 import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
+import {
+  guessImageContentType,
+  normalizeBirthdate,
+  openSealedUploadFile,
+  revealIdentityDocument,
+  sealBirthdate,
+  sealIdentityDocument,
+  sealUploadFile,
+} from '../sensitiveData.js';
 
 function isLadiesBatchLabel(batch: string) {
   return /—\s*Ladies\s*—/i.test(batch.trim());
@@ -92,14 +101,14 @@ function mapRegistrationRow(row: Record<string, unknown>) {
     full_name: row.full_name,
     email: row.email,
     whatsapp_mobile: row.whatsapp_mobile,
-    birthdate: row.birthdate,
+    birthdate: formatBirthdate(row.birthdate),
     sex: row.sex,
     blood_group: row.blood_group,
     is_active: row.is_active,
     pass_type: row.pass_type,
     batch: row.batch,
     coach: row.coach,
-    pass_valid_until: row.pass_valid_until,
+    pass_valid_until: formatPlainDate(row.pass_valid_until),
     created_at: row.created_at,
     pending_type: row.pending_type,
   };
@@ -221,11 +230,22 @@ registrationsRouter.get('/pass-payments/recent', async (req, res) => {
   }
 });
 
-function formatDateValue(value: unknown) {
+function formatPlainDate(value: unknown) {
   if (!value) return '';
-  if (typeof value === 'string') return value.slice(0, 10);
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'string') return value.slice(0, 10);
   return String(value).slice(0, 10);
+}
+
+function formatBirthdate(value: unknown) {
+  if (!value) return '';
+  try {
+    const normalized = normalizeBirthdate(value);
+    if (normalized) return normalized.slice(0, 10);
+  } catch (err) {
+    console.warn('[pii] birthdate decrypt failed', err);
+  }
+  return formatPlainDate(value);
 }
 
 registrationsRouter.get('/assignment-count', async (req, res) => {
@@ -296,7 +316,7 @@ registrationsRouter.get('/:id', async (req, res) => {
     }
 
     const row = rows[0];
-    const passValidUntil = formatDateValue(row.pass_valid_until);
+    const passValidUntil = formatPlainDate(row.pass_valid_until);
     res.json({
       id: row.id,
       fullName: row.full_name,
@@ -305,7 +325,7 @@ registrationsRouter.get('/:id', async (req, res) => {
       whatsappMobile: row.whatsapp_mobile ?? '',
       otherMobile: row.other_mobile ?? '',
       email: row.email ?? '',
-      birthdate: formatDateValue(row.birthdate),
+      birthdate: formatBirthdate(row.birthdate),
       sex: row.sex ?? '',
       bloodGroup: row.blood_group ?? '',
       isActive: row.is_active !== false,
@@ -315,8 +335,10 @@ registrationsRouter.get('/:id', async (req, res) => {
       coach: row.coach ?? '',
       passValidUntil,
       photoUrl: row.swimmer_photo_path ? `/uploads/${row.swimmer_photo_path}` : null,
-      identityDocument: row.identity_document ?? '',
-      identityPhotoUrl: row.identity_photo_path ? `/uploads/${row.identity_photo_path}` : null,
+      identityDocument: revealIdentityDocument(row.identity_document),
+      identityPhotoUrl: row.identity_photo_path
+        ? `/api/registrations/${row.id}/identity-photo?accountId=${accountId}`
+        : null,
       hasHealthIssue: row.has_health_issue ?? '',
       healthIssueDetails: row.health_issue_details ?? '',
       doctorName: row.doctor_name ?? '',
@@ -333,6 +355,35 @@ registrationsRouter.get('/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load swimmer' });
+  }
+});
+
+registrationsRouter.get('/:id/identity-photo', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid swimmer id' });
+      return;
+    }
+    const { rows } = await pool.query(
+      `SELECT identity_photo_path
+       FROM registrations
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    const filename = String(rows[0]?.identity_photo_path ?? '').trim();
+    if (!filename) {
+      res.status(404).json({ error: 'Identity proof not found' });
+      return;
+    }
+    const buffer = await openSealedUploadFile(uploadDir, filename);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.type(guessImageContentType(filename));
+    res.send(buffer);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load identity proof' });
   }
 });
 
@@ -654,7 +705,7 @@ registrationsRouter.put(
 
       const identityPhoto = files?.identityPhoto?.[0];
       const swimmerPhoto = files?.swimmerPhoto?.[0];
-      const identityPhotoPath = identityPhoto?.filename
+      let identityPhotoPath = identityPhoto?.filename
         ? identityPhoto.filename
         : current.identity_photo_path
           ? String(current.identity_photo_path)
@@ -668,6 +719,10 @@ registrationsRouter.put(
       if (!identityPhotoPath || !swimmerPhotoPath) {
         res.status(400).json({ error: 'Identity proof and swimmer photo are required' });
         return;
+      }
+
+      if (identityPhoto?.filename) {
+        identityPhotoPath = await sealUploadFile(uploadDir, identityPhoto.filename);
       }
 
       const mobileRe = /^\d{10}$/;
@@ -768,8 +823,9 @@ registrationsRouter.put(
           swimmer_photo_path = $18,
           parent_name = $19,
           parent_relation = $20,
-          parent_mobile = $21
-         WHERE id = $22 AND saas_account_id = $23
+          parent_mobile = $21,
+          is_adult = $22
+         WHERE id = $23 AND saas_account_id = $24
          RETURNING id, full_name, email`,
         [
           body.fullName.trim(),
@@ -777,7 +833,7 @@ registrationsRouter.put(
           body.whatsappMobile.trim(),
           body.otherMobile?.trim() || null,
           String(body.email ?? '').trim().toLowerCase(),
-          body.birthdate,
+          sealBirthdate(body.birthdate).sealed,
           body.sex,
           body.bloodGroup,
           body.emergencyName.trim(),
@@ -787,12 +843,13 @@ registrationsRouter.put(
           body.hasHealthIssue === 'Yes' ? body.healthIssueDetails?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
-          body.identityDocument,
+          sealIdentityDocument(body.identityDocument),
           identityPhotoPath,
           swimmerPhotoPath,
           needsParent ? body.parentName.trim() : null,
           needsParent ? body.parentRelation.trim() : null,
           needsParent ? body.parentMobile.trim() : null,
+          !needsParent,
           id,
           accountId,
         ],
@@ -1114,15 +1171,18 @@ registrationsRouter.post(
         }
       }
 
+      const sealedBirth = sealBirthdate(body.birthdate);
+      const sealedIdentityPhoto = await sealUploadFile(uploadDir, identityPhoto.filename);
+
       const { rows } = await pool.query(
         `INSERT INTO registrations (
           saas_account_id, full_name, full_address, whatsapp_mobile, other_mobile, email, birthdate,
           sex, blood_group, emergency_name, emergency_relation, emergency_mobile,
           has_health_issue, health_issue_details, doctor_name, doctor_no, identity_document,
           identity_photo_path, swimmer_photo_path, accepted_terms, is_active,
-          parent_name, parent_relation, parent_mobile
+          parent_name, parent_relation, parent_mobile, is_adult
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,TRUE,FALSE,$20,$21,$22
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,TRUE,FALSE,$20,$21,$22,$23
         )
         RETURNING id, full_name, email, created_at`,
         [
@@ -1132,7 +1192,7 @@ registrationsRouter.post(
           body.whatsappMobile.trim(),
           body.otherMobile?.trim() || null,
           String(body.email ?? '').trim().toLowerCase(),
-          body.birthdate,
+          sealedBirth.sealed,
           body.sex,
           body.bloodGroup,
           body.emergencyName.trim(),
@@ -1142,12 +1202,13 @@ registrationsRouter.post(
           body.hasHealthIssue === 'Yes' ? body.healthIssueDetails?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
-          body.identityDocument,
-          identityPhoto.filename,
+          sealIdentityDocument(body.identityDocument),
+          sealedIdentityPhoto,
           swimmerPhoto.filename,
           needsParent ? body.parentName.trim() : null,
           needsParent ? body.parentRelation.trim() : null,
           needsParent ? body.parentMobile.trim() : null,
+          sealedBirth.isAdult,
         ],
       );
 

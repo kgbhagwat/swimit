@@ -7,6 +7,7 @@ import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { TermsModal } from './TermsModal';
 import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
+import { useObjectUrl, useObjectUrls } from './useObjectUrl';
 
 type Lang = 'en' | 'mr' | 'hi';
 
@@ -636,7 +637,7 @@ export function StaffRegistration() {
         });
         setIsActive(data.isActive !== false);
         setExistingPhotos({
-          identity: uploadUrl(data.identityPhotoPath),
+          identity: data.identityPhotoUrl || uploadUrl(data.identityPhotoPath),
           staff: uploadUrl(data.staffPhotoPath),
           lifeguard: uploadUrl(data.lifeguardPhotoPath),
           certs: [
@@ -673,22 +674,10 @@ export function StaffRegistration() {
       .finally(() => setBatchesLoading(false));
   }, [form.registrationFor]);
 
-  const identityPreview = useMemo(
-    () => (identityPhoto ? URL.createObjectURL(identityPhoto) : null),
-    [identityPhoto],
-  );
-  const staffPreview = useMemo(
-    () => (staffPhoto ? URL.createObjectURL(staffPhoto) : null),
-    [staffPhoto],
-  );
-  const lifeguardPreview = useMemo(
-    () => (lifeguardPhoto ? URL.createObjectURL(lifeguardPhoto) : null),
-    [lifeguardPhoto],
-  );
-  const certPreviews = useMemo(
-    () => certPhotos.map((file) => (file ? URL.createObjectURL(file) : null)),
-    [certPhotos],
-  );
+  const identityPreview = useObjectUrl(identityPhoto);
+  const staffPreview = useObjectUrl(staffPhoto);
+  const lifeguardPreview = useObjectUrl(lifeguardPhoto);
+  const certPreviews = useObjectUrls(certPhotos);
 
   function clearInvalid(field: string) {
     setInvalidFields((prev) => {

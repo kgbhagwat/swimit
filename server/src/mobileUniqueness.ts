@@ -44,7 +44,7 @@ export async function isMobileTakenInAccount(params: {
       `SELECT id FROM registrations
        WHERE saas_account_id = $1
          AND RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10) = $2
-         AND birthdate <= (CURRENT_DATE - INTERVAL '18 years')
+         AND COALESCE(is_adult, FALSE) = TRUE
          AND ($3::int IS NULL OR id <> $3)
        LIMIT 1`,
       [params.accountId, last10, excludeId],
@@ -92,7 +92,7 @@ export async function isEmailTakenInAccount(params: {
       `SELECT id FROM registrations
        WHERE saas_account_id = $1
          AND LOWER(TRIM(email)) = $2
-         AND birthdate <= (CURRENT_DATE - INTERVAL '18 years')
+         AND COALESCE(is_adult, FALSE) = TRUE
          AND ($3::int IS NULL OR id <> $3)
        LIMIT 1`,
       [params.accountId, email, excludeId],

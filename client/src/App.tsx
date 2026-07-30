@@ -8,6 +8,7 @@ import { canEditPage } from './pageAccess';
 import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
 import { TermsModal } from './TermsModal';
+import { useObjectUrl } from './useObjectUrl';
 
 type Lang = 'en' | 'mr' | 'hi';
 
@@ -505,14 +506,8 @@ export function App() {
   const ageYears = useMemo(() => getAgeYears(form.birthdate), [form.birthdate]);
   const needsParentInfo = ageYears !== null && ageYears < 18;
 
-  const identityPreview = useMemo(
-    () => (identityPhoto ? URL.createObjectURL(identityPhoto) : null),
-    [identityPhoto],
-  );
-  const swimmerPreview = useMemo(
-    () => (swimmerPhoto ? URL.createObjectURL(swimmerPhoto) : null),
-    [swimmerPhoto],
-  );
+  const identityPreview = useObjectUrl(identityPhoto);
+  const swimmerPreview = useObjectUrl(swimmerPhoto);
 
   function mapParentRelationToEmergency(relation: string) {
     if (relation === 'Father' || relation === 'Mother') return 'Parent';

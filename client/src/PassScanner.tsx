@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import type { Html5Qrcode } from 'html5-qrcode';
 import { IdCard, fetchPoolBrand, type PoolBrand } from './IdCard';
 import { MenuBackLink } from './MenuBackLink';
 
@@ -96,6 +96,7 @@ export function PassScanner() {
     setView('scanning');
     await new Promise((resolve) => setTimeout(resolve, 50));
     try {
+      const { Html5Qrcode } = await import('html5-qrcode');
       const scanner = new Html5Qrcode(scannerElementId);
       scannerRef.current = scanner;
       await scanner.start(

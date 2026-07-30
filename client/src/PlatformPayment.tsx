@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { getPlatformSession } from './platformSession';
 import { hasPlatformAccess } from './platformAccess';
+import { useObjectUrl } from './useObjectUrl';
 
 type PaymentSettings = {
   paymentQrPath: string | null;
@@ -183,7 +184,7 @@ export function PlatformPayment() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const qrPreview = useMemo(() => (qrFile ? URL.createObjectURL(qrFile) : null), [qrFile]);
+  const qrPreview = useObjectUrl(qrFile);
 
   function mapTransactions(rows: unknown[]): PaymentTransaction[] {
     if (!Array.isArray(rows)) return [];

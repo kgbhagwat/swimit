@@ -82,24 +82,46 @@ export function upiIdPresentInText(configuredUpi: string, text: string) {
 }
 
 /** OCR an image file for payment amount text. Best-effort; returns '' on failure. */
-export async function ocrImageForAmount(absolutePath: string): Promise<string> {
-  let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
-  try {
-    worker = await createWorker('eng');
-    const result = await worker.recognize(absolutePath);
-    return String(result.data.text ?? '');
-  } catch (err) {
-    console.warn('[payment-ocr] failed', err);
-    return '';
-  } finally {
-    if (worker) {
-      try {
-        await worker.terminate();
-      } catch {
-        /* ignore */
-      }
-    }
+type OcrWorker = Awaited<ReturnType<typeof createWorker>>;
+
+let sharedOcrWorker: OcrWorker | null = null;
+let sharedOcrWorkerPromise: Promise<OcrWorker> | null = null;
+let ocrQueue: Promise<unknown> = Promise.resolve();
+
+async function getSharedOcrWorker() {
+  if (sharedOcrWorker) return sharedOcrWorker;
+  if (!sharedOcrWorkerPromise) {
+    sharedOcrWorkerPromise = createWorker('eng')
+      .then((worker) => {
+        sharedOcrWorker = worker;
+        return worker;
+      })
+      .catch((err) => {
+        sharedOcrWorkerPromise = null;
+        throw err;
+      });
   }
+  return sharedOcrWorkerPromise;
+}
+
+export async function ocrImageForAmount(absolutePath: string): Promise<string> {
+  const run = async () => {
+    try {
+      const worker = await getSharedOcrWorker();
+      const result = await worker.recognize(absolutePath);
+      return String(result.data.text ?? '');
+    } catch (err) {
+      console.warn('[payment-ocr] failed', err);
+      return '';
+    }
+  };
+
+  const next = ocrQueue.then(run, run);
+  ocrQueue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
 }
 
 export function uploadAbsolutePath(relativeUploadPath: string) {

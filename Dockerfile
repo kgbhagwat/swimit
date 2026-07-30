@@ -30,7 +30,8 @@ COPY package.json package-lock.json ./
 COPY client/package.json ./client/
 COPY server/package.json ./server/
 
-RUN npm ci --omit=dev && npm cache clean --force
+# Install only server production deps — client is served as prebuilt static files.
+RUN npm ci --omit=dev -w server && npm cache clean --force
 
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/client/dist ./client/dist

@@ -32,7 +32,16 @@ const hasClientBuild = fs.existsSync(path.join(clientDist, 'index.html'));
 
 app.use(cors({ origin: corsOrigin === 'true' ? true : corsOrigin }));
 app.use(express.json());
-app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+const uploadsDir = path.resolve(__dirname, '../uploads');
+app.use('/uploads', (req, res, next) => {
+  // Sealed identity proofs must only be served via authenticated API routes.
+  if (String(req.path).toLowerCase().endsWith('.enc')) {
+    res.status(404).end();
+    return;
+  }
+  next();
+});
+app.use('/uploads', express.static(uploadsDir));
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
@@ -74,12 +83,31 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 });
 
 if (hasClientBuild) {
-  app.use(express.static(clientDist, { index: false }));
+  app.use(
+    express.static(clientDist, {
+      index: false,
+      setHeaders(res, filePath) {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('/assets/')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return;
+        }
+        if (/\.(?:webp|jpe?g|png|svg|ico|woff2?)$/i.test(normalized)) {
+          res.setHeader('Cache-Control', 'public, max-age=604800');
+          return;
+        }
+        if (normalized.endsWith('/index.html')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }),
+  );
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       next();
       return;
     }
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }

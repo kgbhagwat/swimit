@@ -1,12 +1,24 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
+import { normalizeBirthdate } from '../sensitiveData.js';
 
-function formatDateValue(value: unknown) {
+function formatPlainDate(value: unknown) {
   if (!value) return '';
-  if (typeof value === 'string') return value.slice(0, 10);
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'string') return value.slice(0, 10);
   return String(value).slice(0, 10);
+}
+
+function formatBirthdate(value: unknown) {
+  if (!value) return '';
+  try {
+    const normalized = normalizeBirthdate(value);
+    if (normalized) return normalized.slice(0, 10);
+  } catch (err) {
+    console.warn('[pii] birthdate decrypt failed', err);
+  }
+  return formatPlainDate(value);
 }
 
 function parseSwimmerId(code: string) {
@@ -69,7 +81,7 @@ passScanRouter.get('/lookup', async (req, res) => {
     }
 
     const row = rows[0];
-    const passValidUntil = formatDateValue(row.pass_valid_until);
+    const passValidUntil = formatPlainDate(row.pass_valid_until);
     const attendance = await pool.query(
       `SELECT id, marked_at
        FROM swimmer_attendance
@@ -90,7 +102,7 @@ passScanRouter.get('/lookup', async (req, res) => {
       batch: row.batch ?? '',
       coach: row.coach ?? '',
       passValidUntil,
-      birthdate: formatDateValue(row.birthdate),
+      birthdate: formatBirthdate(row.birthdate),
       sex: row.sex ?? '',
       bloodGroup: row.blood_group ?? '',
       emergencyName: row.emergency_name ?? '',
@@ -131,7 +143,7 @@ passScanRouter.post('/attendance', async (req, res) => {
       res.status(400).json({ error: 'Swimmer is inactive' });
       return;
     }
-    const passValidUntil = formatDateValue(swimmer.pass_valid_until);
+    const passValidUntil = formatPlainDate(swimmer.pass_valid_until);
     if (!hasValidPassToday(passValidUntil)) {
       res.status(400).json({ error: 'Pass is not valid today' });
       return;
@@ -160,7 +172,7 @@ passScanRouter.post('/attendance', async (req, res) => {
       alreadyMarked: false,
       message: 'Attendance marked for today',
       fullName: swimmer.full_name,
-      attendanceDate: formatDateValue(inserted.rows[0].attendance_date),
+      attendanceDate: formatPlainDate(inserted.rows[0].attendance_date),
       markedAt: inserted.rows[0].marked_at,
     });
   } catch (err) {

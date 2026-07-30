@@ -37,6 +37,8 @@ ALTER TABLE registrations ADD COLUMN IF NOT EXISTS pass_valid_until DATE;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_name TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_relation TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_mobile TEXT;
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
+ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
 
 CREATE TABLE IF NOT EXISTS staff_registrations (
   id SERIAL PRIMARY KEY,
@@ -399,11 +401,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS holiday_settings_saas_account_uidx
   WHERE saas_account_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS registrations_saas_account_idx ON registrations (saas_account_id);
+CREATE INDEX IF NOT EXISTS registrations_saas_active_idx
+  ON registrations (saas_account_id, is_active);
+CREATE INDEX IF NOT EXISTS registrations_saas_pass_valid_idx
+  ON registrations (saas_account_id, pass_valid_until);
+CREATE INDEX IF NOT EXISTS registrations_saas_created_idx
+  ON registrations (saas_account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS registrations_saas_adult_idx
+  ON registrations (saas_account_id)
+  WHERE COALESCE(is_adult, FALSE) = TRUE;
 CREATE INDEX IF NOT EXISTS staff_registrations_saas_account_idx ON staff_registrations (saas_account_id);
 CREATE INDEX IF NOT EXISTS batch_slots_saas_account_idx ON batch_slots (saas_account_id);
 CREATE INDEX IF NOT EXISTS pass_types_saas_account_idx ON pass_types (saas_account_id);
 CREATE INDEX IF NOT EXISTS pool_expenses_saas_account_idx ON pool_expenses (saas_account_id);
 CREATE INDEX IF NOT EXISTS holidays_saas_account_idx ON holidays (saas_account_id);
+CREATE INDEX IF NOT EXISTS swimmer_attendance_saas_date_idx
+  ON swimmer_attendance (saas_account_id, attendance_date);
+CREATE INDEX IF NOT EXISTS swimmer_attendance_reg_date_idx
+  ON swimmer_attendance (registration_id, attendance_date);
+CREATE INDEX IF NOT EXISTS pass_payments_saas_date_idx
+  ON pass_payments (saas_account_id, payment_date DESC);
+CREATE INDEX IF NOT EXISTS whatsapp_outbound_account_kind_idx
+  ON whatsapp_outbound (saas_account_id, kind);
+CREATE INDEX IF NOT EXISTS app_users_saas_admin_idx
+  ON app_users (saas_account_id)
+  WHERE COALESCE(is_account_admin, FALSE) = TRUE;
 `;
 
 async function assignOrphanRowsToAccount(accountId: number) {
@@ -808,8 +830,101 @@ async function init() {
   );
   if (created > 0) console.log(`Backfilled ${created} account admin user(s) with password "admin"`);
 
+  await migrateSensitivePiiColumns();
   await ensureSwimItSuperadmin();
   await pool.end();
+}
+
+async function migrateSensitivePiiColumns() {
+  await pool.query(
+    `ALTER TABLE registrations
+     ALTER COLUMN birthdate TYPE TEXT USING birthdate::text`,
+  );
+  await pool.query(
+    `ALTER TABLE staff_registrations
+     ALTER COLUMN birthdate TYPE TEXT USING birthdate::text`,
+  );
+
+  const {
+    sealBirthdate,
+    sealIdentityDocument,
+    isEncryptedValue,
+    isAdultBirthdate,
+    normalizeBirthdate,
+    piiEncryptionEnabled,
+  } = await import('../sensitiveData.js');
+
+  if (!piiEncryptionEnabled()) {
+    await pool.query(
+      `UPDATE registrations
+       SET is_adult = (birthdate ~ '^\\d{4}-\\d{2}-\\d{2}' AND birthdate::date <= (CURRENT_DATE - INTERVAL '18 years'))
+       WHERE is_adult IS NULL`,
+    );
+    await pool.query(
+      `UPDATE staff_registrations
+       SET is_adult = (birthdate ~ '^\\d{4}-\\d{2}-\\d{2}' AND birthdate::date <= (CURRENT_DATE - INTERVAL '18 years'))
+       WHERE is_adult IS NULL`,
+    );
+    console.warn(
+      '[pii] Skipping encryption migration — set PII_ENCRYPTION_KEY to seal birthdate and identity fields',
+    );
+    return;
+  }
+
+  for (const table of ['registrations', 'staff_registrations'] as const) {
+    const { rows } = await pool.query<{
+      id: number;
+      birthdate: string;
+      identity_document: string;
+      is_adult: boolean | null;
+    }>(`SELECT id, birthdate, identity_document, is_adult FROM ${table}`);
+
+    let sealed = 0;
+    for (const row of rows) {
+      const birthRaw = String(row.birthdate ?? '');
+      const docRaw = String(row.identity_document ?? '');
+      let nextBirth = birthRaw;
+      let nextDoc = docRaw;
+      let nextAdult = row.is_adult;
+
+      if (birthRaw && !isEncryptedValue(birthRaw)) {
+        const sealedBirth = sealBirthdate(birthRaw.slice(0, 10));
+        nextBirth = sealedBirth.sealed;
+        nextAdult = sealedBirth.isAdult;
+      } else if (nextAdult == null && birthRaw) {
+        try {
+          nextAdult = isAdultBirthdate(normalizeBirthdate(birthRaw));
+        } catch {
+          // leave is_adult null/false if decrypt fails
+        }
+      }
+
+      if (docRaw && !isEncryptedValue(docRaw)) {
+        nextDoc = sealIdentityDocument(docRaw);
+      }
+
+      if (
+        nextBirth === birthRaw &&
+        nextDoc === docRaw &&
+        nextAdult === row.is_adult
+      ) {
+        continue;
+      }
+
+      await pool.query(
+        `UPDATE ${table}
+         SET birthdate = $1,
+             identity_document = $2,
+             is_adult = COALESCE($3, FALSE)
+         WHERE id = $4`,
+        [nextBirth, nextDoc, nextAdult, row.id],
+      );
+      sealed += 1;
+    }
+    if (sealed > 0) {
+      console.log(`[pii] Sealed birthdate/identity_document on ${sealed} ${table} row(s)`);
+    }
+  }
 }
 
 /** Platform demo / operator account: code swimit, user superadmin / superadmin */
