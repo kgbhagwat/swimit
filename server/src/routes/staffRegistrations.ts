@@ -34,6 +34,18 @@ const upload = multer({
   },
 });
 
+function isOver18(birthdate: string) {
+  const birth = new Date(`${String(birthdate).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(birth.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+  return age > 18;
+}
+
 export const staffRegistrationsRouter = Router();
 
 function formatDateValue(value: unknown) {
@@ -274,6 +286,10 @@ staffRegistrationsRouter.put(
       }
       if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
         res.status(400).json({ error: 'Disease / health issue is required' });
+        return;
+      }
+      if (!isOver18(body.birthdate)) {
+        res.status(400).json({ error: 'Staff must be more than 18 years old' });
         return;
       }
 
@@ -552,6 +568,10 @@ staffRegistrationsRouter.post(
       }
       if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
         res.status(400).json({ error: 'Disease / health issue is required' });
+        return;
+      }
+      if (!isOver18(body.birthdate)) {
+        res.status(400).json({ error: 'Staff must be more than 18 years old' });
         return;
       }
 

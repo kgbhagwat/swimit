@@ -116,6 +116,7 @@ const copy = {
     email: 'Email',
     emailPh: 'name@example.com',
     birthdate: 'Birth Date',
+    underAge: 'Staff must be more than 18 years old',
     sex: 'Sex',
     selectSex: 'Select sex',
     bloodGroup: 'Blood group',
@@ -222,6 +223,7 @@ const copy = {
     email: 'ईमेल',
     emailPh: 'name@example.com',
     birthdate: 'जन्मतारीख',
+    underAge: 'कर्मचारी १८ वर्षांपेक्षा जास्त वयाचा असावा',
     sex: 'लिंग',
     selectSex: 'लिंग निवडा',
     bloodGroup: 'रक्तगट',
@@ -328,6 +330,7 @@ const copy = {
     email: 'ईमेल',
     emailPh: 'name@example.com',
     birthdate: 'जन्म तिथि',
+    underAge: 'स्टाफ की आयु 18 वर्ष से अधिक होनी चाहिए',
     sex: 'लिंग',
     selectSex: 'लिंग चुनें',
     bloodGroup: 'रक्त समूह',
@@ -404,6 +407,30 @@ const copy = {
     certificateN: 'प्रमाणपत्र',
   },
 } as const;
+
+function getAgeYears(birthdate: string) {
+  if (!birthdate) return null;
+  const born = new Date(`${birthdate}T00:00:00`);
+  if (Number.isNaN(born.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - born.getFullYear();
+  const monthDiff = today.getMonth() - born.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
+    age -= 1;
+  }
+  return age;
+}
+
+/** Latest birthdate allowed so the person is over 18 years old. */
+function maxBirthdateForOver18() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function Label({ children, required }: { children: string; required?: boolean }) {
   return (
@@ -735,6 +762,10 @@ export function StaffRegistration() {
     }
     if (!form.email.trim() || !isValidEmail(form.email)) fields.add('email');
     if (!form.birthdate) fields.add('birthdate');
+    else {
+      const age = getAgeYears(form.birthdate);
+      if (age === null || age <= 18) fields.add('birthdate');
+    }
     if (!form.sex) fields.add('sex');
     if (!form.bloodGroup) fields.add('bloodGroup');
 
@@ -1082,10 +1113,16 @@ export function StaffRegistration() {
               <input
                 type="date"
                 value={form.birthdate}
+                max={maxBirthdateForOver18()}
                 onChange={(e) => setField('birthdate', e.target.value)}
                 required
                 aria-invalid={isInvalid('birthdate')}
               />
+              {form.birthdate &&
+              getAgeYears(form.birthdate) !== null &&
+              (getAgeYears(form.birthdate) as number) <= 18 ? (
+                <span className="field-error">{t.underAge}</span>
+              ) : null}
             </label>
           </div>
           <div className="grid-2">
