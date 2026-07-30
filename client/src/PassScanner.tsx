@@ -218,29 +218,44 @@ export function PassScanner() {
 
         {view === 'preview' && swimmer ? (
           <section className="scanner-preview scanner-id-preview">
-            <IdCard
-              data={{
-                id: swimmer.id,
-                fullName: swimmer.fullName,
-                photoUrl: swimmer.photoUrl,
-                passType: swimmer.passType,
-                duration: swimmer.duration,
-                batch: swimmer.batch,
-                coach: swimmer.coach,
-                passValidUntil: swimmer.passValidUntil,
-                poolName: brand.poolName,
-                poolAddress: brand.poolAddress,
-                poolLogoUrl: brand.poolLogoUrl,
-              }}
-            />
-            <p className="scanner-attendance-status">
+            <div
+              className={`scanner-pass-wrap${
+                swimmer.alreadyMarkedToday ? ' is-already-marked' : ''
+              }`}
+            >
+              <IdCard
+                data={{
+                  id: swimmer.id,
+                  fullName: swimmer.fullName,
+                  photoUrl: swimmer.photoUrl,
+                  passType: swimmer.passType,
+                  duration: swimmer.duration,
+                  batch: swimmer.batch,
+                  coach: swimmer.coach,
+                  passValidUntil: swimmer.passValidUntil,
+                  poolName: brand.poolName,
+                  poolAddress: brand.poolAddress,
+                  poolLogoUrl: brand.poolLogoUrl,
+                }}
+              />
+              {swimmer.alreadyMarkedToday ? (
+                <div className="scanner-already-marked-line" aria-hidden>
+                  <span>Attendance already marked for this batch</span>
+                </div>
+              ) : null}
+            </div>
+            <p
+              className={`scanner-attendance-status${
+                swimmer.alreadyMarkedToday ? ' is-already-marked' : ''
+              }`}
+            >
               <strong>Attendance:</strong>{' '}
               {!swimmer.isActive
                 ? 'Inactive'
                 : !swimmer.hasValidPassToday
                   ? 'Pass not valid today'
                   : swimmer.alreadyMarkedToday
-                    ? 'Already marked today'
+                    ? 'Already marked for this batch'
                     : 'Ready for attendance'}
             </p>
             <div className="pass-form-actions">

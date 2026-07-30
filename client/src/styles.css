@@ -7037,12 +7037,120 @@ button.menu-link {
 .scanner-id-preview {
   display: grid;
   gap: 0.85rem;
-  justify-items: start;
+  justify-items: stretch;
+  width: 100%;
+}
+
+.scanner-id-preview .id-card {
+  width: 100%;
+}
+
+.scanner-id-preview .id-card-body {
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.55rem 0.55rem;
+  padding: 0.65rem 0.7rem 0.75rem;
+}
+
+.scanner-id-preview .id-card-photo-wrap {
+  width: 6.5rem;
+  height: 7.75rem;
+}
+
+.scanner-id-preview .id-card-name {
+  font-size: 1rem;
+  margin-bottom: 0.28rem;
+}
+
+.scanner-id-preview .id-card-dl {
+  gap: 0.16rem;
+}
+
+.scanner-id-preview .id-card-dl > div {
+  grid-template-columns: 4.35rem minmax(0, 1fr);
+  gap: 0.08rem 0.35rem;
+}
+
+.scanner-id-preview .id-card-dl dt {
+  font-size: 0.68rem;
+}
+
+.scanner-id-preview .id-card-dl dd {
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow: visible;
+}
+
+.scanner-id-preview .id-card-batch-title,
+.scanner-id-preview .id-card-batch-time {
+  display: inline;
+  white-space: nowrap;
+}
+
+.scanner-id-preview .id-card-batch-time {
+  margin-top: 0;
+}
+
+.scanner-id-preview .id-card-batch-time::before {
+  content: ' ';
 }
 
 .scanner-attendance-status {
   margin: 0;
   color: #243b66;
+}
+
+.scanner-attendance-status.is-already-marked {
+  color: #b42318;
+}
+
+.scanner-pass-wrap {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.scanner-pass-wrap.is-already-marked .id-card {
+  border-color: #c62828;
+  box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.22);
+}
+
+.scanner-already-marked-line {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.scanner-already-marked-line::before {
+  content: '';
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  height: 2.6rem;
+  background: rgba(198, 40, 40, 0.92);
+  transform: rotate(-18deg);
+  box-shadow: 0 4px 14px rgba(120, 20, 20, 0.28);
+}
+
+.scanner-already-marked-line span {
+  position: relative;
+  z-index: 1;
+  transform: rotate(-18deg);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 0 0.75rem;
+  line-height: 1.25;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 @media (max-width: 720px) {
@@ -7062,6 +7170,28 @@ button.menu-link {
   .id-card-photo-wrap {
     width: 7rem;
     height: 8.5rem;
+  }
+
+  .scanner-id-preview .id-card-body {
+    grid-template-columns: 5.75rem minmax(0, 1fr);
+    gap: 0.5rem 0.45rem;
+  }
+
+  .scanner-id-preview .id-card-photo-wrap {
+    width: 5.75rem;
+    height: 7rem;
+  }
+
+  .scanner-id-preview .id-card-dl > div {
+    grid-template-columns: 4.1rem minmax(0, 1fr);
+  }
+
+  .scanner-id-preview .id-card-dl dt {
+    font-size: 0.64rem;
+  }
+
+  .scanner-id-preview .id-card-dl dd {
+    font-size: 0.66rem;
   }
 }
 
