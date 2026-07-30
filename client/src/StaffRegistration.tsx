@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { compressImageToLimit } from './compressImage';
-import { emailHint, isValidEmail, isValidMobile, mobileHint } from './formValidation';
+import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint } from './formValidation';
 import { MenuBackLink } from './MenuBackLink';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { TermsModal } from './TermsModal';
@@ -127,6 +127,7 @@ const copy = {
     relation: 'Relation',
     selectRelation: 'Select relation',
     emergencyNo: 'Emergency contact no.',
+    emergencySameAsApplicant: 'Emergency contact number cannot be the same as the applicant mobile number',
     medical: 'Medical information',
     healthIssue: 'Do you have any health issue?',
     healthDetails: 'Disease / health issue',
@@ -234,6 +235,7 @@ const copy = {
     relation: 'नाते',
     selectRelation: 'नाते निवडा',
     emergencyNo: 'आपत्कालीन संपर्क क्र.',
+    emergencySameAsApplicant: 'आपत्कालीन संपर्क क्रमांक अर्जदाराच्या मोबाइल क्रमांकासारखा असू शकत नाही',
     medical: 'वैद्यकीय माहिती',
     healthIssue: 'तुम्हाला काही आरोग्य समस्या आहे का?',
     healthDetails: 'आजार / आरोग्य समस्या',
@@ -341,6 +343,7 @@ const copy = {
     relation: 'संबंध',
     selectRelation: 'संबंध चुनें',
     emergencyNo: 'आपातकालीन संपर्क नं.',
+    emergencySameAsApplicant: 'आपातकालीन संपर्क नंबर आवेदक के मोबाइल नंबर जैसा नहीं हो सकता',
     medical: 'चिकित्सा जानकारी',
     healthIssue: 'क्या आपको कोई स्वास्थ्य समस्या है?',
     healthDetails: 'रोग / स्वास्थ्य समस्या',
@@ -773,6 +776,14 @@ export function StaffRegistration() {
     if (!form.emergencyRelation) fields.add('emergencyRelation');
     if (!form.emergencyMobile.trim() || !isValidMobile(form.emergencyMobile)) {
       fields.add('emergencyMobile');
+    } else if (
+      emergencyMatchesApplicant({
+        emergencyMobile: form.emergencyMobile,
+        whatsappMobile: form.whatsappMobile,
+        otherMobile: form.otherMobile,
+      })
+    ) {
+      fields.add('emergencyMobile');
     }
 
     if (form.hasHealthIssue === 'Yes' && !form.healthIssueDetails.trim()) {
@@ -1204,6 +1215,12 @@ export function StaffRegistration() {
               />
               {mobileHint(form.emergencyMobile) ? (
                 <span className="field-error">{mobileHint(form.emergencyMobile)}</span>
+              ) : emergencyMatchesApplicant({
+                  emergencyMobile: form.emergencyMobile,
+                  whatsappMobile: form.whatsappMobile,
+                  otherMobile: form.otherMobile,
+                }) ? (
+                <span className="field-error">{t.emergencySameAsApplicant}</span>
               ) : null}
             </label>
           </div>

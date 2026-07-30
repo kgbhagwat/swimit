@@ -118,6 +118,34 @@ export function pagesBySection(section: MenuSection) {
   return ACCESS_PAGES.filter((page) => page.section === section);
 }
 
+/** Information pages that support an optional Edit grant (view alone is read-only). */
+export const INFORMATION_EDITABLE_PAGE_KEYS: MenuPageKey[] = ['swimmers', 'coaches'];
+
+export function editAccessKey(pageKey: MenuPageKey): string {
+  return `${pageKey}-edit`;
+}
+
+export function isEditAccessKey(key: string): boolean {
+  return key.endsWith('-edit') && INFORMATION_EDITABLE_PAGE_KEYS.some((page) => editAccessKey(page) === key);
+}
+
+export function pageKeyFromEditAccess(key: string): MenuPageKey | null {
+  if (!key.endsWith('-edit')) return null;
+  const pageKey = key.slice(0, -'-edit'.length) as MenuPageKey;
+  return INFORMATION_EDITABLE_PAGE_KEYS.includes(pageKey) ? pageKey : null;
+}
+
+export function canEditMenuPage(
+  menuAccess: string[] | undefined,
+  pageKey: MenuPageKey,
+  isAccountAdmin?: boolean,
+): boolean {
+  if (isAccountAdmin) return true;
+  if (!INFORMATION_EDITABLE_PAGE_KEYS.includes(pageKey)) return false;
+  const keys = menuAccess ?? [];
+  return keys.includes(pageKey) && keys.includes(editAccessKey(pageKey));
+}
+
 const MENU_SECTION_STORAGE_KEY = 'swimIT.menuSection';
 
 export function readStoredMenuSection(): MenuSection | null {

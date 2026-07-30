@@ -255,6 +255,16 @@ staffRegistrationsRouter.put(
         return;
       }
       if (
+        body.emergencyMobile.trim() === body.whatsappMobile.trim() ||
+        (body.otherMobile?.trim() &&
+          body.emergencyMobile.trim() === body.otherMobile.trim())
+      ) {
+        res.status(400).json({
+          error: 'Emergency contact number cannot be the same as the applicant mobile number',
+        });
+        return;
+      }
+      if (
         await isMobileTakenInAccount({
           accountId,
           mobile: body.whatsappMobile,
@@ -536,6 +546,16 @@ staffRegistrationsRouter.post(
       const mobileRe = /^\d{10}$/;
       if (!mobileRe.test(body.whatsappMobile) || !mobileRe.test(body.emergencyMobile)) {
         res.status(400).json({ error: 'Mobile numbers must be 10 digits' });
+        return;
+      }
+      if (
+        body.emergencyMobile.trim() === body.whatsappMobile.trim() ||
+        (body.otherMobile?.trim() &&
+          body.emergencyMobile.trim() === body.otherMobile.trim())
+      ) {
+        res.status(400).json({
+          error: 'Emergency contact number cannot be the same as the applicant mobile number',
+        });
         return;
       }
       if (

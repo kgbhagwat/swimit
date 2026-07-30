@@ -13,6 +13,28 @@ import {
 } from '../whatsapp/notify.js';
 import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
 
+function isLadiesBatchLabel(batch: string) {
+  return /—\s*Ladies\s*—/i.test(batch.trim());
+}
+
+async function assertLadiesBatchForFemaleSwimmer(
+  accountId: number,
+  registrationId: number,
+  batch: string | null | undefined,
+): Promise<string | null> {
+  const label = String(batch ?? '').trim();
+  if (!label || !isLadiesBatchLabel(label)) return null;
+  const { rows } = await pool.query(
+    `SELECT sex FROM registrations WHERE id = $1 AND saas_account_id = $2`,
+    [registrationId, accountId],
+  );
+  const sex = String(rows[0]?.sex ?? '').trim();
+  if (sex !== 'Female') {
+    return 'Ladies batch is allowed for Female swimmers only';
+  }
+  return null;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../uploads');
 
@@ -252,9 +274,12 @@ registrationsRouter.get('/:id', async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT r.id, r.full_name, r.whatsapp_mobile, r.email, r.birthdate, r.sex, r.blood_group,
+      `SELECT r.id, r.full_name, r.full_address, r.whatsapp_mobile, r.other_mobile, r.email,
+              r.birthdate, r.sex, r.blood_group,
               r.is_active, r.pass_type, r.batch, r.coach, r.pass_valid_until,
-              r.swimmer_photo_path, r.emergency_name, r.emergency_relation, r.emergency_mobile,
+              r.swimmer_photo_path, r.identity_document, r.identity_photo_path,
+              r.has_health_issue, r.health_issue_details, r.doctor_name, r.doctor_no,
+              r.emergency_name, r.emergency_relation, r.emergency_mobile,
               r.parent_name, r.parent_relation, r.parent_mobile,
               pt.duration AS pass_duration
        FROM registrations r
@@ -274,7 +299,10 @@ registrationsRouter.get('/:id', async (req, res) => {
     res.json({
       id: row.id,
       fullName: row.full_name,
+      fullAddress: row.full_address ?? '',
       contact: row.whatsapp_mobile ?? '',
+      whatsappMobile: row.whatsapp_mobile ?? '',
+      otherMobile: row.other_mobile ?? '',
       email: row.email ?? '',
       birthdate: formatDateValue(row.birthdate),
       sex: row.sex ?? '',
@@ -286,6 +314,12 @@ registrationsRouter.get('/:id', async (req, res) => {
       coach: row.coach ?? '',
       passValidUntil,
       photoUrl: row.swimmer_photo_path ? `/uploads/${row.swimmer_photo_path}` : null,
+      identityDocument: row.identity_document ?? '',
+      identityPhotoUrl: row.identity_photo_path ? `/uploads/${row.identity_photo_path}` : null,
+      hasHealthIssue: row.has_health_issue ?? '',
+      healthIssueDetails: row.health_issue_details ?? '',
+      doctorName: row.doctor_name ?? '',
+      doctorNo: row.doctor_no ?? '',
       emergencyName: row.emergency_name ?? '',
       emergencyRelation: row.emergency_relation ?? '',
       emergencyMobile: row.emergency_mobile ?? '',
@@ -340,6 +374,18 @@ registrationsRouter.patch('/:id', async (req, res) => {
     if (isPassPayment && paymentMode === 'Online' && !transactionId) {
       res.status(400).json({ error: 'Enter transaction ID for online payment' });
       return;
+    }
+
+    if (body.batch !== undefined) {
+      const ladiesError = await assertLadiesBatchForFemaleSwimmer(
+        accountId,
+        id,
+        body.batch,
+      );
+      if (ladiesError) {
+        res.status(400).json({ error: ladiesError });
+        return;
+      }
     }
 
     if (isPassPayment) {
@@ -486,6 +532,12 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
     }
     if (!batch) {
       res.status(400).json({ error: 'Select a batch' });
+      return;
+    }
+
+    const ladiesError = await assertLadiesBatchForFemaleSwimmer(accountId, id, batch);
+    if (ladiesError) {
+      res.status(400).json({ error: ladiesError });
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(passValidUntil)) {
@@ -713,6 +765,17 @@ registrationsRouter.post(
         }
         if (!mobileRe.test(String(body.parentMobile ?? ''))) {
           res.status(400).json({ error: 'Parent contact number must be 10 digits' });
+          return;
+        }
+      } else {
+        const emergency = body.emergencyMobile.trim();
+        if (
+          emergency === body.whatsappMobile.trim() ||
+          (body.otherMobile?.trim() && emergency === body.otherMobile.trim())
+        ) {
+          res.status(400).json({
+            error: 'Emergency contact number cannot be the same as the applicant mobile number',
+          });
           return;
         }
       }

@@ -2,6 +2,11 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MenuBackLink } from './MenuBackLink';
 import { openPassPopup } from './swimmerPass';
+import {
+  fetchSwimmerProfile,
+  SwimmerProfile,
+  SwimmerProfileReview,
+} from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
 
 type PendingSwimmer = {
@@ -66,6 +71,13 @@ function formatBatchTime(value: string) {
 
 function batchLabel(slot: BatchSlot) {
   return `${slot.name} — ${slot.type} — ${formatBatchTime(slot.startTime)} to ${formatBatchTime(slot.endTime)}`;
+}
+
+/** Ladies batches are only for Female swimmers (same rule as coaches). */
+function batchesForSwimmerSex(slots: BatchSlot[], sex: string | null | undefined) {
+  const normalized = String(sex ?? '').trim();
+  if (normalized === 'Female') return slots;
+  return slots.filter((slot) => slot.type !== 'Ladies');
 }
 
 function formatMoney(value: number) {
@@ -175,6 +187,9 @@ export function PassPayment() {
   const [waInfo, setWaInfo] = useState('');
   const [assignmentCount, setAssignmentCount] = useState<number | null>(null);
   const [assignmentCountLoading, setAssignmentCountLoading] = useState(false);
+  const [swimmerProfile, setSwimmerProfile] = useState<SwimmerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [detailsConfirmed, setDetailsConfirmed] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -282,6 +297,15 @@ export function PassPayment() {
     setPaymentQrPath(null);
     setUpiDetails('');
     setError('');
+    setDetailsConfirmed(false);
+    setSwimmerProfile(null);
+    setProfileLoading(true);
+    void fetchSwimmerProfile(row.id)
+      .then((profile) => setSwimmerProfile(profile))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'Failed to load swimmer details'),
+      )
+      .finally(() => setProfileLoading(false));
   }
 
   function closePay() {
@@ -298,6 +322,9 @@ export function PassPayment() {
     setWaInfo('');
     setAssignmentCount(null);
     setAssignmentCountLoading(false);
+    setSwimmerProfile(null);
+    setProfileLoading(false);
+    setDetailsConfirmed(false);
     setError('');
   }
 
@@ -429,6 +456,20 @@ export function PassPayment() {
     [batches, batch],
   );
 
+  const availableBatches = useMemo(
+    () => batchesForSwimmerSex(batches, swimmerProfile?.sex),
+    [batches, swimmerProfile?.sex],
+  );
+
+  useEffect(() => {
+    if (!batch) return;
+    const stillAllowed = availableBatches.some((slot) => batchLabel(slot) === batch);
+    if (!stillAllowed) {
+      setBatch('');
+      setCoach('');
+    }
+  }, [availableBatches, batch]);
+
   const coachesForBatch = useMemo(() => {
     if (!selectedBatchSlot) return [];
     const batchId = String(selectedBatchSlot.id);
@@ -525,6 +566,10 @@ export function PassPayment() {
       setError('Pass end date is required');
       return;
     }
+    if (!detailsConfirmed) {
+      setError('Confirm swimmer details, documents and photo before continuing');
+      return;
+    }
     if (!confirmAssignmentIfOverLimit()) return;
 
     setWaRequesting(true);
@@ -588,6 +633,10 @@ export function PassPayment() {
     }
     if (paymentMode === 'Online' && !paymentReceived) {
       setError('Confirm that you saw payment completed successfully');
+      return;
+    }
+    if (!detailsConfirmed) {
+      setError('Confirm swimmer details, documents and photo before continuing');
       return;
     }
     if (!confirmAssignmentIfOverLimit()) return;
@@ -696,6 +745,27 @@ export function PassPayment() {
               </button>
             </div>
 
+            <SwimmerProfileReview
+              profile={swimmerProfile}
+              loading={profileLoading}
+              title="Confirm swimmer details"
+              hint="Review documents, photo and registration information before collecting payment."
+              footer={
+                swimmerProfile ? (
+                  <label className="payment-received-check swimmer-review-confirm">
+                    <input
+                      type="checkbox"
+                      checked={detailsConfirmed}
+                      onChange={(e) => setDetailsConfirmed(e.target.checked)}
+                    />
+                    <span>
+                      I have verified the swimmer details, identity document and photo
+                    </span>
+                  </label>
+                ) : null
+              }
+            />
+
             <form className="swimmer-edit-form payment-collect-form" onSubmit={onConfirmPay}>
               <label className="field">
                 <span className="label">
@@ -764,7 +834,7 @@ export function PassPayment() {
                 <span className="label">
                   Batch details <span className="req">*</span>
                 </span>
-                {batches.length === 0 ? (
+                {availableBatches.length === 0 ? (
                   <p className="batch-empty">
                     No batches available.{' '}
                     <Link className="terms-link" to={tenantPath('/batches')}>
@@ -781,7 +851,7 @@ export function PassPayment() {
                     required
                   >
                     <option value="">Select batch</option>
-                    {batches.map((slot) => {
+                    {availableBatches.map((slot) => {
                       const label = batchLabel(slot);
                       return (
                         <option key={slot.id} value={label}>
@@ -904,9 +974,12 @@ export function PassPayment() {
                     className="csv-btn"
                     disabled={
                       waRequesting ||
+                      !detailsConfirmed ||
+                      profileLoading ||
+                      !swimmerProfile ||
                       !selectedPass ||
                       !batch ||
-                      batches.length === 0 ||
+                      availableBatches.length === 0 ||
                       (coachingRequired && (!coach || coachesForBatch.length === 0))
                     }
                     onClick={() => void onRequestWhatsAppPayment()}
@@ -954,9 +1027,12 @@ export function PassPayment() {
                     className="submit"
                     disabled={
                       saving ||
+                      !detailsConfirmed ||
+                      profileLoading ||
+                      !swimmerProfile ||
                       !selectedPass ||
                       !batch ||
-                      batches.length === 0 ||
+                      availableBatches.length === 0 ||
                       !paymentMode ||
                       (paymentMode === 'Cash' && !paymentReceived) ||
                       (paymentMode === 'Online' &&

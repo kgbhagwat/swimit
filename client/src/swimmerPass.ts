@@ -1,3 +1,6 @@
+import { tenantPath } from './tenantSession';
+import { requestPassPopup } from './passPopupEvents';
+
 export type SwimmerPassDetails = {
   id: number;
   fullName: string;
@@ -24,8 +27,9 @@ export type SwimmerPassDetails = {
 };
 
 export function idCardUrl(id: number) {
-  if (typeof window === 'undefined') return `/id-card/${id}`;
-  return `${window.location.origin}/id-card/${id}`;
+  const path = tenantPath(`/id-card/${id}`);
+  if (typeof window === 'undefined') return path;
+  return `${window.location.origin}${path}`;
 }
 
 export function isPassPopupWindow() {
@@ -34,24 +38,9 @@ export function isPassPopupWindow() {
   return params.get('popup') === '1' || Boolean(window.opener);
 }
 
+/** Opens Pass QR / Pass as an in-page popup (not a new browser tab). */
 export function openPassPopup(kind: 'qr' | 'pass', id: number) {
-  const path = kind === 'qr' ? `/pass/${id}?popup=1` : `/id-card/${id}?popup=1`;
-  const width = kind === 'qr' ? 380 : 540;
-  const height = kind === 'qr' ? 460 : 680;
-  const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
-  const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
-  const features = [
-    'popup=yes',
-    `width=${width}`,
-    `height=${height}`,
-    `left=${left}`,
-    `top=${top}`,
-    'resizable=yes',
-    'scrollbars=yes',
-  ].join(',');
-  const popup = window.open(path, `swimIT-${kind}-${id}`, features);
-  popup?.focus();
-  return popup;
+  requestPassPopup(kind, id);
 }
 
 export function formatDisplayDate(value: string) {

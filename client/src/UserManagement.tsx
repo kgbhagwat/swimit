@@ -4,6 +4,8 @@ import { MenuBackLink } from './MenuBackLink';
 import {
   ACCESS_PAGES,
   MENU_SECTIONS,
+  editAccessKey,
+  INFORMATION_EDITABLE_PAGE_KEYS,
   pageKeysForModules,
   type MenuPageKey,
   pagesBySection,
@@ -46,7 +48,22 @@ function formatCreatedAt(value: string) {
 }
 
 function toAccessSet(keys: string[], allowed: readonly { key: string }[]) {
-  return new Set(keys.filter((key) => allowed.some((page) => page.key === key)));
+  const allowedKeys = new Set(allowed.map((page) => page.key));
+  const next = new Set<string>();
+  for (const key of keys) {
+    if (allowedKeys.has(key)) {
+      next.add(key);
+      continue;
+    }
+    if (
+      INFORMATION_EDITABLE_PAGE_KEYS.some(
+        (page) => editAccessKey(page) === key && allowedKeys.has(page),
+      )
+    ) {
+      next.add(key);
+    }
+  }
+  return next;
 }
 
 function UserRow({
@@ -91,10 +108,34 @@ function UserRow({
   function togglePage(key: AccessKey) {
     setAccessDraft((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+        if (INFORMATION_EDITABLE_PAGE_KEYS.includes(key as MenuPageKey)) {
+          next.delete(editAccessKey(key as MenuPageKey));
+        }
+      } else {
+        next.add(key);
+      }
       return next;
     });
+  }
+
+  function togglePageEdit(pageKey: MenuPageKey) {
+    const editKey = editAccessKey(pageKey);
+    setAccessDraft((prev) => {
+      const next = new Set(prev);
+      if (next.has(editKey)) {
+        next.delete(editKey);
+      } else {
+        next.add(pageKey);
+        next.add(editKey);
+      }
+      return next;
+    });
+  }
+
+  function isEditableInformationPage(pageKey: string): pageKey is MenuPageKey {
+    return !platformMode && INFORMATION_EDITABLE_PAGE_KEYS.includes(pageKey as MenuPageKey);
   }
 
   async function onResetPassword() {
@@ -183,8 +224,14 @@ function UserRow({
                           setAccessDraft((prev) => {
                             const next = new Set(prev);
                             for (const page of pages) {
-                              if (allOn) next.delete(page.key);
-                              else next.add(page.key);
+                              if (allOn) {
+                                next.delete(page.key);
+                                if (isEditableInformationPage(page.key)) {
+                                  next.delete(editAccessKey(page.key));
+                                }
+                              } else {
+                                next.add(page.key);
+                              }
                             }
                             return next;
                           });
@@ -196,15 +243,36 @@ function UserRow({
                   <td>
                     <div className="user-access-pages">
                       {pages.map((page) => (
-                        <label key={page.key} className="user-access-page">
-                          <input
-                            type="checkbox"
-                            checked={accessDraft.has(page.key)}
-                            onChange={() => togglePage(page.key)}
-                          />
-                          <span>{page.label}</span>
-                        </label>
-                      ))}
+                          <span key={page.key} className="user-access-page-group">
+                            <label className="user-access-page">
+                              <input
+                                type="checkbox"
+                                checked={accessDraft.has(page.key)}
+                                onChange={() => togglePage(page.key)}
+                              />
+                              <span>{page.label}</span>
+                            </label>
+                            {isEditableInformationPage(page.key) ? (
+                              <label
+                                className={`user-access-page user-access-edit${
+                                  accessDraft.has(page.key) ? '' : ' is-disabled'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={accessDraft.has(editAccessKey(page.key))}
+                                  disabled={!accessDraft.has(page.key)}
+                                  onChange={() => {
+                                    if (isEditableInformationPage(page.key)) {
+                                      togglePageEdit(page.key);
+                                    }
+                                  }}
+                                />
+                                <span>Edit</span>
+                              </label>
+                            ) : null}
+                          </span>
+                        ))}
                     </div>
                   </td>
                 </tr>

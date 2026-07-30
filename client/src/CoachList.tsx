@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DownloadButton } from './DownloadButton';
 import { MenuBackLink } from './MenuBackLink';
+import { canEditPage } from './pageAccess';
 import { tenantPath } from './tenantSession';
 
 type StaffRole = 'Coach' | 'Lifeguard' | 'Other';
@@ -72,6 +73,7 @@ export function CoachList() {
   const [others, setOthers] = useState<SimpleStaffRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const canEdit = canEditPage('coaches');
 
   async function load() {
     setLoading(true);
@@ -263,10 +265,12 @@ export function CoachList() {
                   </span>
                   <span>{coach.teachStrokes}</span>
                   <span className="pass-actions">
-                    <EditIconButton
-                      to={tenantPath(`/staff-register/${coach.id}`)}
-                      label={`Edit ${coach.fullName}`}
-                    />
+                    {canEdit ? (
+                      <EditIconButton
+                        to={tenantPath(`/staff-register/${coach.id}`)}
+                        label={`Edit ${coach.fullName}`}
+                      />
+                    ) : null}
                   </span>
                 </div>
               ))}
@@ -303,10 +307,12 @@ export function CoachList() {
                   <span className="coach-contact">{staff.contact}</span>
                   {role === 'Other' ? <span>{staff.post}</span> : null}
                   <span className="pass-actions">
-                    <EditIconButton
-                      to={tenantPath(`/staff-register/${staff.id}`)}
-                      label={`Edit ${staff.fullName}`}
-                    />
+                    {canEdit ? (
+                      <EditIconButton
+                        to={tenantPath(`/staff-register/${staff.id}`)}
+                        label={`Edit ${staff.fullName}`}
+                      />
+                    ) : null}
                   </span>
                 </div>
               ))}

@@ -16,8 +16,10 @@ import {
   type MenuSection,
 } from './menuCatalog';
 import { MENU_ITEMS, MenuTiles } from './menuItems';
+import { PassPopupOverlay } from './PassPopupOverlay';
 import { PlatformNav } from './PlatformNav';
 import { setActiveTenant } from './tenantSession';
+import { isPassPopupWindow } from './swimmerPass';
 
 export type TenantUserInfo = {
   id: number;
@@ -540,6 +542,17 @@ export function AppShell({
     ? MENU_SECTIONS.filter((s) => allowedSections.has(s))
     : MENU_SECTIONS;
 
+  const passPopupOnly = isPassPopupWindow();
+
+  if (passPopupOnly) {
+    return (
+      <div className="pass-popup-shell">
+        {pageContent}
+        <PassPopupOverlay />
+      </div>
+    );
+  }
+
   return (
     <div className="menu-shell">
       {!tenantAccount ? <PlatformNav /> : null}
@@ -585,6 +598,7 @@ export function AppShell({
             ))}
         </div>
       </div>
+      <PassPopupOverlay />
     </div>
   );
 }

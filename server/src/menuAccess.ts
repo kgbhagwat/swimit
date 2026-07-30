@@ -18,6 +18,15 @@ export const ACCESS_PAGE_KEYS = [
   'staff-register',
 ] as const;
 
+/** Optional edit grants for Information pages (stored alongside view keys in menu_access). */
+export const INFORMATION_EDITABLE_PAGE_KEYS = ['swimmers', 'coaches'] as const;
+
+export function editAccessKey(pageKey: string): string {
+  return `${pageKey}-edit`;
+}
+
+export const EDIT_ACCESS_KEYS = INFORMATION_EDITABLE_PAGE_KEYS.map(editAccessKey);
+
 /** SwimIT SaaS platform (swimit) staff access keys. */
 export const PLATFORM_ACCESS_PAGE_KEYS = [
   'accounts',
@@ -57,9 +66,14 @@ export const FULL_ONLY_PAGE_KEYS: readonly AccessPageKey[] = [
   'payment-details',
 ];
 
-const ALL_ALLOWED = new Set<string>([...ACCESS_PAGE_KEYS, ...PLATFORM_ACCESS_PAGE_KEYS]);
+const ALL_ALLOWED = new Set<string>([
+  ...ACCESS_PAGE_KEYS,
+  ...PLATFORM_ACCESS_PAGE_KEYS,
+  ...EDIT_ACCESS_KEYS,
+]);
 const CORE_SET = new Set<string>(CORE_PAGE_KEYS);
 const FULL_SET = new Set<string>([...CORE_PAGE_KEYS, ...FULL_ONLY_PAGE_KEYS]);
+const EDITABLE_SET = new Set<string>(INFORMATION_EDITABLE_PAGE_KEYS);
 
 export function resolvePackageModules(
   modules?: string | null,
@@ -88,6 +102,11 @@ export function sanitizeMenuAccess(value: unknown): string[] {
     const key = String(item ?? '').trim();
     if (ALL_ALLOWED.has(key)) unique.add(key);
   }
+  // Edit grants require the matching view page key.
+  for (const pageKey of INFORMATION_EDITABLE_PAGE_KEYS) {
+    const editKey = editAccessKey(pageKey);
+    if (unique.has(editKey) && !unique.has(pageKey)) unique.delete(editKey);
+  }
   return [...unique];
 }
 
@@ -98,5 +117,10 @@ export function clipMenuAccessToPackage(
   packageName?: string | null,
 ): string[] {
   const allowed = new Set(pageKeysForModules(modules, packageName));
-  return keys.filter((key) => allowed.has(key as AccessPageKey));
+  return keys.filter((key) => {
+    if (allowed.has(key as AccessPageKey)) return true;
+    if (!key.endsWith('-edit')) return false;
+    const pageKey = key.slice(0, -'-edit'.length);
+    return EDITABLE_SET.has(pageKey) && allowed.has(pageKey as AccessPageKey);
+  });
 }

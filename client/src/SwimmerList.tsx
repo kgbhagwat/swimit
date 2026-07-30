@@ -3,6 +3,12 @@ import { Link } from 'react-router-dom';
 import { DownloadButton } from './DownloadButton';
 import { MenuBackLink } from './MenuBackLink';
 import { openPassPopup } from './swimmerPass';
+import {
+  fetchSwimmerProfile,
+  SwimmerProfile,
+  SwimmerProfileReview,
+} from './SwimmerProfileReview';
+import { canEditPage } from './pageAccess';
 import { tenantPath } from './tenantSession';
 
 type SwimmerStatus = 'active' | 'inactive';
@@ -17,6 +23,7 @@ type SwimmerRow = {
   passType: string;
   batch: string;
   coach: string;
+  sex: string;
   isActive: boolean;
   hasValidPassToday: boolean;
 };
@@ -26,6 +33,7 @@ type RegistrationApiRow = {
   full_name: string;
   email: string;
   whatsapp_mobile: string;
+  sex?: string | null;
   is_active?: boolean;
   pass_type?: string | null;
   batch?: string | null;
@@ -79,6 +87,12 @@ function batchLabel(slot: BatchSlot) {
   return `${slot.name} — ${slot.type} — ${formatBatchTime(slot.startTime)} to ${formatBatchTime(slot.endTime)}`;
 }
 
+function batchesForSwimmerSex(slots: BatchSlot[], sex: string | null | undefined) {
+  const normalized = String(sex ?? '').trim();
+  if (normalized === 'Female') return slots;
+  return slots.filter((slot) => slot.type !== 'Ladies');
+}
+
 function csvEscape(value: string) {
   if (/[",\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -130,6 +144,7 @@ function mapRow(row: RegistrationApiRow): SwimmerRow {
     passType: row.pass_type?.trim() || '—',
     batch: row.batch?.trim() || '—',
     coach: row.coach?.trim() || '—',
+    sex: row.sex?.trim() || '',
     isActive: row.is_active !== false,
     hasValidPassToday: hasValidPassToday(row.pass_valid_until),
   };
@@ -147,6 +162,10 @@ export function SwimmerList() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [editing, setEditing] = useState<SwimmerRow | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ batch: '', isActive: true });
+  const [viewing, setViewing] = useState<SwimmerRow | null>(null);
+  const [viewProfile, setViewProfile] = useState<SwimmerProfile | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const canEdit = canEditPage('swimmers');
 
   async function load() {
     setLoading(true);
@@ -224,7 +243,34 @@ export function SwimmerList() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
+  function openView(row: SwimmerRow) {
+    setViewing(row);
+    setEditing(null);
+    setViewProfile(null);
+    setViewLoading(true);
+    setError('');
+    void fetchSwimmerProfile(row.id)
+      .then((profile) => setViewProfile(profile))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'Failed to load swimmer details'),
+      )
+      .finally(() => setViewLoading(false));
+  }
+
+  function closeView() {
+    setViewing(null);
+    setViewProfile(null);
+    setViewLoading(false);
+  }
+
   function openEdit(row: SwimmerRow) {
+    if (!canEditPage('swimmers')) {
+      setError('You do not have permission to edit swimmers');
+      return;
+    }
+    setViewing(null);
+    setViewProfile(null);
+    setViewLoading(false);
     setEditing(row);
     setEditForm({
       batch: row.batch === '—' ? '' : row.batch,
@@ -272,7 +318,43 @@ export function SwimmerList() {
       <div className="swimmer-list-card">
         <h1>Swimmer&apos;s List</h1>
 
-        {!editing ? (
+        {viewing ? (
+          <section className="swimmer-edit-card" aria-labelledby="swimmer-view-title">
+            <div className="swimmer-edit-head">
+              <div>
+                <h2 id="swimmer-view-title">Swimmer details</h2>
+                <p className="pass-count">{viewing.swimmer}</p>
+              </div>
+              <div className="pass-actions">
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="submit"
+                    onClick={() => openEdit(viewing)}
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                <button type="button" className="csv-btn" onClick={closeView}>
+                  Back to list
+                </button>
+              </div>
+            </div>
+
+            {error ? <p className="error">{error}</p> : null}
+
+            <SwimmerProfileReview
+              profile={viewProfile}
+              loading={viewLoading}
+              title="Complete registration form"
+              hint={
+                canEdit
+                  ? 'Full swimmer registration details. Use Edit to change batch or active status.'
+                  : 'Full swimmer registration details (view only).'
+              }
+            />
+          </section>
+        ) : !editing ? (
           <>
             <div className="swimmer-list-toolbar">
               <div className="staff-role-radios" role="radiogroup" aria-label="Swimmer status">
@@ -407,9 +489,9 @@ export function SwimmerList() {
                         <button
                           type="button"
                           className="icon-action"
-                          onClick={() => openEdit(row)}
-                          aria-label={`Edit ${row.swimmer}`}
-                          title="Edit"
+                          onClick={() => openView(row)}
+                          aria-label={`View ${row.swimmer}`}
+                          title="View"
                         >
                           <svg
                             viewBox="0 0 24 24"
@@ -418,10 +500,30 @@ export function SwimmerList() {
                             strokeWidth="1.8"
                             aria-hidden
                           >
-                            <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
-                            <path d="M13.5 6.5l3 3" />
+                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                            <circle cx="12" cy="12" r="3" />
                           </svg>
                         </button>
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            className="icon-action"
+                            onClick={() => openEdit(row)}
+                            aria-label={`Edit ${row.swimmer}`}
+                            title="Edit"
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              aria-hidden
+                            >
+                              <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
+                              <path d="M13.5 6.5l3 3" />
+                            </svg>
+                          </button>
+                        ) : null}
                       </span>
                     </div>
                   ))}
@@ -444,7 +546,7 @@ export function SwimmerList() {
             <form className="swimmer-edit-form" onSubmit={onSaveEdit}>
               <label className="field">
                 <span className="label">Batch details</span>
-                {batches.length === 0 ? (
+                {batchesForSwimmerSex(batches, editing.sex).length === 0 ? (
                   <p className="batch-empty">
                     No batches available.{' '}
                     <Link className="terms-link" to={tenantPath('/batches')}>
@@ -457,7 +559,7 @@ export function SwimmerList() {
                     onChange={(e) => setEditForm({ ...editForm, batch: e.target.value })}
                   >
                     <option value="">Select batch</option>
-                    {batches.map((slot) => {
+                    {batchesForSwimmerSex(batches, editing.sex).map((slot) => {
                       const label = batchLabel(slot);
                       return (
                         <option key={slot.id} value={label}>
@@ -466,7 +568,13 @@ export function SwimmerList() {
                       );
                     })}
                     {editForm.batch &&
-                    !batches.some((slot) => batchLabel(slot) === editForm.batch) ? (
+                    !batchesForSwimmerSex(batches, editing.sex).some(
+                      (slot) => batchLabel(slot) === editForm.batch,
+                    ) &&
+                    !(
+                      /—\s*Ladies\s*—/i.test(editForm.batch) &&
+                      editing.sex !== 'Female'
+                    ) ? (
                       <option value={editForm.batch}>{editForm.batch}</option>
                     ) : null}
                   </select>
@@ -515,7 +623,7 @@ export function SwimmerList() {
           </section>
         )}
 
-        {error && !editing ? <p className="error">{error}</p> : null}
+        {error && !editing && !viewing ? <p className="error">{error}</p> : null}
       </div>
     </div>
   );
