@@ -88,6 +88,17 @@ function DeleteIcon() {
   );
 }
 
+function ResetPasswordIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="8" cy="8" r="3.5" />
+      <path d="M10.5 10.5 20 20" />
+      <path d="M16 16l2 2" />
+      <path d="M18.5 13.5l2.5 2.5" />
+    </svg>
+  );
+}
+
 function SaveIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -115,9 +126,12 @@ export function Accounts() {
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null);
+  const [pendingReset, setPendingReset] = useState<Account | null>(null);
+  const [resettingId, setResettingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [info, setInfo] = useState('');
 
   async function load() {
     setLoading(true);
@@ -154,6 +168,7 @@ export function Accounts() {
 
   function startEdit(account: Account) {
     setError('');
+    setInfo('');
     setEditingId(account.id);
     setEditDraft({
       servicePackageId:
@@ -241,7 +256,44 @@ export function Accounts() {
       return;
     }
     setError('');
+    setInfo('');
     setPendingDelete(account);
+  }
+
+  function requestResetPassword(account: Account) {
+    if (String(account.status ?? '').trim() === 'Suspended') {
+      setError('Cannot reset password for a suspended account');
+      return;
+    }
+    setError('');
+    setInfo('');
+    setPendingReset(account);
+  }
+
+  async function confirmResetPassword() {
+    if (!pendingReset) return;
+    const account = pendingReset;
+    setResettingId(account.id);
+    setError('');
+    setInfo('');
+    try {
+      const res = await fetch(`/api/saas-accounts/${account.id}/resend-credentials`, {
+        method: 'POST',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to reset admin password');
+      const userName = String(body.adminUser?.userName ?? 'admin');
+      const mobile = String(body.adminUser?.mobile ?? account.mobile ?? '');
+      setInfo(
+        `Admin password reset for ${account.accountName}. New temporary password sent to ${mobile || 'the account admin'} (user: ${userName}).`,
+      );
+      setPendingReset(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset admin password');
+      setPendingReset(null);
+    } finally {
+      setResettingId(null);
+    }
   }
 
   async function confirmDelete() {
@@ -280,6 +332,7 @@ export function Accounts() {
         <h1>Accounts</h1>
 
         {error ? <p className="error">{error}</p> : null}
+        {info ? <p className="success">{info}</p> : null}
 
         <section className="pass-table-card">
           {loading ? (
@@ -313,7 +366,8 @@ export function Accounts() {
                     {accounts.map((item) => {
                       const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
                       const isEditing = editingId === item.id && editDraft != null;
-                      const busy = savingId === item.id || deletingId === item.id;
+                      const busy =
+                        savingId === item.id || deletingId === item.id || resettingId === item.id;
                       return (
                         <tr key={item.id} className={isEditing ? 'accounts-row-editing' : undefined}>
                           <td className="accounts-col-account">
@@ -478,6 +532,20 @@ export function Accounts() {
                                     >
                                       <DeleteIcon />
                                     </button>
+                                    <button
+                                      type="button"
+                                      className="accounts-icon-btn accounts-icon-reset"
+                                      disabled={editingId != null || busy}
+                                      onClick={() => requestResetPassword(item)}
+                                      aria-label={`Reset admin password for ${item.accountName}`}
+                                      title={
+                                        resettingId === item.id
+                                          ? 'Resetting…'
+                                          : 'Reset admin password'
+                                      }
+                                    >
+                                      <ResetPasswordIcon />
+                                    </button>
                                   </>
                                 )}
                               </div>
@@ -496,7 +564,8 @@ export function Accounts() {
                 {accounts.map((item, index) => {
                   const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
                   const isEditing = editingId === item.id && editDraft != null;
-                  const busy = savingId === item.id || deletingId === item.id;
+                  const busy =
+                    savingId === item.id || deletingId === item.id || resettingId === item.id;
                   const tone = index % 4;
                   return (
                     <article
@@ -674,6 +743,20 @@ export function Accounts() {
                                   >
                                     <DeleteIcon />
                                   </button>
+                                  <button
+                                    type="button"
+                                    className="accounts-icon-btn accounts-icon-reset"
+                                    disabled={editingId != null || busy}
+                                    onClick={() => requestResetPassword(item)}
+                                    aria-label={`Reset admin password for ${item.accountName}`}
+                                    title={
+                                      resettingId === item.id
+                                        ? 'Resetting…'
+                                        : 'Reset admin password'
+                                    }
+                                  >
+                                    <ResetPasswordIcon />
+                                  </button>
                                 </>
                               )}
                             </div>
@@ -725,6 +808,50 @@ export function Accounts() {
                 onClick={() => void confirmDelete()}
               >
                 {deletingId != null ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingReset ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reset-admin-password-title"
+          onClick={() => {
+            if (resettingId == null) setPendingReset(null);
+          }}
+        >
+          <div
+            className="modal-panel accounts-delete-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="reset-admin-password-title">Reset admin password?</h2>
+            <p className="modal-intro">
+              Reset the account admin password for{' '}
+              <strong>{pendingReset.accountName}</strong>
+              {pendingReset.accountCode ? ` (${pendingReset.accountCode})` : ''}?
+              A new temporary password will be sent on WhatsApp to{' '}
+              <strong>{pendingReset.mobile || 'the account contact'}</strong>.
+            </p>
+            <div className="modal-footer accounts-delete-modal-footer">
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={resettingId != null}
+                onClick={() => setPendingReset(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="submit"
+                disabled={resettingId != null}
+                onClick={() => void confirmResetPassword()}
+              >
+                {resettingId != null ? 'Resetting…' : 'Reset password'}
               </button>
             </div>
           </div>

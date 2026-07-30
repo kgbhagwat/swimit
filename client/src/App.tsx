@@ -443,9 +443,10 @@ export function App() {
   const [identityPhoto, setIdentityPhoto] = useState<File | null>(null);
   const [swimmerPhoto, setSwimmerPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [, setError] = useState('');
+  const [error, setError] = useState('');
   const [errorCount, setErrorCount] = useState(0);
   const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
+  const [missingLabels, setMissingLabels] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [parentOnly, setParentOnly] = useState(false);
@@ -529,12 +530,44 @@ export function App() {
     };
   }
 
+  function fieldLabel(key: string) {
+    const labels: Record<string, string> = {
+      fullName: t.fullName,
+      fullAddress: t.fullAddress,
+      whatsappMobile: t.whatsapp,
+      otherMobile: t.otherMobile,
+      email: t.email,
+      birthdate: t.birthdate,
+      sex: t.sex,
+      bloodGroup: t.bloodGroup,
+      parentName: t.parentName,
+      parentRelation: t.parentRelation,
+      parentMobile: t.parentContact,
+      emergencyName: t.emergencyName,
+      emergencyRelation: t.relation,
+      emergencyMobile: t.emergencyNo,
+      healthIssueDetails: t.healthDetails,
+      doctorNo: t.doctorNo,
+      identityDocument: t.identityDoc,
+      identityPhoto: t.idPhoto,
+      swimmerPhoto: t.swimmerPhoto,
+      acceptedTerms: t.termsLink,
+    };
+    return labels[key] ?? key;
+  }
+
+  function labelsForFields(fields: Set<string>) {
+    return [...fields].map((key) => fieldLabel(key));
+  }
+
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setInvalidFields((prev) => {
       if (!prev.has(String(key))) return prev;
       const next = new Set(prev);
       next.delete(String(key));
       setErrorCount(next.size);
+      setMissingLabels(labelsForFields(next));
+      if (next.size === 0) setError('');
       return next;
     });
     setForm((prev) => {
@@ -644,11 +677,13 @@ export function App() {
     e.preventDefault();
     setError('');
     setErrorCount(0);
+    setMissingLabels([]);
 
     const fields = collectInvalidFields();
     setInvalidFields(fields);
     if (fields.size > 0) {
       setErrorCount(fields.size);
+      setMissingLabels(labelsForFields(fields));
       return;
     }
 
@@ -678,12 +713,15 @@ export function App() {
       setParentOnly(false);
       setIdentityPhoto(null);
       setSwimmerPhoto(null);
+      setError('');
       setErrorCount(0);
+      setMissingLabels([]);
       setInvalidFields(new Set());
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setErrorCount(1);
+      setMissingLabels([]);
       setError(err instanceof Error ? err.message : isEdit ? 'Update failed' : 'Registration failed');
     } finally {
       setSubmitting(false);
@@ -694,6 +732,7 @@ export function App() {
     setSubmitted(false);
     setError('');
     setErrorCount(0);
+    setMissingLabels([]);
     setInvalidFields(new Set());
   }
 
@@ -1160,11 +1199,21 @@ export function App() {
           )}
           <div className="submit-wrap">
             {errorCount > 0 ? (
-              <p className="error submit-error-count">
-                {errorCount === 1
-                  ? t.errorCountOne
-                  : t.errorCountMany.replace('{count}', String(errorCount))}
-              </p>
+              <div className="submit-error-block" role="alert">
+                <p className="error submit-error-count">
+                  {errorCount === 1
+                    ? t.errorCountOne
+                    : t.errorCountMany.replace('{count}', String(errorCount))}
+                </p>
+                {error ? <p className="error submit-error-detail">{error}</p> : null}
+                {missingLabels.length > 0 ? (
+                  <ul className="submit-error-list">
+                    {missingLabels.map((label) => (
+                      <li key={label}>{label}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
             ) : null}
             <button className="submit" type="submit" disabled={submitting}>
               {submitting ? t.submitting : isEdit ? t.saveChanges : t.submit}

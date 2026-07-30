@@ -1044,6 +1044,27 @@ button.platform-rail-link {
   max-width: 22rem;
 }
 
+.submit-error-block {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: end;
+  max-width: 22rem;
+}
+
+.submit-error-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--danger);
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-align: left;
+  max-width: 22rem;
+}
+
+.submit-error-list li {
+  margin: 0.1rem 0;
+}
+
 .submit-wrap .submit {
   margin-left: 0;
 }
@@ -5916,8 +5937,10 @@ button.menu-link {
 
 .accounts-action-icons {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+  max-width: 3.1rem;
 }
 
 .accounts-icon-btn {
@@ -5962,6 +5985,20 @@ button.menu-link {
 }
 
 .accounts-icon-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.accounts-icon-reset {
+  color: #b54708;
+}
+
+.accounts-icon-reset:hover:not(:disabled) {
+  color: #93370d;
+  background: transparent;
+}
+
+.accounts-icon-reset:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -6084,7 +6121,7 @@ button.menu-link {
 
 .accounts-block-actions {
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.35rem;
 }
 
