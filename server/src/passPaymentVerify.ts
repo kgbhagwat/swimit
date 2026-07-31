@@ -207,7 +207,8 @@ export async function processPassPaymentInbound(params: {
            batch = NULLIF($2, ''),
            coach = NULLIF($3, ''),
            pass_valid_until = $4::date,
-           is_active = TRUE
+           is_active = TRUE,
+           inactive_at = NULL
        WHERE id = $5 AND saas_account_id = $6
        RETURNING id, full_name, whatsapp_mobile, pass_valid_until`,
       [passType, batch, coach, passValidUntil, registrationId, params.saasAccountId],

@@ -75,19 +75,23 @@ const upload = multer({
 export const registrationsRouter = Router();
 
 async function deactivateExpiredPasses(accountId: number) {
+  // Pass expired → inactive immediately. They remain on Pass Payment for 3 days
+  // via inactive_at / pass_valid_until window in pending-payment.
   await pool.query(
     `UPDATE registrations
-     SET is_active = FALSE
+     SET is_active = FALSE,
+         inactive_at = COALESCE(inactive_at, NOW())
      WHERE saas_account_id = $1
        AND pass_valid_until IS NOT NULL
-       AND pass_valid_until < (CURRENT_DATE - INTERVAL '3 days')
+       AND pass_valid_until < CURRENT_DATE
        AND is_active = TRUE`,
     [accountId],
   );
   // Unpaid / no pass yet should not appear as active
   await pool.query(
     `UPDATE registrations
-     SET is_active = FALSE
+     SET is_active = FALSE,
+         inactive_at = COALESCE(inactive_at, NOW())
      WHERE saas_account_id = $1
        AND pass_valid_until IS NULL
        AND is_active = TRUE`,
@@ -151,10 +155,18 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
        FROM registrations r
        WHERE r.saas_account_id = $1
          AND (
+           -- New / unpaid registrations
            r.pass_valid_until IS NULL
            OR (
+             -- Pass expired within last 3 days
              r.pass_valid_until < CURRENT_DATE
              AND r.pass_valid_until >= (CURRENT_DATE - INTERVAL '3 days')
+           )
+           OR (
+             -- Manually (or auto) marked inactive: visible for 3 days
+             COALESCE(r.is_active, FALSE) = FALSE
+             AND r.inactive_at IS NOT NULL
+             AND r.inactive_at::date >= (CURRENT_DATE - INTERVAL '3 days')
            )
          )
        ORDER BY
@@ -466,6 +478,11 @@ registrationsRouter.patch('/:id', async (req, res) => {
     if (body.isActive !== undefined) {
       values.push(Boolean(body.isActive));
       updates.push(`is_active = $${values.length}`);
+      if (body.isActive) {
+        updates.push(`inactive_at = NULL`);
+      } else {
+        updates.push(`inactive_at = NOW()`);
+      }
     }
     if (body.passType !== undefined) {
       values.push(body.passType?.trim() || null);
@@ -478,6 +495,10 @@ registrationsRouter.patch('/:id', async (req, res) => {
     if (body.passValidUntil !== undefined) {
       values.push(body.passValidUntil || null);
       updates.push(`pass_valid_until = $${values.length}`);
+    }
+    // Pass payment renews/activates — clear inactive timestamp
+    if (isPassPayment) {
+      updates.push(`inactive_at = NULL`);
     }
 
     if (updates.length === 0) {

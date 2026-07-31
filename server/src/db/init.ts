@@ -38,6 +38,7 @@ ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_name TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_relation TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_mobile TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ;
 ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
 
 CREATE TABLE IF NOT EXISTS staff_registrations (
@@ -831,8 +832,26 @@ async function init() {
   if (created > 0) console.log(`Backfilled ${created} account admin user(s) with password "admin"`);
 
   await migrateSensitivePiiColumns();
+  await migrateInactiveAt();
   await ensureSwimItSuperadmin();
   await pool.end();
+}
+
+async function migrateInactiveAt() {
+  await pool.query(
+    `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ`,
+  );
+  // Existing inactive swimmers with a pass: start a 3-day Pass Payment window from deploy.
+  const { rowCount } = await pool.query(
+    `UPDATE registrations
+     SET inactive_at = NOW()
+     WHERE COALESCE(is_active, FALSE) = FALSE
+       AND inactive_at IS NULL
+       AND pass_valid_until IS NOT NULL`,
+  );
+  if (rowCount && rowCount > 0) {
+    console.log(`[pass] Backfilled inactive_at on ${rowCount} inactive registration(s)`);
+  }
 }
 
 async function migrateSensitivePiiColumns() {
