@@ -190,7 +190,6 @@ export function PassPayment() {
   const [holidayRecords, setHolidayRecords] = useState<HolidayRecord[]>([]);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
   const [waRequesting, setWaRequesting] = useState(false);
-  const [waInfo, setWaInfo] = useState('');
   const [assignmentCount, setAssignmentCount] = useState<number | null>(null);
   const [assignmentCountLoading, setAssignmentCountLoading] = useState(false);
   const [swimmerProfile, setSwimmerProfile] = useState<SwimmerProfile | null>(null);
@@ -329,7 +328,6 @@ export function PassPayment() {
     setTransactionId('');
     setPaymentQrPath(null);
     setUpiDetails('');
-    setWaInfo('');
     setAssignmentCount(null);
     setAssignmentCountLoading(false);
     setSwimmerProfile(null);
@@ -603,7 +601,7 @@ export function PassPayment() {
       missing.push('Payment Received checkbox');
     }
     if (paymentMode === 'Online') {
-      if (!transactionId.trim()) missing.push('Transaction ID (open “Or confirm payment at desk”)');
+      if (!transactionId.trim()) missing.push('Transaction ID');
       if (!paymentReceived) missing.push('Yes, I saw payment completed successfully');
     }
     return missing;
@@ -629,7 +627,6 @@ export function PassPayment() {
     setWaRequesting(true);
     setError('');
     setMissingFields([]);
-    setWaInfo('');
     try {
       const assignedCoach = !coachingRequired
         ? null
@@ -647,11 +644,11 @@ export function PassPayment() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to send payment request');
 
-      setWaInfo(
-        body.whatsapp?.ok === false
-          ? `Payment request saved, but WhatsApp failed: ${body.whatsapp.error || 'send failed'}. Swimmer can still send the screenshot to the business number.`
-          : `WhatsApp payment request sent to ${paying.contact}. When they pay ${formatMoney(Number(body.intent?.expectedAmount ?? 0))} to this pool UPI and send the screenshot, payment is confirmed automatically.`,
-      );
+      if (body.whatsapp?.ok === false) {
+        setError(
+          `Payment request saved, but WhatsApp failed: ${body.whatsapp.error || 'send failed'}. Swimmer can still send the screenshot to the business number.`,
+        );
+      }
       await load();
     } catch (err) {
       setMissingFields([]);
@@ -1072,31 +1069,27 @@ export function PassPayment() {
                   >
                     {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
                   </button>
-                  {waInfo ? <p className="success">{waInfo}</p> : null}
 
-                  <details className="pass-manual-online">
-                    <summary>Or confirm payment at desk</summary>
-                    <label className="field transaction-id-field">
-                      <span className="label">
-                        Transaction ID <span className="req">*</span>
-                      </span>
-                      <input
-                        type="text"
-                        value={transactionId}
-                        onChange={(e) => setTransactionId(e.target.value)}
-                        placeholder="Enter UPI / bank transaction ID"
-                        autoComplete="off"
-                      />
-                    </label>
-                    <label className="payment-received-check">
-                      <input
-                        type="checkbox"
-                        checked={paymentReceived}
-                        onChange={(e) => setPaymentReceived(e.target.checked)}
-                      />
-                      <span>Yes, I saw payment completed successfully</span>
-                    </label>
-                  </details>
+                  <label className="field transaction-id-field">
+                    <span className="label">
+                      Transaction ID <span className="req">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      value={transactionId}
+                      onChange={(e) => setTransactionId(e.target.value)}
+                      placeholder="Enter UPI / bank transaction ID"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="payment-received-check">
+                    <input
+                      type="checkbox"
+                      checked={paymentReceived}
+                      onChange={(e) => setPaymentReceived(e.target.checked)}
+                    />
+                    <span>Yes, I saw payment completed successfully</span>
+                  </label>
                 </div>
               ) : null}
 
@@ -1117,7 +1110,7 @@ export function PassPayment() {
                   Cancel
                 </button>
                 <button type="submit" className="submit" disabled={saving}>
-                  {saving ? 'Saving…' : 'Submit'}
+                  {saving ? 'Issuing…' : 'Issue Pass'}
                 </button>
               </div>
             </form>

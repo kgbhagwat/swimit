@@ -506,11 +506,6 @@ registrationsRouter.patch('/:id', async (req, res) => {
     if (body.isActive !== undefined) {
       values.push(Boolean(body.isActive));
       updates.push(`is_active = $${values.length}`);
-      if (body.isActive) {
-        updates.push(`inactive_at = NULL`);
-      } else {
-        updates.push(`inactive_at = NOW()`);
-      }
     }
     if (body.passType !== undefined) {
       values.push(body.passType?.trim() || null);
@@ -524,9 +519,11 @@ registrationsRouter.patch('/:id', async (req, res) => {
       values.push(body.passValidUntil || null);
       updates.push(`pass_valid_until = $${values.length}`);
     }
-    // Pass payment renews/activates — clear inactive timestamp
-    if (isPassPayment) {
+    // Single inactive_at assignment (Postgres rejects setting the same column twice).
+    if (isPassPayment || body.isActive === true) {
       updates.push(`inactive_at = NULL`);
+    } else if (body.isActive === false) {
+      updates.push(`inactive_at = NOW()`);
     }
 
     if (updates.length === 0) {
@@ -621,8 +618,11 @@ registrationsRouter.patch('/:id', async (req, res) => {
 
     res.json(updated);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update swimmer' });
+    console.error('[registrations] PATCH /:id failed', err);
+    res.status(500).json({
+      error: 'Failed to update swimmer',
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 });
 
