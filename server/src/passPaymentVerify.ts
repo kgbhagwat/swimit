@@ -201,6 +201,10 @@ export async function processPassPaymentInbound(params: {
       return true;
     }
 
+    await client.query(
+      `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ`,
+    );
+
     const updated = await client.query(
       `UPDATE registrations
        SET pass_type = $1,

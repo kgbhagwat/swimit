@@ -74,29 +74,52 @@ const upload = multer({
 
 export const registrationsRouter = Router();
 
+let inactiveAtReady: Promise<void> | null = null;
+
+/** Ensure inactive_at exists even if db:init was skipped or ran an older build. */
+async function ensureInactiveAtColumn() {
+  if (!inactiveAtReady) {
+    inactiveAtReady = (async () => {
+      await pool.query(
+        `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ`,
+      );
+    })().catch((err) => {
+      inactiveAtReady = null;
+      throw err;
+    });
+  }
+  await inactiveAtReady;
+}
+
 async function deactivateExpiredPasses(accountId: number) {
-  // Pass expired → inactive immediately. They remain on Pass Payment for 3 days
-  // via inactive_at / pass_valid_until window in pending-payment.
-  await pool.query(
-    `UPDATE registrations
-     SET is_active = FALSE,
-         inactive_at = COALESCE(inactive_at, NOW())
-     WHERE saas_account_id = $1
-       AND pass_valid_until IS NOT NULL
-       AND pass_valid_until < CURRENT_DATE
-       AND is_active = TRUE`,
-    [accountId],
-  );
-  // Unpaid / no pass yet should not appear as active
-  await pool.query(
-    `UPDATE registrations
-     SET is_active = FALSE,
-         inactive_at = COALESCE(inactive_at, NOW())
-     WHERE saas_account_id = $1
-       AND pass_valid_until IS NULL
-       AND is_active = TRUE`,
-    [accountId],
-  );
+  try {
+    await ensureInactiveAtColumn();
+    // Pass expired → inactive immediately. They remain on Pass Payment for 3 days
+    // via inactive_at / pass_valid_until window in pending-payment.
+    await pool.query(
+      `UPDATE registrations
+       SET is_active = FALSE,
+           inactive_at = COALESCE(inactive_at, NOW())
+       WHERE saas_account_id = $1
+         AND pass_valid_until IS NOT NULL
+         AND pass_valid_until < CURRENT_DATE
+         AND is_active = TRUE`,
+      [accountId],
+    );
+    // Unpaid / no pass yet should not appear as active
+    await pool.query(
+      `UPDATE registrations
+       SET is_active = FALSE,
+           inactive_at = COALESCE(inactive_at, NOW())
+       WHERE saas_account_id = $1
+         AND pass_valid_until IS NULL
+         AND is_active = TRUE`,
+      [accountId],
+    );
+  } catch (err) {
+    // Never block Swimmer List / Pass Payment if this maintenance step fails.
+    console.warn('[pass] deactivateExpiredPasses failed', err);
+  }
 }
 
 function mapRegistrationRow(row: Record<string, unknown>) {
@@ -132,14 +155,18 @@ registrationsRouter.get('/', async (req, res) => {
     );
     res.json(rows.map(mapRegistrationRow));
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load swimmers' });
+    console.error('[registrations] GET / failed', err);
+    res.status(500).json({
+      error: 'Failed to load swimmers',
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 });
 
 registrationsRouter.get('/pending-payment', async (req, res) => {
   try {
     const accountId = tenantId(req);
+    await ensureInactiveAtColumn();
     await deactivateExpiredPasses(accountId);
     const { rows } = await pool.query(
       `SELECT r.id, r.full_name, r.email, r.whatsapp_mobile, r.birthdate, r.sex, r.blood_group,
@@ -402,6 +429,7 @@ registrationsRouter.get('/:id/identity-photo', async (req, res) => {
 registrationsRouter.patch('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);
+    await ensureInactiveAtColumn();
     const id = Number(req.params.id);
     const body = req.body as {
       batch?: string | null;
