@@ -2,8 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { DownloadButton } from './DownloadButton';
 import { formatBatchDisplay } from './IdCard';
-import { MenuBackLink } from './MenuBackLink';
 import { canEditPage } from './pageAccess';
+import { PlatformPage } from './PlatformPage';
 import { openPassPopup } from './swimmerPass';
 import {
   fetchSwimmerProfile,
@@ -353,14 +353,8 @@ export function SwimmerList() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
+    <PlatformPage title="Swimmer's List">
       <div className="swimmer-list-card">
-        <h1>Swimmer&apos;s List</h1>
-
         {viewing ? (
           <section className="swimmer-edit-card" aria-labelledby="swimmer-view-title">
             <div className="swimmer-edit-head">
@@ -693,6 +687,6 @@ export function SwimmerList() {
 
         {error && !editing && !viewing ? <p className="error">{error}</p> : null}
       </div>
-    </div>
+    </PlatformPage>
   );
 }

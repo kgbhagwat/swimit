@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 
 type Period = 'AM' | 'PM';
 
@@ -14,8 +14,8 @@ type ClockTime = {
 type ScheduleSettings = {
   id: string;
   session: Session;
-  batchMinutes: number;
-  breakMinutes: number;
+  batchMinutes: number | '';
+  breakMinutes: number | '';
   firstStart: ClockTime;
   lastEnd: ClockTime;
 };
@@ -65,19 +65,30 @@ function createId() {
 }
 
 function parseSession(value: unknown): Session {
-  return SESSIONS.includes(value as Session) ? (value as Session) : 'Complete Day';
+  return SESSIONS.includes(value as Session) ? (value as Session) : 'Morning';
 }
 
-function defaultSchedule(session: Session = 'Complete Day'): ScheduleSettings {
+function defaultSchedule(session: Session = 'Morning'): ScheduleSettings {
   const times = SESSION_DEFAULTS[session];
   return {
     id: createId(),
     session,
-    batchMinutes: 60,
-    breakMinutes: 15,
+    batchMinutes: '',
+    breakMinutes: '',
     firstStart: { ...times.firstStart },
     lastEnd: { ...times.lastEnd },
   };
+}
+
+function resolveBatchMinutes(value: number | '') {
+  const n = Number(value);
+  return n > 0 ? n : 60;
+}
+
+function resolveBreakMinutes(value: number | '') {
+  if (value === '') return 15;
+  const n = Number(value);
+  return Number.isNaN(n) || n < 0 ? 15 : n;
 }
 
 function clockToMinutes(time: ClockTime) {
@@ -109,8 +120,8 @@ function parse24hToClock(value: string): ClockTime {
 }
 
 function generateSlotsFromSchedule(settings: ScheduleSettings, startIndex: number): BatchSlot[] {
-  const batch = Number(settings.batchMinutes);
-  const brk = Number(settings.breakMinutes);
+  const batch = resolveBatchMinutes(settings.batchMinutes);
+  const brk = resolveBreakMinutes(settings.breakMinutes);
   let cursor = clockToMinutes(settings.firstStart);
   const endLimit = clockToMinutes(settings.lastEnd);
   const slots: BatchSlot[] = [];
@@ -162,13 +173,15 @@ function TimeSelect({
   value,
   onChange,
   required,
+  example,
 }: {
   value: ClockTime;
   onChange: (value: ClockTime) => void;
   required?: boolean;
+  example?: boolean;
 }) {
   return (
-    <div className="time-field">
+    <div className={`time-field${example ? ' time-field--example' : ''}`}>
       <select
         className="time-hour"
         value={value.hour}
@@ -236,7 +249,19 @@ export function BatchList() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [errorSource, setErrorSource] = useState<'generate' | 'save' | 'page'>('page');
   const [success, setSuccess] = useState('');
+
+  function clearMessages() {
+    setError('');
+    setErrorSource('page');
+    setSuccess('');
+  }
+
+  function setActionError(message: string, source: 'generate' | 'save') {
+    setError(message);
+    setErrorSource(source);
+  }
 
   useEffect(() => {
     Promise.all([fetch('/api/batches'), fetch('/api/staff-registrations')])
@@ -380,21 +405,26 @@ export function BatchList() {
     setSchedules((prev) => (prev.length <= 1 ? prev : prev.filter((row) => row.id !== id)));
   }
 
+  function onResetSchedules() {
+    setSchedules([defaultSchedule()]);
+    setSlots([]);
+    clearMessages();
+  }
+
   function onGenerate(e: FormEvent) {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    clearMessages();
 
     for (const schedule of schedules) {
       if (clockToMinutes(schedule.firstStart) >= clockToMinutes(schedule.lastEnd)) {
-        setError('Each schedule must have start time before end time');
+        setActionError('Each schedule must have start time before end time', 'generate');
         return;
       }
     }
 
     const overlapError = findSessionOverlapError(schedules);
     if (overlapError) {
-      setError(overlapError);
+      setActionError(overlapError, 'generate');
       return;
     }
 
@@ -404,29 +434,12 @@ export function BatchList() {
     }
 
     if (next.length === 0) {
-      setError('No slots could be generated with these settings');
+      setActionError('No slots could be generated with these settings', 'generate');
       return;
     }
 
     setSlots(next.map((slot, index) => ({ ...slot, name: `Batch ${index + 1}` })));
     setSuccess(`${next.length} slot${next.length === 1 ? '' : 's'} generated`);
-  }
-
-  function addSlot() {
-    const last = slots[slots.length - 1];
-    const schedule = schedules[0] ?? defaultSchedule();
-    const start = last ? last.endTime : schedule.firstStart;
-    const endMinutes = clockToMinutes(start) + Number(schedule.batchMinutes || 60);
-    setSlots((prev) => [
-      ...prev,
-      {
-        id: createId(),
-        name: `Batch ${prev.length + 1}`,
-        type: 'General',
-        startTime: start,
-        endTime: minutesToClock(endMinutes),
-      },
-    ]);
   }
 
   function updateSlot(id: string, patch: Partial<BatchSlot>) {
@@ -443,11 +456,10 @@ export function BatchList() {
 
   async function saveSlots() {
     setSaving(true);
-    setError('');
-    setSuccess('');
+    clearMessages();
     const overlapError = findSessionOverlapError(schedules);
     if (overlapError) {
-      setError(overlapError);
+      setActionError(overlapError, 'save');
       setSaving(false);
       return;
     }
@@ -458,8 +470,8 @@ export function BatchList() {
         body: JSON.stringify({
           schedules: schedules.map((row) => ({
             session: row.session,
-            batchMinutes: row.batchMinutes,
-            breakMinutes: row.breakMinutes,
+            batchMinutes: resolveBatchMinutes(row.batchMinutes),
+            breakMinutes: resolveBreakMinutes(row.breakMinutes),
             firstStart: clockTo24h(row.firstStart),
             lastEnd: clockTo24h(row.lastEnd),
           })),
@@ -497,14 +509,10 @@ export function BatchList() {
       if (payload.slots) {
         setSlots(
           payload.slots.map(
-            (slot: {
-              id: string;
-              name: string;
-              type: string;
-              startTime: string;
-              endTime: string;
-            }) => ({
-              ...slot,
+            (slot: { id?: string; name: string; type: string; startTime: string; endTime: string }) => ({
+              id: slot.id ?? createId(),
+              name: slot.name,
+              type: slot.type,
               startTime: parse24hToClock(slot.startTime),
               endTime: parse24hToClock(slot.endTime),
             }),
@@ -514,7 +522,7 @@ export function BatchList() {
       setMode('saved');
       setSuccess('Batch schedule saved');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
+      setActionError(err instanceof Error ? err.message : 'Failed to save', 'save');
     } finally {
       setSaving(false);
     }
@@ -522,25 +530,16 @@ export function BatchList() {
 
   if (loading) {
     return (
-      <div className="page">
-        <div className="top-row">
-          <MenuBackLink />
-        </div>
-        <h1>Batch List</h1>
+      <PlatformPage title="Batch List">
         <p className="muted">Loading…</p>
-      </div>
+      </PlatformPage>
     );
   }
 
   if (mode === 'saved') {
     return (
-      <div className="page">
-        <div className="top-row">
-          <MenuBackLink />
-        </div>
-
-        <h1>Batch List</h1>
-        <p className="lede">Create and manage swimming batch time slots.</p>
+      <PlatformPage title="Batch List">
+        <p className="lede batch-list-lede">Create swimming batches</p>
 
         <section className="card saved-summary">
           <div className="saved-schedules">
@@ -551,10 +550,10 @@ export function BatchList() {
                   <strong>Session:</strong> {schedule.session}
                 </p>
                 <p>
-                  <strong>Batch Duration (minutes):</strong> {schedule.batchMinutes} minutes
+                  <strong>Batch Duration (mins):</strong> {schedule.batchMinutes} mins
                 </p>
                 <p>
-                  <strong>Break time (minutes):</strong> {schedule.breakMinutes} minutes
+                  <strong>Break time (mins):</strong> {schedule.breakMinutes} mins
                 </p>
                 <p>
                   <strong>Session start time:</strong> {formatClockDisplay(schedule.firstStart)}
@@ -630,18 +629,13 @@ export function BatchList() {
 
         {error ? <p className="error">{error}</p> : null}
         {success ? <p className="success">{success}</p> : null}
-      </div>
+      </PlatformPage>
     );
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
-      <h1>Batch List</h1>
-      <p className="lede">Create and manage swimming batch time slots.</p>
+    <PlatformPage title="Batch List">
+      <p className="lede batch-list-lede">Create swimming batches</p>
 
       <section className="card schedule-card">
         <h2>Schedule settings</h2>
@@ -649,7 +643,7 @@ export function BatchList() {
           If there is major break (like lunch break) in batches, then please create session-wise
           schedule
         </p>
-        <form onSubmit={onGenerate}>
+        <form id="batch-schedule-form" onSubmit={onGenerate}>
           <div className="schedule-rows">
             {schedules.map((schedule, index) => {
               const isLast = index === schedules.length - 1;
@@ -673,30 +667,38 @@ export function BatchList() {
                   </label>
                   <label className="field">
                     <span className="label">
-                      Batch Duration (minutes) <span className="req">*</span>
+                      Batch Duration (mins) <span className="req">*</span>
                     </span>
                     <input
                       type="number"
                       min={1}
+                      className="schedule-example-input"
                       value={schedule.batchMinutes}
-                      onChange={(e) =>
-                        updateSchedule(schedule.id, { batchMinutes: Number(e.target.value) || 0 })
-                      }
-                      required
+                      placeholder="60"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        updateSchedule(schedule.id, {
+                          batchMinutes: raw === '' ? '' : Number(raw) || 0,
+                        });
+                      }}
                     />
                   </label>
                   <label className="field">
                     <span className="label">
-                      Break time (minutes) <span className="req">*</span>
+                      Break time (mins) <span className="req">*</span>
                     </span>
                     <input
                       type="number"
                       min={0}
+                      className="schedule-example-input"
                       value={schedule.breakMinutes}
-                      onChange={(e) =>
-                        updateSchedule(schedule.id, { breakMinutes: Number(e.target.value) || 0 })
-                      }
-                      required
+                      placeholder="15"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        updateSchedule(schedule.id, {
+                          breakMinutes: raw === '' ? '' : Number(raw) || 0,
+                        });
+                      }}
                     />
                   </label>
                   <label className="field">
@@ -707,6 +709,7 @@ export function BatchList() {
                       value={schedule.firstStart}
                       onChange={(firstStart) => updateSchedule(schedule.id, { firstStart })}
                       required
+                      example
                     />
                   </label>
                   <label className="field">
@@ -717,19 +720,22 @@ export function BatchList() {
                       value={schedule.lastEnd}
                       onChange={(lastEnd) => updateSchedule(schedule.id, { lastEnd })}
                       required
+                      example
                     />
                   </label>
                   <div className="schedule-row-actions">
                     {isLast ? (
-                      <button
-                        type="button"
-                        className="icon-btn icon-add"
-                        onClick={addScheduleRow}
-                        title="Add another schedule"
-                        aria-label="Add another schedule"
-                      >
-                        +
-                      </button>
+                      schedule.session !== 'Complete Day' ? (
+                        <button
+                          type="button"
+                          className="icon-btn icon-add"
+                          onClick={addScheduleRow}
+                          title="Add another schedule"
+                          aria-label="Add another schedule"
+                        >
+                          +
+                        </button>
+                      ) : null
                     ) : (
                       <button
                         type="button"
@@ -746,9 +752,17 @@ export function BatchList() {
               );
             })}
           </div>
-          <button type="submit" className="generate-btn">
-            Generate slots
-          </button>
+          <div className="schedule-form-actions">
+            <button type="button" className="pass-cancel" onClick={onResetSchedules}>
+              Reset
+            </button>
+            <button type="submit" className="submit">
+              Generate Batches
+            </button>
+          </div>
+          {error && errorSource === 'generate' ? (
+            <p className="error batch-action-error">{error}</p>
+          ) : null}
         </form>
       </section>
 
@@ -756,9 +770,6 @@ export function BatchList() {
         <section className="card slots-card">
           <div className="slots-head">
             <h2>Batch time slots</h2>
-            <button type="button" className="btn ghost-btn" onClick={addSlot}>
-              Add slot
-            </button>
           </div>
 
           <div className="slots-table-wrap">
@@ -806,15 +817,29 @@ export function BatchList() {
           </div>
 
           <div className="slots-actions">
+            <button
+              type="button"
+              className="pass-cancel"
+              onClick={() => {
+                setSlots([]);
+                clearMessages();
+              }}
+              disabled={saving}
+            >
+              Cancel
+            </button>
             <button type="button" className="submit" onClick={saveSlots} disabled={saving}>
-              {saving ? 'Saving…' : 'Save schedule'}
+              {saving ? 'Saving…' : 'Save Batches'}
             </button>
           </div>
+          {error && errorSource === 'save' ? (
+            <p className="error batch-action-error">{error}</p>
+          ) : null}
         </section>
       ) : null}
 
-      {error ? <p className="error">{error}</p> : null}
+      {error && errorSource === 'page' ? <p className="error">{error}</p> : null}
       {success ? <p className="success">{success}</p> : null}
-    </div>
+    </PlatformPage>
   );
 }

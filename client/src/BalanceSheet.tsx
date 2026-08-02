@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MenuBackLink } from './MenuBackLink';
 import { DownloadButton } from './DownloadButton';
+import { PlatformPage } from './PlatformPage';
 
 type LedgerItem = {
   id: string;
@@ -150,34 +150,25 @@ export function BalanceSheet() {
   }
 
   return (
-    <div className="page">
+    <PlatformPage
+      title="Balance Sheet"
+      actions={
+        <>
+          <label className="balance-month-inline">
+            <span className="label">Month</span>
+            <select value={month} onChange={(e) => setMonth(e.target.value)}>
+              {monthOptions.map((value) => (
+                <option key={value} value={value}>
+                  {monthLabel(value)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <DownloadButton onClick={downloadCsv} disabled={!sheet || sheet.items.length === 0} />
+        </>
+      }
+    >
       <div className="swimmer-list-card">
-        <div className="coach-payment-nav">
-          <MenuBackLink />
-        </div>
-
-        <div className="pass-head">
-          <div>
-            <h1>Balance Sheet</h1>
-          </div>
-          <div className="list-head-actions">
-            <label className="balance-month-inline">
-              <span className="label">Month</span>
-              <select value={month} onChange={(e) => setMonth(e.target.value)}>
-                {monthOptions.map((value) => (
-                  <option key={value} value={value}>
-                    {monthLabel(value)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <DownloadButton
-              onClick={downloadCsv}
-              disabled={!sheet || sheet.items.length === 0}
-            />
-          </div>
-        </div>
-
         {error ? <p className="error">{error}</p> : null}
         {loading ? <p className="pass-count">Loading…</p> : null}
 
@@ -263,6 +254,6 @@ export function BalanceSheet() {
           </>
         ) : null}
       </div>
-    </div>
+    </PlatformPage>
   );
 }

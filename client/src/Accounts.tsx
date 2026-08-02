@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MenuBackLink } from './MenuBackLink';
-import { PlatformNav } from './PlatformNav';
+import { PlatformPage } from './PlatformPage';
+import { PlatformShell } from './PlatformShell';
 import { hasPlatformAccess } from './platformAccess';
 import { getPlatformSession } from './platformSession';
 
@@ -317,20 +317,16 @@ export function Accounts() {
   }
 
   return (
-    <>
-      <PlatformNav />
-      <div className="page accounts-page">
-        <div className="top-row">
-          <MenuBackLink />
-          <div className="top-row-right">
-            <Link className="submit" to="/create-account">
-              Create Account
-            </Link>
-          </div>
-        </div>
-
-        <h1>Accounts</h1>
-
+    <PlatformShell>
+      <PlatformPage
+        title="Accounts"
+        className="accounts-page"
+        actions={
+          <Link className="submit" to="/create-account">
+            Create Account
+          </Link>
+        }
+      >
         {error ? <p className="error">{error}</p> : null}
         {info ? <p className="success">{info}</p> : null}
 
@@ -770,7 +766,7 @@ export function Accounts() {
             </>
           )}
         </section>
-      </div>
+      </PlatformPage>
 
       {pendingDelete ? (
         <div
@@ -857,6 +853,6 @@ export function Accounts() {
           </div>
         </div>
       ) : null}
-    </>
+    </PlatformShell>
   );
 }

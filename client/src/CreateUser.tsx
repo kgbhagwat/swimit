@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { emailHint, isValidEmail, isValidMobile, mobileHint } from './formValidation';
+import { PlatformPage } from './PlatformPage';
 import {
   isPlatformUsersPath,
   platformUsersPath,
@@ -92,14 +93,14 @@ export function CreateUser() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
+    <PlatformPage
+      title="Create User"
+      actions={
         <Link className="menu-link" to={userManagementTo}>
           ← User Management
         </Link>
-      </div>
-
-      <h1>Create User</h1>
+      }
+    >
       <p className="lede">
         {onPlatform
           ? 'Add a SwimIT SaaS platform login user. A random password is generated and sent on WhatsApp.'
@@ -176,6 +177,6 @@ export function CreateUser() {
           </button>
         </div>
       </form>
-    </div>
+    </PlatformPage>
   );
 }

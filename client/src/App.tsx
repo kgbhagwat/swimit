@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint } from './formValidation';
@@ -733,29 +733,26 @@ export function App() {
 
   if (isEdit && loadingEdit) {
     return (
-      <div className="page">
+      <PlatformPage title={isEdit ? t.editTitle : t.title}>
         <p className="pass-empty">Loading…</p>
-      </div>
+      </PlatformPage>
     );
   }
 
   if (isEdit && loadError) {
     return (
-      <div className="page">
-        <div className="top-row">
-          <MenuBackLink label={t.mainMenu} />
-        </div>
+      <PlatformPage title={isEdit ? t.editTitle : t.title}>
         <p className="error">{loadError}</p>
-      </div>
+      </PlatformPage>
     );
   }
 
   if (submitted) {
     return (
-      <div className="page">
-        <div className="top-row">
-          <MenuBackLink label={t.mainMenu} />
-          <div className="top-row-right">
+      <PlatformPage
+        title={t.title}
+        actions={
+          <>
             <SendFormQrButton form="swimmer" />
             <div className="langs">
               {(['en', 'mr', 'hi'] as const).map((code, i) => (
@@ -771,26 +768,24 @@ export function App() {
                 </span>
               ))}
             </div>
-          </div>
-        </div>
-
-        <h1>{t.title}</h1>
-
+          </>
+        }
+      >
         <div className="registration-success-panel">
           <p className="success">{t.success}</p>
           <button type="button" className="submit" onClick={onSuccessOk}>
             {t.ok}
           </button>
         </div>
-      </div>
+      </PlatformPage>
     );
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink label={t.mainMenu} />
-        <div className="top-row-right">
+    <PlatformPage
+      title={isEdit ? t.editTitle : t.title}
+      actions={
+        <>
           {isEdit ? null : <SendFormQrButton form="swimmer" />}
           <div className="langs">
             {(['en', 'mr', 'hi'] as const).map((code, i) => (
@@ -806,10 +801,9 @@ export function App() {
               </span>
             ))}
           </div>
-        </div>
-      </div>
-
-      <h1>{isEdit ? t.editTitle : t.title}</h1>
+        </>
+      }
+    >
       <p className="required-note">
         <span className="req">*</span> {t.requiredNote}
       </p>
@@ -1218,6 +1212,6 @@ export function App() {
       </form>
 
       <TermsModal open={termsOpen} onClose={() => setTermsOpen(false)} variant="swimmer" />
-    </div>
+    </PlatformPage>
   );
 }

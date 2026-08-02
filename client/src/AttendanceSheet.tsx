@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DownloadButton } from './DownloadButton';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 
 type AttendanceItem = {
   registrationId: number;
@@ -193,12 +193,11 @@ export function AttendanceSheet() {
   })();
 
   return (
-    <div className="page attendance-sheet-page">
+    <PlatformPage
+      title="Attendance Sheet"
+      className="attendance-sheet-page"
+    >
       <div className="attendance-card">
-        <MenuBackLink />
-
-        <h1 className="attendance-title">Attendance Sheet</h1>
-
         <div className="attendance-filters">
           <div className="attendance-filters-left">
             <span className="label">View</span>
@@ -333,6 +332,6 @@ export function AttendanceSheet() {
           )
         ) : null}
       </div>
-    </div>
+    </PlatformPage>
   );
 }

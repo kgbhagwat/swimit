@@ -43,10 +43,10 @@ export const MENU_SECTIONS: MenuSection[] = [
 /** Pages that can be granted to users (excludes User Management itself). */
 export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'create-user', section: 'User Management', to: '/create-user', label: 'Create User' },
-  { key: 'pool-core-info', section: 'Setup', to: '/pool-core-info', label: 'Pool Core Info' },
+  { key: 'pool-core-info', section: 'Setup', to: '/pool-core-info', label: 'Core Info' },
   { key: 'batches', section: 'Setup', to: '/batches', label: 'Batch List' },
   { key: 'pass-types', section: 'Setup', to: '/pass-types', label: 'Pass Type' },
-  { key: 'holiday-management', section: 'Setup', to: '/holiday-management', label: 'Holiday Management' },
+  { key: 'holiday-management', section: 'Setup', to: '/holiday-management', label: 'Holidays' },
   { key: 'pass-payment', section: 'Operations', to: '/pass-payment', label: 'Pass Payment' },
   { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp' },
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },

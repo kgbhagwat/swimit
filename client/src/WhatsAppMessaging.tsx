@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 import { getActiveSaasAccountId, setActiveTenant } from './tenantSession';
 
 type InboxItem = {
@@ -153,12 +153,9 @@ export function WhatsAppMessaging() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
-      <h1>WhatsApp</h1>
+    <PlatformPage
+      title="WhatsApp"
+    >
       <p className="lede">
         Send messages on WhatsApp and review inbound images from registered mobiles (payment
         screenshots / certificates).
@@ -338,6 +335,6 @@ export function WhatsAppMessaging() {
           </div>
         )}
       </section>
-    </div>
+    </PlatformPage>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DownloadButton } from './DownloadButton';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 
 type CoachOption = {
   id: number;
@@ -288,39 +288,35 @@ export function CoachPayment() {
   }
 
   return (
-    <div className="page">
-      <div className="swimmer-list-card">
-        <div className="coach-payment-nav">
-          <MenuBackLink />
+    <PlatformPage
+      title={viewMode === 'summary' ? 'Coach Payment Summary' : 'Coach Payment'}
+      actions={
+        <>
           {viewMode === 'summary' ? (
             <button type="button" className="menu-link coach-payment-back" onClick={openDetail}>
               ← Back
             </button>
           ) : null}
-        </div>
-
-        <div className="pass-head">
-          <h1>{viewMode === 'summary' ? 'Coach Payment Summary' : 'Coach Payment'}</h1>
-          <div className="list-head-actions">
-            {viewMode === 'summary' ? (
+          {viewMode === 'summary' ? (
+            <DownloadButton
+              onClick={downloadSummaryCsv}
+              disabled={!summary || summary.items.length === 0}
+            />
+          ) : (
+            <>
               <DownloadButton
-                onClick={downloadSummaryCsv}
-                disabled={!summary || summary.items.length === 0}
+                onClick={downloadDetailCsv}
+                disabled={!result || result.items.length === 0}
               />
-            ) : (
-              <>
-                <DownloadButton
-                  onClick={downloadDetailCsv}
-                  disabled={!result || result.items.length === 0}
-                />
-                <button type="button" className="submit" onClick={openSummary}>
-                  Summary
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
+              <button type="button" className="submit" onClick={openSummary}>
+                Summary
+              </button>
+            </>
+          )}
+        </>
+      }
+    >
+      <div className="swimmer-list-card">
         <div className="coach-payment-controls">
           {viewMode === 'detail' ? (
             <label className="field">
@@ -490,6 +486,6 @@ export function CoachPayment() {
           ) : null
         ) : null}
       </div>
-    </div>
+    </PlatformPage>
   );
 }

@@ -1,20 +1,12 @@
-import { Link } from 'react-router-dom';
-import { PlatformNav } from './PlatformNav';
+import { PlatformShell } from './PlatformShell';
+import { PlatformPage } from './PlatformPage';
 
 /** Marketing home (`/`) — application overview only; no permanent app chrome. */
 export function MainMenu() {
   return (
-    <div className="menu-shell">
-      <PlatformNav />
-
-      <div className="menu-card">
-        <header className="menu-brand">
-          <h1>SwimIT</h1>
-          <p>Swimming Pool Management System</p>
-        </header>
-
+    <PlatformShell>
+      <PlatformPage title="Application overview" className="home-overview-page">
         <section className="home-app-overview" aria-label="Application overview">
-          <h2>Application overview</h2>
           <p>
             <strong>SwimIT</strong> is a cloud-based Swimming Pool Management System (SaaS) built for
             pool operators and aquatic clubs.
@@ -79,17 +71,8 @@ export function MainMenu() {
             <div className="home-info-flow-step">Coach Payment calculation</div>
             <div className="home-info-flow-step">Balance Sheet</div>
           </div>
-
-          <div className="home-app-overview-cta">
-            <Link className="home-cta-btn" to="/create-account">
-              Create Account
-            </Link>
-            <Link className="home-cta-btn" to="/application">
-              View Application
-            </Link>
-          </div>
         </section>
-      </div>
-    </div>
+      </PlatformPage>
+    </PlatformShell>
   );
 }

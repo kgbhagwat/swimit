@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
+import { PlatformPage } from './PlatformPage';
 import { getPlatformSession } from './platformSession';
 import { hasPlatformAccess } from './platformAccess';
 import { useObjectUrl } from './useObjectUrl';
@@ -294,8 +295,7 @@ export function PlatformPayment() {
   }
 
   return (
-    <div className="page">
-      <h1>Payment</h1>
+    <PlatformPage title="Payment">
       <p className="lede">
         Upload the SwimIT SaaS payment QR code and UPI ID. Pool account admins use these details to
         pay for their subscription.
@@ -554,6 +554,6 @@ export function PlatformPayment() {
           )}
         </section>
       ) : null}
-    </div>
+    </PlatformPage>
   );
 }

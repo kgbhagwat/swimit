@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useLocation, useNavigate, useOutlet } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import {
   ACCESS_PAGES,
   ALL_PAGE_KEYS,
@@ -15,9 +15,10 @@ import {
   type MenuPageKey,
   type MenuSection,
 } from './menuCatalog';
-import { MENU_ITEMS, MenuTiles } from './menuItems';
+import { MENU_ITEMS, MenuTiles, type MenuItem } from './menuItems';
 import { PassPopupOverlay } from './PassPopupOverlay';
 import { PlatformNav } from './PlatformNav';
+import { PlatformPage } from './PlatformPage';
 import { setActiveTenant } from './tenantSession';
 import { isPassPopupWindow } from './swimmerPass';
 
@@ -400,7 +401,7 @@ export type AppShellProps = {
   children?: ReactNode;
 };
 
-/** Permanent SwimIT chrome: brand + section tabs; feature pages render below in Outlet. */
+/** Pool app chrome: sidebar sections + top bar; feature pages render in the main pane. */
 export function AppShell({
   tenantAccount,
   tenantUser,
@@ -529,6 +530,19 @@ export function AppShell({
     [section, tenantAccount, tenantUser, allowedKeys, packageIsFull],
   );
 
+  function itemsForSection(name: MenuSection): MenuItem[] {
+    return MENU_ITEMS.filter((item) => {
+      if (item.section !== name) return false;
+      if (item.to === '/user-management') {
+        if (!tenantAccount || !tenantUser) return true;
+        return Boolean(tenantUser.isAccountAdmin) && packageIsFull;
+      }
+      const page = ACCESS_PAGES.find((p) => p.to === item.to);
+      if (!page) return true;
+      return tenantAccount && tenantUser ? allowedKeys.has(page.key) : true;
+    });
+  }
+
   function onSectionClick(name: MenuSection) {
     if (tenantAccount && tenantUser && !allowedSections.has(name)) return;
     if (!onHome) {
@@ -538,11 +552,39 @@ export function AppShell({
     setSection(name);
   }
 
+  function isItemActive(item: MenuItem) {
+    return (
+      featurePath === item.to ||
+      featurePath.startsWith(`${item.to}/`)
+    );
+  }
+
   const sectionTabs = tenantAccount
     ? MENU_SECTIONS.filter((s) => allowedSections.has(s))
     : MENU_SECTIONS;
 
   const passPopupOnly = isPassPopupWindow();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [appSidebarOpen, setAppSidebarOpen] = useState(true);
+  const [appFullscreen, setAppFullscreen] = useState(() => {
+    try {
+      return sessionStorage.getItem('swimIT.applicationPreviewFullscreen') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (tenantAccount) return;
+    try {
+      sessionStorage.setItem(
+        'swimIT.applicationPreviewFullscreen',
+        appFullscreen ? '1' : '0',
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [appFullscreen, tenantAccount]);
 
   if (passPopupOnly) {
     return (
@@ -553,51 +595,179 @@ export function AppShell({
     );
   }
 
-  return (
-    <div className="menu-shell">
-      {!tenantAccount ? <PlatformNav /> : null}
+  const homeBody =
+    pageContent ??
+    (onHome ? (
+      <PlatformPage title={section}>
+        <MenuTiles items={visibleItems} section={section} />
+      </PlatformPage>
+    ) : (
+      <PlatformPage title="Not found">
+        <p className="error">Page not found ({featurePath}).</p>
+      </PlatformPage>
+    ));
 
-      <div className="menu-card">
-        {tenantAccount ? (
-          <TenantUserBar
-            account={tenantAccount}
-            user={tenantUser}
-            onLogout={onTenantLogout}
-          />
-        ) : null}
-
-        <div className="app-shell-chrome">
-          <header className="menu-brand">
-            <h1>SwimIT</h1>
-            <p>Swimming Pool Management System</p>
-          </header>
-
-          <nav className="menu-bar" aria-label="Menu sections">
-            {sectionTabs.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className={`menu-bar-item${highlightSection === name ? ' selected' : ''}`}
-                aria-current={highlightSection === name ? 'page' : undefined}
-                onClick={() => onSectionClick(name)}
-              >
-                {name}
-              </button>
-            ))}
-          </nav>
+  const poolMenu = (
+    <>
+      <nav
+        id="pool-app-sidebar"
+        className={`platform-sidebar${appSidebarOpen ? '' : ' platform-sidebar--hidden'}`}
+        aria-label="Pool menu"
+      >
+        <div className="platform-sidebar-brand">
+          <p className="platform-sidebar-brand-name">SwimIT</p>
+          <p className="platform-sidebar-brand-label">
+            {tenantAccount ? 'Pool management' : 'Application preview'}
+          </p>
         </div>
+        <ul className="platform-sidebar-list">
+          {sectionTabs.map((name) => {
+            const active = highlightSection === name;
+            const children = itemsForSection(name);
+            const expanded = active;
+            return (
+              <li key={name} className="platform-sidebar-group">
+                <button
+                  type="button"
+                  className={`platform-sidebar-link platform-sidebar-section${active ? ' active' : ''}`}
+                  aria-expanded={expanded}
+                  aria-current={active && onHome ? 'page' : undefined}
+                  onClick={() => onSectionClick(name)}
+                >
+                  <span className="platform-sidebar-link-label">{name}</span>
+                  <span
+                    className={`platform-sidebar-chevron${expanded ? ' open' : ''}`}
+                    aria-hidden
+                  />
+                </button>
+                {expanded && children.length > 0 ? (
+                  <ul className="platform-sidebar-sublist">
+                    {children.map((item) => {
+                      const itemActive = isItemActive(item);
+                      return (
+                        <li key={item.to}>
+                          <Link
+                            className={`platform-sidebar-sublink${itemActive ? ' active' : ''}`}
+                            to={appPath(item.to)}
+                            aria-current={itemActive ? 'page' : undefined}
+                          >
+                            {item.label}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
-        <div className="app-shell-body">
-          {pageContent ??
-            (onHome ? (
-              <MenuTiles items={visibleItems} appPath={appPath} section={section} />
-            ) : (
-              <div className="page">
-                <p className="error">Page not found ({featurePath}).</p>
-              </div>
-            ))}
+      <div className="platform-main-topbar">
+        <button
+          type="button"
+          className="platform-sidebar-toggle"
+          onClick={() => setAppSidebarOpen((open) => !open)}
+          aria-label={appSidebarOpen ? 'Hide menu' : 'Show menu'}
+          aria-expanded={appSidebarOpen}
+          aria-controls="pool-app-sidebar"
+        >
+          <span className="platform-sidebar-toggle-bar" />
+          <span className="platform-sidebar-toggle-bar" />
+          <span className="platform-sidebar-toggle-bar" />
+        </button>
+        <div className="platform-main-topbar-actions">
+          {tenantAccount ? (
+            <TenantUserBar
+              account={tenantAccount}
+              user={tenantUser}
+              onLogout={onTenantLogout}
+            />
+          ) : (
+            <span className="app-preview-topbar-note">View Application</span>
+          )}
         </div>
       </div>
+
+      <div className="platform-shell-main">{homeBody}</div>
+    </>
+  );
+
+  const appSizeToggle =
+    !tenantAccount ? (
+      <button
+        type="button"
+        className="app-fullscreen-toggle"
+        onClick={() => setAppFullscreen((open) => !open)}
+        aria-label={appFullscreen ? 'Exit full screen' : 'Open application full screen'}
+        title={appFullscreen ? 'Exit full screen' : 'Full screen'}
+      >
+        {appFullscreen ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M9 9V5M9 9H5M9 9L4 4" />
+            <path d="M15 9h4M15 9V5M15 9l5-5" />
+            <path d="M9 15v4M9 15H5M9 15l-5 5" />
+            <path d="M15 15h4M15 15v4M15 15l5 5" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 4v4M4 4h4M4 4l5 5" />
+            <path d="M20 4h-4M20 4v4M20 4l-5 5" />
+            <path d="M4 20v-4M4 20h4M4 20l5-5" />
+            <path d="M20 20h-4M20 20v-4M20 20l-5-5" />
+          </svg>
+        )}
+      </button>
+    ) : null;
+
+  /* Logged-in pool account: full-window pool chrome. */
+  if (tenantAccount) {
+    return (
+      <div
+        className={`platform-shell${appSidebarOpen ? '' : ' platform-shell--sidebar-collapsed'}`}
+      >
+        {poolMenu}
+        <PassPopupOverlay />
+      </div>
+    );
+  }
+
+  /* Full-screen application preview — stays while browsing all app pages. */
+  if (appFullscreen) {
+    return (
+      <div
+        className={`platform-shell platform-shell--app-fullscreen${
+          appSidebarOpen ? '' : ' platform-shell--sidebar-collapsed'
+        }`}
+      >
+        {poolMenu}
+        {appSizeToggle}
+        <PassPopupOverlay />
+      </div>
+    );
+  }
+
+  /* SaaS “View Application”: platform chrome + embedded pool app (sidebar + top bar). */
+  return (
+    <div
+      className={`platform-shell${sidebarOpen ? '' : ' platform-shell--sidebar-collapsed'}`}
+    >
+      <PlatformNav
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((open) => !open)}
+      />
+
+      <div className="platform-shell-main platform-shell-main--embed-app">
+        <div
+          className={`platform-shell platform-shell--embedded${
+            appSidebarOpen ? '' : ' platform-shell--sidebar-collapsed'
+          }`}
+        >
+          {poolMenu}
+        </div>
+      </div>
+      {appSizeToggle}
       <PassPopupOverlay />
     </div>
   );

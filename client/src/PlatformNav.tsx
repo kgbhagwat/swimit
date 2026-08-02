@@ -40,6 +40,20 @@ const LINKS = [
     accessKey: 'service-packages' as PlatformAccessPageKey,
   },
   {
+    to: '/create-account',
+    label: 'Create Account',
+    match: (path: string) =>
+      path === '/create-account' || path.startsWith('/create-account/'),
+    requiresAuth: false,
+  },
+  {
+    to: '/application',
+    label: 'View Application',
+    match: (path: string) =>
+      path === '/application' || path.startsWith('/application/'),
+    requiresAuth: false,
+  },
+  {
     to: '/platform/payment',
     label: 'Payment',
     match: (path: string) =>
@@ -295,7 +309,13 @@ function PlatformLoginModal({
 }
 
 /** Sticky SaaS platform menu with active-page highlight and pool login. */
-export function PlatformNav() {
+export function PlatformNav({
+  sidebarOpen = true,
+  onToggleSidebar,
+}: {
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+} = {}) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [loginOpen, setLoginOpen] = useState(false);
@@ -322,62 +342,89 @@ export function PlatformNav() {
     refreshSession();
   }
 
+  const visibleLinks = LINKS.filter((link) => {
+    if (link.requiresAuth && !platformUser) return false;
+    if (!platformUser) return true;
+    if (!('accessKey' in link) || !link.accessKey) return true;
+    // Service Packages stays visible for browsing; other keys gate staff nav.
+    if (link.to === '/service-packages') return true;
+    return hasPlatformAccess(
+      platformUser.menuAccess,
+      link.accessKey,
+      platformUser.isAccountAdmin,
+    );
+  });
+
   return (
     <>
-      <div className="platform-nav-sticky">
-        <nav className="platform-rail" aria-label="SwimIT SaaS platform">
-          <div className="platform-rail-brand">
-            <p className="platform-rail-brand-name">SwimIT</p>
-            <p className="platform-rail-label">SaaS platform</p>
-          </div>
-          <div className="platform-rail-actions">
-            {LINKS.filter((link) => {
-              if (link.requiresAuth && !platformUser) return false;
-              if (!platformUser) return true;
-              if (!('accessKey' in link) || !link.accessKey) return true;
-              // Service Packages stays visible for browsing; other keys gate staff nav.
-              if (link.to === '/service-packages') return true;
-              return hasPlatformAccess(
-                platformUser.menuAccess,
-                link.accessKey,
-                platformUser.isAccountAdmin,
-              );
-            }).map((link) => {
-              const active = link.match(pathname);
-              return (
+      <nav
+        id="platform-sidebar"
+        className={`platform-sidebar${sidebarOpen ? '' : ' platform-sidebar--hidden'}`}
+        aria-label="Platform menu"
+      >
+        <div className="platform-sidebar-brand">
+          <p className="platform-sidebar-brand-name">SwimIT</p>
+          <p className="platform-sidebar-brand-label">SaaS platform</p>
+        </div>
+        <ul className="platform-sidebar-list">
+          {visibleLinks.map((link) => {
+            const active = link.match(pathname);
+            return (
+              <li key={link.to}>
                 <Link
-                  key={link.to}
-                  className={`platform-rail-link${active ? ' active' : ''}`}
+                  className={`platform-sidebar-link${active ? ' active' : ''}`}
                   to={link.to}
                   aria-current={active ? 'page' : undefined}
                 >
-                  {link.label}
+                  <span className="platform-sidebar-link-label">{link.label}</span>
                 </Link>
-              );
-            })}
-            {platformUser ? (
-              <>
-                <PlatformProfileMenu session={platformUser} />
-                <button
-                  type="button"
-                  className="platform-rail-link platform-rail-login"
-                  onClick={onLogout}
-                >
-                  Sign out
-                </button>
-              </>
-            ) : (
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div className="platform-main-topbar">
+        {onToggleSidebar ? (
+          <button
+            type="button"
+            className="platform-sidebar-toggle"
+            onClick={onToggleSidebar}
+            aria-label={sidebarOpen ? 'Hide menu' : 'Show menu'}
+            aria-expanded={sidebarOpen}
+            aria-controls="platform-sidebar"
+          >
+            <span className="platform-sidebar-toggle-bar" />
+            <span className="platform-sidebar-toggle-bar" />
+            <span className="platform-sidebar-toggle-bar" />
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="platform-main-topbar-actions">
+          {platformUser ? (
+            <>
+              <PlatformProfileMenu session={platformUser} />
               <button
                 type="button"
-                className="platform-rail-link platform-rail-login"
-                onClick={() => setLoginOpen(true)}
+                className="platform-main-login"
+                onClick={onLogout}
               >
-                Login
+                Sign out
               </button>
-            )}
-          </div>
-        </nav>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="platform-main-login"
+              onClick={() => setLoginOpen(true)}
+            >
+              Login
+            </button>
+          )}
+        </div>
       </div>
+
       <PlatformLoginModal
         open={loginOpen}
         onClose={closeLogin}

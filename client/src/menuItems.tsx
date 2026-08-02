@@ -1,5 +1,4 @@
 import { type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import type { MenuSection } from './menuCatalog';
 
 export type MenuItem = {
@@ -7,6 +6,23 @@ export type MenuItem = {
   label: string;
   icon: ReactNode;
   section: MenuSection;
+  /** What this submenu does */
+  does: string;
+  /** How it helps the pool */
+  helps: string;
+};
+
+const SECTION_INTROS: Record<MenuSection, string> = {
+  Setup:
+    'This is one time setup. It asks about basic information about your pool, which is mandatory for running any pool. You need to provide this information initially after opening an account with SwimIT. You can change it whenever you want.',
+  'User Management':
+    'Control who can sign in to this pool account and which menus each person can open.',
+  Operations:
+    'Run the daily desk and gate work — take pass payments, scan entries, message members, and track payables.',
+  Information:
+    'Look up swimmers and staff, review attendance, and check payment and finance summaries.',
+  Forms:
+    'Capture new swimmer and staff details with standard registration forms.',
 };
 
 function IconWrap({ children }: { children: ReactNode }) {
@@ -23,6 +39,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Forms',
     to: '/register',
     label: 'Registration form',
+    does: 'Registers a new swimmer with contact details, identity, and profile photo.',
+    helps:
+      'Keeps every swimmer record in one place so desk staff can enrol quickly without paper forms.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -37,6 +56,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Forms',
     to: '/staff-register',
     label: 'Staff registration',
+    does: 'Registers coaches, lifeguards, and other staff with role and contact details.',
+    helps:
+      'Builds a clear staff roster you can assign to batches and use for coach payment later.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -52,6 +74,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Operations',
     to: '/pass-payment',
     label: 'Pass Payment',
+    does: 'Collects cash or online payment and issues or renews a swimmer’s digital pass.',
+    helps:
+      'Turns payment into an active pass in one step, ready to send on WhatsApp and scan at the gate.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -66,6 +91,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Operations',
     to: '/whatsapp',
     label: 'WhatsApp',
+    does: 'Sends messages to active swimmers or staff and reviews inbound WhatsApp images.',
+    helps:
+      'Reaches members quickly for notices, and collects payment screenshots or certificates without email chase-ups.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -79,6 +107,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Information',
     to: '/swimmers',
     label: "Swimmer's List",
+    does: 'Lists active and inactive swimmers with pass, batch, and coach details.',
+    helps:
+      'Find anyone fast, open their profile or pass, and keep records up to date after registration.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -94,6 +125,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Operations',
     to: '/pass-scanner',
     label: 'Pass Scanner',
+    does: 'Scans a swimmer’s QR / ID pass at the gate to mark daily attendance.',
+    helps:
+      'Speeds entry, confirms who is allowed in today, and keeps attendance accurate without a paper register.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -107,6 +141,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Information',
     to: '/attendance-sheet',
     label: 'Attendance Sheet',
+    does: 'Shows month-wise attendance for batches or individual swimmers.',
+    helps:
+      'Gives coaches and managers a clear view of who came, for follow-up and pass validity checks.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -120,7 +157,10 @@ export const MENU_ITEMS: MenuItem[] = [
   {
     section: 'Setup',
     to: '/pool-core-info',
-    label: 'Pool Core Info',
+    label: 'Core Info',
+    does: 'Stores your swimming pool name, address, timings, and basic facility details.',
+    helps:
+      'Keeps the account identity consistent on passes, forms, and reports so members see the right pool details.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -135,6 +175,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Setup',
     to: '/batches',
     label: 'Batch List',
+    does: 'Defines swimming session schedules — start/end times, duration, and breaks.',
+    helps:
+      'Lets you assign swimmers to the right slots and avoid overlapping batches at the pool.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -148,6 +191,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Setup',
     to: '/pass-types',
     label: 'Pass Type',
+    does: 'Creates pass products with duration, pricing, and rules for sale at the desk.',
+    helps:
+      'Standardises what you sell (monthly, quarterly, etc.) so payments and expiry dates stay consistent.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -162,6 +208,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Information',
     to: '/coaches',
     label: 'Staff List',
+    does: 'Lists coaches, lifeguards, and other staff with their role and contact info.',
+    helps:
+      'Makes it easy to pick the right coach for a batch and keep staff certificates and details organised.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -177,6 +226,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Operations',
     to: '/coach-payment',
     label: 'Coach Payment',
+    does: 'Calculates coach payouts from attendance or agreed payment rules for a period.',
+    helps:
+      'Saves manual spreadsheet work and gives a fair, clear summary before you pay coaches.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -192,6 +244,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Operations',
     to: '/pool-expenses',
     label: 'Pool Expenses',
+    does: 'Records day-to-day pool costs such as chemicals, utilities, and supplies.',
+    helps:
+      'Tracks spending in one place so you can see where money goes and feed the balance sheet.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -205,6 +260,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Information',
     to: '/balance-sheet',
     label: 'Balance Sheet',
+    does: 'Summarises income, expenses, and overall pool profitability for a period.',
+    helps:
+      'Gives owners a quick health check of the business without exporting data to Excel.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -217,6 +275,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Information',
     to: '/payment-details',
     label: 'Payment Details',
+    does: 'Shows pass payment history and transaction details for swimmers.',
+    helps:
+      'Helps resolve payment queries, confirm online transfers, and audit who paid for which pass.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -230,7 +291,10 @@ export const MENU_ITEMS: MenuItem[] = [
   {
     section: 'Setup',
     to: '/holiday-management',
-    label: 'Holiday Management',
+    label: 'Holidays',
+    does: 'Marks pool holidays and closed days on the calendar.',
+    helps:
+      'Stops attendance and scheduling surprises on closed days and keeps members informed.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -245,6 +309,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'User Management',
     to: '/create-user',
     label: 'Create User',
+    does: 'Adds a new login user for this pool and sends a temporary password on WhatsApp.',
+    helps:
+      'Onboards desk, gate, or coach staff quickly with their own sign-in instead of sharing one password.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -259,6 +326,9 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'User Management',
     to: '/user-management',
     label: 'User Management',
+    does: 'Lists login users and sets which menus each person can open or edit.',
+    helps:
+      'Protects sensitive screens (finance, setup) while giving each role only the access they need.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -274,11 +344,9 @@ export const MENU_ITEMS: MenuItem[] = [
 
 export function MenuTiles({
   items,
-  appPath,
   section,
 }: {
   items: MenuItem[];
-  appPath: (path: string) => string;
   section: MenuSection;
 }) {
   if (items.length === 0) {
@@ -286,13 +354,17 @@ export function MenuTiles({
   }
 
   return (
-    <nav className="menu-grid" aria-label={`${section} pages`}>
-      {items.map((item) => (
-        <Link key={item.to} className="menu-tile" to={appPath(item.to)}>
-          {item.icon}
-          <span className="menu-tile-label">{item.label}</span>
-        </Link>
-      ))}
-    </nav>
+    <div className="menu-section-overview">
+      <p className="lede menu-section-intro">{SECTION_INTROS[section]}</p>
+      <nav className="menu-desc-list" aria-label={`${section} pages`}>
+        {items.map((item) => (
+          <article key={item.to} className="menu-desc-item">
+            <h2 className="menu-desc-title">{item.label}</h2>
+            <p className="menu-desc-text">{item.does}</p>
+            <p className="menu-desc-text">{item.helps}</p>
+          </article>
+        ))}
+      </nav>
+    </div>
   );
 }

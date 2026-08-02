@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 
 type RecentPassPayment = {
   id: number;
@@ -83,12 +83,7 @@ export function PaymentDetails() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
-      <h1>Payment Details</h1>
+    <PlatformPage title="Payment Details">
       <p className="lede">Confirmed pass payments for this swimming pool account.</p>
 
       <section className="pass-form-card platform-payment-txns">
@@ -205,6 +200,6 @@ export function PaymentDetails() {
           </div>
         ) : null}
       </section>
-    </div>
+    </PlatformPage>
   );
 }

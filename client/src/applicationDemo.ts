@@ -21,7 +21,7 @@ export const APPLICATION_FEATURE_PATHS = new Set([
 ]);
 
 const DEMO_FLAG_KEY = 'swimIT.applicationDemo';
-const DEMO_DATA_KEY = 'swimIT.applicationDemoData';
+const DEMO_DATA_KEY = 'swimIT.applicationDemoData.v2';
 
 export type DemoStore = {
   nextId: number;
@@ -56,15 +56,7 @@ function emptyStore(): DemoStore {
   return {
     nextId: 1,
     batches: {
-      schedules: [
-        {
-          id: 'default',
-          batchMinutes: 60,
-          breakMinutes: 15,
-          firstStart: '06:00',
-          lastEnd: '20:00',
-        },
-      ],
+      schedules: [],
       slots: [],
     },
     passTypes: [],
@@ -72,15 +64,16 @@ function emptyStore(): DemoStore {
     staffRegistrations: [],
     users: [],
     poolCoreInfo: {
-      poolName: 'Demo Pool',
-      poolAddress: 'Try me — data is not saved after you leave Application',
+      poolName: '',
+      poolAddress: '',
       poolLogoPath: null,
       swimmerTerms: '',
       staffTerms: '',
       paymentQrPath: null,
       upiDetails: '',
-      paymentAcceptCash: true,
-      paymentAcceptOnline: true,
+      paymentAcceptCash: false,
+      paymentAcceptOnline: false,
+      setupCompleted: false,
       updatedAt: new Date().toISOString(),
     },
     holidaysWeekly: [],
@@ -114,9 +107,9 @@ export function isApplicationDemo() {
 
 export function enterApplicationDemo() {
   sessionStorage.setItem(DEMO_FLAG_KEY, '1');
-  if (!sessionStorage.getItem(DEMO_DATA_KEY)) {
-    sessionStorage.setItem(DEMO_DATA_KEY, JSON.stringify(emptyStore()));
-  }
+  // Always start Application preview empty; trial edits stay in this session only.
+  sessionStorage.setItem(DEMO_DATA_KEY, JSON.stringify(emptyStore()));
+  sessionStorage.removeItem('swimIT.applicationDemoData');
 }
 
 export function exitApplicationDemo() {

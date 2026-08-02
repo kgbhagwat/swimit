@@ -1,23 +1,14 @@
-import { MenuBackLink } from './MenuBackLink';
-import { PlatformNav } from './PlatformNav';
+import { PlatformPage } from './PlatformPage';
+import { PlatformShell } from './PlatformShell';
 
 export function ApplicationGuide() {
   return (
-    <>
-      <PlatformNav />
-      <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
+    <PlatformShell>
+      <PlatformPage title="View Application">
       <article className="app-guide">
-        <header className="app-guide-header">
-          <p className="app-guide-eyebrow">Application overview</p>
-          <h1>SwimIT — Product Description, Usage &amp; Advantages</h1>
-          <p className="lede">
-            Read-only guide to what SwimIT is, how to use it, and why pools choose it.
-          </p>
-        </header>
+        <p className="lede">
+          Read-only guide to what SwimIT is, how to use it, and why pools choose it.
+        </p>
 
         <section className="app-guide-section">
           <h2>1. What is SwimIT?</h2>
@@ -424,7 +415,7 @@ export function ApplicationGuide() {
           Enterprise) and tenant-isolated pool operations.
         </p>
       </article>
-    </div>
-    </>
+      </PlatformPage>
+    </PlatformShell>
   );
 }

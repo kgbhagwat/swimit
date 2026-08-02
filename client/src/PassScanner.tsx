@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { Html5Qrcode } from 'html5-qrcode';
 import { IdCard, fetchPoolBrand, type PoolBrand } from './IdCard';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 
 type ScannedSwimmer = {
   id: number;
@@ -169,14 +169,8 @@ export function PassScanner() {
   );
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
+    <PlatformPage title="Pass Scanner">
       <div className="swimmer-list-card">
-        <h1>Pass Scanner</h1>
-
         {view === 'idle' ? (
           <section className="scanner-panel">
             <div className="scanner-entry">
@@ -289,6 +283,6 @@ export function PassScanner() {
 
         {error ? <p className="error">{error}</p> : null}
       </div>
-    </div>
+    </PlatformPage>
   );
 }

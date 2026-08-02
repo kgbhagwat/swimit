@@ -74,17 +74,6 @@ function handleBatches(method: string, body: Record<string, unknown>, store: Dem
         lastEnd: String(r.lastEnd ?? '20:00').slice(0, 5),
       };
     });
-    if (store.batches.schedules.length === 0) {
-      store.batches.schedules = [
-        {
-          id: 'default',
-          batchMinutes: 60,
-          breakMinutes: 15,
-          firstStart: '06:00',
-          lastEnd: '20:00',
-        },
-      ];
-    }
     store.batches.slots = [...slotsIn]
       .map((row, index) => {
         const r = row as Record<string, unknown>;

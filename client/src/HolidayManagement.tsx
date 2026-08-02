@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { MenuBackLink } from './MenuBackLink';
 import { nationalHolidaysForYear } from './nationalHolidays';
+import { PlatformPage } from './PlatformPage';
 
 type HolidayType = 'annual' | 'surprise';
 type DaySpan = 'full' | 'partial';
@@ -368,27 +368,25 @@ export function HolidayManagement() {
   }
 
   return (
-    <div className="page holiday-page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
-      <div className="pass-head">
-        <div>
-          <h1>Holiday Management</h1>
-          <p className="lede">Define weekly off days, annual leaves, and surprise closures.</p>
-        </div>
-        <label className="field holiday-year-field">
-          <span className="label">Year</span>
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
-            {yearOptions().map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+    <PlatformPage
+      title="Holidays"
+      className="holiday-page"
+      actions={
+        <>
+          <label className="field holiday-year-field">
+            <span className="label">Year</span>
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+              {yearOptions().map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      }
+    >
+      <p className="lede">Define weekly off days, annual leaves, and surprise closures.</p>
 
       {error ? <p className="error">{error}</p> : null}
       {success ? <p className="success">{success}</p> : null}
@@ -753,6 +751,6 @@ export function HolidayManagement() {
           </section>
         </>
       ) : null}
-    </div>
+    </PlatformPage>
   );
 }

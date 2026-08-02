@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { MenuBackLink } from './MenuBackLink';
 import { QrImage } from './QrImage';
 import { tenantPath } from './tenantSession';
 import {
@@ -60,7 +59,6 @@ export function PassView() {
           </button>
         ) : (
           <>
-            <MenuBackLink />
             <div className="top-row-right">
               <Link className="menu-link" to={tenantPath('/swimmers')}>
                 Swimmer List

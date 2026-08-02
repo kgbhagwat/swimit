@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { MenuBackLink } from './MenuBackLink';
+import { isApplicationDemo } from './applicationDemo';
+import { PlatformPage } from './PlatformPage';
 
 type PassType = {
   id: number;
@@ -44,14 +45,26 @@ const emptyForm: PassForm = {
   passName: '',
   forOptions: ['Swimming'],
   prerequisites: ['Nothing'],
-  durationValue: '30',
-  durationUnit: 'Day',
+  durationValue: '1',
+  durationUnit: 'Month',
   passCharges: '',
   coachingCharges: '',
   coach: 'Not Required',
   maxSwimmersPerCoach: 'No Limit',
   exceedingLimitAllowed: 'Yes',
 };
+
+/** Application preview starts with no pre-selected options. */
+function createEmptyForm(): PassForm {
+  if (!isApplicationDemo()) return { ...emptyForm };
+  return {
+    ...emptyForm,
+    forOptions: [],
+    prerequisites: [],
+    passCharges: '',
+    coachingCharges: '',
+  };
+}
 
 type CoachOption = {
   name: string;
@@ -113,7 +126,7 @@ function splitList(value: string) {
 function parseDuration(duration: string) {
   const match = duration.trim().match(/^(\d+)\s*(Day|Week|Month|Year)s?$/i);
   if (!match) {
-    return { durationValue: '30', durationUnit: 'Day' };
+    return { durationValue: '1', durationUnit: 'Month' };
   }
   const unitRaw = match[2];
   const unit =
@@ -164,9 +177,8 @@ export function PassTypePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<PassForm>(emptyForm);
+  const [form, setForm] = useState<PassForm>(() => createEmptyForm());
 
   const matchingCoaches = coachesForSelection(coaches, form.forOptions);
 
@@ -234,13 +246,6 @@ export function PassTypePage() {
     });
   }
 
-  function openCreate() {
-    setEditingId(null);
-    setForm(emptyForm);
-    setFormOpen(true);
-    setError('');
-  }
-
   function openEdit(item: PassType) {
     const { durationValue, durationUnit } = parseDuration(item.duration);
     const forOptions = splitList(item.forAudience).filter((option) =>
@@ -259,14 +264,13 @@ export function PassTypePage() {
       maxSwimmersPerCoach: formatMaxSwimmers(item.maxSwimmersPerCoach),
       exceedingLimitAllowed: item.exceedingLimitAllowed === false ? 'No' : 'Yes',
     });
-    setFormOpen(true);
     setError('');
   }
 
   function closeForm() {
-    setFormOpen(false);
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(createEmptyForm());
+    setError('');
   }
 
   async function onSubmit(e: FormEvent) {
@@ -344,201 +348,262 @@ export function PassTypePage() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
+    <PlatformPage title="Pass Type">
+      <p className="pass-count">
+        {items.length} pass type{items.length === 1 ? '' : 's'}
+      </p>
 
-      <div className="pass-head">
-        <div>
-          <h1>Pass Type</h1>
-          <p className="pass-count">
-            {items.length} pass type{items.length === 1 ? '' : 's'}
-          </p>
+      <section className="pass-table-card">
+        <div className="pass-table-head">
+          <span>Pass name</span>
+          <span>For</span>
+          <span>Prerequisite</span>
+          <span>Duration</span>
+          <span>Pass Charges</span>
+          <span>Coaching Charges</span>
+          <span>Coach</span>
+          <span>Actions</span>
         </div>
-        {!formOpen ? (
-          <button type="button" className="submit" onClick={openCreate}>
-            Add pass type
-          </button>
-        ) : null}
-      </div>
 
-      {formOpen ? (
-        <section className="pass-form-card" aria-labelledby="pass-form-title">
-          <form className="pass-form" onSubmit={onSubmit}>
-            <h2 id="pass-form-title">{editingId ? 'Edit pass type' : 'Add pass type'}</h2>
-            <label className="pass-name-field">
-              <span className="pass-option-label">
-                Pass name <span className="req">*</span>
-              </span>
-              <input
-                value={form.passName}
-                onChange={(e) => setForm({ ...form, passName: e.target.value })}
-                placeholder="e.g. General, Level 1, Level 2, Competitive etc"
-                required
-                aria-label="Pass name"
-              />
-            </label>
-
-            <div className="pass-option-row">
-              <span className="pass-option-label">For</span>
-              <div className="pass-check-rows">
-                <div className="pass-check-row">
-                  {FOR_OPTIONS.map((option) => (
-                    <label className="pass-check" key={option}>
-                      <input
-                        type="checkbox"
-                        checked={form.forOptions.includes(option)}
-                        onChange={() => updateForOptions(option)}
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
+        {loading ? (
+          <p className="pass-empty">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="pass-empty">No pass types defined yet. Add one using the form below.</p>
+        ) : (
+          <div className="pass-table-body">
+            {items.map((item, index) => (
+              <div className={`pass-row pass-row-tone-${index % 4}`} key={item.id}>
+                <div className="pass-block-row">
+                  <strong data-label="Pass name">{item.passName}</strong>
+                  <span data-label="For">{item.forAudience}</span>
+                  <span data-label="Prerequisite">{item.prerequisite}</span>
+                  <span data-label="Duration">{item.duration}</span>
+                </div>
+                <div className="pass-block-row">
+                  <span data-label="Pass Charges">{formatMoney(item.passCharges)}</span>
+                  <span data-label="Coaching Charges">{formatMoney(item.coachingCharges)}</span>
+                  <span data-label="Coach">{item.coach || 'Not Required'}</span>
+                  <span className="pass-actions" data-label="Actions">
+                    <button
+                      type="button"
+                      className="accounts-icon-btn accounts-icon-edit"
+                      onClick={() => openEdit(item)}
+                      aria-label={`Edit ${item.passName}`}
+                      title="Edit"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      type="button"
+                      className="accounts-icon-btn accounts-icon-delete"
+                      onClick={() => onDelete(item.id)}
+                      aria-label={`Delete ${item.passName}`}
+                      title="Delete"
+                    >
+                      <DeleteIcon />
+                    </button>
+                  </span>
                 </div>
               </div>
-            </div>
+            ))}
+          </div>
+        )}
+      </section>
 
-            <div className="pass-option-row">
-              <span className="pass-option-label">Prerequisite</span>
-              <div className="pass-check-rows">
-                <div className="pass-check-row">
-                  {PREREQ_OPTIONS.slice(0, 5).map((option) => (
-                    <label className="pass-check" key={option}>
-                      <input
-                        type="checkbox"
-                        checked={form.prerequisites.includes(option)}
-                        onChange={() =>
-                          setForm({
-                            ...form,
-                            prerequisites: togglePrerequisite(form.prerequisites, option),
-                          })
-                        }
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="pass-check-row">
-                  {PREREQ_OPTIONS.slice(5).map((option) => (
-                    <label className="pass-check" key={option}>
-                      <input
-                        type="checkbox"
-                        checked={form.prerequisites.includes(option)}
-                        onChange={() =>
-                          setForm({
-                            ...form,
-                            prerequisites: togglePrerequisite(form.prerequisites, option),
-                          })
-                        }
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
+      <section className="pass-form-card pool-core-form" aria-labelledby="pass-form-title">
+        <form className="pass-form" onSubmit={onSubmit}>
+          <h2 id="pass-form-title">{editingId ? 'Edit pass type' : 'Add pass type'}</h2>
+          <label className="pass-name-field">
+            <span className="pass-option-label">
+              Pass name <span className="req">*</span>
+            </span>
+            <input
+              value={form.passName}
+              onChange={(e) => setForm({ ...form, passName: e.target.value })}
+              placeholder="e.g. General, Level 1, Level 2, Competitive etc"
+              required
+              aria-label="Pass name"
+            />
+          </label>
+
+          <div className="pass-option-row">
+            <span className="pass-option-label">For</span>
+            <div className="pass-check-rows">
+              <div className="pass-check-row">
+                {FOR_OPTIONS.map((option) => (
+                  <label className="pass-check" key={option}>
+                    <input
+                      type="checkbox"
+                      checked={form.forOptions.includes(option)}
+                      onChange={() => updateForOptions(option)}
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
               </div>
             </div>
+          </div>
 
-            <div className="pass-coach-row">
-              <div className="pass-inline-field pass-coach-field">
-                <span className="pass-option-label">Coach</span>
+          <div className="pass-option-row">
+            <span className="pass-option-label">Prerequisite</span>
+            <div className="pass-check-rows">
+              <div className="pass-check-row pass-check-row--prereq">
+                {PREREQ_OPTIONS.map((option) => (
+                  <label className="pass-check" key={option}>
+                    <input
+                      type="checkbox"
+                      checked={form.prerequisites.includes(option)}
+                      onChange={() =>
+                        setForm({
+                          ...form,
+                          prerequisites: togglePrerequisite(form.prerequisites, option),
+                        })
+                      }
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="pass-coach-row">
+            <div className="pass-inline-field pass-coach-field">
+              <span className="pass-option-label">Coach</span>
+              <select
+                value={form.coach}
+                onChange={(e) => {
+                  const coach = e.target.value;
+                  setForm({
+                    ...form,
+                    coach,
+                    coachingCharges: coach === 'Not Required' ? '' : form.coachingCharges,
+                    maxSwimmersPerCoach:
+                      coach === 'Not Required' ? 'No Limit' : form.maxSwimmersPerCoach,
+                    exceedingLimitAllowed:
+                      coach === 'Not Required' ? 'Yes' : form.exceedingLimitAllowed,
+                  });
+                }}
+                aria-label="Coach"
+              >
+                <option value="Not Required">Not Required</option>
+                <option value="Any">Any</option>
+                {matchingCoaches.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {form.coach !== 'Not Required' ? (
+              <>
+                <div className="pass-inline-field pass-max-swimmers-field">
+                  <span className="pass-option-label pass-option-label-wide">
+                    Max no of swimmers in a batch per coach
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.maxSwimmersPerCoach}
+                    onFocus={(e) => {
+                      if (/^no\s*limit$/i.test(e.target.value.trim())) {
+                        e.target.select();
+                      }
+                    }}
+                    onChange={(e) => setForm({ ...form, maxSwimmersPerCoach: e.target.value })}
+                    onBlur={() => {
+                      const parsed = parseMaxSwimmersInput(form.maxSwimmersPerCoach);
+                      if (parsed === null || !form.maxSwimmersPerCoach.trim()) {
+                        setForm({ ...form, maxSwimmersPerCoach: 'No Limit' });
+                      } else if (parsed !== 'invalid') {
+                        setForm({ ...form, maxSwimmersPerCoach: formatMaxSwimmers(parsed) });
+                      }
+                    }}
+                    placeholder="No Limit"
+                    aria-label="Max no of swimmers in a batch per coach"
+                  />
+                </div>
+
+                <div className="pass-inline-field pass-exceed-limit-field">
+                  <span className="pass-option-label pass-option-label-wide">
+                    Is Exceeding this limit allowed?
+                  </span>
+                  <div
+                    className="pass-yes-no"
+                    role="radiogroup"
+                    aria-label="Is Exceeding this limit allowed?"
+                  >
+                    {(['Yes', 'No'] as const).map((option) => (
+                      <label key={option} className="pass-yes-no-option">
+                        <input
+                          type="radio"
+                          name="exceedingLimitAllowed"
+                          value={option}
+                          checked={form.exceedingLimitAllowed === option}
+                          onChange={() => setForm({ ...form, exceedingLimitAllowed: option })}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <div className="pass-charges-row">
+            <div className="pass-inline-field">
+              <span className="pass-option-label">Duration</span>
+              <div className="duration-inputs">
+                <input
+                  type="number"
+                  min={1}
+                  value={form.durationValue}
+                  onChange={(e) => setForm({ ...form, durationValue: e.target.value })}
+                  required
+                  aria-label="Duration value"
+                />
                 <select
-                  value={form.coach}
-                  onChange={(e) => {
-                    const coach = e.target.value;
-                    setForm({
-                      ...form,
-                      coach,
-                      coachingCharges: coach === 'Not Required' ? '' : form.coachingCharges,
-                    });
-                  }}
-                  aria-label="Coach"
+                  value={form.durationUnit}
+                  onChange={(e) => setForm({ ...form, durationUnit: e.target.value })}
+                  aria-label="Duration unit"
                 >
-                  <option value="Not Required">Not Required</option>
-                  <option value="Any">Any</option>
-                  {matchingCoaches.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
+                  {DURATION_UNITS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
                     </option>
                   ))}
                 </select>
               </div>
-
-              <div className="pass-inline-field pass-max-swimmers-field">
-                <span className="pass-option-label pass-option-label-wide">
-                  Max no of swimmers in a batch per coach
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.maxSwimmersPerCoach}
-                  onFocus={(e) => {
-                    if (/^no\s*limit$/i.test(e.target.value.trim())) {
-                      e.target.select();
-                    }
-                  }}
-                  onChange={(e) => setForm({ ...form, maxSwimmersPerCoach: e.target.value })}
-                  onBlur={() => {
-                    const parsed = parseMaxSwimmersInput(form.maxSwimmersPerCoach);
-                    if (parsed === null || !form.maxSwimmersPerCoach.trim()) {
-                      setForm({ ...form, maxSwimmersPerCoach: 'No Limit' });
-                    } else if (parsed !== 'invalid') {
-                      setForm({ ...form, maxSwimmersPerCoach: formatMaxSwimmers(parsed) });
-                    }
-                  }}
-                  placeholder="No Limit"
-                  aria-label="Max no of swimmers in a batch per coach"
-                />
-              </div>
-
-              <div className="pass-inline-field pass-exceed-limit-field">
-                <span className="pass-option-label pass-option-label-wide">
-                  Is Exceeding this limit allowed?
-                </span>
-                <div className="pass-yes-no" role="radiogroup" aria-label="Is Exceeding this limit allowed?">
-                  {(['Yes', 'No'] as const).map((option) => (
-                    <label key={option} className="pass-yes-no-option">
-                      <input
-                        type="radio"
-                        name="exceedingLimitAllowed"
-                        value={option}
-                        checked={form.exceedingLimitAllowed === option}
-                        onChange={() => setForm({ ...form, exceedingLimitAllowed: option })}
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
             </div>
 
-            <div className="pass-charges-row">
-              <div className="pass-inline-field">
-                <span className="pass-option-label">Duration</span>
-                <div className="duration-inputs">
-                  <input
-                    type="number"
-                    min={1}
-                    value={form.durationValue}
-                    onChange={(e) => setForm({ ...form, durationValue: e.target.value })}
-                    required
-                    aria-label="Duration value"
-                  />
-                  <select
-                    value={form.durationUnit}
-                    onChange={(e) => setForm({ ...form, durationUnit: e.target.value })}
-                    aria-label="Duration unit"
-                  >
-                    {DURATION_UNITS.map((unit) => (
-                      <option key={unit} value={unit}>
-                        {unit}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div className="pass-inline-field">
+              <span className="pass-option-label">Pass Charges</span>
+              <div className="money-input">
+                <span className="money-prefix" aria-hidden="true">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={form.passCharges}
+                  onChange={(e) => setForm({ ...form, passCharges: e.target.value })}
+                  placeholder="e.g. 1500"
+                  required
+                  aria-label="Pass charges"
+                />
               </div>
+            </div>
+          </div>
 
+          {form.coach !== 'Not Required' ? (
+            <div className="pass-charges-row pass-coaching-charges-row">
               <div className="pass-inline-field">
-                <span className="pass-option-label">Pass Charges</span>
+                <span className="pass-option-label pass-option-label-wide">
+                  Coaching Charges <span className="req">*</span>
+                </span>
                 <div className="money-input">
                   <span className="money-prefix" aria-hidden="true">
                     ₹
@@ -547,116 +612,30 @@ export function PassTypePage() {
                     type="number"
                     min={0}
                     step="1"
-                    value={form.passCharges}
-                    onChange={(e) => setForm({ ...form, passCharges: e.target.value })}
-                    placeholder="e.g. 1500"
+                    value={form.coachingCharges}
+                    onChange={(e) => setForm({ ...form, coachingCharges: e.target.value })}
+                    placeholder="e.g. 400"
                     required
-                    aria-label="Pass charges"
+                    aria-label="Coaching charges"
                   />
                 </div>
+                <span className="pass-coach-charges-note">(It should be part of pass charges)</span>
               </div>
             </div>
+          ) : null}
 
-            {form.coach !== 'Not Required' ? (
-              <div className="pass-charges-row pass-coaching-charges-row">
-                <div className="pass-inline-field">
-                  <span className="pass-option-label pass-option-label-wide">
-                    Coaching Charges <span className="req">*</span>
-                  </span>
-                  <div className="money-input">
-                    <span className="money-prefix" aria-hidden="true">
-                      ₹
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      step="1"
-                      value={form.coachingCharges}
-                      onChange={(e) => setForm({ ...form, coachingCharges: e.target.value })}
-                      placeholder="e.g. 400"
-                      required
-                      aria-label="Coaching charges"
-                    />
-                  </div>
-                  <span className="pass-coach-charges-note">(It should be part of pass charges)</span>
-                </div>
-              </div>
-            ) : null}
+          {error ? <p className="error">{error}</p> : null}
 
-            {error && formOpen ? <p className="error">{error}</p> : null}
-
-            <div className="pass-form-actions">
-              <button type="button" className="pass-cancel" onClick={closeForm}>
-                Cancel
-              </button>
-              <button type="submit" className="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save pass type'}
-              </button>
-            </div>
-          </form>
-        </section>
-      ) : null}
-
-      {!formOpen ? (
-        <section className="pass-table-card">
-          <div className="pass-table-head">
-            <span>Pass name</span>
-            <span>For</span>
-            <span>Prerequisite</span>
-            <span>Duration</span>
-            <span>Pass Charges</span>
-            <span>Coaching Charges</span>
-            <span>Coach</span>
-            <span>Actions</span>
+          <div className="pass-form-actions">
+            <button type="button" className="pass-cancel" onClick={closeForm}>
+              Cancel
+            </button>
+            <button type="submit" className="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save Pass'}
+            </button>
           </div>
-
-          {loading ? (
-            <p className="pass-empty">Loading…</p>
-          ) : items.length === 0 ? (
-            <p className="pass-empty">No pass types defined yet. Use Add pass type to create one.</p>
-          ) : (
-            <div className="pass-table-body">
-              {items.map((item, index) => (
-                <div className={`pass-row pass-row-tone-${index % 4}`} key={item.id}>
-                  <div className="pass-block-row">
-                    <strong data-label="Pass name">{item.passName}</strong>
-                    <span data-label="For">{item.forAudience}</span>
-                    <span data-label="Prerequisite">{item.prerequisite}</span>
-                    <span data-label="Duration">{item.duration}</span>
-                  </div>
-                  <div className="pass-block-row">
-                    <span data-label="Pass Charges">{formatMoney(item.passCharges)}</span>
-                    <span data-label="Coaching Charges">{formatMoney(item.coachingCharges)}</span>
-                    <span data-label="Coach">{item.coach || 'Not Required'}</span>
-                    <span className="pass-actions" data-label="Actions">
-                      <button
-                        type="button"
-                        className="accounts-icon-btn accounts-icon-edit"
-                        onClick={() => openEdit(item)}
-                        aria-label={`Edit ${item.passName}`}
-                        title="Edit"
-                      >
-                        <EditIcon />
-                      </button>
-                      <button
-                        type="button"
-                        className="accounts-icon-btn accounts-icon-delete"
-                        onClick={() => onDelete(item.id)}
-                        aria-label={`Delete ${item.passName}`}
-                        title="Delete"
-                      >
-                        <DeleteIcon />
-                      </button>
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      {error && !formOpen ? <p className="error">{error}</p> : null}
-    </div>
+        </form>
+      </section>
+    </PlatformPage>
   );
 }

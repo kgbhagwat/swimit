@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 import {
   ACCESS_PAGES,
   MENU_SECTIONS,
@@ -399,17 +399,16 @@ export function UserManagement() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-        <div className="top-row-right">
+    <PlatformPage
+      title="User Management"
+      actions={
+        <>
           <Link className="submit" to={createUserTo}>
             Create User
           </Link>
-        </div>
-      </div>
-
-      <h1>User Management</h1>
+        </>
+      }
+    >
       {platformMode ? (
         <p className="lede">Manage SwimIT SaaS platform login users and platform menu access.</p>
       ) : null}
@@ -459,6 +458,6 @@ export function UserManagement() {
           </table>
         </div>
       ) : null}
-    </div>
+    </PlatformPage>
   );
 }

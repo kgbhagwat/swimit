@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { PlatformNav } from './PlatformNav';
+import { PlatformShell } from './PlatformShell';
 import { getPlatformSession } from './platformSession';
 import { getActiveSaasAccountId, setActiveTenant } from './tenantSession';
 
@@ -14,9 +14,8 @@ export function PlatformUsersLayout() {
   }
 
   return (
-    <>
-      <PlatformNav />
+    <PlatformShell>
       <Outlet />
-    </>
+    </PlatformShell>
   );
 }

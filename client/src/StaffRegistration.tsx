@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { compressImageToLimit } from './compressImage';
 import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint } from './formValidation';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { TermsModal } from './TermsModal';
 import { SendFormQrButton } from './SendFormQrButton';
@@ -925,56 +925,55 @@ export function StaffRegistration() {
 
   if (loadingEdit) {
     return (
-      <div className="page">
+      <PlatformPage title={isEdit ? t.editTitle : t.title}>
         <p className="pass-empty">Loading…</p>
-      </div>
+      </PlatformPage>
     );
   }
 
   if (submitted) {
     return (
-      <div className="page">
-        <div className="top-row">
-          <MenuBackLink label={t.mainMenu} />
-          <div className="langs">
-            {(['en', 'mr', 'hi'] as const).map((code, i) => (
-              <span key={code}>
-                {i > 0 ? <span className="sep"> / </span> : null}
-                <button
-                  type="button"
-                  className={lang === code ? 'lang active' : 'lang'}
-                  onClick={() => setLang(code)}
-                >
-                  {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <h1>{t.title}</h1>
-
+      <PlatformPage
+        title={t.title}
+        actions={
+          <>
+            <div className="langs">
+              {(['en', 'mr', 'hi'] as const).map((code, i) => (
+                <span key={code}>
+                  {i > 0 ? <span className="sep"> / </span> : null}
+                  <button
+                    type="button"
+                    className={lang === code ? 'lang active' : 'lang'}
+                    onClick={() => setLang(code)}
+                  >
+                    {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
+                  </button>
+                </span>
+              ))}
+            </div>
+          </>
+        }
+      >
         <div className="registration-success-panel">
           <p className="success">{t.success}</p>
           <button type="button" className="submit" onClick={onSuccessOk}>
             {t.ok}
           </button>
         </div>
-      </div>
+      </PlatformPage>
     );
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        {isEdit ? (
-          <Link className="menu-link" to={tenantPath('/coaches')}>
-            {t.backToList}
-          </Link>
-        ) : (
-          <MenuBackLink label={t.mainMenu} />
-        )}
-        <div className="top-row-right">
+    <PlatformPage
+      title={isEdit ? t.editTitle : t.title}
+      actions={
+        <>
+          {isEdit ? (
+            <Link className="menu-link" to={tenantPath('/coaches')}>
+              {t.backToList}
+            </Link>
+          ) : null}
           {isEdit ? (
             <label className="status-switch">
               <span className={isActive ? 'status-on' : 'status-off'}>
@@ -1006,10 +1005,9 @@ export function StaffRegistration() {
               ))}
             </div>
           )}
-        </div>
-      </div>
-
-      <h1>{isEdit ? t.editTitle : t.title}</h1>
+        </>
+      }
+    >
       <p className="required-note">
         <span className="req">*</span> {t.requiredNote}
       </p>
@@ -1592,6 +1590,6 @@ export function StaffRegistration() {
       </form>
 
       <TermsModal open={termsOpen} onClose={() => setTermsOpen(false)} variant="staff" />
-    </div>
+    </PlatformPage>
   );
 }

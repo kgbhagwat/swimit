@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { PlatformNav } from './PlatformNav';
+import { PlatformShell } from './PlatformShell';
+import { PlatformPage } from './PlatformPage';
 import { getPlatformSession } from './platformSession';
 
 type ServicePackage = {
@@ -227,11 +228,8 @@ export function ServicePackages() {
   }
 
   return (
-    <>
-      <PlatformNav />
-      <div className="page">
-      <h1>Service packages</h1>
-
+    <PlatformShell>
+      <PlatformPage title="Service packages" className="service-packages-page">
       {canManagePackages ? (
       <form className="pass-form-card" onSubmit={onSubmit}>
         <h2>{editingId ? 'Edit package' : 'New package'}</h2>
@@ -385,8 +383,7 @@ export function ServicePackages() {
       {error ? <p className="error">{error}</p> : null}
       {success ? <p className="success">{success}</p> : null}
 
-      <section className="pass-table-card" style={{ marginTop: '1.25rem' }}>
-        <h2>Service packages</h2>
+      <section className="pass-table-card service-packages-card">
         {loading ? (
           <p className="muted">Loading…</p>
         ) : packages.length === 0 ? (
@@ -525,7 +522,7 @@ export function ServicePackages() {
           </div>
         )}
       </section>
-    </div>
-    </>
+      </PlatformPage>
+    </PlatformShell>
   );
 }

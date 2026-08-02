@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { MenuBackLink } from './MenuBackLink';
+import { PlatformPage } from './PlatformPage';
 
 type ServicePackage = {
   id: number;
@@ -351,19 +351,14 @@ export function RenewPayment() {
 
   if (!code) {
     return (
-      <div className="page">
+      <PlatformPage title="Renew package">
         <p className="error">Missing account code.</p>
-      </div>
+      </PlatformPage>
     );
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
-      <h1>Renew package</h1>
+    <PlatformPage title="Renew package">
       <p className="lede">
         Confirm your renewal, pay SwimIT via UPI / QR, then send the payment screenshot on WhatsApp.
       </p>
@@ -537,6 +532,6 @@ export function RenewPayment() {
           ) : null}
         </>
       ) : null}
-    </div>
+    </PlatformPage>
   );
 }

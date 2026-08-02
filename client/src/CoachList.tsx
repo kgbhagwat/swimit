@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DownloadButton } from './DownloadButton';
-import { MenuBackLink } from './MenuBackLink';
 import { canEditPage } from './pageAccess';
+import { PlatformPage } from './PlatformPage';
 import { tenantPath } from './tenantSession';
 
 type StaffRole = 'Coach' | 'Lifeguard' | 'Other';
@@ -250,14 +250,9 @@ export function CoachList() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
+    <PlatformPage title="Staff List">
       <div className="pass-head">
         <div>
-          <h1>Staff List</h1>
           <p className="pass-count">{countLabel}</p>
         </div>
         <div className="list-head-actions">
@@ -387,6 +382,6 @@ export function CoachList() {
       )}
 
       {error ? <p className="error">{error}</p> : null}
-    </div>
+    </PlatformPage>
   );
 }

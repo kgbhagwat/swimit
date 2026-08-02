@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { MenuBackLink } from './MenuBackLink';
 import { DownloadButton } from './DownloadButton';
+import { PlatformPage } from './PlatformPage';
 
 type Expense = {
   id: number;
@@ -200,14 +200,10 @@ export function PoolExpenses() {
   }
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
-      <div className="pass-head">
-        <h1>Pool Expenses</h1>
-        <div className="list-head-actions expense-head-actions">
+    <PlatformPage
+      title="Pool Expenses"
+      actions={
+        <>
           <label className="expense-month">
             <span>Month</span>
             <select value={month} onChange={(e) => setMonth(e.target.value)}>
@@ -219,9 +215,9 @@ export function PoolExpenses() {
             </select>
           </label>
           <DownloadButton onClick={downloadCsv} disabled={items.length === 0} />
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <section className="pass-table-card expense-table-card">
         <div className="expense-table-head">
           <span>Date</span>
@@ -360,6 +356,6 @@ export function PoolExpenses() {
       </section>
 
       {error ? <p className="error">{error}</p> : null}
-    </div>
+    </PlatformPage>
   );
 }

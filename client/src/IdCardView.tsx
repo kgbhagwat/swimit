@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { IdCard, fetchPoolBrand } from './IdCard';
-import { MenuBackLink } from './MenuBackLink';
 import { tenantPath } from './tenantSession';
 import {
   fetchSwimmerPass,
@@ -63,7 +62,6 @@ export function IdCardView() {
           </button>
         ) : (
           <>
-            <MenuBackLink />
             <div className="top-row-right">
               <Link className="menu-link" to={tenantPath('/swimmers')}>
                 Swimmer List

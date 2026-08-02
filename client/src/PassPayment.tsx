@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { InPageSelect } from './InPageSelect';
-import { MenuBackLink } from './MenuBackLink';
 import { canEditPage } from './pageAccess';
+import { PlatformPage } from './PlatformPage';
 import {
   fetchSwimmerProfile,
   SwimmerProfile,
@@ -739,13 +739,8 @@ export function PassPayment() {
       : coach || selectedPass.coach || 'Any';
 
   return (
-    <div className="page">
-      <div className="top-row">
-        <MenuBackLink />
-      </div>
-
+    <PlatformPage title="Pass Payment">
       <div className="swimmer-list-card">
-        <h1>Pass Payment</h1>
         <p className="pass-count">
           {rows.length} swimmer{rows.length === 1 ? '' : 's'} pending payment for today
         </p>
@@ -879,7 +874,7 @@ export function PassPayment() {
               {selectedPass ? (
                 <div className="payment-summary">
                   <p>
-                    <strong>Duration:</strong> {selectedPass.duration}
+                    <strong>Duration of pass:</strong> {selectedPass.duration}
                   </p>
                   <p>
                     <strong>Pass charges:</strong> {formatMoney(selectedPass.passCharges)}
@@ -888,16 +883,17 @@ export function PassPayment() {
                     <strong>Coach:</strong> {displayCoach}
                   </p>
                   <div className="pass-period-row">
-                    <strong>Pass Period:</strong>
+                    <strong>Issue date:</strong>
                     <input
                       type="date"
                       value={passStartDate}
                       onChange={(e) => setPassStartDate(e.target.value || todayIso())}
-                      aria-label="Pass start date"
+                      aria-label="Issue date"
                     />
-                    <span className="pass-period-to">to</span>
-                    <span className="pass-period-end">{passValidUntil}</span>
                   </div>
+                  <p>
+                    <strong>Expiry date:</strong> {passValidUntil}
+                  </p>
                   <div className="pass-period-holidays">
                     <strong>Holidays in period:</strong>
                     {holidaysLoading ? (
@@ -1119,6 +1115,6 @@ export function PassPayment() {
 
         {error && !paying ? <p className="error">{error}</p> : null}
       </div>
-    </div>
+    </PlatformPage>
   );
 }

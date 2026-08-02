@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { emailHint, isValidEmail, isValidMobile, mobileHint } from './formValidation';
-import { PlatformNav } from './PlatformNav';
+import { PlatformPage } from './PlatformPage';
+import { PlatformShell } from './PlatformShell';
 import { getPlatformSession } from './platformSession';
 
 type AccountForm = {
@@ -452,18 +453,17 @@ export function CreateAccount() {
     const showPayment = !isTrialPackage(created.packageName);
 
     return (
-      <>
-        <PlatformNav />
-        <div className="page">
-        {canManageAccounts ? (
-          <div className="top-row">
-            <Link className="menu-link" to="/accounts">
-              ← Accounts
-            </Link>
-          </div>
-        ) : null}
-
-        <h1>Account created</h1>
+      <PlatformShell>
+        <PlatformPage
+          title="Account created"
+          actions={
+            canManageAccounts ? (
+              <Link className="menu-link" to="/accounts">
+                ← Accounts
+              </Link>
+            ) : undefined
+          }
+        >
         <p className="lede">Account details for the pool operator.</p>
         {warning ? <p className="error">{warning}</p> : null}
 
@@ -590,30 +590,23 @@ export function CreateAccount() {
               </Link>
             )}
           </div>
-      </div>
-      </>
+      </PlatformPage>
+      </PlatformShell>
     );
   }
 
   return (
-    <>
-      <PlatformNav />
-      <div className="page">
-      {canManageAccounts ? (
-        <div className="top-row">
-          <Link className="menu-link" to="/accounts">
-            ← Accounts
-          </Link>
-        </div>
-      ) : null}
-
-      <h1>{isEdit ? 'Edit Account' : 'Create Account'}</h1>
-      <p className="lede">
-        {isEdit
-          ? 'Update pool operator account details on SwimIT SaaS.'
-          : 'Onboard a pool operator onto SwimIT SaaS.'}
-      </p>
-
+    <PlatformShell>
+      <PlatformPage
+        title={isEdit ? 'Edit Account' : 'Create Account'}
+        actions={
+          canManageAccounts ? (
+            <Link className="menu-link" to="/accounts">
+              ← Accounts
+            </Link>
+          ) : undefined
+        }
+      >
       {loadingAccount ? <p className="muted">Loading account…</p> : null}
 
       {!loadingAccount ? (
@@ -658,46 +651,39 @@ export function CreateAccount() {
           </label>
         ) : null}
 
-        <label className="field">
-          <span className="label">
-            Account / Swimming Pool name <span className="req">*</span>
-          </span>
-          <input
-            value={form.accountName}
-            onChange={(e) => setField('accountName', e.target.value)}
-            placeholder="e.g. AquaWave Sports Club"
-            required
-          />
-        </label>
-
-        <label className="field">
-          <span className="label">
-            Account code <span className="req">*</span>
-          </span>
-          <input
-            value={form.accountCode}
-            onChange={(e) => setField('accountCode', normalizeAccountCodeInput(e.target.value))}
-            placeholder="6 small letters or numbers"
-            maxLength={6}
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            required
-            aria-describedby="account-code-status"
-          />
-          <span id="account-code-status" className={`account-code-status ${codeCheck.status}`}>
-            {codeCheck.message}
-          </span>
-          {codeCheck.status === 'available' ? (
-            <span className="hint">Login link: {accountLoginUrl(form.accountCode)}</span>
-          ) : (
-            <span className="hint">
-              {isEdit
-                ? 'Changing the code changes the pool login URL.'
-                : 'Suggested from Swimming Pool name — you can change it. Login URL uses this code.'}
+        <div className="form-grid-2">
+          <label className="field">
+            <span className="label">
+              Account / Swimming Pool name <span className="req">*</span>
             </span>
-          )}
-        </label>
+            <input
+              value={form.accountName}
+              onChange={(e) => setField('accountName', e.target.value)}
+              placeholder="e.g. AquaWave Sports Club"
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span className="label">
+              Account code <span className="req">*</span>
+            </span>
+            <input
+              value={form.accountCode}
+              onChange={(e) => setField('accountCode', normalizeAccountCodeInput(e.target.value))}
+              placeholder="6 small letters or numbers"
+              maxLength={6}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+              aria-describedby="account-code-status"
+            />
+            <span id="account-code-status" className={`account-code-status ${codeCheck.status}`}>
+              {codeCheck.message}
+            </span>
+          </label>
+        </div>
 
         <label className="field">
           <span className="label">Pool address</span>
@@ -802,7 +788,7 @@ export function CreateAccount() {
       {error ? <p className="error">{error}</p> : null}
       {warning ? <p className="success">{warning}</p> : null}
       {success ? <p className="success">{success}</p> : null}
-    </div>
-    </>
+      </PlatformPage>
+    </PlatformShell>
   );
 }
