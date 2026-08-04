@@ -218,7 +218,7 @@ export function PoolExpenses() {
         </>
       }
     >
-      <section className="pass-table-card expense-table-card">
+      <section className="pass-form-card pool-core-form pass-table-card expense-table-card">
         <div className="expense-table-head">
           <span>Date</span>
           <span>Expense description</span>

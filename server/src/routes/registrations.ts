@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
+import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
 import {
   notifyPassIssued,
   notifyPassPaymentRequest,
@@ -136,6 +137,9 @@ function mapRegistrationRow(row: Record<string, unknown>) {
     batch: row.batch,
     coach: row.coach,
     pass_valid_until: formatPlainDate(row.pass_valid_until),
+    inactive_at: row.inactive_at
+      ? formatPlainDate(row.inactive_at) || String(row.inactive_at).slice(0, 10)
+      : null,
     created_at: row.created_at,
     pending_type: row.pending_type,
   };
@@ -144,10 +148,11 @@ function mapRegistrationRow(row: Record<string, unknown>) {
 registrationsRouter.get('/', async (req, res) => {
   try {
     const accountId = tenantId(req);
+    await ensureInactiveAtColumn();
     await deactivateExpiredPasses(accountId);
     const { rows } = await pool.query(
       `SELECT id, full_name, email, whatsapp_mobile, birthdate, sex, blood_group,
-              is_active, pass_type, batch, coach, pass_valid_until, created_at
+              is_active, pass_type, batch, coach, pass_valid_until, inactive_at, created_at
        FROM registrations
        WHERE saas_account_id = $1
        ORDER BY created_at DESC`,
@@ -774,16 +779,15 @@ registrationsRouter.put(
         identityPhotoPath = await sealUploadFile(uploadDir, identityPhoto.filename);
       }
 
-      const mobileRe = /^\d{10}$/;
-      if (!mobileRe.test(body.whatsappMobile) || !mobileRe.test(body.emergencyMobile)) {
-        res.status(400).json({ error: 'Mobile numbers must be a valid 10-digit number' });
+      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
-      if (body.otherMobile && !mobileRe.test(body.otherMobile)) {
+      if (body.otherMobile && !isValidMobile(body.otherMobile)) {
         res.status(400).json({ error: 'Other mobile number must be a valid 10-digit number' });
         return;
       }
-      if (body.doctorNo && !mobileRe.test(body.doctorNo)) {
+      if (body.doctorNo && !isValidMobile(body.doctorNo)) {
         res.status(400).json({ error: 'Doctor number must be a valid 10-digit number' });
         return;
       }
@@ -808,8 +812,8 @@ registrationsRouter.put(
           res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
           return;
         }
-        if (!mobileRe.test(String(body.parentMobile ?? ''))) {
-          res.status(400).json({ error: 'Parent contact number must be 10 digits' });
+        if (!isValidMobile(String(body.parentMobile ?? ''))) {
+          res.status(400).json({ error: MOBILE_INVALID_MSG });
           return;
         }
       } else {
@@ -1145,16 +1149,15 @@ registrationsRouter.post(
         return;
       }
 
-      const mobileRe = /^\d{10}$/;
-      if (!mobileRe.test(body.whatsappMobile) || !mobileRe.test(body.emergencyMobile)) {
-        res.status(400).json({ error: 'Mobile numbers must be a valid 10-digit number' });
+      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
-      if (body.otherMobile && !mobileRe.test(body.otherMobile)) {
+      if (body.otherMobile && !isValidMobile(body.otherMobile)) {
         res.status(400).json({ error: 'Other mobile number must be a valid 10-digit number' });
         return;
       }
-      if (body.doctorNo && !mobileRe.test(body.doctorNo)) {
+      if (body.doctorNo && !isValidMobile(body.doctorNo)) {
         res.status(400).json({ error: 'Doctor number must be a valid 10-digit number' });
         return;
       }
@@ -1179,8 +1182,8 @@ registrationsRouter.post(
           res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
           return;
         }
-        if (!mobileRe.test(String(body.parentMobile ?? ''))) {
-          res.status(400).json({ error: 'Parent contact number must be 10 digits' });
+        if (!isValidMobile(String(body.parentMobile ?? ''))) {
+          res.status(400).json({ error: MOBILE_INVALID_MSG });
           return;
         }
       } else {

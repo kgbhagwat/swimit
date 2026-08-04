@@ -530,7 +530,7 @@ export function BatchList() {
 
   if (loading) {
     return (
-      <PlatformPage title="Batch List">
+      <PlatformPage title="Batches">
         <p className="muted">Loading…</p>
       </PlatformPage>
     );
@@ -538,7 +538,7 @@ export function BatchList() {
 
   if (mode === 'saved') {
     return (
-      <PlatformPage title="Batch List">
+      <PlatformPage title="Batches">
         <p className="lede batch-list-lede">Create swimming batches</p>
 
         <section className="card saved-summary">
@@ -634,7 +634,7 @@ export function BatchList() {
   }
 
   return (
-    <PlatformPage title="Batch List">
+    <PlatformPage title="Batches">
       <p className="lede batch-list-lede">Create swimming batches</p>
 
       <section className="card schedule-card">

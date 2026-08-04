@@ -1,8 +1,13 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { InPageSelect } from './InPageSelect';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
+import {
+  getSamplePassPaymentQueue,
+  isApplicationDemo,
+  markSampleSwimmerPaid,
+} from './applicationDemo';
 import {
   fetchSwimmerProfile,
   SwimmerProfile,
@@ -21,6 +26,30 @@ type PendingSwimmer = {
   batch: string;
   awaitingWhatsApp?: boolean;
 };
+
+const SAMPLE_PENDING_SWIMMERS: PendingSwimmer[] = [
+  {
+    id: -1,
+    fullName: 'Aarav Patil',
+    contact: '9876543210',
+    email: 'aarav@example.com',
+    type: 'New',
+    passType: 'Monthly Swim',
+    coach: 'Any',
+    batch: 'Morning A',
+  },
+  {
+    id: -2,
+    fullName: 'Neha Deshmukh',
+    contact: '9123456780',
+    email: 'neha@example.com',
+    type: 'Expired',
+    passType: 'Quarterly Swim',
+    coach: 'Any',
+    batch: 'Evening B',
+    awaitingWhatsApp: true,
+  },
+];
 
 type PassTypeOption = {
   id: number;
@@ -48,6 +77,130 @@ type CoachOption = {
   isActive: boolean;
   isApproved: boolean;
 };
+
+const SAMPLE_PASS_TYPES: PassTypeOption[] = [
+  {
+    id: -101,
+    passName: 'Monthly Swim',
+    duration: '1 Month',
+    passCharges: 2000,
+    coachingCharges: 500,
+    coach: 'Any',
+    maxSwimmersPerCoach: 12,
+    exceedingLimitAllowed: true,
+  },
+  {
+    id: -102,
+    passName: 'Quarterly Swim',
+    duration: '3 Months',
+    passCharges: 5000,
+    coachingCharges: 500,
+    coach: 'Any',
+    maxSwimmersPerCoach: 12,
+    exceedingLimitAllowed: true,
+  },
+];
+
+const SAMPLE_BATCHES: BatchSlot[] = [
+  {
+    id: 'sample-morning-a',
+    name: 'Morning A',
+    type: 'Mixed',
+    startTime: '06:00',
+    endTime: '07:00',
+  },
+  {
+    id: 'sample-evening-b',
+    name: 'Evening B',
+    type: 'Mixed',
+    startTime: '18:00',
+    endTime: '19:00',
+  },
+];
+
+const SAMPLE_COACHES: CoachOption[] = [
+  {
+    id: -201,
+    fullName: 'Riya Kulkarni',
+    suitableBatchIds: ['sample-morning-a', 'sample-evening-b'],
+    isActive: true,
+    isApproved: true,
+  },
+];
+
+const SAMPLE_UPI_ID = 'swimit.demo@okaxis';
+
+/** Placeholder QR graphic for sample payment collect view. */
+const SAMPLE_PAYMENT_QR_URL =
+  'data:image/svg+xml,' +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <rect width="180" height="180" fill="#fff"/>
+  <rect x="12" y="12" width="52" height="52" fill="#1a3568"/>
+  <rect x="20" y="20" width="36" height="36" fill="#fff"/>
+  <rect x="28" y="28" width="20" height="20" fill="#1a3568"/>
+  <rect x="116" y="12" width="52" height="52" fill="#1a3568"/>
+  <rect x="124" y="20" width="36" height="36" fill="#fff"/>
+  <rect x="132" y="28" width="20" height="20" fill="#1a3568"/>
+  <rect x="12" y="116" width="52" height="52" fill="#1a3568"/>
+  <rect x="20" y="124" width="36" height="36" fill="#fff"/>
+  <rect x="28" y="132" width="20" height="20" fill="#1a3568"/>
+  <rect x="76" y="12" width="12" height="12" fill="#1a3568"/>
+  <rect x="100" y="12" width="12" height="12" fill="#1a3568"/>
+  <rect x="76" y="36" width="12" height="12" fill="#1a3568"/>
+  <rect x="88" y="48" width="12" height="12" fill="#1a3568"/>
+  <rect x="76" y="76" width="28" height="28" fill="#1a3568"/>
+  <rect x="116" y="76" width="12" height="12" fill="#1a3568"/>
+  <rect x="140" y="76" width="12" height="12" fill="#1a3568"/>
+  <rect x="116" y="100" width="12" height="12" fill="#1a3568"/>
+  <rect x="152" y="100" width="12" height="12" fill="#1a3568"/>
+  <rect x="76" y="116" width="12" height="12" fill="#1a3568"/>
+  <rect x="100" y="128" width="12" height="12" fill="#1a3568"/>
+  <rect x="76" y="152" width="12" height="12" fill="#1a3568"/>
+  <rect x="116" y="116" width="20" height="20" fill="#1a3568"/>
+  <rect x="148" y="140" width="20" height="20" fill="#1a3568"/>
+  <text x="90" y="98" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#64748b">SAMPLE</text>
+</svg>`);
+
+function isSamplePendingId(id: number) {
+  return id < 0;
+}
+
+function sampleProfileFromRow(row: PendingSwimmer): SwimmerProfile {
+  return {
+    id: row.id,
+    fullName: row.fullName,
+    fullAddress: '12 Lake View Road, Pune',
+    whatsappMobile: row.contact,
+    otherMobile: '',
+    email: row.email === '—' ? '' : row.email,
+    birthdate: '2005-04-12',
+    sex: 'Male',
+    bloodGroup: 'B+',
+    emergencyName: 'Parent Guardian',
+    emergencyRelation: 'Parent',
+    emergencyMobile: '9988776655',
+    parentName: 'Parent Guardian',
+    parentRelation: 'Parent',
+    parentMobile: '9988776655',
+    hasHealthIssue: 'No',
+    healthIssueDetails: '',
+    doctorName: '',
+    doctorNo: '',
+    identityDocument: 'Aadhaar',
+    identityPhotoUrl: null,
+    photoUrl: null,
+  };
+}
+
+function resolveBatchValue(rowBatch: string, slots: BatchSlot[]) {
+  const trimmed = rowBatch.trim();
+  if (!trimmed) return '';
+  const exact = slots.find((slot) => batchLabel(slot) === trimmed);
+  if (exact) return batchLabel(exact);
+  const byName = slots.find((slot) => slot.name === trimmed);
+  if (byName) return batchLabel(byName);
+  return trimmed;
+}
 
 type HolidayRecord = {
   id: number;
@@ -195,6 +348,18 @@ export function PassPayment() {
   const [swimmerProfile, setSwimmerProfile] = useState<SwimmerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [detailsConfirmed, setDetailsConfirmed] = useState(false);
+  const [issueSuccessMessage, setIssueSuccessMessage] = useState('');
+  const [dismissedSampleIds, setDismissedSampleIds] = useState<number[]>([]);
+  const issueCloseTimerRef = useRef<number | null>(null);
+
+  function clearIssueCloseTimer() {
+    if (issueCloseTimerRef.current != null) {
+      window.clearTimeout(issueCloseTimerRef.current);
+      issueCloseTimerRef.current = null;
+    }
+  }
+
+  useEffect(() => () => clearIssueCloseTimer(), []);
 
   async function load() {
     setLoading(true);
@@ -292,21 +457,38 @@ export function PassPayment() {
   }, []);
 
   function openPay(row: PendingSwimmer) {
+    const sample = isSamplePendingId(row.id);
+    const activePassTypes = sample ? SAMPLE_PASS_TYPES : passTypes;
+    const activeBatches = sample ? SAMPLE_BATCHES : batches;
     setPaying(row);
-    const matched = passTypes.find((pass) => pass.passName === row.passType);
+    const matched = activePassTypes.find((pass) => pass.passName === row.passType);
     setPassTypeId(matched ? String(matched.id) : '');
-    setBatch(row.batch || '');
-    setCoach(row.coach || '');
+    setBatch(resolveBatchValue(row.batch || '', activeBatches));
+    setCoach(sample && (row.coach === 'Any' || !row.coach) ? SAMPLE_COACHES[0].fullName : row.coach || '');
     setPassStartDate(todayIso());
-    setPaymentMode('');
+    setPaymentMode(sample ? 'Cash' : '');
     setPaymentReceived(false);
     setTransactionId('');
     setPaymentQrPath(null);
     setUpiDetails('');
+    if (sample) setPaymentModes(['Cash', 'Online']);
     setError('');
     setMissingFields([]);
     setSuccessMessage('');
+    clearIssueCloseTimer();
+    setIssueSuccessMessage('');
     setDetailsConfirmed(false);
+    if (sample) {
+      setSwimmerProfile(sampleProfileFromRow(row));
+      setProfileLoading(false);
+      setHolidayRecords([]);
+      setHolidaysLoading(false);
+      setAssignmentCount(3);
+      setAssignmentCountLoading(false);
+      setPaymentQrPath(null);
+      setUpiDetails(SAMPLE_UPI_ID);
+      return;
+    }
     setSwimmerProfile(null);
     setProfileLoading(true);
     void fetchSwimmerProfile(row.id)
@@ -318,6 +500,7 @@ export function PassPayment() {
   }
 
   function closePay() {
+    clearIssueCloseTimer();
     setPaying(null);
     setPassTypeId('');
     setBatch('');
@@ -336,9 +519,24 @@ export function PassPayment() {
     setError('');
     setMissingFields([]);
     setSuccessMessage('');
+    setIssueSuccessMessage('');
   }
 
-  const selectedPass = passTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
+  function scheduleCloseAfterIssue(afterClose?: () => void) {
+    clearIssueCloseTimer();
+    issueCloseTimerRef.current = window.setTimeout(() => {
+      issueCloseTimerRef.current = null;
+      afterClose?.();
+      closePay();
+    }, 2500);
+  }
+
+  const samplePaying = Boolean(paying && isSamplePendingId(paying.id));
+  const activePassTypes = samplePaying ? SAMPLE_PASS_TYPES : passTypes;
+  const activeBatches = samplePaying ? SAMPLE_BATCHES : batches;
+  const activeCoaches = samplePaying ? SAMPLE_COACHES : coaches;
+
+  const selectedPass = activePassTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
   const coachingRequired = Boolean(selectedPass && selectedPass.coach !== 'Not Required');
   const passValidUntil = selectedPass
     ? addPassDuration(selectedPass.duration, passStartDate)
@@ -350,8 +548,8 @@ export function PassPayment() {
   }, [passStartDate, passValidUntil, holidayRecords]);
 
   useEffect(() => {
-    if (!paying || !passStartDate || !passValidUntil) {
-      setHolidayRecords([]);
+    if (!paying || samplePaying || !passStartDate || !passValidUntil) {
+      if (!paying || !passStartDate || !passValidUntil) setHolidayRecords([]);
       return;
     }
 
@@ -389,10 +587,10 @@ export function PassPayment() {
     return () => {
       cancelled = true;
     };
-  }, [paying, passStartDate, passValidUntil]);
+  }, [paying, samplePaying, passStartDate, passValidUntil]);
 
   useEffect(() => {
-    if (!paying) return;
+    if (!paying || samplePaying) return;
 
     let cancelled = false;
     fetch('/api/pool-core-info')
@@ -426,10 +624,10 @@ export function PassPayment() {
     return () => {
       cancelled = true;
     };
-  }, [paying]);
+  }, [paying, samplePaying]);
 
   useEffect(() => {
-    if (!paying || paymentMode !== 'Online') {
+    if (!paying || samplePaying || paymentMode !== 'Online') {
       setOnlineDetailsLoading(false);
       return;
     }
@@ -459,16 +657,16 @@ export function PassPayment() {
     return () => {
       cancelled = true;
     };
-  }, [paying, paymentMode]);
+  }, [paying, samplePaying, paymentMode]);
 
   const selectedBatchSlot = useMemo(
-    () => batches.find((slot) => batchLabel(slot) === batch) ?? null,
-    [batches, batch],
+    () => activeBatches.find((slot) => batchLabel(slot) === batch) ?? null,
+    [activeBatches, batch],
   );
 
   const availableBatches = useMemo(
     () =>
-      [...batchesForSwimmerSex(batches, swimmerProfile?.sex)].sort((a, b) => {
+      [...batchesForSwimmerSex(activeBatches, swimmerProfile?.sex)].sort((a, b) => {
         const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
         if (startDiff !== 0) return startDiff;
         return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
@@ -476,7 +674,7 @@ export function PassPayment() {
           sensitivity: 'base',
         });
       }),
-    [batches, swimmerProfile?.sex],
+    [activeBatches, swimmerProfile?.sex],
   );
 
   useEffect(() => {
@@ -491,7 +689,7 @@ export function PassPayment() {
   const coachesForBatch = useMemo(() => {
     if (!selectedBatchSlot) return [];
     const batchId = String(selectedBatchSlot.id);
-    return coaches
+    return activeCoaches
       .filter(
         (item) =>
           item.isActive &&
@@ -499,7 +697,7 @@ export function PassPayment() {
           item.suitableBatchIds.some((id) => String(id) === batchId),
       )
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [coaches, selectedBatchSlot]);
+  }, [activeCoaches, selectedBatchSlot]);
 
   useEffect(() => {
     if (!coach) return;
@@ -513,8 +711,8 @@ export function PassPayment() {
   }, [batch, coach, coachesForBatch, coachingRequired]);
 
   useEffect(() => {
-    if (!coachingRequired || !batch.trim() || !coach.trim()) {
-      setAssignmentCount(null);
+    if (samplePaying || !coachingRequired || !batch.trim() || !coach.trim()) {
+      setAssignmentCount(samplePaying ? 3 : null);
       setAssignmentCountLoading(false);
       return;
     }
@@ -545,7 +743,7 @@ export function PassPayment() {
     return () => {
       cancelled = true;
     };
-  }, [batch, coach, coachingRequired, paying?.id]);
+  }, [batch, coach, coachingRequired, paying?.id, samplePaying]);
 
   const maxSwimmersPerCoach = selectedPass?.maxSwimmersPerCoach ?? null;
   const exceedingLimitAllowed = selectedPass?.exceedingLimitAllowed !== false;
@@ -575,7 +773,7 @@ export function PassPayment() {
     if (profileLoading) missing.push('Wait for swimmer details to finish loading');
     if (!profileLoading && !swimmerProfile) missing.push('Swimmer details could not be loaded');
     if (!detailsConfirmed) missing.push('Confirm swimmer details, documents and photo');
-    if (!selectedPass) missing.push('Pass type');
+    if (!selectedPass) missing.push('Pass');
     if (selectedPass && !passValidUntil) missing.push('Pass period end date');
     if (availableBatches.length === 0) {
       missing.push('Batch (set up batches first)');
@@ -613,13 +811,14 @@ export function PassPayment() {
   }
 
   async function onRequestWhatsAppPayment() {
+    if (samplePaying) return;
     const missing = collectSharedMissing();
     if (missing.length) {
       showMissing(missing);
       return;
     }
     if (!paying || !selectedPass) {
-      showMissing(['Pass type']);
+      showMissing(['Pass']);
       return;
     }
     if (!confirmAssignmentIfOverLimit()) return;
@@ -660,13 +859,26 @@ export function PassPayment() {
 
   async function onConfirmPay(e: FormEvent) {
     e.preventDefault();
+    if (issueSuccessMessage) return;
+    if (samplePaying) {
+      if (!paying) return;
+      const paidId = paying.id;
+      setError('');
+      setMissingFields([]);
+      setIssueSuccessMessage('Pass generated successfully and sent on whatsapp');
+      scheduleCloseAfterIssue(() => {
+        markSampleSwimmerPaid(paidId, selectedPass?.passName || paying.passType || 'Monthly Swim');
+        setDismissedSampleIds((ids) => (ids.includes(paidId) ? ids : [...ids, paidId]));
+      });
+      return;
+    }
     const missing = collectSubmitMissing();
     if (missing.length) {
       showMissing(missing);
       return;
     }
     if (!paying || !selectedPass) {
-      showMissing(['Pass type']);
+      showMissing(['Pass']);
       return;
     }
     if (!confirmAssignmentIfOverLimit()) return;
@@ -692,38 +904,10 @@ export function PassPayment() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Payment update failed');
-      const paidName = paying.fullName;
-      const paidContact = paying.contact;
-      const wa = body.whatsapp as
-        | { skipped?: boolean; error?: string; result?: string }
-        | undefined;
-      closePay();
-      if (wa?.skipped) {
-        setSuccessMessage(
-          `Pass generated for ${paidName}, but WhatsApp was not sent${
-            wa.error ? `: ${wa.error}` : ''
-          }. Use Resend on Swimmer List to send the full pass and QR.`,
-        );
-      } else if (wa?.result === 'pass_only') {
-        setSuccessMessage(
-          `Full pass image sent on WhatsApp to ${paidName}${
-            paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
-          }, but the QR failed${wa.error ? `: ${wa.error}` : ''}. Use Resend if needed.`,
-        );
-      } else if (wa?.result === 'qr_only') {
-        setSuccessMessage(
-          `Pass QR sent on WhatsApp to ${paidName}${
-            paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
-          }, but the full pass image failed${wa.error ? `: ${wa.error}` : ''}. Use Resend if needed.`,
-        );
-      } else {
-        setSuccessMessage(
-          `Full pass image and Pass QR sent on WhatsApp to ${paidName}${
-            paidContact && paidContact !== '—' ? ` (${paidContact})` : ''
-          }.`,
-        );
-      }
-      await load();
+      setIssueSuccessMessage('Pass generated successfully and sent on whatsapp');
+      scheduleCloseAfterIssue(() => {
+        void load();
+      });
     } catch (err) {
       setMissingFields([]);
       setError(err instanceof Error ? err.message : 'Payment update failed');
@@ -738,133 +922,186 @@ export function PassPayment() {
       ? 'Not Required'
       : coach || selectedPass.coach || 'Any';
 
+  const sampleOnlineQrUrl = samplePaying ? SAMPLE_PAYMENT_QR_URL : null;
+  const onlineQrUrl = uploadUrl(paymentQrPath) ?? sampleOnlineQrUrl;
+  const onlineUpi = samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails;
+
+  const queuedSamplePayments = isApplicationDemo()
+    ? getSamplePassPaymentQueue()
+        .filter((row) => !dismissedSampleIds.includes(row.id))
+        .map(
+          (row): PendingSwimmer => ({
+            id: row.id,
+            fullName: row.fullName,
+            contact: row.contact || '—',
+            email: row.email || '—',
+            type: 'Expired',
+            passType: row.passType,
+            coach: row.coach || 'Any',
+            batch: row.batch,
+          }),
+        )
+    : [];
+
+  const samplePreview = isApplicationDemo() || (!loading && rows.length === 0 && !paying);
+  const displayRows = samplePreview
+    ? [
+        ...queuedSamplePayments,
+        ...SAMPLE_PENDING_SWIMMERS.filter(
+          (row) =>
+            !dismissedSampleIds.includes(row.id) &&
+            !queuedSamplePayments.some((queued) => queued.id === row.id),
+        ),
+      ]
+    : rows;
+
   return (
-    <PlatformPage title="Pass Payment">
-      <div className="swimmer-list-card">
-        <p className="pass-count">
-          {rows.length} swimmer{rows.length === 1 ? '' : 's'} pending payment for today
+    <PlatformPage title="Pass Payment" className="pass-payment-page">
+      {!paying ? (
+        <p className="lede batch-list-lede">
+          {samplePreview
+            ? 'Sample layout — pending pass payments appear here.'
+            : `${rows.length} swimmer${rows.length === 1 ? '' : 's'} pending payment for today`}
         </p>
-        {successMessage && !paying ? <p className="success">{successMessage}</p> : null}
+      ) : null}
+      {successMessage && !paying ? <p className="success">{successMessage}</p> : null}
 
-        {!paying ? (
-          <section className="pass-table-card payment-table-card">
-            {loading ? (
-              <p className="pass-empty">Loading…</p>
-            ) : rows.length === 0 ? (
-              <p className="pass-empty">No swimmers pending payment for today.</p>
-            ) : (
-              <div className="payment-table-wrap">
-                <table className="payment-info-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Swimmer</th>
-                      <th scope="col">Contact</th>
-                      <th scope="col">Email</th>
-                      <th scope="col">Type</th>
-                      <th scope="col">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.id}>
-                        <td className="payment-swimmer-name">{row.fullName}</td>
-                        <td>{row.contact}</td>
-                        <td>{row.email !== '—' ? row.email : '—'}</td>
-                        <td>
-                          {row.type}
-                          {row.passType ? ` · ${row.passType}` : ''}
-                          {row.awaitingWhatsApp ? (
-                            <span className="pass-wa-wait"> · Awaiting WhatsApp payment</span>
-                          ) : null}
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="terms-link"
-                            onClick={() => openPay(row)}
-                          >
-                            Pay
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        ) : (
-          <section className="swimmer-edit-card" aria-labelledby="pay-title">
-            <div className="swimmer-edit-head">
-              <div>
-                <h2 id="pay-title">Collect pass payment</h2>
-                <p className="pass-count">
-                  {paying.fullName} · {paying.type}
-                </p>
-              </div>
-              <button type="button" className="csv-btn" onClick={closePay}>
-                Back to list
-              </button>
+      {!paying ? (
+        <section
+          className={`pass-table-card payment-pass-table${
+            samplePreview ? ' pass-table-card--sample' : ''
+          }`}
+        >
+          {samplePreview ? (
+            <div className="user-mgmt-sample-watermark" aria-hidden="true">
+              Sample
             </div>
-
-            <SwimmerProfileReview
-              profile={swimmerProfile}
-              loading={profileLoading}
-              title="Confirm swimmer details"
-              hint="Review documents, photo and registration information before collecting payment."
-              actions={
-                canEdit && swimmerProfile ? (
-                  <button
-                    type="button"
-                    className="submit"
-                    onClick={() =>
-                      navigate(tenantPath(`/register/${paying.id}`), {
-                        state: { returnTo: tenantPath('/pass-payment') },
-                      })
-                    }
-                  >
-                    Edit
-                  </button>
-                ) : null
-              }
-              footer={
-                swimmerProfile ? (
-                  <label className="payment-received-check swimmer-review-confirm">
-                    <input
-                      type="checkbox"
-                      checked={detailsConfirmed}
-                      onChange={(e) => {
-                        setDetailsConfirmed(e.target.checked);
-                        setMissingFields([]);
-                      }}
-                    />
-                    <span>
-                      I have verified the swimmer details, identity document and photo
+          ) : null}
+          <div className="pass-table-head">
+            <span>Swimmer</span>
+            <span>Contact</span>
+            <span>Email</span>
+            <span>Type</span>
+            <span>Actions</span>
+          </div>
+          {loading ? (
+            <p className="pass-empty">Loading…</p>
+          ) : (
+            <div className="pass-table-body">
+              {displayRows.map((row, index) => (
+                <div className={`pass-row pass-row-tone-${index % 4}`} key={row.id}>
+                  <div className="pass-block-row">
+                    <strong data-label="Swimmer">{row.fullName}</strong>
+                    <span data-label="Contact">{row.contact}</span>
+                    <span data-label="Email">{row.email !== '—' ? row.email : '—'}</span>
+                    <span data-label="Type">
+                      {row.type}
+                      {row.passType ? ` · ${row.passType}` : ''}
+                      {row.awaitingWhatsApp ? (
+                        <span className="pass-wa-wait"> · Awaiting WhatsApp payment</span>
+                      ) : null}
                     </span>
-                  </label>
-                ) : null
-              }
-            />
+                  </div>
+                  <div className="pass-block-row">
+                    <span className="pass-actions" data-label="Actions">
+                      <button
+                        type="button"
+                        className="terms-link"
+                        onClick={() => openPay(row)}
+                      >
+                        Pay
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section
+          className={`pass-form-card pool-core-form payment-collect-card${
+            samplePaying ? ' pass-form-card--sample' : ''
+          }`}
+          aria-labelledby="pay-title"
+        >
+          {samplePaying ? (
+            <div className="user-mgmt-sample-watermark" aria-hidden="true">
+              Sample
+            </div>
+          ) : null}
+          <div className="swimmer-edit-head">
+            <div>
+              <h2 id="pay-title">Collect pass payment</h2>
+              <p className="pass-count">
+                {samplePaying
+                  ? `${paying.fullName} · ${paying.type} — sample layout`
+                  : `${paying.fullName} · ${paying.type}`}
+              </p>
+            </div>
+            <button type="button" className="csv-btn" onClick={closePay}>
+              Back to list
+            </button>
+          </div>
 
-            <form
-              className="swimmer-edit-form payment-collect-form"
-              onSubmit={onConfirmPay}
-              noValidate
-            >
-              <label className="field">
+          <SwimmerProfileReview
+            profile={swimmerProfile}
+            loading={profileLoading}
+            title="Confirm swimmer details"
+            actions={
+              canEdit && swimmerProfile && !samplePaying ? (
+                <button
+                  type="button"
+                  className="submit"
+                  onClick={() =>
+                    navigate(tenantPath(`/register/${paying.id}`), {
+                      state: { returnTo: tenantPath('/pass-payment') },
+                    })
+                  }
+                >
+                  Edit
+                </button>
+              ) : null
+            }
+            footer={
+              swimmerProfile ? (
+                <label className="payment-received-check swimmer-review-confirm">
+                  <input
+                    type="checkbox"
+                    checked={detailsConfirmed}
+                    onChange={(e) => {
+                      setDetailsConfirmed(e.target.checked);
+                      setMissingFields([]);
+                    }}
+                  />
+                  <span>
+                    I have verified the swimmer details, identity document and photo
+                  </span>
+                </label>
+              ) : null
+            }
+          />
+
+          {detailsConfirmed ? (
+          <form
+            className="pass-form payment-collect-form"
+            onSubmit={onConfirmPay}
+            noValidate
+          >
+              <label className="field payment-pass-type-field">
                 <span className="label">
-                  Pass type <span className="req">*</span>
+                  Pass <span className="req">*</span>
                 </span>
                 <InPageSelect
-                  aria-label="Pass type"
+                  aria-label="Pass"
                   value={passTypeId}
-                  placeholder="Select pass type"
+                  placeholder="Select pass"
                   onChange={(next) => {
                     setPassTypeId(next);
                     setCoach('');
                     setMissingFields([]);
                   }}
-                  options={passTypes.map((pass) => ({
+                  options={activePassTypes.map((pass) => ({
                     value: String(pass.id),
                     label: `${pass.passName} · ${pass.duration} · ${formatMoney(pass.passCharges)}`,
                   }))}
@@ -873,17 +1110,22 @@ export function PassPayment() {
 
               {selectedPass ? (
                 <div className="payment-summary">
-                  <p>
-                    <strong>Duration of pass:</strong> {selectedPass.duration}
-                  </p>
-                  <p>
-                    <strong>Pass charges:</strong> {formatMoney(selectedPass.passCharges)}
-                  </p>
-                  <p>
-                    <strong>Coach:</strong> {displayCoach}
-                  </p>
-                  <div className="pass-period-row">
-                    <strong>Issue date:</strong>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">Duration of pass</span>
+                    <span className="payment-summary-value">{selectedPass.duration}</span>
+                  </div>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">Pass charges</span>
+                    <span className="payment-summary-value">
+                      {formatMoney(selectedPass.passCharges)}
+                    </span>
+                  </div>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">Coach</span>
+                    <span className="payment-summary-value">{displayCoach}</span>
+                  </div>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">Issue date</span>
                     <input
                       type="date"
                       value={passStartDate}
@@ -891,15 +1133,16 @@ export function PassPayment() {
                       aria-label="Issue date"
                     />
                   </div>
-                  <p>
-                    <strong>Expiry date:</strong> {passValidUntil}
-                  </p>
-                  <div className="pass-period-holidays">
-                    <strong>Holidays in period:</strong>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">Expiry date</span>
+                    <span className="payment-summary-value">{passValidUntil}</span>
+                  </div>
+                  <div className="payment-summary-cell payment-summary-holidays">
+                    <span className="payment-summary-label">Holidays</span>
                     {holidaysLoading ? (
-                      <p className="hint">Loading holidays…</p>
+                      <span className="hint">Loading holidays…</span>
                     ) : periodHolidays.length === 0 ? (
-                      <p className="hint">No holidays in this pass period.</p>
+                      <span className="hint">No holidays in this pass period.</span>
                     ) : (
                       <ul className="pass-period-holiday-list">
                         {periodHolidays.map((item) => (
@@ -914,180 +1157,218 @@ export function PassPayment() {
                 </div>
               ) : null}
 
-              <label className="field">
-                <span className="label">
-                  Batch details <span className="req">*</span>
-                </span>
-                {availableBatches.length === 0 ? (
-                  <p className="batch-empty">
-                    No batches available.{' '}
-                    <Link className="terms-link" to={tenantPath('/batches')}>
-                      Set up batches
-                    </Link>
-                  </p>
-                ) : (
-                  <InPageSelect
-                    aria-label="Batch details"
-                    value={batch}
-                    placeholder="Select batch"
-                    onChange={(next) => {
-                      setBatch(next);
-                      setCoach('');
-                      setMissingFields([]);
-                    }}
-                    options={availableBatches.map((slot) => {
-                      const label = batchLabel(slot);
-                      return { value: label, label };
-                    })}
-                  />
-                )}
-              </label>
-
-              {coachingRequired && batch ? (
-                <label className="field">
+              <div className="payment-batch-coach-row">
+                <label className="field payment-batch-field">
                   <span className="label">
-                    Coach <span className="req">*</span>
+                    Batch <span className="req">*</span>
                   </span>
-                  {coachesForBatch.length === 0 ? (
+                  {availableBatches.length === 0 ? (
                     <p className="batch-empty">
-                      No approved coaches are available for this batch. Approve coaches in Staff
-                      List first.
+                      No batches available.{' '}
+                      <Link className="terms-link" to={tenantPath('/batches')}>
+                        Set up batches
+                      </Link>
                     </p>
                   ) : (
                     <InPageSelect
-                      aria-label="Coach"
-                      value={coach}
-                      placeholder="Select coach"
+                      aria-label="Batch"
+                      value={batch}
+                      placeholder="Select batch"
                       onChange={(next) => {
-                        setCoach(next);
+                        setBatch(next);
+                        setCoach('');
                         setMissingFields([]);
                       }}
-                      options={coachesForBatch.map((item) => ({
-                        value: item.fullName,
-                        label: item.fullName,
-                      }))}
+                      options={availableBatches.map((slot) => {
+                        const label = batchLabel(slot);
+                        return { value: label, label };
+                      })}
                     />
                   )}
-                  {coach ? (
-                    <p
-                      className={`assignment-count${assignmentOverLimit ? ' assignment-count-over' : ''}`}
-                    >
-                      {assignmentCountLoading
-                        ? 'Counting swimmers in this batch with this coach…'
-                        : assignmentCount == null
-                          ? 'Could not load swimmer count for this batch and coach.'
-                          : maxSwimmersPerCoach == null
-                            ? `Swimmers in this batch with this coach: ${assignmentCount} (No Limit)`
-                            : `Swimmers in this batch with this coach: ${assignmentCount} / ${maxSwimmersPerCoach}${
-                                assignmentOverLimit && !exceedingLimitAllowed
-                                  ? ' — exceeding not allowed'
-                                  : ''
-                              }`}
-                    </p>
-                  ) : null}
                 </label>
-              ) : null}
 
-              <label className="field">
-                <span className="label">
-                  Payment mode <span className="req">*</span>
-                </span>
-                <div className="payment-mode-choices" role="radiogroup" aria-label="Payment mode">
-                  {paymentModes.map((mode) => (
-                    <label
-                      key={mode}
-                      className={`choice-chip${paymentMode === mode ? ' selected' : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        name="paymentMode"
-                        value={mode}
-                        checked={paymentMode === mode}
-                        onChange={() => {
-                          setPaymentMode(mode);
-                          setPaymentReceived(false);
-                          setTransactionId('');
-                        }}
-                        required
-                      />
-                      {mode}
-                    </label>
-                  ))}
-                </div>
-              </label>
-
-              {paymentMode === 'Cash' ? (
-                <label className="payment-received-check">
-                  <input
-                    type="checkbox"
-                    checked={paymentReceived}
-                    onChange={(e) => setPaymentReceived(e.target.checked)}
-                  />
-                  <span>Payment Received</span>
-                </label>
-              ) : null}
-
-              {paymentMode === 'Online' ? (
-                <div className="online-payment-details">
-                  {onlineDetailsLoading ? (
-                    <p className="muted">Loading payment details…</p>
-                  ) : (
-                    <>
-                      {uploadUrl(paymentQrPath) ? (
-                        <img
-                          src={uploadUrl(paymentQrPath)!}
-                          alt="Payment QR code"
-                          className="online-payment-qr"
-                        />
-                      ) : (
-                        <p className="muted">No payment QR code set in Pool Core Info.</p>
-                      )}
-                      {upiDetails ? (
-                        <p className="online-payment-upi">
-                          <span className="label">UPI ID</span>
-                          <span className="online-payment-upi-value">{upiDetails}</span>
+                {coachingRequired && batch ? (
+                  <label className="field payment-coach-field">
+                    <span className="label">
+                      Coach <span className="req">*</span>
+                    </span>
+                    <div className="payment-coach-select-wrap">
+                      {coachesForBatch.length === 0 ? (
+                        <p className="batch-empty">
+                          No approved coaches are available for this batch. Approve coaches in Staff
+                          List first.
                         </p>
                       ) : (
-                        <p className="muted">No UPI ID set in Pool Core Info.</p>
+                        <InPageSelect
+                          aria-label="Coach"
+                          value={coach}
+                          placeholder="Select coach"
+                          onChange={(next) => {
+                            setCoach(next);
+                            setMissingFields([]);
+                          }}
+                          options={coachesForBatch.map((item) => ({
+                            value: item.fullName,
+                            label: item.fullName,
+                          }))}
+                        />
                       )}
-                    </>
-                  )}
+                      {coach ? (
+                        <p
+                          className={`assignment-count payment-coach-assignment${
+                            assignmentOverLimit ? ' assignment-count-over' : ''
+                          }`}
+                        >
+                          {assignmentCountLoading
+                            ? 'Counting swimmers in this batch with this coach…'
+                            : assignmentCount == null
+                              ? 'Could not load swimmer count for this batch and coach.'
+                              : maxSwimmersPerCoach == null
+                                ? `Swimmers in this batch with this coach: ${assignmentCount} (No Limit)`
+                                : `Swimmers in this batch with this coach: ${assignmentCount} / ${maxSwimmersPerCoach}${
+                                    assignmentOverLimit && !exceedingLimitAllowed
+                                      ? ' — exceeding not allowed'
+                                      : ''
+                                  }`}
+                        </p>
+                      ) : null}
+                    </div>
+                  </label>
+                ) : null}
+              </div>
 
-                  <p className="hint">
-                    Preferred: send a WhatsApp payment request. The swimmer pays this pool UPI /
-                    QR and sends the screenshot — amount and UPI are verified automatically.
-                  </p>
-                  <button
-                    type="button"
-                    className="csv-btn"
-                    disabled={waRequesting}
-                    onClick={() => void onRequestWhatsAppPayment()}
-                  >
-                    {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
-                  </button>
-
-                  <label className="field transaction-id-field">
+              <div
+                className={`payment-mode-row${
+                  paymentMode === 'Online' ? ' payment-mode-row--online' : ''
+                }`}
+              >
+                <div className="payment-mode-left">
+                  <div className="field payment-mode-field">
                     <span className="label">
-                      Transaction ID <span className="req">*</span>
+                      Payment mode <span className="req">*</span>
                     </span>
-                    <input
-                      type="text"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
-                      placeholder="Enter UPI / bank transaction ID"
-                      autoComplete="off"
-                    />
-                  </label>
-                  <label className="payment-received-check">
-                    <input
-                      type="checkbox"
-                      checked={paymentReceived}
-                      onChange={(e) => setPaymentReceived(e.target.checked)}
-                    />
-                    <span>Yes, I saw payment completed successfully</span>
-                  </label>
+                    <div className="payment-mode-choices" role="radiogroup" aria-label="Payment mode">
+                      {paymentModes.map((mode) => (
+                        <label
+                          key={mode}
+                          className={`choice-chip${paymentMode === mode ? ' selected' : ''}`}
+                        >
+                          <input
+                            type="radio"
+                            name="paymentMode"
+                            value={mode}
+                            checked={paymentMode === mode}
+                            onChange={() => {
+                              setPaymentMode(mode);
+                              setPaymentReceived(false);
+                              setTransactionId('');
+                            }}
+                            required
+                          />
+                          {mode}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {paymentMode === 'Cash' ? (
+                    <label className="payment-received-check payment-received-check--cash">
+                      <input
+                        type="checkbox"
+                        checked={paymentReceived}
+                        onChange={(e) => setPaymentReceived(e.target.checked)}
+                      />
+                      <span>Payment Received</span>
+                    </label>
+                  ) : null}
+
+                  {paymentMode === 'Online' ? (
+                    <div className="payment-mode-online-followup">
+                      {onlineDetailsLoading && !samplePaying ? (
+                        <p className="muted payment-mode-online-muted">Loading payment details…</p>
+                      ) : onlineUpi ? (
+                        <>
+                          <span className="online-payment-upi-heading">
+                            <span className="label">UPI ID</span>
+                            <span className="online-payment-upi-sep" aria-hidden="true">
+                              -
+                            </span>
+                          </span>
+                          <span className="online-payment-upi-value">{onlineUpi}</span>
+                          <button
+                            type="button"
+                            className="csv-btn payment-wa-request-btn"
+                            disabled={waRequesting}
+                            onClick={() => void onRequestWhatsAppPayment()}
+                          >
+                            {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="online-payment-upi-heading">
+                            <span className="label">UPI ID</span>
+                            <span className="online-payment-upi-sep" aria-hidden="true">
+                              -
+                            </span>
+                          </span>
+                          <p className="muted payment-mode-online-muted">
+                            No UPI ID set in Pool Core Info.
+                          </p>
+                          <button
+                            type="button"
+                            className="csv-btn payment-wa-request-btn"
+                            disabled={waRequesting}
+                            onClick={() => void onRequestWhatsAppPayment()}
+                          >
+                            {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {paymentMode === 'Online' ? (
+                    <div className="online-payment-details">
+                      <label className="field transaction-id-field">
+                        <span className="label">
+                          Transaction ID <span className="req">*</span>
+                        </span>
+                        <input
+                          type="text"
+                          value={transactionId}
+                          onChange={(e) => setTransactionId(e.target.value)}
+                          placeholder="Enter UPI / bank transaction ID"
+                          autoComplete="off"
+                          disabled={samplePaying}
+                        />
+                      </label>
+                      <label className="payment-received-check">
+                        <input
+                          type="checkbox"
+                          checked={paymentReceived}
+                          onChange={(e) => setPaymentReceived(e.target.checked)}
+                        />
+                        <span>Yes, I saw payment completed successfully</span>
+                      </label>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+
+                {paymentMode === 'Online' ? (
+                  <div className="online-payment-qr-panel">
+                    {onlineDetailsLoading && !samplePaying ? null : onlineQrUrl ? (
+                      <img
+                        src={onlineQrUrl}
+                        alt="Payment QR code"
+                        className="online-payment-qr"
+                      />
+                    ) : (
+                      <p className="muted">No payment QR code set in Pool Core Info.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
 
               {error ? <p className="error">{error}</p> : null}
               {missingFields.length > 0 ? (
@@ -1102,19 +1383,35 @@ export function PassPayment() {
               ) : null}
 
               <div className="pass-form-actions">
-                <button type="button" className="pass-cancel" onClick={closePay}>
+                <button
+                  type="button"
+                  className="pass-cancel"
+                  onClick={closePay}
+                  disabled={Boolean(issueSuccessMessage)}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="submit" disabled={saving}>
-                  {saving ? 'Issuing…' : 'Issue Pass'}
-                </button>
+                <div className="pass-form-actions-end">
+                  {issueSuccessMessage ? (
+                    <p className="success payment-issue-success" role="status">
+                      {issueSuccessMessage}
+                    </p>
+                  ) : null}
+                  <button
+                    type="submit"
+                    className="submit"
+                    disabled={saving || !paymentReceived || Boolean(issueSuccessMessage)}
+                  >
+                    {saving ? 'Issuing…' : 'Issue Pass'}
+                  </button>
+                </div>
               </div>
             </form>
+          ) : null}
           </section>
         )}
 
         {error && !paying ? <p className="error">{error}</p> : null}
-      </div>
     </PlatformPage>
   );
 }

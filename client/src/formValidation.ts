@@ -1,15 +1,25 @@
+/** Indian mobile: exactly 10 digits, starting with 6–9. */
+
+export const MOBILE_INVALID_MSG = 'Enter a valid 10-digit mobile number';
+
+export function sanitizeMobileInput(value: string) {
+  return String(value ?? '')
+    .replace(/\D/g, '')
+    .slice(0, 10);
+}
+
 export function isValidMobile(value: string) {
-  return /^\d{10}$/.test(value.trim());
+  return /^[6-9]\d{9}$/.test(String(value ?? '').trim());
 }
 
 export function normalizeMobile(value: string) {
-  return value.replace(/\D/g, '').slice(-10);
+  return sanitizeMobileInput(value).slice(-10);
 }
 
 export function sameMobile(a: string, b: string) {
   const left = normalizeMobile(a);
   const right = normalizeMobile(b);
-  return left.length === 10 && right.length === 10 && left === right;
+  return isValidMobile(left) && isValidMobile(right) && left === right;
 }
 
 /** True when emergency number matches the applicant WhatsApp or other mobile. */
@@ -34,7 +44,7 @@ export function isValidEmail(value: string) {
 export function mobileHint(value: string) {
   const v = value.trim();
   if (!v) return '';
-  if (!/^\d+$/.test(v) || v.length !== 10) return 'Enter a valid 10-digit mobile number';
+  if (!isValidMobile(v)) return MOBILE_INVALID_MSG;
   return '';
 }
 

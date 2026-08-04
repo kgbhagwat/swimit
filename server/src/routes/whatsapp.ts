@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
+import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { notifyPassExpiring, notifyOpenFormQr, sendBroadcast } from '../whatsapp/notify.js';
@@ -321,11 +322,11 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
   try {
     const accountId = tenantId(req);
     const body = req.body as { mobile?: string; message?: string; mode?: string };
-    const mobile = String(body.mobile ?? '').replace(/\D/g, '').slice(-10);
+    const mobile = sanitizeMobile(body.mobile);
     const message = String(body.message ?? '').trim();
     const mode = String(body.mode ?? 'template').toLowerCase();
-    if (mobile.length !== 10) {
-      res.status(400).json({ error: 'Enter a valid 10-digit WhatsApp mobile' });
+    if (!isValidMobile(mobile)) {
+      res.status(400).json({ error: MOBILE_INVALID_MSG });
       return;
     }
 
@@ -408,9 +409,9 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
       res.status(400).json({ error: 'form must be swimmer or staff' });
       return;
     }
-    const mobile = String(body.mobile ?? '').replace(/\D/g, '').slice(-10);
-    if (mobile.length !== 10) {
-      res.status(400).json({ error: 'Enter a valid 10-digit WhatsApp mobile' });
+    const mobile = sanitizeMobile(body.mobile);
+    if (!isValidMobile(mobile)) {
+      res.status(400).json({ error: MOBILE_INVALID_MSG });
       return;
     }
 
@@ -513,6 +514,67 @@ whatsappRouter.post('/broadcast', requireTenant, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Broadcast failed' });
+  }
+});
+
+/** Pass-expiry notice schedule (daily morning job uses this setting). */
+whatsappRouter.get('/pass-expiry-notice', requireTenant, async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    await pool.query(
+      `INSERT INTO pool_core_info (saas_account_id)
+       SELECT $1 WHERE NOT EXISTS (
+         SELECT 1 FROM pool_core_info WHERE saas_account_id = $1
+       )`,
+      [accountId],
+    );
+    const { rows } = await pool.query<{
+      enabled: boolean;
+      days: number;
+    }>(
+      `SELECT
+         COALESCE(pass_expiry_notice_enabled, FALSE) AS enabled,
+         GREATEST(1, LEAST(9, COALESCE(pass_expiry_notice_days, 3))) AS days
+       FROM pool_core_info
+       WHERE saas_account_id = $1`,
+      [accountId],
+    );
+    res.json({
+      enabled: Boolean(rows[0]?.enabled),
+      days: Number(rows[0]?.days ?? 3),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load pass expiry notice setting' });
+  }
+});
+
+whatsappRouter.put('/pass-expiry-notice', requireTenant, async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const body = req.body as { enabled?: boolean; days?: number };
+    const enabled = Boolean(body.enabled);
+    const days = Math.min(9, Math.max(1, Number(body.days) || 3));
+
+    await pool.query(
+      `INSERT INTO pool_core_info (saas_account_id)
+       SELECT $1 WHERE NOT EXISTS (
+         SELECT 1 FROM pool_core_info WHERE saas_account_id = $1
+       )`,
+      [accountId],
+    );
+    await pool.query(
+      `UPDATE pool_core_info
+       SET pass_expiry_notice_enabled = $2,
+           pass_expiry_notice_days = $3,
+           updated_at = NOW()
+       WHERE saas_account_id = $1`,
+      [accountId, enabled, days],
+    );
+    res.json({ enabled, days });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save pass expiry notice setting' });
   }
 });
 

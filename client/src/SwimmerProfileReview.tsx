@@ -103,24 +103,24 @@ export function SwimmerProfileReview({
         <p className="error">Could not load swimmer details.</p>
       ) : (
         <>
-          <div className="swimmer-review-grid">
-            <ReviewField label="Full name" value={displayProfileValue(profile.fullName)} wide />
-            <ReviewField label="Full address" value={displayProfileValue(profile.fullAddress)} wide />
+          <div className="swimmer-review-grid swimmer-review-grid--primary">
+            <ReviewField label="Full name" value={displayProfileValue(profile.fullName)} />
+            <ReviewField label="Full address" value={displayProfileValue(profile.fullAddress)} />
             <ReviewField
               label="WhatsApp mobile"
               value={displayProfileValue(profile.whatsappMobile)}
             />
             <ReviewField label="Other mobile" value={displayProfileValue(profile.otherMobile)} />
             <ReviewField label="Email" value={displayProfileValue(profile.email)} />
-            <ReviewField label="Birth date" value={formatProfileDate(profile.birthdate)} />
             <ReviewField label="Sex" value={displayProfileValue(profile.sex)} />
+            <ReviewField label="Birth date" value={formatProfileDate(profile.birthdate)} />
             <ReviewField label="Blood group" value={displayProfileValue(profile.bloodGroup)} />
           </div>
 
           {showParent ? (
             <>
               <h4 className="swimmer-review-section">Parent / guardian</h4>
-              <div className="swimmer-review-grid">
+              <div className="swimmer-review-grid swimmer-review-grid--triple">
                 <ReviewField label="Parent name" value={displayProfileValue(profile.parentName)} />
                 <ReviewField
                   label="Relation"
@@ -135,7 +135,7 @@ export function SwimmerProfileReview({
           ) : null}
 
           <h4 className="swimmer-review-section">Emergency contact</h4>
-          <div className="swimmer-review-grid">
+          <div className="swimmer-review-grid swimmer-review-grid--triple">
             <ReviewField
               label="Emergency name"
               value={displayProfileValue(profile.emergencyName)}
@@ -151,7 +151,7 @@ export function SwimmerProfileReview({
           </div>
 
           <h4 className="swimmer-review-section">Medical</h4>
-          <div className="swimmer-review-grid">
+          <div className="swimmer-review-grid swimmer-review-grid--triple">
             <ReviewField
               label="Any disease / health issue"
               value={displayProfileValue(profile.hasHealthIssue)}
@@ -161,7 +161,6 @@ export function SwimmerProfileReview({
                 <ReviewField
                   label="Disease / health issue"
                   value={displayProfileValue(profile.healthIssueDetails)}
-                  wide
                 />
                 <ReviewField label="Doctor name" value={displayProfileValue(profile.doctorName)} />
                 <ReviewField label="Doctor no." value={displayProfileValue(profile.doctorNo)} />
@@ -170,11 +169,9 @@ export function SwimmerProfileReview({
           </div>
 
           <h4 className="swimmer-review-section">Identity</h4>
-          <div className="swimmer-review-grid">
-            <ReviewField
-              label="Identity document"
-              value={displayProfileValue(profile.identityDocument)}
-            />
+          <div className="swimmer-review-identity-type">
+            <span className="swimmer-review-label">Identity document</span>
+            <span>{displayProfileValue(profile.identityDocument)}</span>
           </div>
           <div className="swimmer-review-photos">
             <figure className="swimmer-review-photo">

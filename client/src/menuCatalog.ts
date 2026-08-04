@@ -1,6 +1,5 @@
 export type MenuSection =
   | 'Setup'
-  | 'User Management'
   | 'Operations'
   | 'Information'
   | 'Forms';
@@ -34,19 +33,18 @@ export type MenuPageDef = {
 
 export const MENU_SECTIONS: MenuSection[] = [
   'Setup',
-  'User Management',
   'Operations',
   'Information',
   'Forms',
 ];
 
-/** Pages that can be granted to users (excludes User Management itself). */
+/** Pages that can be granted to users (User Management page itself stays admin-only). */
 export const ACCESS_PAGES: MenuPageDef[] = [
-  { key: 'create-user', section: 'User Management', to: '/create-user', label: 'Create User' },
   { key: 'pool-core-info', section: 'Setup', to: '/pool-core-info', label: 'Core Info' },
-  { key: 'batches', section: 'Setup', to: '/batches', label: 'Batch List' },
+  { key: 'batches', section: 'Setup', to: '/batches', label: 'Batches' },
   { key: 'pass-types', section: 'Setup', to: '/pass-types', label: 'Pass Type' },
   { key: 'holiday-management', section: 'Setup', to: '/holiday-management', label: 'Holidays' },
+  { key: 'create-user', section: 'Setup', to: '/user-management', label: 'User Management' },
   { key: 'pass-payment', section: 'Operations', to: '/pass-payment', label: 'Pass Payment' },
   { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp' },
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },
@@ -151,6 +149,8 @@ const MENU_SECTION_STORAGE_KEY = 'swimIT.menuSection';
 export function readStoredMenuSection(): MenuSection | null {
   try {
     const value = sessionStorage.getItem(MENU_SECTION_STORAGE_KEY);
+    // Former top-level section — now nested under Setup.
+    if (value === 'User Management') return 'Setup';
     return isMenuSection(value) ? value : null;
   } catch {
     return null;
@@ -181,10 +181,10 @@ export function featurePathFromLocation(pathname: string): string {
 export function sectionForPath(pathname: string): MenuSection | null {
   const path = featurePathFromLocation(pathname);
   if (path === '/user-management' || path.startsWith('/user-management/')) {
-    return 'User Management';
+    return 'Setup';
   }
   if (path === '/create-user' || path.startsWith('/create-user/')) {
-    return 'User Management';
+    return 'Setup';
   }
   const exact = ACCESS_PAGES.find((page) => page.to === path);
   if (exact) return exact.section;

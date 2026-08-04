@@ -99,6 +99,118 @@ a {
   min-width: 0;
 }
 
+/* Application pages: match Batch List card background + type */
+.app-shell-body .pass-form-card,
+.app-shell-body .pass-table-card,
+.app-shell-body .attendance-filters,
+.app-shell-body .card:not(.saved-summary):not(.emergency):not(.medical) {
+  background: #b1fafc;
+  border-color: #b7d4de;
+}
+
+.app-shell-body .coach-payment-head,
+.app-shell-body .coach-summary-head,
+.app-shell-body .expense-table-head {
+  background: rgba(255, 255, 255, 0.55);
+  color: #1a3568;
+}
+
+.app-shell-body .balance-head,
+.app-shell-body .swimmer-table-head,
+.app-shell-body .coach-table-head,
+.app-shell-body .lifeguard-staff-head,
+.app-shell-body .other-staff-head,
+.app-shell-body .platform-payment-txns-head {
+  background: rgba(255, 255, 255, 0.55);
+  color: #1a3568;
+}
+
+.app-shell-body .attendance-card.pool-core-form .attendance-filters {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: #b7d4de;
+}
+
+.app-shell-body .swimmer-edit-card.pool-core-form,
+.app-shell-body .pass-form-card.pool-core-form.swimmer-edit-card {
+  background: #b1fafc;
+  border-color: #b7d4de;
+}
+
+.app-shell-body .swimmer-edit-card h2,
+.app-shell-body .platform-payment-txns h2,
+.app-shell-body .attendance-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1a3568;
+  line-height: 1.2;
+}
+
+.app-shell-body .coach-payment-controls .label,
+.app-shell-body .coach-payment-basis .label,
+.app-shell-body .scanner-pass-field .label,
+.app-shell-body .expense-month span,
+.app-shell-body .balance-month-inline .label,
+.app-shell-body .attendance-filters .label {
+  color: #243b66;
+  font-weight: 600;
+}
+
+.app-shell-body .platform-payment-txns .muted,
+.app-shell-body .attendance-summary {
+  font-size: 0.78rem;
+  color: #8a94a6;
+  line-height: 1.3;
+  font-weight: 400;
+}
+
+.app-shell-body .lede,
+.app-shell-body .pass-count {
+  margin: 0.15rem 0 0.55rem;
+  font-size: 0.78rem;
+  color: #8a94a6;
+  line-height: 1.3;
+  font-weight: 400;
+}
+
+.app-shell-body .swimmer-list-meta .pass-count,
+.app-shell-body .coach-payment-view-note {
+  margin: 0;
+}
+
+.app-shell-body .pass-form-card > h2,
+.app-shell-body .pass-form-card .pass-form > h2,
+.app-shell-body .card > h2,
+.app-shell-body .attendance-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1a3568;
+  line-height: 1.2;
+}
+
+.app-shell-body .pass-form-card .label,
+.app-shell-body .card .label,
+.app-shell-body .pass-option-label,
+.app-shell-body .attendance-filters .label {
+  color: #243b66;
+  font-weight: 600;
+}
+
+.app-shell-body .pass-form-card input::placeholder,
+.app-shell-body .pass-form-card textarea::placeholder,
+.app-shell-body .card input::placeholder,
+.app-shell-body .card textarea::placeholder {
+  font-size: 0.78rem;
+  color: #8a94a6;
+  opacity: 1;
+}
+
+.app-shell-body .pass-table-head,
+.app-shell-body .swimmer-table-head,
+.app-shell-body .coach-table-head {
+  background: rgba(255, 255, 255, 0.55);
+  color: #1a3568;
+}
+
 .tenant-gate-panel {
   margin-top: 0.5rem;
 }
@@ -205,6 +317,33 @@ a {
 
 .status-switch input:checked::after {
   transform: translateX(1.2rem);
+}
+
+.swimmer-active-switch {
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.swimmer-active-switch input {
+  background: #cfd6e4;
+}
+
+.swimmer-active-switch.is-active input,
+.swimmer-active-switch input:checked {
+  background: #1a7f4b;
+}
+
+.swimmer-active-switch.is-inactive input {
+  background: #cfd6e4;
+}
+
+.swimmer-active-switch.is-paid-inactive input {
+  background: #c62828;
+}
+
+.swimmer-active-switch input:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .icon-action {
@@ -355,6 +494,130 @@ h1 {
   width: 100%;
   padding: 0.55rem 0.7rem;
   font-size: 0.95rem;
+}
+
+.whatsapp-broadcast-card,
+.pass-form-card.pool-core-form.whatsapp-broadcast-card {
+  width: min(50%, 36rem);
+  max-width: min(50%, 36rem);
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.whatsapp-broadcast-card > h2 {
+  margin-bottom: 0.55rem;
+}
+
+.whatsapp-broadcast-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.65rem;
+}
+
+.whatsapp-broadcast-title .whatsapp-per-message-note {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.whatsapp-audience-field {
+  max-width: 11.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.whatsapp-audience-field select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+}
+
+.whatsapp-message-field {
+  width: 100%;
+  max-width: none;
+  margin-bottom: 1.15rem;
+}
+
+.whatsapp-message-field textarea {
+  width: 100%;
+}
+
+.whatsapp-message-block {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: none;
+  margin-bottom: 0;
+}
+
+.whatsapp-send-broadcast {
+  align-self: flex-end;
+  margin-left: 0;
+}
+
+.whatsapp-expiry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin: 0.15rem 0 0.85rem;
+}
+
+.whatsapp-expiry-sentence {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  margin: 0;
+  color: #243b66;
+  font-weight: 600;
+}
+
+.whatsapp-expiry-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+.whatsapp-expiry-check > input[type='checkbox'] {
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.whatsapp-expiry-days-input {
+  width: 1.85rem;
+  border: 1px solid #cfd6e4;
+  border-radius: 8px;
+  padding: 0.3rem 0.15rem;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+}
+
+.whatsapp-expiry-days-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.whatsapp-per-message-note {
+  color: #d92d20;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 700px) {
+  .whatsapp-broadcast-card,
+  .pass-form-card.pool-core-form.whatsapp-broadcast-card {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 .field textarea {
@@ -1387,18 +1650,18 @@ button.platform-rail-link {
   width: 3.35rem;
   height: 3.35rem;
   padding: 0;
-  border: 1.5px solid #b7c9e8;
+  border: 1.5px solid #fdba74;
   border-radius: 14px;
-  background: #eef3fb;
-  color: #1b3a66;
+  background: #fff7ed;
+  color: #ea580c;
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(10, 35, 70, 0.16);
 }
 
 .app-fullscreen-toggle:hover {
-  background: #fff;
-  border-color: var(--accent);
-  color: var(--accent-dark);
+  background: #ffedd5;
+  border-color: #f97316;
+  color: #c2410c;
 }
 
 .app-fullscreen-toggle svg {
@@ -3397,7 +3660,7 @@ button.platform-rail-link {
 .coach-payment-row {
   display: grid;
   gap: 0.65rem;
-  grid-template-columns: 1.3fr 1.1fr 1fr 0.9fr 1fr 0.9fr;
+  grid-template-columns: 1.2fr 1fr 0.9fr 0.85fr 0.95fr 1fr 0.9fr;
   align-items: start;
 }
 
@@ -3867,7 +4130,7 @@ button.coach-payment-back {
 .coach-summary-row {
   display: grid;
   gap: 0.65rem;
-  grid-template-columns: 1.3fr 1.1fr 1fr 0.7fr 1.1fr;
+  grid-template-columns: 1.2fr 1fr 0.95fr 1fr 0.7fr 1.1fr;
   align-items: start;
 }
 
@@ -3952,7 +4215,7 @@ button.coach-payment-back {
 .swimmer-row {
   display: grid;
   gap: 0.55rem;
-  grid-template-columns: 1.2fr 1.1fr 1fr 1fr 0.9fr minmax(9.5rem, 1.05fr);
+  grid-template-columns: 1.15fr 1fr 0.95fr 1fr 0.85fr minmax(13.5rem, 1.45fr);
   align-items: center;
 }
 
@@ -4043,6 +4306,207 @@ button.coach-payment-back {
 
 .payment-table-card {
   margin-top: 1rem;
+  position: relative;
+}
+
+.payment-pass-table .pass-table-head,
+.payment-pass-table .pass-row {
+  grid-template-columns: 1.2fr 1fr 1.2fr 1.5fr 0.7fr;
+}
+
+.payment-pass-table .pass-actions {
+  justify-content: flex-start;
+}
+
+@media (max-width: 980px) {
+  .payment-pass-table .pass-block-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .payment-pass-table .pass-block-row + .pass-block-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pass-table-card--sample,
+.pass-form-card--sample,
+.payment-collect-card {
+  position: relative;
+}
+
+.pass-table-card--sample,
+.pass-form-card--sample {
+  overflow: hidden;
+}
+
+.pass-table-card--sample > *:not(.user-mgmt-sample-watermark),
+.pass-form-card--sample > *:not(.user-mgmt-sample-watermark) {
+  position: relative;
+  z-index: 1;
+}
+
+.payment-table-card--sample {
+  overflow: hidden;
+}
+
+.payment-table-card--sample .payment-table-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.payment-sample-action {
+  color: #8a94a6;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Pass Payment — 3D raised buttons */
+.pass-payment-page .submit,
+.pass-payment-page .csv-btn,
+.pass-payment-page .pass-cancel,
+.pass-payment-page .pass-actions button.terms-link {
+  position: relative;
+  border-style: solid;
+  transform: translateY(0);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease,
+    border-color 0.12s ease,
+    filter 0.12s ease;
+}
+
+.pass-payment-page .submit {
+  border: 1px solid #1f54c4;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #5b8ff7 0%, var(--accent) 48%, #255fd4 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 3px 0 #163a8a,
+    0 5px 10px rgba(31, 84, 196, 0.28);
+}
+
+.pass-payment-page .submit:hover:not(:disabled) {
+  background: linear-gradient(180deg, #6b9af8 0%, #3a78f0 48%, #1f54c4 100%);
+  filter: none;
+}
+
+.pass-payment-page .submit:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 0 #163a8a,
+    0 1px 3px rgba(31, 84, 196, 0.22);
+}
+
+.pass-payment-page .submit:disabled {
+  opacity: 0.62;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 2px 0 #7a8fb8,
+    0 3px 6px rgba(100, 116, 139, 0.18);
+}
+
+.pass-payment-page .csv-btn,
+.pass-payment-page .pass-cancel {
+  border: 1px solid #b4c0d4;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #e8eef8 100%);
+  color: #243b66;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 3px 0 #9aa8bc,
+    0 5px 8px rgba(36, 59, 102, 0.12);
+}
+
+.pass-payment-page .csv-btn:hover:not(:disabled),
+.pass-payment-page .pass-cancel:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #dde6f3 100%);
+  color: #1a3568;
+}
+
+.pass-payment-page .csv-btn:active:not(:disabled),
+.pass-payment-page .pass-cancel:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 0 0 #9aa8bc,
+    0 1px 3px rgba(36, 59, 102, 0.12);
+}
+
+.pass-payment-page .csv-btn:disabled {
+  opacity: 0.55;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 2px 0 #b8c4d4,
+    0 3px 5px rgba(100, 116, 139, 0.1);
+}
+
+.pass-payment-page .csv-btn.payment-wa-request-btn {
+  background: linear-gradient(180deg, #b8c4d4 0%, #9aa8bc 52%, #8796ab 100%);
+  border-color: #6f8098;
+  color: #1a3568;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 3px 0 #5f7088,
+    0 5px 8px rgba(36, 59, 102, 0.16);
+}
+
+.pass-payment-page .csv-btn.payment-wa-request-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #c2ccd9 0%, #8f9eb3 52%, #7a8a9f 100%);
+  border-color: #5f7088;
+  color: #122849;
+}
+
+.pass-payment-page .csv-btn.payment-wa-request-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 0 #5f7088,
+    0 1px 3px rgba(36, 59, 102, 0.14);
+}
+
+.pass-payment-page .payment-mode-choices .choice-chip,
+.pass-payment-page .payment-mode-choices .choice-chip.selected,
+.pass-payment-page .payment-mode-choices .choice-chip:hover,
+.pass-payment-page .payment-mode-choices .choice-chip:active {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  transform: none;
+}
+
+.pass-payment-page .pass-actions button.terms-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.4rem;
+  padding: 0.4rem 0.95rem;
+  border: 1px solid #1f54c4;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #5b8ff7 0%, var(--accent) 48%, #255fd4 100%);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 3px 0 #163a8a,
+    0 4px 8px rgba(31, 84, 196, 0.24);
+}
+
+.pass-payment-page .pass-actions button.terms-link:hover {
+  background: linear-gradient(180deg, #6b9af8 0%, #3a78f0 48%, #1f54c4 100%);
+  color: #fff;
+}
+
+.pass-payment-page .pass-actions button.terms-link:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 0 #163a8a,
+    0 1px 3px rgba(31, 84, 196, 0.2);
 }
 
 .payment-table-wrap {
@@ -4089,15 +4553,200 @@ button.coach-payment-back {
 }
 
 .payment-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
   border: 1px solid #d7e0ef;
   border-radius: 10px;
-  background: #f7faff;
-  padding: 0.85rem 1rem;
+  background: #d7e0ef;
+  overflow: hidden;
   color: #243b66;
 }
 
-.payment-summary p {
-  margin: 0.25rem 0;
+.payment-batch-coach-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem 1rem;
+  align-items: start;
+  margin-bottom: 0.25rem;
+}
+
+.pool-core-form .payment-batch-coach-row > .field,
+.payment-batch-coach-row > .field {
+  margin-bottom: 0;
+}
+
+.pool-core-form .field.payment-mode-field,
+.field.payment-mode-field {
+  margin-top: 0;
+  margin-bottom: 0.45rem;
+}
+
+.field.payment-batch-field,
+.field.payment-coach-field {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0.55rem 0.75rem;
+}
+
+.field.payment-batch-field > .label,
+.field.payment-coach-field > .label {
+  margin: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding-top: 0.7rem;
+}
+
+.field.payment-batch-field .inpage-select {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: min(20rem, 100%);
+  min-width: 11rem;
+}
+
+.payment-coach-select-wrap {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  overflow: visible;
+}
+
+.payment-coach-select-wrap .inpage-select {
+  flex: none;
+  width: max-content;
+  min-width: 11rem;
+  max-width: 16rem;
+}
+
+.payment-coach-select-wrap .batch-empty {
+  margin: 0;
+}
+
+.assignment-count.payment-coach-assignment {
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+  width: max-content;
+  max-width: none;
+}
+
+.field.payment-batch-field .batch-empty {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .payment-batch-coach-row {
+    grid-template-columns: 1fr;
+  }
+
+  .field.payment-batch-field,
+  .field.payment-coach-field {
+    flex-wrap: wrap;
+  }
+
+  .field.payment-batch-field .inpage-select,
+  .payment-coach-select-wrap,
+  .payment-coach-select-wrap .inpage-select {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .payment-coach-assignment {
+    white-space: normal;
+    width: auto;
+  }
+}
+
+.field.payment-pass-type-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.field.payment-pass-type-field > .label {
+  margin: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.field.payment-pass-type-field .inpage-select {
+  flex: 0 1 calc((100% - 2px) / 3);
+  width: calc((100% - 2px) / 3);
+  min-width: min(100%, 12rem);
+  max-width: 100%;
+}
+
+@media (max-width: 700px) {
+  .field.payment-pass-type-field .inpage-select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+.payment-summary-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  background: #f7faff;
+}
+
+.payment-summary-label {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.payment-summary-value {
+  color: #1a3568;
+  font-size: 0.92rem;
+  font-weight: 600;
+  word-break: break-word;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.payment-summary-cell input[type='date'] {
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 11rem;
+  min-width: 0;
+  min-height: 2.1rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #1a3568;
+  box-sizing: border-box;
+}
+
+.payment-summary-holidays {
+  align-items: center;
+}
+
+.payment-summary-holidays .hint,
+.payment-summary-holidays .pass-period-holiday-list {
+  flex: 1 1 8rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.payment-summary-holidays .hint {
+  font-size: 0.88rem;
 }
 
 .pass-period-row {
@@ -4167,11 +4816,30 @@ button.coach-payment-back {
   white-space: nowrap;
 }
 
+@media (max-width: 700px) {
+  .payment-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+.payment-mode-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+}
+
+.payment-mode-field > .label {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
 .payment-mode-choices {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
-  padding: 0.15rem 0 0.35rem;
+  padding: 0;
+  margin: 0;
 }
 
 .payment-received-check {
@@ -4191,48 +4859,216 @@ button.coach-payment-back {
   accent-color: var(--accent);
 }
 
-.online-payment-details {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.75rem;
-  margin: 0.15rem 0 0.85rem;
+.payment-mode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.35rem;
 }
 
-.online-payment-qr {
-  max-width: min(100%, 12rem);
+.payment-mode-row--online {
+  grid-template-areas: 'left qr';
+  align-items: stretch;
+}
+
+.payment-mode-row--online .payment-mode-left {
+  grid-area: left;
+}
+
+.payment-mode-row--online .online-payment-qr-panel {
+  grid-area: qr;
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+}
+
+.payment-mode-left {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.65rem;
+  row-gap: 0.45rem;
+  min-width: 0;
+}
+
+.payment-mode-row .payment-mode-field {
+  display: contents;
+  margin-bottom: 0;
+}
+
+.payment-mode-field > .label {
+  grid-column: 1;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.payment-mode-choices {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  padding: 0;
+  margin: 0;
+}
+
+.payment-mode-left > .payment-received-check--cash {
+  grid-column: 2;
+  margin: 0.1rem 0 0;
+  justify-self: start;
+}
+
+.payment-mode-online-followup {
+  display: contents;
+}
+
+.payment-mode-online-muted {
+  grid-column: 2;
+  margin: 0;
+}
+
+.online-payment-upi-heading {
+  grid-column: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.online-payment-upi-heading .label {
+  margin: 0;
+}
+
+.online-payment-upi-sep {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.online-payment-upi-value {
+  grid-column: 2;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  word-break: break-all;
+  color: #243b66;
+}
+
+.csv-btn.payment-wa-request-btn {
+  grid-column: 2;
+  margin: 0;
+  justify-self: start;
+  background: #9aa8bc;
+  border-color: #7f8fa5;
+  color: #1a3568;
+}
+
+.csv-btn.payment-wa-request-btn:hover:not(:disabled) {
+  background: #8796ab;
+  border-color: #6b7c93;
+  color: #122849;
+}
+
+.online-payment-details {
+  display: contents;
+}
+
+.online-payment-details .field.transaction-id-field {
+  display: contents;
+  margin: 0;
+}
+
+.online-payment-details .field.transaction-id-field > .label {
+  grid-column: 1;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.online-payment-details .field.transaction-id-field input {
+  grid-column: 2;
   width: 100%;
-  height: auto;
-  object-fit: contain;
+  max-width: 22rem;
+  justify-self: start;
+}
+
+.online-payment-details .payment-received-check {
+  grid-column: 2;
+  margin: 0.1rem 0 0;
+  justify-self: start;
+}
+
+.online-payment-qr-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0;
+  justify-self: start;
+  min-height: 0;
+  height: 100%;
   border: 1px solid #d7e2f5;
   border-radius: 0.55rem;
   background: #fff;
   padding: 0.45rem;
+  box-sizing: border-box;
 }
 
-.online-payment-upi {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.55rem 0.85rem;
+.online-payment-qr-panel > .muted {
+  margin: auto 0;
+}
+
+.online-payment-qr {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  object-position: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 700px) {
+  .payment-mode-row,
+  .payment-mode-row--online {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'left'
+      'qr';
+  }
+
+  .payment-mode-left {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-mode-field > .label,
+  .payment-mode-choices,
+  .payment-mode-left > .payment-received-check--cash,
+  .online-payment-upi-heading,
+  .online-payment-upi-value,
+  .payment-wa-request-btn,
+  .payment-mode-online-muted,
+  .online-payment-details .field.transaction-id-field > .label,
+  .online-payment-details .field.transaction-id-field input,
+  .online-payment-details .payment-received-check {
+    grid-column: 1;
+  }
+}
+
+.pool-core-form .online-payment-details .field.transaction-id-field,
+.online-payment-details .field.transaction-id-field {
+  display: contents;
   margin: 0;
-  color: #243b66;
+  max-width: none;
 }
 
-.online-payment-upi .label {
-  margin: 0;
-}
-
-.online-payment-upi-value {
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  word-break: break-all;
-}
-
-.transaction-id-field {
+.online-payment-details .field.transaction-id-field input {
+  flex: unset;
   width: 100%;
   max-width: 22rem;
-  margin: 0.15rem 0 0;
 }
 
 .pool-core-form {
@@ -4243,6 +5079,13 @@ button.coach-payment-back {
   border-color: #b7d4de;
   padding: 0.75rem 0.9rem 0.85rem;
   margin-bottom: 0.5rem;
+}
+
+.pass-form-card.pool-core-form.whatsapp-broadcast-card {
+  width: min(50%, 36rem);
+  max-width: min(50%, 36rem);
+  padding: 0.65rem 0.75rem 0.7rem;
+  margin-bottom: 0.75rem;
 }
 
 .pool-core-form .form-grid-2 {
@@ -4389,14 +5232,120 @@ button.coach-payment-back {
 }
 
 .create-user-form {
-  max-width: 28rem;
-  margin-top: 0.75rem;
+  max-width: none;
+  margin-top: 0.15rem;
+  margin-bottom: 1rem;
+}
+
+.create-user-form > h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1a3568;
+  line-height: 1.2;
+}
+
+.create-user-heading-note {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #8a94a6;
+  line-height: 1.3;
+}
+
+.create-user-form .pass-form-actions .holiday-action-message {
+  margin: 0;
+  flex: 1 1 auto;
+  text-align: right;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.create-user-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem 0.85rem;
+  align-items: start;
+  margin-bottom: 0.35rem;
+}
+
+.create-user-fields > .field {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.create-user-form .label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #243b66;
+}
+
+.create-user-form input {
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+
+@media (max-width: 800px) {
+  .create-user-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.user-mgmt-card {
+  max-width: none;
+  padding: 0.75rem 0.9rem 0.85rem;
+  position: relative;
+}
+
+.user-mgmt-card--sample {
+  overflow: hidden;
+}
+
+.user-mgmt-sample-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+  font-size: clamp(4rem, 14vw, 8.5rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(26, 53, 104, 0.14);
+  transform: rotate(-22deg);
+  line-height: 1;
+}
+
+.user-mgmt-card > h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1a3568;
+  line-height: 1.2;
+  position: relative;
+  z-index: 1;
+}
+
+.user-mgmt-sample-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: #8a94a6;
+  position: relative;
+  z-index: 1;
+}
+
+.user-sample-badge {
+  display: none;
 }
 
 .user-mgmt-table-wrap {
-  margin-top: 0.85rem;
+  margin-top: 0;
   overflow-x: auto;
-  background: #fff;
+  background: transparent;
+  position: relative;
+  z-index: 1;
 }
 
 .user-mgmt-table {
@@ -4479,8 +5428,14 @@ button.coach-payment-back {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.65rem;
   margin-top: 0.55rem;
+}
+
+.user-reset-actions .submit {
+  width: auto;
+  min-width: 9.5rem;
 }
 
 .user-access-grid {
@@ -4881,33 +5836,172 @@ button.coach-payment-back {
   min-width: 0;
 }
 
-.holiday-page .lede {
-  margin-top: 0.35rem;
+.holiday-page .lede,
+.holiday-page .batch-list-lede {
+  margin: 0.15rem 0 0.55rem;
+  font-size: 0.78rem;
+  color: #8a94a6;
+  line-height: 1.3;
+  font-weight: 400;
 }
 
-.holiday-year-field {
+.holiday-page .platform-page-heading {
+  padding: 0.4rem 0 0.35rem;
+  align-items: center;
+  min-height: 0;
+}
+
+.holiday-year-field.field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
   margin: 0;
-  min-width: 7.5rem;
+  min-width: 0;
 }
 
-.holiday-section {
+.holiday-year-field .label {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #243b66;
+  white-space: nowrap;
+}
+
+.holiday-year-field select {
+  width: auto;
+  min-width: 5.5rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.92rem;
+}
+
+.holiday-section.card {
+  margin-top: 0.15rem;
+  background: #b1fafc;
+  border-color: #b7d4de;
+}
+
+.holiday-section.card + .holiday-section.card {
   margin-top: 1rem;
 }
 
 .holiday-section h2 {
   margin: 0 0 0.35rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1a3568;
+  line-height: 1.2;
+}
+
+.holiday-heading-note {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #8a94a6;
+  line-height: 1.3;
+}
+
+.holiday-section .hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: #8a94a6;
+  line-height: 1.3;
+  font-weight: 400;
+}
+
+.holiday-section .label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #243b66;
+}
+
+.holiday-section input,
+.holiday-section select,
+.holiday-section textarea {
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+
+.holiday-section input::placeholder,
+.holiday-section textarea::placeholder {
+  font-size: 0.78rem;
+  color: #8a94a6;
+  opacity: 1;
 }
 
 .holiday-weekdays {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.55rem;
   margin: 0.75rem 0 0.35rem;
+}
+
+.holiday-weekdays-save {
+  width: auto;
+  min-width: 5.5rem;
+  margin-left: 0.25rem;
+}
+
+.holiday-action-message {
+  margin: 0;
+  flex: 1 1 auto;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.holiday-action-message--inline {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  text-align: right;
+}
+
+.pass-form-actions .holiday-action-message {
+  text-align: right;
+}
+
+.holiday-section .choice-chip {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #243b66;
 }
 
 .holiday-leave-form {
   margin-top: 0.85rem;
   padding-top: 0.35rem;
+}
+
+.holiday-custom-annual-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(9rem, 0.7fr) minmax(0, 1fr) auto;
+  gap: 0.65rem 0.85rem;
+  align-items: end;
+}
+
+.holiday-custom-annual-row .field {
+  margin-bottom: 0;
+}
+
+.holiday-custom-annual-actions {
+  display: flex;
+  align-items: end;
+  padding-bottom: 0.1rem;
+}
+
+.holiday-custom-annual-actions .submit {
+  width: auto;
+  min-width: 5.5rem;
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .holiday-custom-annual-row {
+    grid-template-columns: 1fr;
+  }
+
+  .holiday-custom-annual-actions .submit {
+    width: 100%;
+  }
 }
 
 .holiday-list {
@@ -4948,6 +6042,50 @@ button.coach-payment-back {
   color: #243b66;
 }
 
+.holiday-list-row--surprise {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1.2fr) minmax(9rem, 1.1fr) minmax(8rem, 1fr) minmax(7rem, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem 1rem;
+}
+
+.holiday-list-row--surprise .holiday-list-col {
+  display: block;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.holiday-list-row--surprise .holiday-list-col--name {
+  color: #1a3568;
+  font-size: 0.92rem;
+}
+
+.holiday-list-row--surprise .holiday-list-col--action {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+@media (max-width: 800px) {
+  .holiday-list-row--surprise {
+    grid-template-columns: 1fr auto;
+  }
+
+  .holiday-list-row--surprise .holiday-list-col--name {
+    grid-column: 1;
+  }
+
+  .holiday-list-row--surprise .holiday-list-col--action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .holiday-list-row--surprise .holiday-list-meta,
+  .holiday-list-row--surprise .holiday-list-notes {
+    grid-column: 1 / -1;
+  }
+}
+
 .holiday-selected-summary {
   display: flex;
   flex-wrap: wrap;
@@ -4965,12 +6103,29 @@ button.coach-payment-back {
   color: #1a3568;
 }
 
+.holiday-national-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.45rem 1rem;
+  margin: 0 0 0.55rem;
+}
+
+.holiday-national-heading-row .hint {
+  margin: 0;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
 .holiday-national-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.75rem 1rem;
-  margin: 0.75rem 0 0.55rem;
+  margin: 0;
+  flex: 0 0 auto;
 }
 
 .holiday-national-count {
@@ -4981,7 +6136,8 @@ button.coach-payment-back {
 
 .holiday-national-list {
   display: grid;
-  gap: 0.45rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.75rem;
   margin-bottom: 0.75rem;
   max-height: 22rem;
   overflow: auto;
@@ -4991,25 +6147,57 @@ button.coach-payment-back {
   background: #fff;
 }
 
+@media (max-width: 720px) {
+  .holiday-national-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 .holiday-national-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.55rem 0.7rem;
+  gap: 0.45rem;
+  padding: 0.5rem 0.55rem;
   border: 1px solid transparent;
   border-radius: 8px;
   color: #243b66;
+  min-width: 0;
 }
 
 .holiday-national-check {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   align-items: center;
-  gap: 0.55rem 0.75rem;
+  column-gap: 0.45rem;
+  row-gap: 0.15rem;
   flex: 1;
   min-width: 0;
   cursor: pointer;
+}
+
+.holiday-national-check input {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.holiday-national-name {
+  font-weight: 600;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.4rem;
+  min-width: 0;
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.holiday-national-date {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  grid-column: 2;
 }
 
 .holiday-national-item:hover {
@@ -5037,14 +6225,25 @@ button.coach-payment-back {
   accent-color: var(--accent);
 }
 
-.holiday-national-name {
-  font-weight: 600;
+.holiday-scope-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.holiday-national-date {
-  color: var(--muted);
-  font-size: 0.88rem;
-  white-space: nowrap;
+.holiday-scope-badge--national {
+  color: #1f54c4;
+  background: #e8f0ff;
+}
+
+.holiday-scope-badge--state {
+  color: #0b6e4f;
+  background: #e8f7ef;
 }
 
 .holiday-national-badge {
@@ -5067,6 +6266,36 @@ button.coach-payment-back {
   align-items: end;
 }
 
+.surprise-daytype-date-row {
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  column-gap: 1.25rem;
+}
+
+.surprise-daytype-date-row .surprise-span-field {
+  align-self: center;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.surprise-daytype-date-row .surprise-datetime-inline {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 0.45rem 0.65rem;
+  overflow-x: auto;
+}
+
+.surprise-daytype-date-row .surprise-datetime-inline {
+  justify-content: flex-start;
+}
+
+.surprise-daytype-date-row .surprise-span-field,
+.surprise-daytype-date-row .surprise-date-field,
+.surprise-daytype-date-row .surprise-time-field {
+  margin-bottom: 0;
+}
+
 .surprise-reason-field,
 .surprise-date-field,
 .surprise-span-field,
@@ -5078,18 +6307,23 @@ button.coach-payment-back {
   border: 0;
   padding: 0;
   min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.85rem;
 }
 
 .surprise-span-field .label {
   padding: 0;
-  margin-bottom: 0.35rem;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .surprise-span-options {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.55rem 1rem;
-  min-height: 2.55rem;
+  min-height: 0;
   align-items: center;
 }
 
@@ -5117,28 +6351,67 @@ button.coach-payment-back {
   margin-bottom: 0.15rem;
 }
 
-.surprise-date-field,
-.surprise-time-field {
+.surprise-datetime-inline {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.surprise-date-field.field,
+.surprise-time-field.field {
   width: auto;
   max-width: 100%;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem 0.4rem;
+  margin-bottom: 0;
+}
+
+.surprise-date-field .label,
+.surprise-time-field .label {
+  margin: 0;
+  white-space: nowrap;
+  font-size: 0.88rem;
 }
 
 .surprise-date-field input[type='date'],
 .surprise-time-field input[type='time'] {
-  width: 9.75rem;
+  width: 8.25rem;
   max-width: 100%;
   box-sizing: border-box;
+  padding: 0.4rem 0.45rem;
+  min-height: 2rem;
+  font-size: 0.88rem;
+}
+
+.surprise-time-field input[type='time'] {
+  width: 6.75rem;
 }
 
 .surprise-time-row {
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  gap: 0.85rem 1rem;
-  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: end;
+  gap: 0.65rem 0.85rem;
+  width: auto;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .surprise-datetime-inline {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 640px) {
-  .surprise-leave-row {
+  .surprise-leave-row,
+  .surprise-daytype-date-row {
     grid-template-columns: 1fr;
   }
 
@@ -5149,6 +6422,51 @@ button.coach-payment-back {
   .surprise-date-field input[type='date'],
   .surprise-time-field input[type='time'] {
     width: 8.75rem;
+  }
+}
+
+.surprise-notes-extend-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1.25rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.surprise-notes-extend-row .surprise-notes-field.field,
+.surprise-notes-extend-row .surprise-extend-field.field {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+}
+
+.surprise-notes-extend-row .label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.surprise-notes-extend-row .surprise-notes-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.surprise-extend-field .pass-yes-no {
+  min-height: 0;
+  gap: 0.55rem 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .surprise-notes-extend-row {
+    grid-template-columns: 1fr;
+  }
+
+  .surprise-notes-extend-row .surprise-notes-field.field,
+  .surprise-notes-extend-row .surprise-extend-field.field {
+    flex-wrap: wrap;
   }
 }
 
@@ -5176,6 +6494,16 @@ button.coach-payment-back {
   padding: 1.1rem 1.15rem 1.2rem;
 }
 
+.swimmer-edit-card--sample {
+  position: relative;
+  overflow: hidden;
+}
+
+.swimmer-edit-card--sample > *:not(.user-mgmt-sample-watermark) {
+  position: relative;
+  z-index: 1;
+}
+
 .swimmer-edit-head {
   display: flex;
   align-items: flex-start;
@@ -5192,9 +6520,9 @@ button.coach-payment-back {
 }
 
 .swimmer-review-card {
-  border: 1px solid #d7e0ef;
+  border: 1px solid #c5d0e0;
   border-radius: 12px;
-  background: #f7f9fc;
+  background: #e4ebf5;
   padding: 0.95rem 1rem 1.05rem;
   margin-bottom: 1rem;
 }
@@ -5281,13 +6609,37 @@ button.coach-payment-back {
 .swimmer-review-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem 0.85rem;
+  gap: 1px;
+  background: #d7e0ef;
+  border: 1px solid #d7e0ef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Primary details: 2 + 3 + 3 fields across three rows */
+.swimmer-review-grid--primary {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.swimmer-review-grid--primary > div:nth-child(1),
+.swimmer-review-grid--primary > div:nth-child(2) {
+  grid-column: span 3;
+}
+
+.swimmer-review-grid--primary > div:nth-child(n + 3) {
+  grid-column: span 2;
+}
+
+.swimmer-review-grid--triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .swimmer-review-grid > div {
   display: grid;
   gap: 0.15rem;
   min-width: 0;
+  padding: 0.55rem 0.7rem;
+  background: #fff;
 }
 
 .swimmer-review-wide {
@@ -5313,14 +6665,60 @@ button.coach-payment-back {
   margin-top: 0.95rem;
 }
 
+.swimmer-review-identity-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.65rem;
+  margin-bottom: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  background: #fff;
+  border: 1px solid #d7e0ef;
+  border-radius: 8px;
+  width: calc(50% - 0.375rem);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.swimmer-review-identity-type .swimmer-review-label {
+  margin: 0;
+}
+
+.swimmer-review-identity-type > span:not(.swimmer-review-label) {
+  color: #1e293b;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 @media (max-width: 700px) {
   .swimmer-review-photos {
     grid-template-columns: 1fr;
   }
 
+  .swimmer-review-identity-type {
+    width: 100%;
+  }
+
   .swimmer-review-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem 0.65rem;
+  }
+
+  .swimmer-review-grid--primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .swimmer-review-grid--primary > div:nth-child(1),
+  .swimmer-review-grid--primary > div:nth-child(2),
+  .swimmer-review-grid--primary > div:nth-child(n + 3) {
+    grid-column: auto;
+  }
+
+  .swimmer-review-grid--triple {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .swimmer-review-grid > div {
+    padding: 0.5rem 0.6rem;
   }
 
   .swimmer-review-grid span:not(.swimmer-review-label) {
@@ -6556,6 +7954,22 @@ button.menu-link {
   gap: 0.65rem;
   margin-top: 0.85rem;
   width: 100%;
+}
+
+.pass-form-actions-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.pass-payment-page .payment-issue-success {
+  margin: 0;
+  white-space: nowrap;
+  text-align: right;
+  line-height: 1.3;
 }
 
 .pass-form-actions .submit {

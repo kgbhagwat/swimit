@@ -22,6 +22,7 @@ import { whatsappRouter } from './routes/whatsapp.js';
 import { platformPaymentRouter } from './routes/platformPayment.js';
 import { requireTenant } from './middleware/tenant.js';
 import { startSubscriptionExpiryReminders } from './subscriptionReminders.js';
+import { startPassExpiryReminders } from './passExpiryReminders.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -118,4 +119,5 @@ app.listen(port, '0.0.0.0', () => {
     console.log(`Serving client from ${clientDist}`);
   }
   startSubscriptionExpiryReminders();
+  startPassExpiryReminders();
 });

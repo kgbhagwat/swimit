@@ -1,10 +1,11 @@
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   enterApplicationDemo,
   exitApplicationDemo,
   isApplicationDemo,
   isApplicationDemoPath,
+  resetApplicationDemoData,
 } from './applicationDemo';
 import { setActiveTenant } from './tenantSession';
 
@@ -25,15 +26,21 @@ async function bindApplicationTenant() {
 /** Keeps Application demo mode in sync with the current route; clears data on leave. */
 export function ApplicationDemoSync() {
   const { pathname } = useLocation();
+  const previousPathRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     if (isApplicationDemoPath(pathname)) {
       if (!isApplicationDemo()) {
         enterApplicationDemo();
+      } else if (previousPathRef.current && previousPathRef.current !== pathname) {
+        // Moving between Application pages discards any trial edits.
+        resetApplicationDemoData();
       }
+      previousPathRef.current = pathname;
       void bindApplicationTenant();
       return;
     }
+    previousPathRef.current = null;
     if (isApplicationDemo()) {
       exitApplicationDemo();
     }

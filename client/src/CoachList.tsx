@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
@@ -68,6 +69,63 @@ function downloadCsv(filename: string, header: string[], rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
+const SAMPLE_COACHES: CoachRow[] = [
+  {
+    id: -1,
+    fullName: 'Riya Kulkarni',
+    contact: '9876501234',
+    email: 'riya@example.com',
+    batches: ['Morning A — Mixed — 06:00 to 07:00'],
+    teachStrokes: 'Freestyle, Backstroke',
+    isApproved: true,
+  },
+  {
+    id: -2,
+    fullName: 'Amit Sharma',
+    contact: '9876505678',
+    email: 'amit@example.com',
+    batches: ['Evening B — Mixed — 18:00 to 19:00'],
+    teachStrokes: 'Breaststroke, Butterfly',
+    isApproved: true,
+  },
+  {
+    id: -3,
+    fullName: 'Neha Deshmukh',
+    contact: '9876509012',
+    email: 'neha@example.com',
+    batches: ['Morning A — Mixed — 06:00 to 07:00', 'Evening B — Mixed — 18:00 to 19:00'],
+    teachStrokes: 'Freestyle',
+    isApproved: false,
+  },
+];
+
+const SAMPLE_LIFEGUARDS: SimpleStaffRow[] = [
+  {
+    id: -11,
+    fullName: 'Sana Joshi',
+    contact: '9123456780',
+    email: 'sana@example.com',
+    post: 'Lifeguard',
+  },
+  {
+    id: -12,
+    fullName: 'Kabir Shah',
+    contact: '9123456781',
+    email: 'kabir@example.com',
+    post: 'Lifeguard',
+  },
+];
+
+const SAMPLE_OTHERS: SimpleStaffRow[] = [
+  {
+    id: -21,
+    fullName: 'Meera Iyer',
+    contact: '9000011122',
+    email: 'meera@example.com',
+    post: 'Front desk',
+  },
+];
+
 export function CoachList() {
   const [role, setRole] = useState<StaffRole>('Coach');
   const [coaches, setCoaches] = useState<CoachRow[]>([]);
@@ -76,12 +134,20 @@ export function CoachList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [approvingId, setApprovingId] = useState<number | null>(null);
-  const canEdit = canEditPage('coaches');
+  const [sampleMode, setSampleMode] = useState(false);
+  const canEdit = canEditPage('coaches') && !sampleMode;
 
   async function load() {
     setLoading(true);
     setError('');
     try {
+      if (isApplicationDemo()) {
+        setCoaches(SAMPLE_COACHES);
+        setLifeguards(SAMPLE_LIFEGUARDS);
+        setOthers(SAMPLE_OTHERS);
+        setSampleMode(true);
+        return;
+      }
       const [staffRes, batchesRes] = await Promise.all([
         fetch('/api/staff-registrations'),
         fetch('/api/batches'),
@@ -140,6 +206,7 @@ export function CoachList() {
       );
       setLifeguards(staffRows.filter((row) => row.registration_for === 'Lifeguard').map(toSimple));
       setOthers(staffRows.filter((row) => row.registration_for === 'Other').map(toSimple));
+      setSampleMode(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
       setCoaches([]);
@@ -159,12 +226,13 @@ export function CoachList() {
     role === 'Coach' ? coaches.length : role === 'Lifeguard' ? lifeguards.length : others.length;
 
   const countLabel = useMemo(() => {
+    if (sampleMode) return 'Sample layout — preview of coaches, lifeguards, and other staff.';
     if (role === 'Coach') return `${visibleCount} coach${visibleCount === 1 ? '' : 'es'}`;
     if (role === 'Lifeguard') {
       return `${visibleCount} lifeguard${visibleCount === 1 ? '' : 's'}`;
     }
     return `${visibleCount} staff`;
-  }, [role, visibleCount]);
+  }, [role, visibleCount, sampleMode]);
 
   function onDownloadCsv() {
     const stamp = new Date().toISOString().slice(0, 10);
@@ -205,6 +273,7 @@ export function CoachList() {
   }
 
   async function toggleCoachApproval(coach: CoachRow) {
+    if (sampleMode || coach.id < 0) return;
     setApprovingId(coach.id);
     setError('');
     try {
@@ -235,11 +304,19 @@ export function CoachList() {
         type="button"
         className={`icon-action${approved ? ' icon-action-approved' : ' icon-action-unapproved'}`}
         onClick={() => void toggleCoachApproval(coach)}
-        disabled={busy}
+        disabled={busy || sampleMode}
         aria-label={
           approved ? `Revoke approval for ${coach.fullName}` : `Approve ${coach.fullName}`
         }
-        title={approved ? 'Approved — click to revoke' : 'Approve for payment'}
+        title={
+          sampleMode
+            ? approved
+              ? 'Sample — approved'
+              : 'Sample — not approved'
+            : approved
+              ? 'Approved — click to revoke'
+              : 'Approve for payment'
+        }
         aria-pressed={approved}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -249,11 +326,15 @@ export function CoachList() {
     );
   }
 
+  const tableClass = `pass-form-card pool-core-form pass-table-card coach-table-card${
+    sampleMode ? ' pass-form-card--sample' : ''
+  }`;
+
   return (
     <PlatformPage title="Staff List">
       <div className="pass-head">
         <div>
-          <p className="pass-count">{countLabel}</p>
+          <p className="pass-count batch-list-lede">{countLabel}</p>
         </div>
         <div className="list-head-actions">
           <div className="staff-role-radios" role="radiogroup" aria-label="Staff type">
@@ -281,7 +362,12 @@ export function CoachList() {
       </div>
 
       {role === 'Coach' ? (
-        <section className="pass-table-card coach-table-card">
+        <section className={tableClass}>
+          {sampleMode ? (
+            <div className="user-mgmt-sample-watermark" aria-hidden="true">
+              Sample
+            </div>
+          ) : null}
           <div className="coach-table-head">
             <span>Coach name</span>
             <span>Contact</span>
@@ -338,7 +424,12 @@ export function CoachList() {
           )}
         </section>
       ) : (
-        <section className="pass-table-card coach-table-card">
+        <section className={tableClass}>
+          {sampleMode ? (
+            <div className="user-mgmt-sample-watermark" aria-hidden="true">
+              Sample
+            </div>
+          ) : null}
           <div className={role === 'Lifeguard' ? 'lifeguard-staff-head' : 'other-staff-head'}>
             <span>Name</span>
             <span>Contact</span>

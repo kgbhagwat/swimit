@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { PlatformPage } from './PlatformPage';
 
@@ -15,6 +16,7 @@ type PaymentItem = {
   passType: string;
   batch: string;
   isActive: boolean;
+  passCharges: number;
   coachingCharges: number;
   duration: string;
   durationDays: number;
@@ -26,7 +28,7 @@ type PaymentItem = {
 type PaymentResult = {
   coach: string;
   month: string;
-  basis: 'month' | 'day';
+  basis: 'pass' | 'month' | 'day';
   items: PaymentItem[];
   total: number;
   swimmerCount: number;
@@ -36,6 +38,7 @@ type SummaryItem = {
   coachId: number;
   coachName: string;
   passType: string;
+  passCharges: number;
   coachingCharges: number;
   swimmerCount: number;
   total: number;
@@ -43,14 +46,197 @@ type SummaryItem = {
 
 type SummaryResult = {
   month: string;
-  basis: 'month' | 'day';
+  basis: 'pass' | 'month' | 'day';
   items: SummaryItem[];
   totalSwimmers: number;
   grandTotal: number;
 };
 
-type Basis = 'month' | 'day';
+type Basis = 'pass' | 'month' | 'day';
 type ViewMode = 'detail' | 'summary';
+
+const SAMPLE_COACHES: CoachOption[] = [
+  { id: -1, full_name: 'Riya Kulkarni', registration_for: 'Coach', is_active: true },
+  { id: -2, full_name: 'Amit Sharma', registration_for: 'Coach', is_active: true },
+  { id: -3, full_name: 'Neha Deshmukh', registration_for: 'Coach', is_active: true },
+];
+
+function parseDurationMonths(duration: string) {
+  const match = String(duration ?? '')
+    .trim()
+    .match(/^(\d+)\s*(Day|Week|Month|Year)s?$/i);
+  if (!match) return 1;
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  if (unit.startsWith('month')) return Math.max(1, amount);
+  if (unit.startsWith('year')) return Math.max(1, amount * 12);
+  if (unit.startsWith('week')) return Math.max(1, amount / 4);
+  if (unit.startsWith('day')) return Math.max(1, amount / 30);
+  return 1;
+}
+
+function samplePaymentForCoach(coachName: string, month: string, basis: Basis): PaymentResult {
+  const rows: Array<{
+    registrationId: number;
+    fullName: string;
+    passType: string;
+    batch: string;
+    passCharges: number;
+    coachingCharges: number;
+    duration: string;
+    durationDays: number;
+    attendedDays: number;
+  }> =
+    coachName === 'Amit Sharma'
+      ? [
+          {
+            registrationId: -21,
+            fullName: 'Rohan Mehta',
+            passType: 'Monthly Swim',
+            batch: 'Morning B',
+            passCharges: 2000,
+            coachingCharges: 500,
+            duration: '1 Month',
+            durationDays: 30,
+            attendedDays: 18,
+          },
+          {
+            registrationId: -22,
+            fullName: 'Isha Nair',
+            passType: 'Monthly Swim',
+            batch: 'Morning B',
+            passCharges: 2000,
+            coachingCharges: 500,
+            duration: '1 Month',
+            durationDays: 30,
+            attendedDays: 22,
+          },
+        ]
+      : coachName === 'Neha Deshmukh'
+        ? [
+            {
+              registrationId: -31,
+              fullName: 'Kabir Shah',
+              passType: 'Quarterly Swim',
+              batch: 'Evening A',
+              passCharges: 6000,
+              coachingCharges: 1800,
+              duration: '3 Months',
+              durationDays: 90,
+              attendedDays: 20,
+            },
+          ]
+        : [
+            {
+              registrationId: -11,
+              fullName: 'Aarav Patil',
+              passType: 'Monthly Swim',
+              batch: 'Morning A',
+              passCharges: 2200,
+              coachingCharges: 550,
+              duration: '1 Month',
+              durationDays: 30,
+              attendedDays: 20,
+            },
+            {
+              registrationId: -12,
+              fullName: 'Sana Joshi',
+              passType: 'Quarterly Swim',
+              batch: 'Evening B',
+              passCharges: 6500,
+              coachingCharges: 1650,
+              duration: '3 Months',
+              durationDays: 90,
+              attendedDays: 16,
+            },
+            {
+              registrationId: -13,
+              fullName: 'Vihaan Kulkarni',
+              passType: 'Monthly Swim',
+              batch: 'Morning A',
+              passCharges: 2400,
+              coachingCharges: 600,
+              duration: '1 Month',
+              durationDays: 30,
+              attendedDays: 24,
+            },
+          ];
+
+  const items: PaymentItem[] = rows.map((row) => {
+    const dailyRate = row.durationDays > 0 ? row.coachingCharges / row.durationDays : 0;
+    const monthlyRate = row.coachingCharges / parseDurationMonths(row.duration);
+    const amount =
+      basis === 'pass'
+        ? row.coachingCharges
+        : basis === 'month'
+          ? monthlyRate
+          : Math.round(dailyRate * row.attendedDays * 100) / 100;
+    return {
+      registrationId: row.registrationId,
+      fullName: row.fullName,
+      passType: row.passType,
+      batch: row.batch,
+      isActive: true,
+      passCharges: row.passCharges,
+      coachingCharges: row.coachingCharges,
+      duration: row.duration,
+      durationDays: row.durationDays,
+      attendedDays: row.attendedDays,
+      dailyRate: Math.round(dailyRate * 100) / 100,
+      amount: Math.round(amount * 100) / 100,
+    };
+  });
+
+  return {
+    coach: coachName,
+    month,
+    basis,
+    items,
+    total: items.reduce((sum, item) => sum + item.amount, 0),
+    swimmerCount: items.length,
+  };
+}
+
+function sampleSummary(month: string, basis: Basis): SummaryResult {
+  const items: SummaryItem[] = SAMPLE_COACHES.flatMap((coach) => {
+    const detail = samplePaymentForCoach(coach.full_name, month, basis);
+    const byPass = new Map<
+      string,
+      { passCharges: number; charges: number; count: number; total: number }
+    >();
+    for (const item of detail.items) {
+      const key = item.passType || '—';
+      const current = byPass.get(key) ?? {
+        passCharges: item.passCharges,
+        charges: item.coachingCharges,
+        count: 0,
+        total: 0,
+      };
+      current.count += 1;
+      current.total += item.amount;
+      current.charges = item.coachingCharges;
+      current.passCharges = item.passCharges;
+      byPass.set(key, current);
+    }
+    return [...byPass.entries()].map(([passType, value]) => ({
+      coachId: coach.id,
+      coachName: coach.full_name,
+      passType,
+      passCharges: value.passCharges,
+      coachingCharges: value.charges,
+      swimmerCount: value.count,
+      total: value.total,
+    }));
+  });
+
+  return {
+    month,
+    basis,
+    items,
+    totalSwimmers: items.reduce((sum, item) => sum + item.swimmerCount, 0),
+    grandTotal: items.reduce((sum, item) => sum + item.total, 0),
+  };
+}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -106,6 +292,7 @@ export function CoachPayment() {
   const [loadingCoaches, setLoadingCoaches] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sampleMode, setSampleMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +300,13 @@ export function CoachPayment() {
       setLoadingCoaches(true);
       setError('');
       try {
+        if (isApplicationDemo()) {
+          if (!cancelled) {
+            setCoaches(SAMPLE_COACHES);
+            setSampleMode(true);
+          }
+          return;
+        }
         const res = await fetch('/api/staff-registrations');
         if (!res.ok) throw new Error('Failed to load coaches');
         const rows = (await res.json()) as CoachOption[];
@@ -121,10 +315,18 @@ export function CoachPayment() {
           .filter((row) => row.registration_for === 'Coach' && row.is_active !== false)
           .sort((a, b) => a.full_name.localeCompare(b.full_name));
         setCoaches(list);
+        setSampleMode(false);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load coaches');
-          setCoaches([]);
+          if (isApplicationDemo()) {
+            setCoaches(SAMPLE_COACHES);
+            setSampleMode(true);
+            setError('');
+          } else {
+            setError(err instanceof Error ? err.message : 'Failed to load coaches');
+            setCoaches([]);
+            setSampleMode(false);
+          }
         }
       } finally {
         if (!cancelled) setLoadingCoaches(false);
@@ -140,6 +342,13 @@ export function CoachPayment() {
     if (viewMode !== 'detail') return;
     if (!coach) {
       setResult(null);
+      return;
+    }
+
+    if (sampleMode) {
+      setLoading(false);
+      setError('');
+      setResult(samplePaymentForCoach(coach, month, basis));
       return;
     }
 
@@ -166,10 +375,17 @@ export function CoachPayment() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, coach, month, basis]);
+  }, [viewMode, coach, month, basis, sampleMode]);
 
   useEffect(() => {
     if (viewMode !== 'summary') return;
+
+    if (sampleMode) {
+      setLoading(false);
+      setError('');
+      setSummary(sampleSummary(month, basis));
+      return;
+    }
 
     let cancelled = false;
     async function loadSummary() {
@@ -194,7 +410,7 @@ export function CoachPayment() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, month, basis]);
+  }, [viewMode, month, basis, sampleMode]);
 
   function openSummary() {
     setError('');
@@ -211,6 +427,7 @@ export function CoachPayment() {
     const header = [
       'Coach name',
       'Pass type',
+      'Pass charges',
       'Coaching charges',
       'Swimmers',
       'Total coaching charges',
@@ -221,6 +438,7 @@ export function CoachPayment() {
         [
           item.coachName,
           item.passType || '',
+          String(item.passCharges ?? 0),
           String(item.coachingCharges ?? 0),
           String(item.swimmerCount),
           String(item.total),
@@ -228,7 +446,7 @@ export function CoachPayment() {
           .map(csvEscape)
           .join(','),
       ),
-      ['', '', '', 'Grand total', String(summary.grandTotal)].map(csvEscape).join(','),
+      ['', '', '', '', 'Grand total', String(summary.grandTotal)].map(csvEscape).join(','),
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -247,6 +465,7 @@ export function CoachPayment() {
       'Batch',
       basis === 'day' ? 'Attended days' : 'Duration',
       basis === 'day' ? 'Duration days' : '',
+      'Pass charges',
       'Coaching charges',
       'Amount',
     ].filter(Boolean);
@@ -261,6 +480,7 @@ export function CoachPayment() {
                 item.batch || '',
                 String(item.attendedDays),
                 String(item.durationDays),
+                String(item.passCharges ?? 0),
                 String(item.coachingCharges),
                 String(item.amount),
               ]
@@ -269,6 +489,7 @@ export function CoachPayment() {
                 item.passType || '',
                 item.batch || '',
                 item.duration || '',
+                String(item.passCharges ?? 0),
                 String(item.coachingCharges),
                 String(item.amount),
               ]
@@ -276,7 +497,7 @@ export function CoachPayment() {
           .map(csvEscape)
           .join(','),
       ),
-      ['', '', '', '', 'Total', String(result.total)].map(csvEscape).join(','),
+      ['', '', '', '', '', '', 'Total', String(result.total)].map(csvEscape).join(','),
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -316,7 +537,19 @@ export function CoachPayment() {
         </>
       }
     >
-      <div className="swimmer-list-card">
+      <div
+        className={`pass-form-card pool-core-form${sampleMode ? ' pass-form-card--sample' : ''}`}
+      >
+        {sampleMode ? (
+          <div className="user-mgmt-sample-watermark" aria-hidden="true">
+            Sample
+          </div>
+        ) : null}
+        {sampleMode ? (
+          <p className="lede batch-list-lede">
+            Sample layout — select a coach to preview payment details.
+          </p>
+        ) : null}
         <div className="coach-payment-controls">
           {viewMode === 'detail' ? (
             <label className="field">
@@ -355,6 +588,14 @@ export function CoachPayment() {
           <fieldset className="coach-payment-basis">
             <legend className="label">Payment calculation</legend>
             <div className="staff-role-radios">
+              <label className={`staff-role-option${basis === 'pass' ? ' selected' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={basis === 'pass'}
+                  onChange={() => setBasis('pass')}
+                />
+                Pass basis
+              </label>
               <label className={`staff-role-option${basis === 'month' ? ' selected' : ''}`}>
                 <input
                   type="checkbox"
@@ -375,17 +616,6 @@ export function CoachPayment() {
           </fieldset>
         </div>
 
-        {basis === 'month' ? (
-          <p className="pass-count">
-            Month basis uses the coaching charges defined on each swimmer&apos;s pass type.
-          </p>
-        ) : (
-          <p className="pass-count">
-            Day basis = (coaching charges ÷ pass duration days) × attendance days in{' '}
-            {monthLabel(month)}.
-          </p>
-        )}
-
         {error ? <p className="error">{error}</p> : null}
 
         {loading ? <p className="pass-count">Calculating…</p> : null}
@@ -396,6 +626,7 @@ export function CoachPayment() {
               <div className="coach-summary-head">
                 <span>Coach name</span>
                 <span>Pass type</span>
+                <span>Pass charges</span>
                 <span>Coaching charges</span>
                 <span>Swimmers</span>
                 <span>Total coaching charges</span>
@@ -412,6 +643,9 @@ export function CoachPayment() {
                       <strong>{item.coachName}</strong>
                     </span>
                     <span data-label="Pass type">{item.passType || '—'}</span>
+                    <span data-label="Pass charges">
+                      {formatMoney(item.passCharges ?? 0)}
+                    </span>
                     <span data-label="Coaching charges">
                       {formatMoney(item.coachingCharges ?? 0)}
                     </span>
@@ -435,9 +669,7 @@ export function CoachPayment() {
         ) : null}
 
         {!loading && viewMode === 'detail' ? (
-          !coach ? (
-            <p className="pass-count">Select a coach to view payment details, or open Summary.</p>
-          ) : result ? (
+          !coach ? null : result ? (
             <>
               <div className="pass-table-card coach-payment-table">
                 <div className="coach-payment-head">
@@ -445,6 +677,7 @@ export function CoachPayment() {
                   <span>Pass type</span>
                   <span>Batch</span>
                   {basis === 'day' ? <span>Days</span> : <span>Duration</span>}
+                  <span>Pass charges</span>
                   <span>Coaching charges</span>
                   <span>Amount</span>
                 </div>
@@ -465,6 +698,7 @@ export function CoachPayment() {
                       ) : (
                         <span data-label="Duration">{item.duration || '—'}</span>
                       )}
+                      <span data-label="Pass charges">{formatMoney(item.passCharges ?? 0)}</span>
                       <span data-label="Coaching charges">{formatMoney(item.coachingCharges)}</span>
                       <span data-label="Amount">
                         <strong>{formatMoney(item.amount)}</strong>

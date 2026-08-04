@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { clipMenuAccessToPackage, sanitizeMenuAccess } from '../menuAccess.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
+import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { generateTempPassword, hashPassword } from '../password.js';
 import { tenantId } from '../middleware/tenant.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
@@ -105,7 +106,7 @@ usersRouter.post('/', async (req, res) => {
     };
 
     const userName = String(body.userName ?? '').trim();
-    const mobile = String(body.mobile ?? '').trim();
+    const mobile = sanitizeMobile(body.mobile);
     const email = String(body.email ?? '').trim().toLowerCase();
     const pkg = await packageMenuKeysForAccount(accountId);
     const menuAccess = clipMenuAccessToPackage(
@@ -119,8 +120,8 @@ usersRouter.post('/', async (req, res) => {
       res.status(400).json({ error: 'User Name is required' });
       return;
     }
-    if (!/^\d{10}$/.test(mobile)) {
-      res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+    if (!isValidMobile(mobile)) {
+      res.status(400).json({ error: MOBILE_INVALID_MSG });
       return;
     }
     if (!isValidEmail(email)) {
@@ -328,5 +329,39 @@ usersRouter.patch('/:id/access', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save menu access' });
+  }
+});
+
+usersRouter.delete('/:id', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid user id' });
+      return;
+    }
+
+    const existing = await pool.query(
+      `SELECT id, is_account_admin FROM app_users
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    if (!existing.rows[0]) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (existing.rows[0].is_account_admin === true) {
+      res.status(400).json({ error: 'Cannot remove the account admin user' });
+      return;
+    }
+
+    await pool.query(`DELETE FROM app_users WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to remove user' });
   }
 });

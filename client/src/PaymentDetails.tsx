@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { isApplicationDemo } from './applicationDemo';
 import { PlatformPage } from './PlatformPage';
 
 type RecentPassPayment = {
@@ -16,6 +17,76 @@ function formatMoney(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`;
 }
 
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysAgoIso(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+const SAMPLE_PAYMENTS: RecentPassPayment[] = [
+  {
+    id: -1,
+    swimmerName: 'Aarav Patil',
+    passType: 'Monthly Swim',
+    amount: 2000,
+    paymentDate: daysAgoIso(1),
+    paymentMode: 'Online',
+    transactionId: 'SAMPLETXN001',
+    mobile: '9876543210',
+  },
+  {
+    id: -2,
+    swimmerName: 'Sana Joshi',
+    passType: 'Quarterly Swim',
+    amount: 5000,
+    paymentDate: daysAgoIso(3),
+    paymentMode: 'Cash',
+    transactionId: '—',
+    mobile: '9123456780',
+  },
+  {
+    id: -3,
+    swimmerName: 'Vihaan Kulkarni',
+    passType: 'Monthly Swim',
+    amount: 2000,
+    paymentDate: daysAgoIso(5),
+    paymentMode: 'Online',
+    transactionId: 'SAMPLETXN002',
+    mobile: '9988776655',
+  },
+  {
+    id: -4,
+    swimmerName: 'Rohan Mehta',
+    passType: 'Monthly Swim',
+    amount: 2000,
+    paymentDate: daysAgoIso(8),
+    paymentMode: 'Cash',
+    transactionId: '—',
+    mobile: '9012345678',
+  },
+  {
+    id: -5,
+    swimmerName: 'Isha Nair',
+    passType: 'Monthly Swim',
+    amount: 2000,
+    paymentDate: daysAgoIso(12),
+    paymentMode: 'Online',
+    transactionId: 'SAMPLETXN003',
+    mobile: '9090909091',
+  },
+];
+
+function filterSampleByRange(from: string, to: string) {
+  return SAMPLE_PAYMENTS.filter((row) => {
+    if (!row.paymentDate) return false;
+    return row.paymentDate >= from && row.paymentDate <= to;
+  });
+}
+
 export function PaymentDetails() {
   const [payments, setPayments] = useState<RecentPassPayment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,8 +96,19 @@ export function PaymentDetails() {
   const [rangeTo, setRangeTo] = useState('');
   const [rangeActive, setRangeActive] = useState(false);
   const [txnLoading, setTxnLoading] = useState(false);
+  const [sampleMode, setSampleMode] = useState(false);
 
   async function loadPayments(params?: { from?: string; to?: string }) {
+    if (isApplicationDemo()) {
+      const rows =
+        params?.from && params?.to
+          ? filterSampleByRange(params.from, params.to)
+          : SAMPLE_PAYMENTS.slice(0, 10);
+      setPayments(rows);
+      setRangeActive(Boolean(params?.from && params?.to));
+      setSampleMode(true);
+      return;
+    }
     const qs =
       params?.from && params?.to
         ? `?from=${encodeURIComponent(params.from)}&to=${encodeURIComponent(params.to)}`
@@ -55,6 +137,7 @@ export function PaymentDetails() {
         : [],
     );
     setRangeActive(Boolean(params?.from && params?.to));
+    setSampleMode(false);
   }
 
   useEffect(() => {
@@ -84,9 +167,20 @@ export function PaymentDetails() {
 
   return (
     <PlatformPage title="Payment Details">
-      <p className="lede">Confirmed pass payments for this swimming pool account.</p>
+      <p className="lede batch-list-lede">
+        {sampleMode
+          ? 'Sample layout — preview of confirmed pass payments.'
+          : 'Confirmed pass payments for this swimming pool account.'}
+      </p>
 
-      <section className="pass-form-card platform-payment-txns">
+      <section
+        className={`pass-form-card pool-core-form platform-payment-txns${sampleMode ? ' pass-form-card--sample' : ''}`}
+      >
+        {sampleMode ? (
+          <div className="user-mgmt-sample-watermark" aria-hidden="true">
+            Sample
+          </div>
+        ) : null}
         <div className="platform-payment-txns-head">
           <div>
             <h2>Recent payments</h2>
@@ -102,6 +196,10 @@ export function PaymentDetails() {
             onClick={() => {
               setShowRangeForm((v) => !v);
               setError('');
+              if (!rangeFrom && !rangeTo) {
+                setRangeFrom(daysAgoIso(14));
+                setRangeTo(todayIso());
+              }
             }}
           >
             {showRangeForm ? 'Hide date range' : 'More transaction details'}

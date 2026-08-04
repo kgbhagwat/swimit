@@ -412,6 +412,9 @@ export function PoolCoreInfo() {
         ) : undefined
       }
     >
+      <p className="lede batch-list-lede">
+        Pool name, address, terms, payment options, and branding images.
+      </p>
       {loading ? <p className="pass-empty">Loading…</p> : null}
       {error && !editing ? <p className="error">{error}</p> : null}
       {success && !editing ? <p className="success">{success}</p> : null}

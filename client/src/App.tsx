@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PlatformPage } from './PlatformPage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
-import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint } from './formValidation';
+import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint, sanitizeMobileInput } from './formValidation';
 import { canEditPage } from './pageAccess';
 import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
@@ -840,7 +840,7 @@ export function App() {
               <Label required>{t.whatsapp}</Label>
               <input
                 value={form.whatsappMobile}
-                onChange={(e) => setField('whatsappMobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                onChange={(e) => setField('whatsappMobile', sanitizeMobileInput(e.target.value))}
                 placeholder={t.mobilePh}
                 inputMode="numeric"
                 pattern="\d{10}"
@@ -855,7 +855,7 @@ export function App() {
               <Label>{t.otherMobile}</Label>
               <input
                 value={form.otherMobile}
-                onChange={(e) => setField('otherMobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                onChange={(e) => setField('otherMobile', sanitizeMobileInput(e.target.value))}
                 placeholder={t.otherMobilePh}
                 inputMode="numeric"
                 pattern="\d{10}"
@@ -961,7 +961,7 @@ export function App() {
                 <input
                   value={form.parentMobile}
                   onChange={(e) =>
-                    setField('parentMobile', e.target.value.replace(/\D/g, '').slice(0, 10))
+                    setField('parentMobile', sanitizeMobileInput(e.target.value))
                   }
                   placeholder={t.mobilePh}
                   inputMode="numeric"
@@ -1024,7 +1024,7 @@ export function App() {
               <input
                 value={form.emergencyMobile}
                 onChange={(e) =>
-                  setField('emergencyMobile', e.target.value.replace(/\D/g, '').slice(0, 10))
+                  setField('emergencyMobile', sanitizeMobileInput(e.target.value))
                 }
                 placeholder={t.mobilePh}
                 inputMode="numeric"
@@ -1086,7 +1086,7 @@ export function App() {
                   <Label>{t.doctorNo}</Label>
                   <input
                     value={form.doctorNo}
-                    onChange={(e) => setField('doctorNo', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={(e) => setField('doctorNo', sanitizeMobileInput(e.target.value))}
                     placeholder={t.doctorNoPh}
                     inputMode="numeric"
                     pattern="\d{10}"

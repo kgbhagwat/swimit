@@ -463,9 +463,9 @@ export function AppShell({
       const pages = pagesBySection(name);
       if (pages.some((p) => allowedKeys.has(p.key))) set.add(name);
     }
-    // User Management tile is admin-only and not in ACCESS_PAGES; show tab on full packages.
+    // Setup always includes User Management for account admins on full packages.
     if (tenantUser?.isAccountAdmin && packageIsFull) {
-      set.add('User Management');
+      set.add('Setup');
     }
     return set;
   }, [tenantAccount, tenantUser, allowedKeys, packageIsFull]);

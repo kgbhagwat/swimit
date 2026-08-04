@@ -347,6 +347,17 @@ function handleUsers(method: string, pathname: string, body: Record<string, unkn
     writeDemoStore(store);
     return jsonResponse(store.users[idx]);
   }
+  if (one && method === 'DELETE') {
+    const id = Number(one[1]);
+    const idx = store.users.findIndex((u) => Number(u.id) === id);
+    if (idx < 0) return jsonResponse({ error: 'Not found' }, 404);
+    if (store.users[idx].isAccountAdmin === true) {
+      return jsonResponse({ error: 'Cannot remove the account admin user' }, 400);
+    }
+    store.users.splice(idx, 1);
+    writeDemoStore(store);
+    return jsonResponse({ ok: true });
+  }
   return jsonResponse({ error: 'Method not allowed' }, 405);
 }
 

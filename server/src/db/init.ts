@@ -390,6 +390,8 @@ ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENC
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS payment_accept_cash BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS payment_accept_online BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS setup_completed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pass_expiry_notice_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pass_expiry_notice_days INT NOT NULL DEFAULT 3;
 
 ALTER TABLE holiday_settings DROP CONSTRAINT IF EXISTS holiday_settings_id_check;
 ALTER TABLE holiday_settings ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;

@@ -1,30 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
+import { isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
+import { MobileField } from './MobileField';
 import { PlatformPage } from './PlatformPage';
 import { getActiveSaasAccountId, setActiveTenant } from './tenantSession';
-
-type InboxItem = {
-  id: number;
-  registrationId: number | null;
-  fromMobile: string;
-  kind: string;
-  caption: string;
-  mimeType: string;
-  filePath: string | null;
-  status: string;
-  createdAt: string;
-};
-
-type WaStatus = {
-  enabled: boolean;
-  phoneNumberIdSet: boolean;
-  publicAppUrl: string | null;
-  tokenValid?: boolean;
-  tokenError?: string | null;
-  displayPhoneNumber?: string | null;
-  verifiedName?: string | null;
-};
 
 async function ensureApplicationTenant() {
   if (!isApplicationDemo()) return;
@@ -41,51 +21,98 @@ export function WhatsAppMessaging() {
   const { pathname } = useLocation();
   const showTestSend = pathname.startsWith('/platform/whatsapp');
 
-  const [status, setStatus] = useState<WaStatus | null>(null);
-  const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [message, setMessage] = useState('');
   const [testMobile, setTestMobile] = useState('');
   const [testMessage, setTestMessage] = useState('Hello from SwimIT WhatsApp test.');
   const [sendMode, setSendMode] = useState<'template' | 'text'>('text');
   const [audience, setAudience] = useState('active_swimmers');
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [testSending, setTestSending] = useState(false);
-  const [expirySending, setExpirySending] = useState(false);
+  const [expirySaving, setExpirySaving] = useState(false);
+  const [expiryNoticesEnabled, setExpiryNoticesEnabled] = useState(false);
+  const [expiryDays, setExpiryDays] = useState('3');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const demoMode = isApplicationDemo();
 
-  async function load() {
-    setLoading(true);
+  useEffect(() => {
+    void (async () => {
+      await ensureApplicationTenant();
+      if (isApplicationDemo()) return;
+      try {
+        const res = await fetch('/api/whatsapp/pass-expiry-notice');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+        setExpiryNoticesEnabled(Boolean(body.enabled));
+        setExpiryDays(String(Math.min(9, Math.max(1, Number(body.days) || 3))));
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  async function saveExpiryNoticeSetting(enabled: boolean, daysValue: string) {
+    if (isApplicationDemo()) return;
+    const days = Math.min(9, Math.max(1, Number(daysValue) || 3));
+    setExpirySaving(true);
     setError('');
     try {
-      await ensureApplicationTenant();
-      const [statusRes, inboxRes] = await Promise.all([
-        fetch('/api/whatsapp/status'),
-        fetch('/api/whatsapp/inbox'),
-      ]);
-      const statusBody = await statusRes.json().catch(() => ({}));
-      const inboxBody = await inboxRes.json().catch(() => ({}));
-      if (!statusRes.ok) throw new Error(statusBody.error ?? 'Failed to load WhatsApp status');
-      if (!inboxRes.ok) throw new Error(inboxBody.error ?? 'Failed to load inbox');
-      setStatus(statusBody as WaStatus);
-      setInbox(Array.isArray(inboxBody) ? (inboxBody as InboxItem[]) : []);
+      const res = await fetch('/api/whatsapp/pass-expiry-notice', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, days }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to save expiry notice setting');
+      setExpiryNoticesEnabled(Boolean(body.enabled));
+      setExpiryDays(String(body.days ?? days));
+      setInfo(
+        body.enabled
+          ? `Daily morning WhatsApp notices enabled for passes expiring in ${body.days} day${
+              Number(body.days) === 1 ? '' : 's'
+            }.`
+          : 'Daily pass expiry WhatsApp notices turned off.',
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load WhatsApp');
+      setError(err instanceof Error ? err.message : 'Failed to save expiry notice setting');
+      setExpiryNoticesEnabled(false);
     } finally {
-      setLoading(false);
+      setExpirySaving(false);
     }
   }
 
-  useEffect(() => {
-    void load();
-  }, []);
+  function onExpiryToggle(checked: boolean) {
+    if (demoMode) {
+      setExpiryNoticesEnabled(checked);
+      return;
+    }
+    setExpiryNoticesEnabled(checked);
+    void saveExpiryNoticeSetting(checked, expiryDays);
+  }
+
+  function onExpiryDaysChange(raw: string) {
+    const next = raw.replace(/\D/g, '').slice(0, 1);
+    if (!(next === '' || (Number(next) >= 1 && Number(next) <= 9))) return;
+    setExpiryDays(next === '' ? '' : next);
+    if (demoMode) return;
+  }
+
+  function onExpiryDaysBlur() {
+    const days = !expiryDays || Number(expiryDays) < 1 ? '3' : expiryDays;
+    setExpiryDays(days);
+    if (demoMode) return;
+    if (expiryNoticesEnabled) void saveExpiryNoticeSetting(true, days);
+  }
 
   async function onTestSend(e: FormEvent) {
     e.preventDefault();
-    setTestSending(true);
     setError('');
     setInfo('');
+    if (!isValidMobile(testMobile)) {
+      setError(MOBILE_INVALID_MSG);
+      return;
+    }
+    setTestSending(true);
     try {
       const res = await fetch('/api/whatsapp/send-test', {
         method: 'POST',
@@ -132,84 +159,29 @@ export function WhatsAppMessaging() {
     }
   }
 
-  async function onExpiry() {
-    setExpirySending(true);
-    setError('');
-    setInfo('');
-    try {
-      const res = await fetch('/api/whatsapp/notify-expiring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days: 7 }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Expiry notify failed');
-      setInfo(`Pass expiry notices queued for ${body.count} swimmer(s).`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Expiry notify failed');
-    } finally {
-      setExpirySending(false);
-    }
-  }
-
   return (
-    <PlatformPage
-      title="WhatsApp"
-    >
-      <p className="lede">
-        Send messages on WhatsApp and review inbound images from registered mobiles (payment
-        screenshots / certificates).
+    <PlatformPage title="WhatsApp">
+      <p className="lede batch-list-lede">
+        Send broadcast messages on WhatsApp to active swimmers or staff.
       </p>
 
-      {loading ? <p className="pass-empty">Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
       {info ? <p className="success">{info}</p> : null}
 
-      {status ? (
-        <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
-          <p>
-            <strong>Status:</strong>{' '}
-            {!status.enabled
-              ? 'Not configured (messages are logged / skipped)'
-              : status.tokenValid
-                ? `Connected${status.displayPhoneNumber ? ` (${status.displayPhoneNumber})` : ''}`
-                : 'Token invalid / expired'}
-          </p>
-          {!status.enabled ? (
-            <p className="muted">
-              Set <code>WHATSAPP_TOKEN</code>, <code>WHATSAPP_PHONE_NUMBER_ID</code>, and{' '}
-              <code>PUBLIC_APP_URL</code> on the server, then recreate the app container.
-            </p>
-          ) : null}
-          {status.enabled && status.tokenValid === false ? (
-            <p className="error" style={{ marginBottom: 0 }}>
-              {status.tokenError ||
-                'WHATSAPP_TOKEN on the server is not accepted by Meta. Paste a fresh token into .env and recreate the app container.'}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
       {showTestSend ? (
-        <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
+        <section className="pass-form-card pool-core-form" style={{ marginBottom: '1rem' }}>
           <h2>Send test message</h2>
           <p className="muted" style={{ marginTop: 0 }}>
             <strong>App → WhatsApp:</strong> messages you send from here.
-            <br />
-            <strong>WhatsApp → App:</strong> photos people send to the business number show in Inbound
-            inbox below.
           </p>
           <form onSubmit={onTestSend}>
-            <label className="field">
-              <span className="label">WhatsApp mobile (10 digits)</span>
-              <input
-                value={testMobile}
-                onChange={(e) => setTestMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                inputMode="numeric"
-                placeholder="98XXXXXXXX"
-                required
-              />
-            </label>
+            <MobileField
+              label="WhatsApp mobile"
+              value={testMobile}
+              onChange={setTestMobile}
+              required
+              placeholder="98XXXXXXXX"
+            />
             <label className="field">
               <span className="label">Send as</span>
               <select
@@ -246,7 +218,7 @@ export function WhatsAppMessaging() {
                 className="submit"
                 disabled={
                   testSending ||
-                  testMobile.length !== 10 ||
+                  !isValidMobile(testMobile) ||
                   (sendMode === 'text' && !testMessage.trim())
                 }
               >
@@ -257,84 +229,67 @@ export function WhatsAppMessaging() {
         </section>
       ) : null}
 
-      <section className="pass-form-card" style={{ marginBottom: '1rem' }}>
-        <h2>Broadcast</h2>
-        <form onSubmit={onBroadcast}>
-          <label className="field">
+      <section className="pass-form-card pool-core-form whatsapp-broadcast-card">
+        <h2 className="whatsapp-broadcast-title">
+          Broadcast
+          <span className="whatsapp-per-message-note">(per message charges applicable)</span>
+        </h2>
+        <form className="pass-form" onSubmit={onBroadcast}>
+          <label className="field whatsapp-audience-field">
             <span className="label">Audience</span>
             <select value={audience} onChange={(e) => setAudience(e.target.value)}>
               <option value="active_swimmers">Active Swimmers</option>
               <option value="all_staff">All staff</option>
             </select>
           </label>
-          <label className="field">
-            <span className="label">Message</span>
-            <textarea
-              rows={4}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Write a WhatsApp broadcast…"
-              required
-            />
-          </label>
-          <div className="pass-form-actions">
-            <button type="submit" className="submit" disabled={sending || !message.trim()}>
+          <div className="whatsapp-message-block">
+            <label className="field whatsapp-message-field">
+              <span className="label">Message</span>
+              <textarea
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Write a WhatsApp broadcast…"
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              className="submit whatsapp-send-broadcast"
+              disabled={sending || !message.trim()}
+            >
               {sending ? 'Sending…' : 'Send broadcast'}
-            </button>
-            <button type="button" className="ghost-btn" onClick={() => void onExpiry()} disabled={expirySending}>
-              {expirySending ? 'Sending…' : 'Send 7-day pass expiry notices'}
             </button>
           </div>
         </form>
       </section>
 
-      <section className="pass-form-card">
-        <div className="top-row">
-          <h2>Inbound inbox</h2>
-          <button type="button" className="ghost-btn" onClick={() => void load()}>
-            Refresh
-          </button>
+      <div className="whatsapp-expiry-row">
+        <div className="whatsapp-expiry-sentence">
+          <label className="whatsapp-expiry-check">
+            <input
+              type="checkbox"
+              checked={expiryNoticesEnabled}
+              onChange={(e) => onExpiryToggle(e.target.checked)}
+              disabled={expirySaving}
+            />
+            <span>Send pass expiry message before</span>
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            className="whatsapp-expiry-days-input"
+            maxLength={1}
+            value={expiryDays}
+            onChange={(e) => onExpiryDaysChange(e.target.value)}
+            onBlur={onExpiryDaysBlur}
+            disabled={expirySaving}
+            aria-label="Days before expiry"
+          />
+          <span>days of expiry.</span>
+          <span className="whatsapp-per-message-note">(per message charges applicable)</span>
         </div>
-        {inbox.length === 0 ? (
-          <p className="pass-empty">
-            No inbound WhatsApp images yet. Registered mobiles can send a photo (optional caption) to
-            the business number, then Refresh.
-          </p>
-        ) : (
-          <div className="batch-saved-table-wrap">
-            <table className="batch-saved-table">
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>From</th>
-                  <th>Type</th>
-                  <th>Caption</th>
-                  <th>File</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inbox.map((item) => (
-                  <tr key={item.id}>
-                    <td>{new Date(item.createdAt).toLocaleString()}</td>
-                    <td>{item.fromMobile}</td>
-                    <td>{item.kind}</td>
-                    <td>{item.caption || '—'}</td>
-                    <td>
-                      {item.filePath ? (
-                        <a href={item.filePath} target="_blank" rel="noreferrer">
-                          Open
-                        </a>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      </div>
     </PlatformPage>
   );
 }

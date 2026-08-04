@@ -4,6 +4,7 @@ import { PlatformPage } from './PlatformPage';
 
 type HolidayType = 'annual' | 'surprise';
 type DaySpan = 'full' | 'partial';
+type SurpriseDayMode = 'multiple' | 'full' | 'partial';
 
 type HolidayItem = {
   id: number;
@@ -19,13 +20,13 @@ type HolidayItem = {
 };
 
 const WEEKDAYS = [
-  'Sunday',
   'Monday',
   'Tuesday',
   'Wednesday',
   'Thursday',
   'Friday',
   'Saturday',
+  'Sunday',
 ] as const;
 
 function currentYear() {
@@ -43,10 +44,21 @@ function formatRange(start: string, end: string) {
   return `${start} to ${end}`;
 }
 
+function todayYmd() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function formatSurpriseWhen(item: HolidayItem) {
   const dateLabel = formatRange(item.startDate, item.endDate);
   if (item.daySpan === 'partial' && item.startTime && item.endTime) {
     return `${dateLabel} · ${item.startTime}–${item.endTime} (Partial day)`;
+  }
+  if (item.endDate && item.endDate !== item.startDate) {
+    return `${dateLabel} (Multiple days)`;
   }
   return `${dateLabel} (Full day)`;
 }
@@ -69,9 +81,37 @@ export function HolidayManagement() {
   const [savingLeave, setSavingLeave] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [messageSource, setMessageSource] = useState<
+    'weekly' | 'annual' | 'surprise' | 'page'
+  >('page');
+
+  function clearMessages() {
+    setError('');
+    setSuccess('');
+  }
+
+  function showError(message: string, source: typeof messageSource) {
+    setMessageSource(source);
+    setSuccess('');
+    setError(message);
+  }
+
+  function showSuccess(message: string, source: typeof messageSource) {
+    setMessageSource(source);
+    setError('');
+    setSuccess(message);
+  }
+
+  function actionMessage(source: typeof messageSource, className = 'holiday-action-message') {
+    if (messageSource !== source) return null;
+    if (error) return <p className={`error ${className}`}>{error}</p>;
+    if (success) return <p className={`success ${className}`}>{success}</p>;
+    return null;
+  }
+
   const [annualForm, setAnnualForm] = useState(emptyForm);
   const [surpriseForm, setSurpriseForm] = useState(emptyForm);
-  const [surpriseDaySpan, setSurpriseDaySpan] = useState<DaySpan>('full');
+  const [surpriseDayMode, setSurpriseDayMode] = useState<SurpriseDayMode>('full');
   const [extendPassHolders, setExtendPassHolders] = useState(false);
   const [selectedNationalIds, setSelectedNationalIds] = useState<string[]>([]);
   const [showCustomAnnual, setShowCustomAnnual] = useState(false);
@@ -156,7 +196,7 @@ export function HolidayManagement() {
     setSelectedNationalIds([]);
     setAnnualForm(emptyForm);
     setSurpriseForm(emptyForm);
-    setSurpriseDaySpan('full');
+    setSurpriseDayMode('full');
     setExtendPassHolders(false);
     setShowCustomAnnual(false);
   }, [year]);
@@ -165,7 +205,7 @@ export function HolidayManagement() {
     setSelectedNationalIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
-    setSuccess('');
+    clearMessages();
   }
 
   function selectAllNational() {
@@ -174,17 +214,19 @@ export function HolidayManagement() {
         .filter((option) => !isNationalAdded(option.name, option.date))
         .map((option) => option.id),
     );
-    setSuccess('');
+    clearMessages();
   }
 
   function clearNationalSelection() {
     setSelectedNationalIds([]);
-    setSuccess('');
+    clearMessages();
   }
 
-  async function load(nextYear = year) {
-    setLoading(true);
-    setError('');
+  async function load(nextYear = year, options?: { quiet?: boolean }) {
+    if (!options?.quiet) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const res = await fetch(`/api/holidays?year=${nextYear}`);
       const body = await res.json().catch(() => ({}));
@@ -192,10 +234,10 @@ export function HolidayManagement() {
       setWeeklyHolidays(Array.isArray(body.weeklyHolidays) ? body.weeklyHolidays : []);
       setHolidays(Array.isArray(body.holidays) ? body.holidays : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load');
+      showError(err instanceof Error ? err.message : 'Failed to load', 'page');
       setHolidays([]);
     } finally {
-      setLoading(false);
+      if (!options?.quiet) setLoading(false);
     }
   }
 
@@ -207,13 +249,12 @@ export function HolidayManagement() {
     setWeeklyHolidays((prev) =>
       prev.includes(day) ? prev.filter((item) => item !== day) : [...prev, day],
     );
-    setSuccess('');
+    clearMessages();
   }
 
   async function saveWeekly() {
     setSavingWeekly(true);
-    setError('');
-    setSuccess('');
+    clearMessages();
     try {
       const res = await fetch('/api/holidays/weekly', {
         method: 'PUT',
@@ -223,9 +264,12 @@ export function HolidayManagement() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to save weekly holidays');
       setWeeklyHolidays(Array.isArray(body.weeklyHolidays) ? body.weeklyHolidays : weeklyHolidays);
-      setSuccess('Weekly holidays saved.');
+      showSuccess('Weekly holidays saved.', 'weekly');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save weekly holidays');
+      showError(
+        err instanceof Error ? err.message : 'Failed to save weekly holidays',
+        'weekly',
+      );
     } finally {
       setSavingWeekly(false);
     }
@@ -236,9 +280,9 @@ export function HolidayManagement() {
     form: typeof emptyForm,
     options?: { extendPassHolders?: boolean; daySpan?: DaySpan },
   ) {
+    const source = type === 'annual' ? 'annual' : 'surprise';
     setSavingLeave(true);
-    setError('');
-    setSuccess('');
+    clearMessages();
     try {
       const daySpan = type === 'surprise' ? options?.daySpan ?? 'full' : 'full';
       const res = await fetch('/api/holidays', {
@@ -263,22 +307,26 @@ export function HolidayManagement() {
         setShowCustomAnnual(false);
       } else {
         setSurpriseForm(emptyForm);
-        setSurpriseDaySpan('full');
+        setSurpriseDayMode('full');
         setExtendPassHolders(false);
       }
       if (type === 'surprise' && options?.extendPassHolders) {
         const count = Number(body.extendedPassHolders ?? 0);
-        setSuccess(
+        showSuccess(
           count > 0
             ? `Surprise leave added. Extended ${count} active pass holder${count === 1 ? '' : 's'} by 1 day.`
             : 'Surprise leave added. No active pass holders to extend.',
+          'surprise',
         );
       } else {
-        setSuccess(type === 'annual' ? 'Annual leave added.' : 'Surprise leave added.');
+        showSuccess(
+          type === 'annual' ? 'Annual leave added.' : 'Surprise leave added.',
+          source,
+        );
       }
-      await load(year);
+      await load(year, { quiet: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add leave');
+      showError(err instanceof Error ? err.message : 'Failed to add leave', source);
     } finally {
       setSavingLeave(false);
     }
@@ -290,13 +338,12 @@ export function HolidayManagement() {
         selectedNationalIds.includes(option.id) && !isNationalAdded(option.name, option.date),
     );
     if (selected.length === 0) {
-      setError('Select at least one national holiday');
+      showError('Select at least one holiday', 'annual');
       return;
     }
 
     setSavingLeave(true);
-    setError('');
-    setSuccess('');
+    clearMessages();
     try {
       for (const option of selected) {
         const res = await fetch('/api/holidays', {
@@ -307,22 +354,24 @@ export function HolidayManagement() {
             name: option.name,
             startDate: option.date,
             endDate: option.date,
-            notes: 'National holiday',
+            notes: option.scope === 'state' ? 'State holiday' : 'National holiday',
           }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error ?? `Failed to add ${option.name}`);
       }
       setSelectedNationalIds([]);
-      setSuccess(
-        selected.length === 1
-          ? '1 national holiday added.'
-          : `${selected.length} national holidays added.`,
+      showSuccess(
+        selected.length === 1 ? '1 holiday added.' : `${selected.length} holidays added.`,
+        'annual',
       );
-      await load(year);
+      await load(year, { quiet: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add selected holidays');
-      await load(year);
+      showError(
+        err instanceof Error ? err.message : 'Failed to add selected holidays',
+        'annual',
+      );
+      await load(year, { quiet: true });
     } finally {
       setSavingLeave(false);
     }
@@ -335,35 +384,81 @@ export function HolidayManagement() {
 
   async function onAddSurprise(e: FormEvent) {
     e.preventDefault();
-    if (surpriseDaySpan === 'partial') {
-      if (!surpriseForm.startTime || !surpriseForm.endTime) {
-        setError('Start time and end time are required for partial day');
+    if (!surpriseForm.startDate) {
+      showError('Date is required', 'surprise');
+      return;
+    }
+    const today = todayYmd();
+    if (surpriseForm.startDate < today) {
+      showError('Cannot add a surprise leave in the past', 'surprise');
+      return;
+    }
+    if (surpriseDayMode === 'multiple') {
+      if (!surpriseForm.endDate) {
+        showError('To date is required for multiple days', 'surprise');
         return;
       }
-      if (surpriseForm.endTime <= surpriseForm.startTime) {
-        setError('End time must be after start time');
+      if (surpriseForm.endDate < surpriseForm.startDate) {
+        showError('To date must be on or after From date', 'surprise');
+        return;
+      }
+      if (surpriseForm.endDate < today) {
+        showError('Cannot add a surprise leave in the past', 'surprise');
         return;
       }
     }
-    await addLeave('surprise', surpriseForm, {
+    if (surpriseDayMode === 'partial') {
+      if (!surpriseForm.startTime || !surpriseForm.endTime) {
+        showError('Start time and end time are required for partial day', 'surprise');
+        return;
+      }
+      if (surpriseForm.endTime <= surpriseForm.startTime) {
+        showError('End time must be after start time', 'surprise');
+        return;
+      }
+      if (surpriseForm.startDate === today) {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const currentTime = `${hh}:${mm}`;
+        if (surpriseForm.endTime <= currentTime) {
+          showError('Partial-day end time must be in the future', 'surprise');
+          return;
+        }
+      }
+    }
+    const autoName =
+      surpriseDayMode === 'partial'
+        ? 'Surprise leave (partial)'
+        : surpriseDayMode === 'multiple'
+          ? 'Surprise leave (multiple days)'
+          : 'Surprise leave';
+    const payload = {
+      ...surpriseForm,
+      name: autoName,
+      endDate:
+        surpriseDayMode === 'multiple' ? surpriseForm.endDate : surpriseForm.startDate,
+    };
+    await addLeave('surprise', payload, {
       extendPassHolders,
-      daySpan: surpriseDaySpan,
+      daySpan: surpriseDayMode === 'partial' ? 'partial' : 'full',
     });
   }
 
   async function removeLeave(id: number) {
-    setError('');
-    setSuccess('');
+    const existing = holidays.find((item) => item.id === id);
+    const source = existing?.holidayType === 'surprise' ? 'surprise' : 'annual';
+    clearMessages();
     try {
       const res = await fetch(`/api/holidays/${id}`, { method: 'DELETE' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? 'Failed to delete');
       }
-      setSuccess('Leave removed.');
-      await load(year);
+      showSuccess('Leave removed.', source);
+      await load(year, { quiet: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete');
+      showError(err instanceof Error ? err.message : 'Failed to delete', source);
     }
   }
 
@@ -386,17 +481,22 @@ export function HolidayManagement() {
         </>
       }
     >
-      <p className="lede">Define weekly off days, annual leaves, and surprise closures.</p>
+      <p className="lede batch-list-lede">
+        Define weekly off days, annual leaves, and surprise closures.
+      </p>
 
-      {error ? <p className="error">{error}</p> : null}
-      {success ? <p className="success">{success}</p> : null}
+      {actionMessage('page')}
       {loading ? <p className="pass-empty">Loading…</p> : null}
 
       {!loading ? (
         <>
           <section className="card holiday-section">
-            <h2>Weekly holidays</h2>
-            <p className="hint">Select the regular weekly off day(s) for the pool.</p>
+            <h2>
+              Weekly holiday{' '}
+              <span className="holiday-heading-note">
+                (Select the regular weekly off day(s) for the pool.)
+              </span>
+            </h2>
             <div className="holiday-weekdays">
               {WEEKDAYS.map((day) => {
                 const selected = weeklyHolidays.includes(day);
@@ -411,61 +511,67 @@ export function HolidayManagement() {
                   </label>
                 );
               })}
-            </div>
-            <div className="pass-form-actions">
+              {actionMessage('weekly', 'holiday-action-message holiday-action-message--inline')}
               <button
                 type="button"
-                className="submit"
+                className="submit holiday-weekdays-save"
                 onClick={() => void saveWeekly()}
                 disabled={savingWeekly}
               >
-                {savingWeekly ? 'Saving…' : 'Save weekly holidays'}
+                {savingWeekly ? 'Saving…' : 'Save'}
               </button>
             </div>
           </section>
 
           <section className="card holiday-section">
             <h2>Annual leaves ({year})</h2>
-            <p className="hint">
-              Tick national holidays from the list below, then add the selected ones.
-            </p>
-
-            <div className="holiday-national-toolbar">
-              <button
-                type="button"
-                className="terms-link"
-                onClick={selectAllNational}
-                disabled={selectableNationalCount === 0}
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                className="terms-link"
-                onClick={clearNationalSelection}
-                disabled={selectedNationalIds.length === 0}
-              >
-                Clear
-              </button>
-              <span className="holiday-national-count">
-                {selectedNationalIds.length} selected
-              </span>
+            <div className="holiday-national-heading-row">
+              <p className="hint">
+                Tick national and state holidays from the list below, then add the selected ones.
+              </p>
+              <div className="holiday-national-toolbar">
+                <button
+                  type="button"
+                  className="terms-link"
+                  onClick={selectAllNational}
+                  disabled={selectableNationalCount === 0}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="terms-link"
+                  onClick={clearNationalSelection}
+                  disabled={selectedNationalIds.length === 0}
+                >
+                  Clear
+                </button>
+                <span className="holiday-national-count">
+                  {selectedNationalIds.length} selected
+                </span>
+              </div>
             </div>
 
             <div className="holiday-national-list">
               {annualListRows.length === 0 ? (
-                <p className="pass-empty">No national holidays available for {year}.</p>
+                <p className="pass-empty">No holidays available for {year}.</p>
               ) : (
                 annualListRows.map((row) => {
                   if (row.kind === 'custom') {
                     const item = row.leave;
+                    const customKey = `custom-${item.id}`;
+                    const checked = selectedNationalIds.includes(customKey);
                     return (
                       <div
-                        key={`custom-${item.id}`}
-                        className="holiday-national-item selected added"
+                        key={customKey}
+                        className={`holiday-national-item${checked ? ' selected' : ''} added`}
                       >
                         <label className="holiday-national-check">
-                          <input type="checkbox" checked disabled />
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleNational(customKey)}
+                          />
                           <span className="holiday-national-name">{item.name}</span>
                           <span className="holiday-national-date">
                             {formatRange(item.startDate, item.endDate)}
@@ -485,7 +591,7 @@ export function HolidayManagement() {
                   const option = row.option;
                   const addedLeave = findAnnualLeave(option.name, option.date);
                   const alreadyAdded = Boolean(addedLeave);
-                  const checked = alreadyAdded || selectedNationalIds.includes(option.id);
+                  const checked = selectedNationalIds.includes(option.id);
                   return (
                     <div
                       key={option.id}
@@ -495,10 +601,16 @@ export function HolidayManagement() {
                         <input
                           type="checkbox"
                           checked={checked}
-                          disabled={alreadyAdded}
                           onChange={() => toggleNational(option.id)}
                         />
-                        <span className="holiday-national-name">{option.name}</span>
+                        <span className="holiday-national-name">
+                          {option.name}
+                          <span
+                            className={`holiday-scope-badge holiday-scope-badge--${option.scope}`}
+                          >
+                            {option.scope === 'state' ? 'State' : 'National'}
+                          </span>
+                        </span>
                         <span className="holiday-national-date">{option.date}</span>
                       </label>
                       {alreadyAdded && addedLeave ? (
@@ -517,17 +629,14 @@ export function HolidayManagement() {
             </div>
 
             <div className="pass-form-actions">
+              {actionMessage('annual')}
               <button
                 type="button"
                 className="submit"
                 onClick={() => void addSelectedNationalLeaves()}
                 disabled={savingLeave || selectedNationalIds.length === 0}
               >
-                {savingLeave
-                  ? 'Saving…'
-                  : selectedNationalIds.length > 1
-                    ? `Add ${selectedNationalIds.length} selected holidays`
-                    : 'Add selected holiday'}
+                {savingLeave ? 'Saving…' : 'Save'}
               </button>
             </div>
 
@@ -542,22 +651,22 @@ export function HolidayManagement() {
             </div>
 
             {showCustomAnnual ? (
-              <form className="holiday-leave-form" onSubmit={onAddAnnual}>
-                <label className="field">
-                  <span className="label">
-                    Name <span className="req">*</span>
-                  </span>
-                  <input
-                    value={annualForm.name}
-                    onChange={(e) => setAnnualForm((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g. Local festival / school holiday"
-                    required
-                  />
-                </label>
-                <div className="grid-2">
+              <form className="holiday-leave-form holiday-custom-annual-form" onSubmit={onAddAnnual}>
+                <div className="holiday-custom-annual-row">
                   <label className="field">
                     <span className="label">
-                      From <span className="req">*</span>
+                      Name <span className="req">*</span>
+                    </span>
+                    <input
+                      value={annualForm.name}
+                      onChange={(e) => setAnnualForm((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g. Local festival / school holiday"
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">
+                      Date <span className="req">*</span>
                     </span>
                     <input
                       type="date"
@@ -566,75 +675,77 @@ export function HolidayManagement() {
                         setAnnualForm((prev) => ({
                           ...prev,
                           startDate: e.target.value,
-                          endDate: prev.endDate || e.target.value,
+                          endDate: e.target.value,
                         }))
                       }
                       required
                     />
                   </label>
                   <label className="field">
-                    <span className="label">To</span>
+                    <span className="label">Note</span>
                     <input
-                      type="date"
-                      value={annualForm.endDate}
-                      min={annualForm.startDate || undefined}
+                      value={annualForm.notes}
                       onChange={(e) =>
-                        setAnnualForm((prev) => ({ ...prev, endDate: e.target.value }))
+                        setAnnualForm((prev) => ({ ...prev, notes: e.target.value }))
                       }
+                      placeholder="Optional note"
                     />
                   </label>
-                </div>
-                <label className="field">
-                  <span className="label">Notes</span>
-                  <input
-                    value={annualForm.notes}
-                    onChange={(e) => setAnnualForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Optional note"
-                  />
-                </label>
-                <div className="pass-form-actions">
-                  <button
-                    type="submit"
-                    className="submit"
-                    disabled={savingLeave || !annualForm.name || !annualForm.startDate}
-                  >
-                    {savingLeave ? 'Saving…' : 'Add custom leave'}
-                  </button>
+                  <div className="holiday-custom-annual-actions">
+                    <button
+                      type="submit"
+                      className="submit"
+                      disabled={savingLeave || !annualForm.name || !annualForm.startDate}
+                    >
+                      {savingLeave ? 'Saving…' : 'Add'}
+                    </button>
+                  </div>
                 </div>
               </form>
             ) : null}
           </section>
 
           <section className="card holiday-section">
-            <h2>Surprise leaves</h2>
+            <h2>Surprise leave</h2>
             <p className="hint">Unplanned or short-notice closures (maintenance, weather, etc.).</p>
 
             <form className="holiday-leave-form" onSubmit={onAddSurprise}>
-              <div className="surprise-leave-row">
-                <label className="field surprise-reason-field">
-                  <span className="label">
-                    Reason / name <span className="req">*</span>
-                  </span>
-                  <input
-                    value={surpriseForm.name}
-                    onChange={(e) => setSurpriseForm((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g. Heavy rain / filter cleaning"
-                    required
-                  />
-                </label>
+              <div className="surprise-leave-row surprise-daytype-date-row">
                 <fieldset className="field surprise-span-field">
-                  <legend className="label">
+                  <span className="label">
                     Day type <span className="req">*</span>
-                  </legend>
+                  </span>
                   <div className="surprise-span-options" role="radiogroup" aria-label="Day type">
                     <label className="surprise-span-option">
                       <input
                         type="radio"
                         name="surprise-day-span"
-                        checked={surpriseDaySpan === 'full'}
+                        checked={surpriseDayMode === 'multiple'}
                         onChange={() => {
-                          setSurpriseDaySpan('full');
-                          setSurpriseForm((prev) => ({ ...prev, startTime: '', endTime: '' }));
+                          setSurpriseDayMode('multiple');
+                          setSurpriseForm((prev) => ({
+                            ...prev,
+                            startTime: '',
+                            endTime: '',
+                            endDate: prev.endDate || prev.startDate,
+                          }));
+                        }}
+                      />
+                      <span>Multiple day</span>
+                    </label>
+                    <label className="surprise-span-option">
+                      <input
+                        type="radio"
+                        name="surprise-day-span"
+                        checked={surpriseDayMode === 'full'}
+                        onChange={() => {
+                          setSurpriseDayMode('full');
+                          setSurpriseForm((prev) => ({
+                            ...prev,
+                            startTime: '',
+                            endTime: '',
+                            endDate: prev.startDate,
+                          }));
                         }}
                       />
                       <span>Full day</span>
@@ -643,82 +754,153 @@ export function HolidayManagement() {
                       <input
                         type="radio"
                         name="surprise-day-span"
-                        checked={surpriseDaySpan === 'partial'}
-                        onChange={() => setSurpriseDaySpan('partial')}
+                        checked={surpriseDayMode === 'partial'}
+                        onChange={() => {
+                          setSurpriseDayMode('partial');
+                          setSurpriseForm((prev) => ({
+                            ...prev,
+                            endDate: prev.startDate,
+                          }));
+                        }}
                       />
                       <span>Partial day</span>
                     </label>
                   </div>
                 </fieldset>
-              </div>
-              <div className="surprise-datetime-row">
-                <label className="field surprise-date-field">
-                  <span className="label">
-                    Date <span className="req">*</span>
-                  </span>
-                  <input
-                    type="date"
-                    value={surpriseForm.startDate}
-                    onChange={(e) =>
-                      setSurpriseForm((prev) => ({
-                        ...prev,
-                        startDate: e.target.value,
-                        endDate: e.target.value,
-                      }))
-                    }
-                    required
-                  />
-                </label>
-                {surpriseDaySpan === 'partial' ? (
-                  <div className="surprise-time-row">
-                    <label className="field surprise-time-field">
+
+                {surpriseDayMode === 'multiple' ? (
+                  <div className="surprise-datetime-row surprise-datetime-inline">
+                    <label className="field surprise-date-field">
                       <span className="label">
-                        Start time <span className="req">*</span>
+                        From <span className="req">*</span>
                       </span>
                       <input
-                        type="time"
-                        value={surpriseForm.startTime}
+                        type="date"
+                        value={surpriseForm.startDate}
+                        min={todayYmd()}
                         onChange={(e) =>
-                          setSurpriseForm((prev) => ({ ...prev, startTime: e.target.value }))
+                          setSurpriseForm((prev) => ({
+                            ...prev,
+                            startDate: e.target.value,
+                            endDate:
+                              !prev.endDate || prev.endDate < e.target.value
+                                ? e.target.value
+                                : prev.endDate,
+                          }))
                         }
                         required
                       />
                     </label>
-                    <label className="field surprise-time-field">
+                    <label className="field surprise-date-field">
                       <span className="label">
-                        End time <span className="req">*</span>
+                        To <span className="req">*</span>
                       </span>
                       <input
-                        type="time"
-                        value={surpriseForm.endTime}
+                        type="date"
+                        value={surpriseForm.endDate}
+                        min={
+                          surpriseForm.startDate && surpriseForm.startDate > todayYmd()
+                            ? surpriseForm.startDate
+                            : todayYmd()
+                        }
                         onChange={(e) =>
-                          setSurpriseForm((prev) => ({ ...prev, endTime: e.target.value }))
+                          setSurpriseForm((prev) => ({ ...prev, endDate: e.target.value }))
                         }
                         required
                       />
                     </label>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="surprise-datetime-row surprise-datetime-inline">
+                    <label className="field surprise-date-field">
+                      <span className="label">
+                        Date <span className="req">*</span>
+                      </span>
+                      <input
+                        type="date"
+                        value={surpriseForm.startDate}
+                        min={todayYmd()}
+                        onChange={(e) =>
+                          setSurpriseForm((prev) => ({
+                            ...prev,
+                            startDate: e.target.value,
+                            endDate: e.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                    {surpriseDayMode === 'partial' ? (
+                      <>
+                        <label className="field surprise-time-field">
+                          <span className="label">
+                            Start <span className="req">*</span>
+                          </span>
+                          <input
+                            type="time"
+                            value={surpriseForm.startTime}
+                            onChange={(e) =>
+                              setSurpriseForm((prev) => ({ ...prev, startTime: e.target.value }))
+                            }
+                            required
+                          />
+                        </label>
+                        <label className="field surprise-time-field">
+                          <span className="label">
+                            End <span className="req">*</span>
+                          </span>
+                          <input
+                            type="time"
+                            value={surpriseForm.endTime}
+                            onChange={(e) =>
+                              setSurpriseForm((prev) => ({ ...prev, endTime: e.target.value }))
+                            }
+                            required
+                          />
+                        </label>
+                      </>
+                    ) : null}
+                  </div>
+                )}
               </div>
-              <label className="field">
-                <span className="label">Notes</span>
-                <input
-                  value={surpriseForm.notes}
-                  onChange={(e) => setSurpriseForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Optional note"
-                />
-              </label>
-              <label className="extend-pass-check">
-                <input
-                  type="checkbox"
-                  checked={extendPassHolders}
-                  onChange={(e) => setExtendPassHolders(e.target.checked)}
-                />
-                <span>Extension to Pass holder</span>
-              </label>
+
+              <div className="surprise-notes-extend-row">
+                <label className="field surprise-notes-field">
+                  <span className="label">Notes / Reason</span>
+                  <input
+                    value={surpriseForm.notes}
+                    onChange={(e) =>
+                      setSurpriseForm((prev) => ({ ...prev, notes: e.target.value }))
+                    }
+                    placeholder="Optional note"
+                  />
+                </label>
+                <div className="field surprise-extend-field">
+                  <span className="label">Give Extension to Pass</span>
+                  <div
+                    className="pass-yes-no"
+                    role="radiogroup"
+                    aria-label="Give Extension to Pass"
+                  >
+                    {(['Yes', 'No'] as const).map((option) => (
+                      <label key={option} className="pass-yes-no-option">
+                        <input
+                          type="radio"
+                          name="extendPassHolders"
+                          value={option}
+                          checked={extendPassHolders === (option === 'Yes')}
+                          onChange={() => setExtendPassHolders(option === 'Yes')}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
               <div className="pass-form-actions">
+                {actionMessage('surprise')}
                 <button type="submit" className="submit" disabled={savingLeave}>
-                  {savingLeave ? 'Saving…' : 'Add surprise leave'}
+                  {savingLeave ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>
@@ -728,18 +910,20 @@ export function HolidayManagement() {
                 <p className="pass-empty">No surprise leaves for {year}.</p>
               ) : (
                 surpriseLeaves.map((item) => (
-                  <div className="holiday-list-row" key={item.id}>
-                    <div>
-                      <strong>{item.name}</strong>
-                      <span className="holiday-list-meta">{formatSurpriseWhen(item)}</span>
-                      {item.extendPassHolders ? (
-                        <span className="holiday-list-notes">Pass holders extended by 1 day</span>
-                      ) : null}
-                      {item.notes ? <span className="holiday-list-notes">{item.notes}</span> : null}
-                    </div>
+                  <div className="holiday-list-row holiday-list-row--surprise" key={item.id}>
+                    <strong className="holiday-list-col holiday-list-col--name">{item.name}</strong>
+                    <span className="holiday-list-col holiday-list-meta">
+                      {formatSurpriseWhen(item)}
+                    </span>
+                    <span className="holiday-list-col holiday-list-notes">
+                      {item.extendPassHolders ? 'Pass holders extended by 1 day' : '—'}
+                    </span>
+                    <span className="holiday-list-col holiday-list-notes">
+                      {item.notes?.trim() ? item.notes : '—'}
+                    </span>
                     <button
                       type="button"
-                      className="remove-link"
+                      className="remove-link holiday-list-col holiday-list-col--action"
                       onClick={() => void removeLeave(item.id)}
                     >
                       Remove

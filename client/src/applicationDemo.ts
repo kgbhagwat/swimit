@@ -1,4 +1,4 @@
-/** Ephemeral Application preview: try the app UI; data is discarded when you leave. */
+/** Ephemeral Application preview: try the app UI; data is discarded when you leave a page. */
 
 export const APPLICATION_FEATURE_PATHS = new Set([
   '/register',
@@ -16,12 +16,15 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/coach-payment',
   '/attendance-sheet',
   '/balance-sheet',
+  '/payment-details',
   '/pool-core-info',
   '/holiday-management',
 ]);
 
 const DEMO_FLAG_KEY = 'swimIT.applicationDemo';
-const DEMO_DATA_KEY = 'swimIT.applicationDemoData.v2';
+const DEMO_DATA_KEY = 'swimIT.applicationDemoData.v3';
+const SAMPLE_PASS_PAYMENT_QUEUE_KEY = 'swimIT.applicationDemo.passPaymentQueue';
+const SAMPLE_SWIMMER_PAID_KEY = 'swimIT.applicationDemo.swimmerPaid';
 
 export type DemoStore = {
   nextId: number;
@@ -107,14 +110,90 @@ export function isApplicationDemo() {
 
 export function enterApplicationDemo() {
   sessionStorage.setItem(DEMO_FLAG_KEY, '1');
-  // Always start Application preview empty; trial edits stay in this session only.
+  // Application preview never keeps durable data — always start empty.
   sessionStorage.setItem(DEMO_DATA_KEY, JSON.stringify(emptyStore()));
   sessionStorage.removeItem('swimIT.applicationDemoData');
+  sessionStorage.removeItem('swimIT.applicationDemoData.v2');
+  sessionStorage.removeItem(SAMPLE_PASS_PAYMENT_QUEUE_KEY);
+  sessionStorage.removeItem(SAMPLE_SWIMMER_PAID_KEY);
+}
+
+/** Wipe preview data (e.g. when navigating between Application pages). */
+export function resetApplicationDemoData() {
+  if (!isApplicationDemo()) return;
+  sessionStorage.setItem(DEMO_DATA_KEY, JSON.stringify(emptyStore()));
 }
 
 export function exitApplicationDemo() {
   sessionStorage.removeItem(DEMO_FLAG_KEY);
   sessionStorage.removeItem(DEMO_DATA_KEY);
+  sessionStorage.removeItem(SAMPLE_PASS_PAYMENT_QUEUE_KEY);
+  sessionStorage.removeItem(SAMPLE_SWIMMER_PAID_KEY);
+}
+
+export type SamplePassPaymentItem = {
+  id: number;
+  fullName: string;
+  contact: string;
+  email: string;
+  passType: string;
+  coach: string;
+  batch: string;
+};
+
+export function getSamplePassPaymentQueue(): SamplePassPaymentItem[] {
+  try {
+    const raw = sessionStorage.getItem(SAMPLE_PASS_PAYMENT_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SamplePassPaymentItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function enqueueSamplePassPayment(item: SamplePassPaymentItem) {
+  const queue = getSamplePassPaymentQueue().filter((row) => row.id !== item.id);
+  queue.unshift(item);
+  sessionStorage.setItem(SAMPLE_PASS_PAYMENT_QUEUE_KEY, JSON.stringify(queue));
+}
+
+export function dequeueSamplePassPayment(id: number) {
+  const queue = getSamplePassPaymentQueue().filter((row) => row.id !== id);
+  sessionStorage.setItem(SAMPLE_PASS_PAYMENT_QUEUE_KEY, JSON.stringify(queue));
+}
+
+/** Fresh Application preview for Swimmer List — discard trial queue/paid overrides. */
+export function resetSampleSwimmerPreview() {
+  sessionStorage.removeItem(SAMPLE_PASS_PAYMENT_QUEUE_KEY);
+  sessionStorage.removeItem(SAMPLE_SWIMMER_PAID_KEY);
+}
+
+export type SampleSwimmerPaidOverride = {
+  id: number;
+  passType: string;
+  passValidUntil: string;
+};
+
+export function getSampleSwimmerPaidOverrides(): SampleSwimmerPaidOverride[] {
+  try {
+    const raw = sessionStorage.getItem(SAMPLE_SWIMMER_PAID_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SampleSwimmerPaidOverride[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markSampleSwimmerPaid(id: number, passType: string) {
+  const end = new Date();
+  end.setDate(end.getDate() + 30);
+  const passValidUntil = end.toISOString().slice(0, 10);
+  const next = getSampleSwimmerPaidOverrides().filter((row) => row.id !== id);
+  next.push({ id, passType: passType || 'Monthly Swim', passValidUntil });
+  sessionStorage.setItem(SAMPLE_SWIMMER_PAID_KEY, JSON.stringify(next));
+  dequeueSamplePassPayment(id);
 }
 
 export function readDemoStore(): DemoStore {

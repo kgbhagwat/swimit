@@ -1,5 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import {
+  isApplicationDemo,
+  enqueueSamplePassPayment,
+  getSamplePassPaymentQueue,
+  resetSampleSwimmerPreview,
+} from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { formatBatchDisplay } from './IdCard';
 import { canEditPage } from './pageAccess';
@@ -27,6 +33,8 @@ type SwimmerRow = {
   sex: string;
   isActive: boolean;
   hasValidPassToday: boolean;
+  passValidUntil: string | null;
+  inactiveAt: string | null;
 };
 
 type RegistrationApiRow = {
@@ -40,6 +48,7 @@ type RegistrationApiRow = {
   batch?: string | null;
   coach?: string | null;
   pass_valid_until?: string | null;
+  inactive_at?: string | null;
 };
 
 type BatchSlot = {
@@ -75,9 +84,55 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function daysAgoIso(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 function hasValidPassToday(passValidUntil: string | null | undefined) {
   if (!passValidUntil) return false;
   return passValidUntil.slice(0, 10) >= todayIso();
+}
+
+/** Pass expired more than 3 days ago — no pass / QR until reopened for payment. */
+function isLongExpired(passValidUntil: string | null | undefined) {
+  if (!passValidUntil) return false;
+  return passValidUntil.slice(0, 10) < daysAgoIso(3);
+}
+
+/** Has a paid pass that still counts (not expired more than 3 days). */
+function hasCurrentPass(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
+  return Boolean(row.passType) && row.passType !== '—' && !isLongExpired(row.passValidUntil);
+}
+
+/** Active list: marked active and has a current paid pass. */
+function belongsOnActiveList(row: Pick<SwimmerRow, 'isActive' | 'passType' | 'passValidUntil'>) {
+  return row.isActive && hasCurrentPass(row);
+}
+
+/** No current pass — activating sends them to Pass Payment first. */
+function needsPassPayment(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
+  return !hasCurrentPass(row);
+}
+
+/** Recently sent to Pass Payment (within 3 days). */
+function isPaymentWindowOpen(inactiveAt: string | null | undefined) {
+  if (!inactiveAt) return false;
+  return inactiveAt.slice(0, 10) >= daysAgoIso(3);
+}
+
+/** Waiting on Pass Payment — hide from Active/Inactive lists. */
+function isAwaitingPassPayment(
+  row: Pick<SwimmerRow, 'id' | 'passType' | 'passValidUntil' | 'inactiveAt'>,
+  queuedIds: Set<number>,
+) {
+  if (queuedIds.has(row.id)) return true;
+  return needsPassPayment(row) && isPaymentWindowOpen(row.inactiveAt);
+}
+
+function hasPaidPass(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
+  return Boolean(row.passValidUntil) || (Boolean(row.passType) && row.passType !== '—');
 }
 
 function formatBatchTime(value: string) {
@@ -110,10 +165,10 @@ function downloadCsv(rows: SwimmerRow[]) {
         row.swimmer,
         row.contact,
         row.email,
-        row.passType,
+        isLongExpired(row.passValidUntil) ? '—' : row.passType,
         row.batch,
         row.coach,
-        row.isActive ? 'Active' : 'Inactive',
+        belongsOnActiveList(row) ? 'Active' : 'Inactive',
       ]
         .map(csvEscape)
         .join(','),
@@ -137,6 +192,8 @@ function SortIcon() {
 }
 
 function mapRow(row: RegistrationApiRow): SwimmerRow {
+  const passValidUntil = row.pass_valid_until?.trim().slice(0, 10) || null;
+  const inactiveAt = row.inactive_at?.trim().slice(0, 10) || null;
   return {
     id: row.id,
     swimmer: row.full_name,
@@ -147,9 +204,129 @@ function mapRow(row: RegistrationApiRow): SwimmerRow {
     coach: row.coach?.trim() || '—',
     sex: row.sex?.trim() || '',
     isActive: row.is_active !== false,
-    hasValidPassToday: hasValidPassToday(row.pass_valid_until),
+    hasValidPassToday: hasValidPassToday(passValidUntil),
+    passValidUntil,
+    inactiveAt,
   };
 }
+
+const SAMPLE_SWIMMERS: SwimmerRow[] = [
+  {
+    id: -101,
+    swimmer: 'Aarav Patil',
+    contact: '9876543210',
+    email: 'aarav@example.com',
+    passType: 'Monthly Swim',
+    batch: 'Morning A — Mixed — 06:00 to 07:00',
+    coach: 'Riya Kulkarni',
+    sex: 'Male',
+    isActive: true,
+    hasValidPassToday: true,
+    passValidUntil: daysAgoIso(-25),
+    inactiveAt: null,
+  },
+  {
+    id: -102,
+    swimmer: 'Sana Joshi',
+    contact: '9123456780',
+    email: 'sana@example.com',
+    passType: 'Quarterly Swim',
+    batch: 'Evening B — Mixed — 18:00 to 19:00',
+    coach: 'Amit Sharma',
+    sex: 'Female',
+    isActive: true,
+    hasValidPassToday: true,
+    passValidUntil: daysAgoIso(-60),
+    inactiveAt: null,
+  },
+  {
+    id: -103,
+    swimmer: 'Vihaan Kulkarni',
+    contact: '9988776655',
+    email: 'vihaan@example.com',
+    passType: 'Monthly Swim',
+    batch: 'Morning A — Mixed — 06:00 to 07:00',
+    coach: 'Riya Kulkarni',
+    sex: 'Male',
+    isActive: true,
+    hasValidPassToday: true,
+    passValidUntil: daysAgoIso(-15),
+    inactiveAt: null,
+  },
+  {
+    id: -104,
+    swimmer: 'Neha Deshmukh',
+    contact: '9090909090',
+    email: 'neha@example.com',
+    passType: 'Monthly Swim',
+    batch: 'Evening B — Mixed — 18:00 to 19:00',
+    coach: 'Amit Sharma',
+    sex: 'Female',
+    isActive: false,
+    hasValidPassToday: false,
+    passValidUntil: daysAgoIso(10),
+    inactiveAt: daysAgoIso(10),
+  },
+  {
+    id: -105,
+    swimmer: 'Rohan Mehta',
+    contact: '9012345678',
+    email: 'rohan@example.com',
+    passType: 'Monthly Swim',
+    batch: 'Morning A — Mixed — 06:00 to 07:00',
+    coach: 'Riya Kulkarni',
+    sex: 'Male',
+    isActive: false,
+    hasValidPassToday: false,
+    passValidUntil: daysAgoIso(18),
+    inactiveAt: daysAgoIso(18),
+  },
+  {
+    id: -106,
+    swimmer: 'Isha Nair',
+    contact: '9090909091',
+    email: 'isha@example.com',
+    passType: 'Quarterly Swim',
+    batch: 'Evening B — Mixed — 18:00 to 19:00',
+    coach: 'Amit Sharma',
+    sex: 'Female',
+    isActive: false,
+    hasValidPassToday: false,
+    passValidUntil: daysAgoIso(45),
+    inactiveAt: daysAgoIso(45),
+  },
+  {
+    id: -107,
+    swimmer: 'Kabir Shah',
+    contact: '9123456781',
+    email: 'kabir@example.com',
+    passType: 'Monthly Swim',
+    batch: 'Morning A — Mixed — 06:00 to 07:00',
+    coach: 'Neha Deshmukh',
+    sex: 'Male',
+    isActive: false,
+    hasValidPassToday: false,
+    passValidUntil: daysAgoIso(7),
+    inactiveAt: daysAgoIso(7),
+  },
+];
+
+const SAMPLE_BATCHES: BatchSlot[] = [
+  {
+    id: 'sample-morning-a',
+    name: 'Morning A',
+    type: 'Mixed',
+    startTime: '06:00',
+    endTime: '07:00',
+  },
+  {
+    id: 'sample-evening-b',
+    name: 'Evening B',
+    type: 'Mixed',
+    startTime: '18:00',
+    endTime: '19:00',
+  },
+];
 
 export function SwimmerList() {
   const navigate = useNavigate();
@@ -168,10 +345,117 @@ export function SwimmerList() {
   const [viewProfile, setViewProfile] = useState<SwimmerProfile | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [resendingId, setResendingId] = useState<number | null>(null);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
   const [success, setSuccess] = useState('');
-  const canEdit = canEditPage('swimmers');
+  const [sampleMode, setSampleMode] = useState(false);
+  const canEdit = canEditPage('swimmers') && !sampleMode;
+  const canToggleActive = sampleMode || canEditPage('swimmers');
+
+  async function toggleActive(row: SwimmerRow, nextActive: boolean) {
+    if (!canToggleActive || togglingId === row.id) return;
+    const sendToPassPayment = nextActive && needsPassPayment(row);
+    const onActiveList = belongsOnActiveList(row);
+    if (!sendToPassPayment && onActiveList === nextActive) return;
+    // Already active with a pass — ignore "activate" again
+    if (nextActive && onActiveList) return;
+    // Deactivate only from active list
+    if (!nextActive && !onActiveList && !row.isActive) return;
+
+    setError('');
+    setSuccess('');
+
+    function enqueueForPayment() {
+      const batch = formatBatchDisplay(row.batch);
+      enqueueSamplePassPayment({
+        id: row.id,
+        fullName: row.swimmer,
+        contact: row.contact === '—' ? '' : row.contact,
+        email: row.email === '—' ? '' : row.email,
+        passType: row.passType === '—' ? '' : row.passType,
+        coach: row.coach === '—' ? 'Any' : row.coach,
+        batch: batch.title === '—' ? '' : batch.title,
+      });
+    }
+
+    if (sampleMode || row.id < 0) {
+      if (sendToPassPayment) {
+        enqueueForPayment();
+        setRows((prev) => prev.filter((item) => item.id !== row.id));
+        setSuccess(`${row.swimmer} added to Pass Payment.`);
+        return;
+      }
+      setRows((prev) =>
+        prev.map((item) =>
+          item.id === row.id
+            ? {
+                ...item,
+                isActive: nextActive,
+                inactiveAt: nextActive ? null : todayIso(),
+              }
+            : item,
+        ),
+      );
+      return;
+    }
+
+    setTogglingId(row.id);
+    const previous = { isActive: row.isActive, inactiveAt: row.inactiveAt };
+
+    if (sendToPassPayment) {
+      setRows((prev) => prev.filter((item) => item.id !== row.id));
+      try {
+        const res = await fetch(`/api/registrations/${row.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: false }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? 'Failed to activate for payment');
+        setSuccess(`${row.swimmer} added to Pass Payment.`);
+      } catch (err) {
+        setRows((prev) => [...prev, { ...row, isActive: previous.isActive, inactiveAt: previous.inactiveAt }]);
+        setError(err instanceof Error ? err.message : 'Failed to activate for payment');
+      } finally {
+        setTogglingId(null);
+      }
+      return;
+    }
+
+    setRows((prev) =>
+      prev.map((item) =>
+        item.id === row.id
+          ? {
+              ...item,
+              isActive: nextActive,
+              inactiveAt: nextActive ? null : todayIso(),
+            }
+          : item,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/registrations/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to update status');
+    } catch (err) {
+      setRows((prev) =>
+        prev.map((item) =>
+          item.id === row.id
+            ? { ...item, isActive: previous.isActive, inactiveAt: previous.inactiveAt }
+            : item,
+        ),
+      );
+      setError(err instanceof Error ? err.message : 'Failed to update status');
+    } finally {
+      setTogglingId(null);
+    }
+  }
 
   async function resendPass(row: SwimmerRow) {
+    if (sampleMode || row.id < 0) return;
     if (!row.passType || row.passType === '—') {
       setError('This swimmer does not have a pass to resend');
       setSuccess('');
@@ -193,6 +477,7 @@ export function SwimmerList() {
   }
 
   function openProfileEdit(row: SwimmerRow) {
+    if (sampleMode || row.id < 0) return;
     if (!canEditPage('swimmers')) {
       setError('You do not have permission to edit swimmers');
       return;
@@ -206,6 +491,15 @@ export function SwimmerList() {
     setLoading(true);
     setError('');
     try {
+      if (isApplicationDemo()) {
+        // Each visit shows the full sample lists again (ephemeral Application preview).
+        resetSampleSwimmerPreview();
+        setRows(SAMPLE_SWIMMERS.map((row) => ({ ...row })));
+        setBatches(SAMPLE_BATCHES);
+        setSampleMode(true);
+        setSuccess('');
+        return;
+      }
       const [swimmerRes, batchesRes] = await Promise.all([
         fetch('/api/registrations'),
         fetch('/api/batches'),
@@ -213,6 +507,7 @@ export function SwimmerList() {
       if (!swimmerRes.ok) throw new Error('Failed to load swimmers');
       const data = (await swimmerRes.json()) as RegistrationApiRow[];
       setRows(data.map(mapRow));
+      setSampleMode(false);
 
       if (batchesRes.ok) {
         const batchesData = (await batchesRes.json()) as { slots?: BatchSlot[] };
@@ -241,9 +536,13 @@ export function SwimmerList() {
   }, []);
 
   const statusRows = useMemo(() => {
-    if (status === 'active') return rows.filter((row) => row.isActive);
-    return rows.filter((row) => !row.isActive);
-  }, [rows, status]);
+    const queuedIds = new Set(
+      sampleMode ? getSamplePassPaymentQueue().map((row) => row.id) : [],
+    );
+    const visible = rows.filter((row) => !isAwaitingPassPayment(row, queuedIds));
+    if (status === 'active') return visible.filter((row) => belongsOnActiveList(row));
+    return visible.filter((row) => !belongsOnActiveList(row));
+  }, [rows, status, sampleMode]);
 
   const visibleRows = useMemo(() => {
     const filtered = statusRows.filter((row) => {
@@ -286,12 +585,44 @@ export function SwimmerList() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
+  function sampleProfileFor(row: SwimmerRow): SwimmerProfile {
+    return {
+      id: row.id,
+      fullName: row.swimmer,
+      fullAddress: '12 Sample Lane, Pune',
+      whatsappMobile: row.contact === '—' ? '' : row.contact,
+      otherMobile: '',
+      email: row.email === '—' ? '' : row.email,
+      birthdate: '2005-06-15',
+      sex: row.sex || '—',
+      bloodGroup: 'B+',
+      emergencyName: 'Parent / Guardian',
+      emergencyRelation: 'Parent',
+      emergencyMobile: row.contact === '—' ? '' : row.contact,
+      parentName: 'Parent / Guardian',
+      parentRelation: 'Parent',
+      parentMobile: row.contact === '—' ? '' : row.contact,
+      hasHealthIssue: 'No',
+      healthIssueDetails: '',
+      doctorName: '',
+      doctorNo: '',
+      identityDocument: 'Aadhaar',
+      identityPhotoUrl: null,
+      photoUrl: null,
+    };
+  }
+
   function openView(row: SwimmerRow) {
     setViewing(row);
     setEditing(null);
     setViewProfile(null);
     setViewLoading(true);
     setError('');
+    if (sampleMode || row.id < 0) {
+      setViewProfile(sampleProfileFor(row));
+      setViewLoading(false);
+      return;
+    }
     void fetchSwimmerProfile(row.id)
       .then((profile) => setViewProfile(profile))
       .catch((err) =>
@@ -307,6 +638,7 @@ export function SwimmerList() {
   }
 
   function openEdit(row: SwimmerRow) {
+    if (sampleMode || row.id < 0) return;
     if (!canEditPage('swimmers')) {
       setError('You do not have permission to edit swimmers');
       return;
@@ -329,7 +661,7 @@ export function SwimmerList() {
 
   async function onSaveEdit(e: FormEvent) {
     e.preventDefault();
-    if (!editing) return;
+    if (!editing || sampleMode || editing.id < 0) return;
     setSaving(true);
     setError('');
     try {
@@ -356,7 +688,15 @@ export function SwimmerList() {
     <PlatformPage title="Swimmer's List">
       <div className="swimmer-list-card">
         {viewing ? (
-          <section className="swimmer-edit-card" aria-labelledby="swimmer-view-title">
+          <section
+            className={`pass-form-card pool-core-form swimmer-edit-card${sampleMode ? ' pass-form-card--sample' : ''}`}
+            aria-labelledby="swimmer-view-title"
+          >
+            {sampleMode ? (
+              <div className="user-mgmt-sample-watermark" aria-hidden="true">
+                Sample
+              </div>
+            ) : null}
             <div className="swimmer-edit-head">
               <div>
                 <h2 id="swimmer-view-title">Swimmer details</h2>
@@ -417,7 +757,9 @@ export function SwimmerList() {
             </div>
 
             <div className="swimmer-list-meta">
-              <p className="pass-count">{summary}</p>
+              <p className="pass-count batch-list-lede">
+                {sampleMode ? 'Sample layout — preview of active and inactive swimmers.' : summary}
+              </p>
               <DownloadButton
                 onClick={() => downloadCsv(visibleRows)}
                 disabled={visibleRows.length === 0}
@@ -425,7 +767,14 @@ export function SwimmerList() {
             </div>
             {success ? <p className="success">{success}</p> : null}
 
-            <section className="pass-table-card swimmer-table-card">
+            <section
+              className={`pass-form-card pool-core-form pass-table-card swimmer-table-card${sampleMode ? ' pass-form-card--sample' : ''}`}
+            >
+              {sampleMode ? (
+                <div className="user-mgmt-sample-watermark" aria-hidden="true">
+                  Sample
+                </div>
+              ) : null}
               <div className="swimmer-table-head">
                 {(
                   [
@@ -493,7 +842,16 @@ export function SwimmerList() {
                 </p>
               ) : (
                 <div className="pass-table-body">
-                  {visibleRows.map((row, index) => (
+                  {visibleRows.map((row, index) => {
+                    const longExpired = isLongExpired(row.passValidUntil);
+                    const onActiveList = belongsOnActiveList(row);
+                    const awaitPayment = needsPassPayment(row);
+                    const displayPassType = longExpired || !row.passType || row.passType === '—'
+                      ? '—'
+                      : row.passType;
+                    const showPassActions = hasCurrentPass(row);
+                    const showToggle = canToggleActive;
+                    return (
                     <div
                       className={`swimmer-row${index % 2 === 1 ? ' swimmer-row-alt' : ''}`}
                       key={row.id}
@@ -505,7 +863,7 @@ export function SwimmerList() {
                           <span className="coach-email">{row.email}</span>
                         ) : null}
                       </span>
-                      <span data-label="Pass type">{row.passType}</span>
+                      <span data-label="Pass type">{displayPassType}</span>
                       <span data-label="Batch">
                         {(() => {
                           const batch = formatBatchDisplay(row.batch);
@@ -521,33 +879,6 @@ export function SwimmerList() {
                       </span>
                       <span data-label="Coach">{row.coach}</span>
                       <span className="pass-actions" data-label="Actions -">
-                        {row.passType && row.passType !== '—' ? (
-                          <>
-                            <button
-                              type="button"
-                              className="terms-link"
-                              onClick={() => openPassPopup('qr', row.id)}
-                            >
-                              Pass QR
-                            </button>
-                            <button
-                              type="button"
-                              className="terms-link"
-                              onClick={() => openPassPopup('pass', row.id)}
-                            >
-                              Pass
-                            </button>
-                            <button
-                              type="button"
-                              className="terms-link"
-                              onClick={() => void resendPass(row)}
-                              disabled={resendingId === row.id}
-                              title="Resend pass & QR on WhatsApp"
-                            >
-                              {resendingId === row.id ? 'Sending…' : 'Resend'}
-                            </button>
-                          </>
-                        ) : null}
                         <button
                           type="button"
                           className="icon-action"
@@ -566,6 +897,67 @@ export function SwimmerList() {
                             <circle cx="12" cy="12" r="3" />
                           </svg>
                         </button>
+                        {showToggle ? (
+                          <label
+                            className={`status-switch swimmer-active-switch${
+                              onActiveList
+                                ? ' is-active'
+                                : hasPaidPass(row)
+                                  ? ' is-paid-inactive'
+                                  : ' is-inactive'
+                            }`}
+                            title={
+                              awaitPayment
+                                ? 'Activate to collect pass payment'
+                                : onActiveList
+                                  ? 'Deactivate this swimmer'
+                                  : 'Activate this swimmer'
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={onActiveList}
+                              disabled={togglingId === row.id}
+                              onChange={(e) => void toggleActive(row, e.target.checked)}
+                              aria-label={
+                                awaitPayment
+                                  ? `Activate ${row.swimmer} for pass payment`
+                                  : onActiveList
+                                    ? `Deactivate ${row.swimmer}`
+                                    : `Activate ${row.swimmer}`
+                              }
+                            />
+                          </label>
+                        ) : null}
+                        {showPassActions ? (
+                          <>
+                            <button
+                              type="button"
+                              className="terms-link"
+                              onClick={() => openPassPopup('qr', row.id)}
+                            >
+                              Pass QR
+                            </button>
+                            <button
+                              type="button"
+                              className="terms-link"
+                              onClick={() => openPassPopup('pass', row.id)}
+                            >
+                              Pass
+                            </button>
+                            {!sampleMode ? (
+                              <button
+                                type="button"
+                                className="terms-link"
+                                onClick={() => void resendPass(row)}
+                                disabled={resendingId === row.id}
+                                title="Resend pass & QR on WhatsApp"
+                              >
+                                {resendingId === row.id ? 'Sending…' : 'Resend'}
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
                         {canEdit ? (
                           <button
                             type="button"
@@ -588,13 +980,14 @@ export function SwimmerList() {
                         ) : null}
                       </span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
           </>
         ) : (
-          <section className="swimmer-edit-card" aria-labelledby="swimmer-edit-title">
+          <section className="pass-form-card pool-core-form swimmer-edit-card" aria-labelledby="swimmer-edit-title">
             <div className="swimmer-edit-head">
               <div>
                 <h2 id="swimmer-edit-title">Edit swimmer</h2>

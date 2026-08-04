@@ -65,7 +65,7 @@ export const PLATFORM_ACCESS_PAGES: PlatformAccessPageDef[] = [
   {
     key: 'platform-create-user',
     section: 'Staff users',
-    to: '/platform/create-user',
+    to: '/platform/user-management',
     label: 'Create User',
   },
   {

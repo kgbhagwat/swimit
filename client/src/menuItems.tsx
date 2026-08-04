@@ -15,8 +15,6 @@ export type MenuItem = {
 const SECTION_INTROS: Record<MenuSection, string> = {
   Setup:
     'This is one time setup. It asks about basic information about your pool, which is mandatory for running any pool. You need to provide this information initially after opening an account with SwimIT. You can change it whenever you want.',
-  'User Management':
-    'Control who can sign in to this pool account and which menus each person can open.',
   Operations:
     'Run the daily desk and gate work — take pass payments, scan entries, message members, and track payables.',
   Information:
@@ -174,7 +172,7 @@ export const MENU_ITEMS: MenuItem[] = [
   {
     section: 'Setup',
     to: '/batches',
-    label: 'Batch List',
+    label: 'Batches',
     does: 'Defines swimming session schedules — start/end times, duration, and breaks.',
     helps:
       'Lets you assign swimmers to the right slots and avoid overlapping batches at the pool.',
@@ -306,29 +304,12 @@ export const MENU_ITEMS: MenuItem[] = [
     ),
   },
   {
-    section: 'User Management',
-    to: '/create-user',
-    label: 'Create User',
-    does: 'Adds a new login user for this pool and sends a temporary password on WhatsApp.',
-    helps:
-      'Onboards desk, gate, or coach staff quickly with their own sign-in instead of sharing one password.',
-    icon: (
-      <IconWrap>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <circle cx="10" cy="8" r="3.2" />
-          <path d="M4 19c1.1-3 3.2-4.5 6-4.5" />
-          <path d="M16 11v6M13 14h6" />
-        </svg>
-      </IconWrap>
-    ),
-  },
-  {
-    section: 'User Management',
+    section: 'Setup',
     to: '/user-management',
     label: 'User Management',
-    does: 'Lists login users and sets which menus each person can open or edit.',
+    does: 'Creates login users and sets which menus each person can open or edit.',
     helps:
-      'Protects sensitive screens (finance, setup) while giving each role only the access they need.',
+      'Onboards staff with WhatsApp passwords and protects sensitive screens by role.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

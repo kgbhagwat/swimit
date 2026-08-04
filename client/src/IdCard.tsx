@@ -1,3 +1,4 @@
+import { isApplicationDemo } from './applicationDemo';
 import { formatDisplayDate } from './swimmerPass';
 
 export type IdCardData = {
@@ -20,7 +21,38 @@ export type PoolBrand = {
   poolLogoUrl: string | null;
 };
 
+const SAMPLE_POOL_BRAND: PoolBrand = {
+  poolName: 'SwimIT Sample Pool',
+  poolAddress: '12 Sample Lane, Pune',
+  poolLogoUrl: null,
+};
+
 export async function fetchPoolBrand(): Promise<PoolBrand> {
+  if (isApplicationDemo()) {
+    try {
+      const res = await fetch('/api/pool-core-info');
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const logoPath = String(body.poolLogoPath ?? '').trim();
+        const poolName = String(body.poolName ?? '').trim();
+        const poolAddress = String(body.poolAddress ?? '').trim();
+        if (poolName || poolAddress || logoPath) {
+          return {
+            poolName: poolName || SAMPLE_POOL_BRAND.poolName,
+            poolAddress: poolAddress || SAMPLE_POOL_BRAND.poolAddress,
+            poolLogoUrl: logoPath
+              ? logoPath.startsWith('/') || logoPath.startsWith('http')
+                ? logoPath
+                : `/uploads/${logoPath}`
+              : null,
+          };
+        }
+      }
+    } catch {
+      /* use sample brand below */
+    }
+    return { ...SAMPLE_POOL_BRAND };
+  }
   try {
     const res = await fetch('/api/pool-core-info');
     const body = await res.json().catch(() => ({}));

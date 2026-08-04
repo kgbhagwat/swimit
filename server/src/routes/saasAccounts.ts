@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { pageKeysForModules } from '../menuAccess.js';
+import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { hashPassword, generateTempPassword, verifyPassword } from '../password.js';
 import { notifyLoginCredentials, notifyPackageRenewalPayment } from '../whatsapp/notify.js';
 import {
@@ -111,8 +112,8 @@ function normalizeEmail(value: unknown) {
 function validate(body: AccountBody, { requireCode = true } = {}) {
   if (!body.accountName?.trim()) return 'Account / pool name is required';
   if (!body.contactName?.trim()) return 'Contact name is required';
-  const mobile = String(body.mobile ?? '').replace(/\D/g, '');
-  if (!/^\d{10}$/.test(mobile)) return 'Enter a valid 10-digit mobile number';
+  const mobile = sanitizeMobile(body.mobile);
+  if (!isValidMobile(mobile)) return MOBILE_INVALID_MSG;
   const email = normalizeEmail(body.email);
   if (!email) return 'Email is required';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address';
@@ -337,7 +338,7 @@ saasAccountsRouter.post('/', async (req, res) => {
       return;
     }
 
-    const mobile = String(body.mobile).replace(/\D/g, '');
+    const mobile = sanitizeMobile(body.mobile);
     const email = normalizeEmail(body.email);
     const accountCode = normalizeAccountCode(body.accountCode);
     let packageId =
@@ -674,7 +675,7 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
       return;
     }
 
-    const mobile = String(body.mobile).replace(/\D/g, '');
+    const mobile = sanitizeMobile(body.mobile);
     const email = normalizeEmail(body.email);
     const accountCode = normalizeAccountCode(body.accountCode);
     const packageId =

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
+import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
 import {
   guessImageContentType,
   normalizeBirthdate,
@@ -360,9 +361,8 @@ staffRegistrationsRouter.put(
         return;
       }
 
-      const mobileRe = /^\d{10}$/;
-      if (!mobileRe.test(body.whatsappMobile) || !mobileRe.test(body.emergencyMobile)) {
-        res.status(400).json({ error: 'Mobile numbers must be 10 digits' });
+      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
       if (
@@ -397,12 +397,12 @@ staffRegistrationsRouter.put(
         res.status(400).json({ error: duplicateEmailMessage('staff') });
         return;
       }
-      if (body.otherMobile && !mobileRe.test(body.otherMobile)) {
-        res.status(400).json({ error: 'Other mobile number must be 10 digits' });
+      if (body.otherMobile && !isValidMobile(body.otherMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
-      if (body.doctorNo && !mobileRe.test(body.doctorNo)) {
-        res.status(400).json({ error: 'Doctor number must be 10 digits' });
+      if (body.doctorNo && !isValidMobile(body.doctorNo)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
       if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
@@ -663,9 +663,8 @@ staffRegistrationsRouter.post(
         return;
       }
 
-      const mobileRe = /^\d{10}$/;
-      if (!mobileRe.test(body.whatsappMobile) || !mobileRe.test(body.emergencyMobile)) {
-        res.status(400).json({ error: 'Mobile numbers must be 10 digits' });
+      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
       if (
@@ -698,12 +697,12 @@ staffRegistrationsRouter.post(
         res.status(400).json({ error: duplicateEmailMessage('staff') });
         return;
       }
-      if (body.otherMobile && !mobileRe.test(body.otherMobile)) {
-        res.status(400).json({ error: 'Other mobile number must be 10 digits' });
+      if (body.otherMobile && !isValidMobile(body.otherMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
-      if (body.doctorNo && !mobileRe.test(body.doctorNo)) {
-        res.status(400).json({ error: 'Doctor number must be 10 digits' });
+      if (body.doctorNo && !isValidMobile(body.doctorNo)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
       if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {

@@ -349,7 +349,7 @@ export function PassTypePage() {
 
   return (
     <PlatformPage title="Pass Type">
-      <p className="pass-count">
+      <p className="lede batch-list-lede">
         {items.length} pass type{items.length === 1 ? '' : 's'}
       </p>
 

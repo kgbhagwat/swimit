@@ -170,7 +170,7 @@ export function PassScanner() {
 
   return (
     <PlatformPage title="Pass Scanner">
-      <div className="swimmer-list-card">
+      <div className="pass-form-card pool-core-form">
         {view === 'idle' ? (
           <section className="scanner-panel">
             <div className="scanner-entry">
@@ -182,13 +182,13 @@ export function PassScanner() {
               </span>
               <form className="scanner-pass-form" onSubmit={(e) => void onPassNoSubmit(e)}>
                 <label className="scanner-pass-field">
-                  <span className="label">Pass No.</span>
                   <input
                     value={passNo}
                     onChange={(e) => setPassNo(e.target.value)}
                     placeholder="Pass No."
                     inputMode="numeric"
                     autoComplete="off"
+                    aria-label="Pass No."
                   />
                 </label>
                 <button type="submit" className="scanner-ok-btn" disabled={lookingUp}>
@@ -196,7 +196,6 @@ export function PassScanner() {
                 </button>
               </form>
             </div>
-            <p className="scanner-hint">Point the camera at the swimmer QR code on their pass.</p>
           </section>
         ) : null}
 

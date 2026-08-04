@@ -102,7 +102,7 @@ export function ApplicationGuide() {
           <h4>Setup</h4>
           <ul>
             <li>
-              <strong>Batch List</strong> — define swimming batch timings
+              <strong>Batches</strong> — define swimming batch timings
             </li>
             <li>
               <strong>Pass Type</strong> — pass names, duration, charges, coaching fees
@@ -112,6 +112,10 @@ export function ApplicationGuide() {
             </li>
             <li>
               <strong>Holiday Management</strong> — weekly offs and special holidays{' '}
+              <em>(Full)</em>
+            </li>
+            <li>
+              <strong>User Management</strong> — create staff logins and set page-level access{' '}
               <em>(Full)</em>
             </li>
           </ul>
@@ -159,14 +163,6 @@ export function ApplicationGuide() {
             </li>
             <li>
               <strong>Staff registration</strong> — coaches / staff with certificates and batch fit
-            </li>
-          </ul>
-
-          <h4>User Management</h4>
-          <ul>
-            <li>
-              <strong>Create User</strong> / <strong>User Management</strong> — staff logins and
-              page-level access <em>(Full)</em>
             </li>
           </ul>
         </section>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { PlatformPage } from './PlatformPage';
 
@@ -92,6 +93,130 @@ function rangeLabel(start?: string, end?: string) {
   return `${formatDisplayDate(start)} → ${formatDisplayDate(end)}`;
 }
 
+function daysInMonth(month: string) {
+  const [year, mon] = month.split('-').map(Number);
+  const count = new Date(year, mon, 0).getDate();
+  const days: string[] = [];
+  for (let d = 1; d <= count; d += 1) {
+    days.push(`${month}-${String(d).padStart(2, '0')}`);
+  }
+  return days;
+}
+
+function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
+  const days = daysInMonth(month);
+  const weeklyOffDays = days.filter((day) => new Date(`${day}T00:00:00`).getDay() === 0);
+  const holidayDay = days.find((day) => day.endsWith('-15')) ?? days[Math.min(14, days.length - 1)];
+  const presentPattern = (offset: number) =>
+    days.filter((day, i) => {
+      if (weeklyOffDays.includes(day) || day === holidayDay) return false;
+      return (i + offset) % 3 !== 0;
+    });
+
+  const swimmers: Array<{
+    id: number;
+    name: string;
+    passType: string;
+    batch: string;
+    coach: string;
+    offset: number;
+    passStart: string;
+    passEnd: string;
+  }> = [
+    {
+      id: -101,
+      name: 'Aarav Patil',
+      passType: 'Monthly Swim',
+      batch: 'Morning A',
+      coach: 'Riya Kulkarni',
+      offset: 0,
+      passStart: `${month}-01`,
+      passEnd: days[days.length - 1],
+    },
+    {
+      id: -102,
+      name: 'Sana Joshi',
+      passType: 'Quarterly Swim',
+      batch: 'Evening B',
+      coach: 'Amit Sharma',
+      offset: 1,
+      passStart: `${month}-01`,
+      passEnd: days[days.length - 1],
+    },
+    {
+      id: -103,
+      name: 'Vihaan Kulkarni',
+      passType: 'Monthly Swim',
+      batch: 'Morning A',
+      coach: 'Riya Kulkarni',
+      offset: 2,
+      passStart: `${month}-05`,
+      passEnd: days[days.length - 1],
+    },
+  ];
+
+  const items: AttendanceItem[] = swimmers.map((s) => {
+    const presentDays = presentPattern(s.offset).filter(
+      (day) => day >= s.passStart && day <= s.passEnd,
+    );
+    return {
+      registrationId: s.id,
+      fullName: s.name,
+      passType: s.passType,
+      batch: s.batch,
+      coach: s.coach,
+      isActive: true,
+      passStart: s.passStart,
+      passValidUntil: s.passEnd,
+      presentDays,
+      presentCount: presentDays.length,
+    };
+  });
+
+  if (view === 'swimmer') {
+    const rangeStart = items.reduce(
+      (min, item) => (item.passStart && item.passStart < min ? item.passStart : min),
+      items[0]?.passStart ?? `${month}-01`,
+    );
+    const rangeEnd = items.reduce(
+      (max, item) =>
+        item.passValidUntil && item.passValidUntil > max ? item.passValidUntil : max,
+      items[0]?.passValidUntil ?? days[days.length - 1],
+    );
+    const spanDays: string[] = [];
+    const cursor = new Date(`${rangeStart}T00:00:00`);
+    const end = new Date(`${rangeEnd}T00:00:00`);
+    while (cursor <= end) {
+      const y = cursor.getFullYear();
+      const m = String(cursor.getMonth() + 1).padStart(2, '0');
+      const d = String(cursor.getDate()).padStart(2, '0');
+      spanDays.push(`${y}-${m}-${d}`);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return {
+      month,
+      view,
+      rangeStart,
+      rangeEnd,
+      days: spanDays,
+      weeklyOffDays: spanDays.filter((day) => new Date(`${day}T00:00:00`).getDay() === 0),
+      holidayDays: [{ date: holidayDay, name: 'Sample holiday' }],
+      items,
+      swimmerCount: items.length,
+    };
+  }
+
+  return {
+    month,
+    view,
+    days,
+    weeklyOffDays,
+    holidayDays: [{ date: holidayDay, name: 'Sample holiday' }],
+    items,
+    swimmerCount: items.length,
+  };
+}
+
 export function AttendanceSheet() {
   const monthOptions = useMemo(() => buildMonthOptions(), []);
   const [view, setView] = useState<ViewMode>('standard');
@@ -99,6 +224,7 @@ export function AttendanceSheet() {
   const [sheet, setSheet] = useState<SheetResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sampleMode, setSampleMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,11 +232,21 @@ export function AttendanceSheet() {
       setLoading(true);
       setError('');
       try {
+        if (isApplicationDemo()) {
+          if (!cancelled) {
+            setSheet(sampleAttendanceSheet(month, view));
+            setSampleMode(true);
+          }
+          return;
+        }
         const params = new URLSearchParams({ month, view });
         const res = await fetch(`/api/attendance-sheet?${params}`);
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error ?? 'Failed to load attendance sheet');
-        if (!cancelled) setSheet(body as SheetResult);
+        if (!cancelled) {
+          setSheet(body as SheetResult);
+          setSampleMode(false);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load attendance sheet');
@@ -180,6 +316,7 @@ export function AttendanceSheet() {
 
   const summaryText = (() => {
     if (loading) return 'Loading…';
+    if (sampleMode) return 'Sample layout — preview attendance for this month.';
     const count = sheet?.swimmerCount ?? 0;
     const swimmerWord = `swimmer${count === 1 ? '' : 's'}`;
     if (view === 'swimmer') {
@@ -197,7 +334,14 @@ export function AttendanceSheet() {
       title="Attendance Sheet"
       className="attendance-sheet-page"
     >
-      <div className="attendance-card">
+      <div
+        className={`pass-form-card pool-core-form attendance-card${sampleMode ? ' pass-form-card--sample' : ''}`}
+      >
+        {sampleMode ? (
+          <div className="user-mgmt-sample-watermark" aria-hidden="true">
+            Sample
+          </div>
+        ) : null}
         <div className="attendance-filters">
           <div className="attendance-filters-left">
             <span className="label">View</span>

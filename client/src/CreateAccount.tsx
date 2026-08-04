@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { emailHint, isValidEmail, isValidMobile, mobileHint } from './formValidation';
+import { emailHint, isValidEmail, isValidMobile, mobileHint, MOBILE_INVALID_MSG } from './formValidation';
+import { MobileField } from './MobileField';
 import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
 import { getPlatformSession } from './platformSession';
@@ -329,7 +330,7 @@ export function CreateAccount() {
       return;
     }
     if (!isValidMobile(form.mobile)) {
-      setError(mobileHint(form.mobile) || 'Enter a valid 10-digit mobile number');
+      setError(mobileHint(form.mobile) || MOBILE_INVALID_MSG);
       return;
     }
     if (!form.email.trim()) {
@@ -708,18 +709,12 @@ export function CreateAccount() {
             />
           </label>
 
-          <label className="field">
-            <span className="label">
-              Mobile <span className="req">*</span>
-            </span>
-            <input
-              value={form.mobile}
-              onChange={(e) => setField('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
-              placeholder="10-digit mobile number"
-              inputMode="numeric"
-              required
-            />
-          </label>
+          <MobileField
+            label="Mobile"
+            value={form.mobile}
+            onChange={(value) => setField('mobile', value)}
+            required
+          />
 
           <label className="field">
             <span className="label">
@@ -731,8 +726,12 @@ export function CreateAccount() {
               onChange={(e) => setField('email', e.target.value)}
               placeholder="name@example.com"
               autoComplete="email"
+              aria-invalid={Boolean(emailHint(form.email))}
               required
             />
+            {emailHint(form.email) ? (
+              <span className="field-error">{emailHint(form.email)}</span>
+            ) : null}
           </label>
 
           <label className="field">

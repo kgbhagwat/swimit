@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { CreateUserForm } from './CreateUser';
 import { PlatformPage } from './PlatformPage';
 import {
   ACCESS_PAGES,
@@ -19,8 +20,6 @@ import {
 import {
   getActiveAccountCode,
   isPlatformUsersPath,
-  platformUsersPath,
-  tenantPath,
 } from './tenantSession';
 
 type AppUser = {
@@ -88,13 +87,17 @@ function UserRow({
   platformMode,
   packagePageKeys,
   onUpdated,
+  onRequestRemove,
   onMessage,
+  readOnly = false,
 }: {
   user: AppUser;
   platformMode: boolean;
   packagePageKeys: Set<string> | null;
   onUpdated: (user: AppUser) => void;
+  onRequestRemove: (user: AppUser) => void;
   onMessage: (type: 'error' | 'info', text: string) => void;
+  readOnly?: boolean;
 }) {
   const allowedPages = platformMode
     ? PLATFORM_ACCESS_PAGES
@@ -198,8 +201,9 @@ function UserRow({
   }
 
   return (
-    <tr>
+    <tr className={readOnly ? 'user-mgmt-sample-row' : undefined}>
       <td className="user-col-info">
+        {readOnly ? <p className="user-sample-badge">Sample</p> : null}
         <p className="user-info-name">{user.userName}</p>
         <p>
           <strong>Mobile</strong> {user.mobile}
@@ -214,7 +218,7 @@ function UserRow({
           <button
             type="button"
             className="terms-link"
-            disabled={savingPassword}
+            disabled={readOnly || savingPassword}
             onClick={() => void onResetPassword()}
           >
             {savingPassword ? 'Sending…' : 'Reset Password'}
@@ -236,10 +240,12 @@ function UserRow({
                       <input
                         type="checkbox"
                         checked={allOn}
+                        disabled={readOnly}
                         ref={(el) => {
                           if (el) el.indeterminate = someOn && !allOn;
                         }}
                         onChange={() => {
+                          if (readOnly) return;
                           setAccessDraft((prev) => {
                             const next = new Set(prev);
                             for (const page of pages) {
@@ -274,6 +280,7 @@ function UserRow({
                               <input
                                 type="checkbox"
                                 checked={accessDraft.has(page.key)}
+                                disabled={readOnly}
                                 onChange={() => togglePage(page.key)}
                               />
                               <span>{page.label}</span>
@@ -289,7 +296,7 @@ function UserRow({
                                 <input
                                   type="checkbox"
                                   checked={accessDraft.has(editAccessKey(page.key))}
-                                  disabled={!accessDraft.has(page.key)}
+                                  disabled={readOnly || !accessDraft.has(page.key)}
                                   onChange={() => {
                                     if (isEditableInformationPage(page.key)) {
                                       togglePageEdit(page.key);
@@ -310,10 +317,20 @@ function UserRow({
           </tbody>
         </table>
         <div className="user-reset-actions">
+          {!user.isAccountAdmin ? (
+            <button
+              type="button"
+              className="pass-cancel"
+              disabled={readOnly || savingAccess}
+              onClick={() => onRequestRemove(user)}
+            >
+              Remove user
+            </button>
+          ) : null}
           <button
             type="button"
             className="submit"
-            disabled={savingAccess}
+            disabled={readOnly || savingAccess}
             onClick={() => void onSaveAccess()}
           >
             {savingAccess ? 'Saving…' : 'Save access'}
@@ -324,26 +341,69 @@ function UserRow({
   );
 }
 
+const SAMPLE_TENANT_USER: AppUser = {
+  id: -1,
+  userName: 'Anita Sharma',
+  mobile: '9876543210',
+  email: 'anita@example.com',
+  menuAccess: [
+    'pool-core-info',
+    'batches',
+    'pass-types',
+    'holiday-management',
+    'pass-payment',
+    'whatsapp',
+    'swimmers',
+    'swimmers-edit',
+    'coaches',
+    'coaches-edit',
+    'register',
+    'staff-register',
+  ],
+  createdAt: '2026-03-15T10:30:00.000Z',
+  isAccountAdmin: false,
+};
+
+const SAMPLE_PLATFORM_USER: AppUser = {
+  id: -1,
+  userName: 'Platform Admin',
+  mobile: '9123456780',
+  email: 'admin@swimit.example',
+  menuAccess: [
+    'accounts',
+    'create-account',
+    'service-packages',
+    'payment',
+    'platform-users',
+    'platform-create-user',
+    'whatsapp',
+  ],
+  createdAt: '2026-02-01T09:00:00.000Z',
+  isAccountAdmin: false,
+};
+
 export function UserManagement() {
   const { pathname } = useLocation();
   const platformMode = isPlatformUsersPath(pathname);
-  const createUserTo = platformMode
-    ? platformUsersPath('/create-user')
-    : tenantPath('/create-user');
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [packagePageKeys, setPackagePageKeys] = useState<Set<string> | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<AppUser | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
     setError('');
+    setInfo('');
     try {
       const res = await fetch('/api/users');
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to load users');
-      setUsers((Array.isArray(body) ? body : []) as AppUser[]);
+      const rows = (Array.isArray(body) ? body : []) as AppUser[];
+      // Never keep client-only sample rows (id < 0) in live data.
+      setUsers(rows.filter((u) => Number(u.id) > 0));
     } catch (err) {
       setUsers([]);
       setError(err instanceof Error ? err.message : 'Failed to load users');
@@ -398,64 +458,153 @@ export function UserManagement() {
     }
   }
 
+  async function confirmRemoveUser() {
+    if (!pendingRemove) return;
+    const target = pendingRemove;
+    setRemovingId(target.id);
+    setError('');
+    setInfo('');
+    try {
+      const res = await fetch(`/api/users/${target.id}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to remove user');
+      setUsers((prev) => prev.filter((row) => row.id > 0 && row.id !== target.id));
+      setPendingRemove(null);
+      setInfo(`${target.userName} removed.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove user');
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  const realUsers = users.filter((u) => u.id > 0);
+  const samplePreview = realUsers.length === 0;
+
   return (
-    <PlatformPage
-      title="User Management"
-      actions={
-        <>
-          <Link className="submit" to={createUserTo}>
-            Create User
-          </Link>
-        </>
-      }
-    >
-      {platformMode ? (
-        <p className="lede">Manage SwimIT SaaS platform login users and platform menu access.</p>
-      ) : null}
+    <PlatformPage title="User Management">
+      <CreateUserForm
+        onCreated={(created) => {
+          setError('');
+          setInfo('');
+          // Replace sample row immediately with the new user, then refresh from API.
+          setUsers((prev) => {
+            const real = prev.filter((u) => u.id > 0);
+            if (!real.some((u) => u.id === created.id)) {
+              return [...real, created];
+            }
+            return real;
+          });
+          void load();
+        }}
+      />
 
       {loading ? <p className="pass-empty">Loading…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {info ? <p className="success">{info}</p> : null}
 
-      {!loading && users.length === 0 ? (
-        <section className="pass-form-card">
-          <p className="pass-empty">No users created yet.</p>
-          <div className="pass-form-actions">
-            <Link className="submit" to={createUserTo}>
-              Create User
-            </Link>
+      {!loading ? (
+        <section
+          className={`pass-form-card pool-core-form user-mgmt-card${
+            samplePreview ? ' user-mgmt-card--sample' : ''
+          }`}
+        >
+          {samplePreview ? (
+            <div className="user-mgmt-sample-watermark" aria-hidden="true">
+              Sample
+            </div>
+          ) : null}
+          <h2>Users &amp; access</h2>
+          {error ? <p className="error">{error}</p> : null}
+          {info && !/^user created/i.test(info) ? (
+            <p className="success">{info}</p>
+          ) : null}
+          {samplePreview ? (
+            <p className="hint user-mgmt-sample-hint">
+              Sample layout — create a user above to manage real access.
+            </p>
+          ) : null}
+          <div className="user-mgmt-table-wrap">
+            <table className="user-mgmt-table">
+              <colgroup>
+                <col className="user-col-info-col" />
+                <col className="user-col-access-col" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">User information</th>
+                  <th scope="col">Access Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(samplePreview
+                  ? [platformMode ? SAMPLE_PLATFORM_USER : SAMPLE_TENANT_USER]
+                  : realUsers
+                ).map((user) => (
+                  <UserRow
+                    key={user.id}
+                    user={user}
+                    platformMode={platformMode}
+                    packagePageKeys={packagePageKeys}
+                    readOnly={samplePreview}
+                    onUpdated={(updated) =>
+                      setUsers((prev) =>
+                        prev
+                          .filter((row) => row.id > 0)
+                          .map((row) => (row.id === updated.id ? updated : row)),
+                      )
+                    }
+                    onRequestRemove={(u) => {
+                      setError('');
+                      setInfo('');
+                      setPendingRemove(u);
+                    }}
+                    onMessage={onMessage}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       ) : null}
 
-      {!loading && users.length > 0 ? (
-        <div className="user-mgmt-table-wrap">
-          <table className="user-mgmt-table">
-            <colgroup>
-              <col className="user-col-info-col" />
-              <col className="user-col-access-col" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th scope="col">User information</th>
-                <th scope="col">Access Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <UserRow
-                  key={user.id}
-                  user={user}
-                  platformMode={platformMode}
-                  packagePageKeys={packagePageKeys}
-                  onUpdated={(updated) =>
-                    setUsers((prev) => prev.map((row) => (row.id === updated.id ? updated : row)))
-                  }
-                  onMessage={onMessage}
-                />
-              ))}
-            </tbody>
-          </table>
+      {pendingRemove ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="remove-user-title"
+          onClick={() => {
+            if (removingId == null) setPendingRemove(null);
+          }}
+        >
+          <div
+            className="modal-panel accounts-delete-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="remove-user-title">Remove user?</h2>
+            <p className="modal-intro">
+              Remove <strong>{pendingRemove.userName}</strong>
+              {pendingRemove.mobile ? ` (${pendingRemove.mobile})` : ''}? This permanently deletes
+              their login and cannot be undone.
+            </p>
+            <div className="modal-footer accounts-delete-modal-footer">
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={removingId != null}
+                onClick={() => setPendingRemove(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="submit accounts-delete-confirm"
+                disabled={removingId != null}
+                onClick={() => void confirmRemoveUser()}
+              >
+                {removingId != null ? 'Removing…' : 'Remove user'}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </PlatformPage>

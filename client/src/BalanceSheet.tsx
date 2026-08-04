@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { PlatformPage } from './PlatformPage';
 
@@ -69,6 +70,80 @@ function csvEscape(value: string) {
   return value;
 }
 
+function sampleBalanceSheet(month: string): SheetResult {
+  const raw: Array<Omit<LedgerItem, 'balance'>> = [
+    {
+      id: 'sample-pass-1',
+      entryDate: `${month}-03`,
+      particulars: 'Pass payment — Aarav Patil (Monthly Swim)',
+      credit: 2000,
+      debit: 0,
+      type: 'credit',
+      source: 'pass',
+    },
+    {
+      id: 'sample-pass-2',
+      entryDate: `${month}-05`,
+      particulars: 'Pass payment — Sana Joshi (Quarterly Swim)',
+      credit: 5000,
+      debit: 0,
+      type: 'credit',
+      source: 'pass',
+    },
+    {
+      id: 'sample-exp-1',
+      entryDate: `${month}-08`,
+      particulars: 'Pool chemicals & chlorine',
+      credit: 0,
+      debit: 1200,
+      type: 'debit',
+      source: 'expense',
+    },
+    {
+      id: 'sample-pass-3',
+      entryDate: `${month}-12`,
+      particulars: 'Pass payment — Vihaan Kulkarni (Monthly Swim)',
+      credit: 2000,
+      debit: 0,
+      type: 'credit',
+      source: 'pass',
+    },
+    {
+      id: 'sample-coach-1',
+      entryDate: `${month}-20`,
+      particulars: 'Coach payment — Riya Kulkarni',
+      credit: 0,
+      debit: 3500,
+      type: 'debit',
+      source: 'coach',
+    },
+    {
+      id: 'sample-exp-2',
+      entryDate: `${month}-25`,
+      particulars: 'Electricity & pump maintenance',
+      credit: 0,
+      debit: 1800,
+      type: 'debit',
+      source: 'expense',
+    },
+  ];
+
+  let running = 0;
+  const items: LedgerItem[] = raw.map((row) => {
+    running += row.credit - row.debit;
+    return { ...row, balance: running };
+  });
+  const totalCredit = items.reduce((sum, row) => sum + row.credit, 0);
+  const totalDebit = items.reduce((sum, row) => sum + row.debit, 0);
+  return {
+    month,
+    items,
+    totalCredit,
+    totalDebit,
+    closingBalance: totalCredit - totalDebit,
+  };
+}
+
 type FilterMode = 'all' | 'credit' | 'debit';
 
 export function BalanceSheet() {
@@ -78,6 +153,7 @@ export function BalanceSheet() {
   const [filter, setFilter] = useState<FilterMode>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sampleMode, setSampleMode] = useState(false);
 
   useEffect(() => {
     setFilter('all');
@@ -89,10 +165,20 @@ export function BalanceSheet() {
       setLoading(true);
       setError('');
       try {
+        if (isApplicationDemo()) {
+          if (!cancelled) {
+            setSheet(sampleBalanceSheet(month));
+            setSampleMode(true);
+          }
+          return;
+        }
         const res = await fetch(`/api/balance-sheet?month=${encodeURIComponent(month)}`);
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error ?? 'Failed to load balance sheet');
-        if (!cancelled) setSheet(body as SheetResult);
+        if (!cancelled) {
+          setSheet(body as SheetResult);
+          setSampleMode(false);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load balance sheet');
@@ -168,9 +254,19 @@ export function BalanceSheet() {
         </>
       }
     >
-      <div className="swimmer-list-card">
+      <div className={`pass-form-card pool-core-form${sampleMode ? ' pass-form-card--sample' : ''}`}>
+        {sampleMode ? (
+          <div className="user-mgmt-sample-watermark" aria-hidden="true">
+            Sample
+          </div>
+        ) : null}
+        {sampleMode ? (
+          <p className="lede batch-list-lede">
+            Sample layout — preview credit, debit, and closing balance.
+          </p>
+        ) : null}
         {error ? <p className="error">{error}</p> : null}
-        {loading ? <p className="pass-count">Loading…</p> : null}
+        {loading ? <p className="pass-count batch-list-lede">Loading…</p> : null}
 
         {!loading && sheet ? (
           <>
@@ -209,7 +305,7 @@ export function BalanceSheet() {
                   : `Showing all entries (${visibleItems.length})`}
             </p>
 
-            <div className="pass-table-card balance-table">
+            <div className="balance-table">
               <div className="balance-head">
                 <span>Date</span>
                 <span>Particulars</span>
