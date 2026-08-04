@@ -366,7 +366,6 @@ export function BatchList() {
   const coachesByBatchId = useMemo(() => {
     const map = new Map<string, BatchCoach[]>();
     for (const coach of coaches) {
-      if (!coach.isActive) continue;
       for (const batchId of coach.suitableBatchIds) {
         const key = String(batchId);
         const list = map.get(key) ?? [];
@@ -376,7 +375,7 @@ export function BatchList() {
     }
     for (const [key, list] of map) {
       list.sort((a, b) => {
-        if (a.isApproved !== b.isApproved) return a.isApproved ? -1 : 1;
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
         return a.fullName.localeCompare(b.fullName);
       });
       map.set(key, list);
@@ -583,15 +582,15 @@ export function BatchList() {
                 <th scope="col">Type</th>
                 <th scope="col">Start time</th>
                 <th scope="col">End time</th>
-                <th scope="col">Approved coach</th>
-                <th scope="col">Non approved coach</th>
+                <th scope="col">Active coach</th>
+                <th scope="col">Inactive coach</th>
               </tr>
             </thead>
             <tbody>
               {slots.map((slot) => {
                 const batchCoaches = coachesByBatchId.get(String(slot.id)) ?? [];
-                const approved = batchCoaches.filter((coach) => coach.isApproved);
-                const unapproved = batchCoaches.filter((coach) => !coach.isApproved);
+                const active = batchCoaches.filter((coach) => coach.isActive);
+                const inactive = batchCoaches.filter((coach) => !coach.isActive);
                 return (
                   <tr key={slot.id}>
                     <td className="batch-saved-name">{slot.name}</td>
@@ -599,22 +598,22 @@ export function BatchList() {
                     <td>{formatClockDisplay(slot.startTime)}</td>
                     <td>{formatClockDisplay(slot.endTime)}</td>
                     <td className="batch-saved-coaches">
-                      {approved.length === 0 ? (
+                      {active.length === 0 ? (
                         <span className="batch-coach-empty">—</span>
                       ) : (
                         <ul className="batch-coach-list">
-                          {approved.map((coach) => (
+                          {active.map((coach) => (
                             <li key={coach.id}>{coach.fullName}</li>
                           ))}
                         </ul>
                       )}
                     </td>
                     <td className="batch-saved-coaches">
-                      {unapproved.length === 0 ? (
+                      {inactive.length === 0 ? (
                         <span className="batch-coach-empty">—</span>
                       ) : (
                         <ul className="batch-coach-list">
-                          {unapproved.map((coach) => (
+                          {inactive.map((coach) => (
                             <li key={coach.id}>{coach.fullName}</li>
                           ))}
                         </ul>

@@ -260,11 +260,6 @@ export function BalanceSheet() {
             Sample
           </div>
         ) : null}
-        {sampleMode ? (
-          <p className="lede batch-list-lede">
-            Sample layout — preview credit, debit, and closing balance.
-          </p>
-        ) : null}
         {error ? <p className="error">{error}</p> : null}
         {loading ? <p className="pass-count batch-list-lede">Loading…</p> : null}
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { PlatformPage } from './PlatformPage';
+import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 
 type AttendanceItem = {
   registrationId: number;
@@ -38,7 +39,11 @@ function dayKindClass(kind: DayKind) {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function currentMonthValue() {
@@ -103,16 +108,37 @@ function daysInMonth(month: string) {
   return days;
 }
 
+function eachIsoDate(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const cur = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  if (Number.isNaN(cur.getTime()) || Number.isNaN(end.getTime()) || end < cur) return dates;
+  while (cur <= end) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const d = String(cur.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+function addDaysIso(isoDay: string, amount: number) {
+  const date = new Date(`${isoDay}T00:00:00`);
+  date.setDate(date.getDate() + amount);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
   const days = daysInMonth(month);
-  const weeklyOffDays = days.filter((day) => new Date(`${day}T00:00:00`).getDay() === 0);
-  const holidayDay = days.find((day) => day.endsWith('-15')) ?? days[Math.min(14, days.length - 1)];
-  const presentPattern = (offset: number) =>
-    days.filter((day, i) => {
-      if (weeklyOffDays.includes(day) || day === holidayDay) return false;
-      return (i + offset) % 3 !== 0;
-    });
+  const today = todayIso();
+  const monthStart = `${month}-01`;
+  const monthEnd = days[days.length - 1];
 
+  // Staggered pass issue dates so Swimmer month headings differ per person.
   const swimmers: Array<{
     id: number;
     name: string;
@@ -130,18 +156,18 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
       batch: 'Morning A',
       coach: 'Riya Kulkarni',
       offset: 0,
-      passStart: `${month}-01`,
-      passEnd: days[days.length - 1],
+      passStart: monthStart,
+      passEnd: monthEnd,
     },
     {
       id: -102,
       name: 'Sana Joshi',
-      passType: 'Quarterly Swim',
+      passType: 'Monthly Swim',
       batch: 'Evening B',
       coach: 'Amit Sharma',
       offset: 1,
-      passStart: `${month}-01`,
-      passEnd: days[days.length - 1],
+      passStart: addDaysIso(monthStart, -20),
+      passEnd: addDaysIso(monthStart, 9),
     },
     {
       id: -103,
@@ -150,15 +176,35 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
       batch: 'Morning A',
       coach: 'Riya Kulkarni',
       offset: 2,
-      passStart: `${month}-05`,
-      passEnd: days[days.length - 1],
+      passStart: addDaysIso(monthStart, 3),
+      passEnd: addDaysIso(monthStart, 32),
     },
   ];
 
-  const items: AttendanceItem[] = swimmers.map((s) => {
-    const presentDays = presentPattern(s.offset).filter(
-      (day) => day >= s.passStart && day <= s.passEnd,
-    );
+  const visible =
+    view === 'swimmer'
+      ? swimmers.filter((s) => s.passStart <= monthEnd && s.passEnd >= monthStart)
+      : swimmers;
+
+  const allPassDays =
+    view === 'swimmer'
+      ? Array.from(
+          new Set(visible.flatMap((s) => eachIsoDate(s.passStart, s.passEnd))),
+        ).sort()
+      : days;
+
+  const weeklyOffDays = allPassDays.filter((day) => new Date(`${day}T00:00:00`).getDay() === 0);
+  const holidayDay =
+    allPassDays.find((day) => day.endsWith('-15')) ??
+    allPassDays[Math.min(14, allPassDays.length - 1)];
+
+  const items: AttendanceItem[] = visible.map((s) => {
+    const passDays = eachIsoDate(s.passStart, s.passEnd);
+    const presentDays = passDays.filter((day, i) => {
+      if (day > today) return false;
+      if (weeklyOffDays.includes(day) || day === holidayDay) return false;
+      return (i + s.offset) % 3 !== 0;
+    });
     return {
       registrationId: s.id,
       fullName: s.name,
@@ -176,31 +222,21 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
   if (view === 'swimmer') {
     const rangeStart = items.reduce(
       (min, item) => (item.passStart && item.passStart < min ? item.passStart : min),
-      items[0]?.passStart ?? `${month}-01`,
+      items[0]?.passStart ?? monthStart,
     );
     const rangeEnd = items.reduce(
       (max, item) =>
         item.passValidUntil && item.passValidUntil > max ? item.passValidUntil : max,
-      items[0]?.passValidUntil ?? days[days.length - 1],
+      items[0]?.passValidUntil ?? monthEnd,
     );
-    const spanDays: string[] = [];
-    const cursor = new Date(`${rangeStart}T00:00:00`);
-    const end = new Date(`${rangeEnd}T00:00:00`);
-    while (cursor <= end) {
-      const y = cursor.getFullYear();
-      const m = String(cursor.getMonth() + 1).padStart(2, '0');
-      const d = String(cursor.getDate()).padStart(2, '0');
-      spanDays.push(`${y}-${m}-${d}`);
-      cursor.setDate(cursor.getDate() + 1);
-    }
     return {
       month,
       view,
       rangeStart,
       rangeEnd,
-      days: spanDays,
-      weeklyOffDays: spanDays.filter((day) => new Date(`${day}T00:00:00`).getDay() === 0),
-      holidayDays: [{ date: holidayDay, name: 'Sample holiday' }],
+      days: allPassDays,
+      weeklyOffDays,
+      holidayDays: holidayDay ? [{ date: holidayDay, name: 'Sample holiday' }] : [],
       items,
       swimmerCount: items.length,
     };
@@ -210,8 +246,8 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
     month,
     view,
     days,
-    weeklyOffDays,
-    holidayDays: [{ date: holidayDay, name: 'Sample holiday' }],
+    weeklyOffDays: days.filter((day) => new Date(`${day}T00:00:00`).getDay() === 0),
+    holidayDays: holidayDay ? [{ date: holidayDay, name: 'Sample holiday' }] : [],
     items,
     swimmerCount: items.length,
   };
@@ -225,6 +261,9 @@ export function AttendanceSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
+  const [swimmerSelected, setSwimmerSelected] = useState<Set<string> | null>(null);
+  const [swimmerSortDir, setSwimmerSortDir] = useState<ColumnSortDir>(null);
+  const [openSwimmerFilter, setOpenSwimmerFilter] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +301,12 @@ export function AttendanceSheet() {
     };
   }, [month, view]);
 
+  useEffect(() => {
+    setSwimmerSelected(null);
+    setSwimmerSortDir(null);
+    setOpenSwimmerFilter(false);
+  }, [month, view]);
+
   const weeklyOffSet = useMemo(
     () => new Set(sheet?.weeklyOffDays ?? []),
     [sheet?.weeklyOffDays],
@@ -273,6 +318,22 @@ export function AttendanceSheet() {
     }
     return map;
   }, [sheet?.holidayDays]);
+
+  const visibleItems = useMemo(() => {
+    const items = sheet?.items ?? [];
+    const filtered = items.filter((item) => {
+      if (!swimmerSelected) return true;
+      return swimmerSelected.has(item.fullName);
+    });
+    if (!swimmerSortDir) return filtered;
+    return [...filtered].sort((a, b) => {
+      const cmp = a.fullName.localeCompare(b.fullName, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+      return swimmerSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [sheet?.items, swimmerSelected, swimmerSortDir]);
 
   function kindForDay(day: string): DayKind {
     if (holidayNameByDate.has(day)) return 'holiday';
@@ -292,19 +353,36 @@ export function AttendanceSheet() {
 
   function downloadCsv() {
     if (!sheet) return;
-    const header = ['Swimmer', ...sheet.days.map((day) => dayHeader(day, view))];
-    const lines = [
-      header.join(','),
-      ...sheet.items.map((item) => {
+    let lines: string[];
+    if (view === 'swimmer') {
+      lines = [];
+      for (const item of visibleItems) {
+        const passStart = item.passStart ?? '';
+        const passEnd = item.passValidUntil ?? '';
+        const days = passStart && passEnd ? eachIsoDate(passStart, passEnd) : [];
         const present = new Set(item.presentDays);
-        return [
-          item.fullName,
-          ...sheet.days.map((day) => (present.has(day) ? 'P' : '')),
-        ]
-          .map(csvEscape)
-          .join(',');
-      }),
-    ];
+        lines.push(`# ${item.fullName} (${rangeLabel(passStart, passEnd)})`);
+        lines.push(['Day', ...days.map((day) => dayHeader(day, 'swimmer'))].map(csvEscape).join(','));
+        lines.push(
+          ['Status', ...days.map((day) => (present.has(day) ? 'P' : ''))].map(csvEscape).join(','),
+        );
+        lines.push('');
+      }
+    } else {
+      const header = ['Swimmer', ...sheet.days.map((day) => dayHeader(day, view))];
+      lines = [
+        header.join(','),
+        ...visibleItems.map((item) => {
+          const present = new Set(item.presentDays);
+          return [
+            item.fullName,
+            ...sheet.days.map((day) => (present.has(day) ? 'P' : '')),
+          ]
+            .map(csvEscape)
+            .join(',');
+        }),
+      ];
+    }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -316,15 +394,11 @@ export function AttendanceSheet() {
 
   const summaryText = (() => {
     if (loading) return 'Loading…';
-    if (sampleMode) return 'Sample layout — preview attendance for this month.';
+    if (sampleMode) return '';
     const count = sheet?.swimmerCount ?? 0;
     const swimmerWord = `swimmer${count === 1 ? '' : 's'}`;
     if (view === 'swimmer') {
-      const span =
-        sheet?.rangeStart && sheet?.rangeEnd
-          ? ` (${rangeLabel(sheet.rangeStart, sheet.rangeEnd)})`
-          : '';
-      return `${count} ${swimmerWord} · pass periods overlapping ${monthLabel(month)}${span}`;
+      return `${count} ${swimmerWord} · own pass month (issue date → valid until), attendance till today`;
     }
     return `${count} ${swimmerWord} in ${monthLabel(month)}`;
   })();
@@ -333,6 +407,12 @@ export function AttendanceSheet() {
     <PlatformPage
       title="Attendance Sheet"
       className="attendance-sheet-page"
+      actions={
+        <DownloadButton
+          onClick={downloadCsv}
+          disabled={!sheet || sheet.items.length === 0}
+        />
+      }
     >
       <div
         className={`pass-form-card pool-core-form attendance-card${sampleMode ? ' pass-form-card--sample' : ''}`}
@@ -379,13 +459,11 @@ export function AttendanceSheet() {
 
         {error ? <p className="error">{error}</p> : null}
 
-        <div className="attendance-toolbar">
-          <p className="attendance-summary">{summaryText}</p>
-          <DownloadButton
-            onClick={downloadCsv}
-            disabled={!sheet || sheet.items.length === 0}
-          />
-        </div>
+        {summaryText ? (
+          <div className="attendance-toolbar">
+            <p className="attendance-summary">{summaryText}</p>
+          </div>
+        ) : null}
 
         {!loading && sheet && sheet.items.length > 0 ? (
           <div className="attendance-legend" aria-label="Day colour legend">
@@ -408,12 +486,92 @@ export function AttendanceSheet() {
                 ? 'No swimmers with a pass period overlapping this month.'
                 : 'No swimmers found for this month.'}
             </p>
+          ) : view === 'swimmer' ? (
+            <div className="attendance-swimmer-blocks">
+              {visibleItems.length === 0 ? (
+                <p className="pass-empty">No swimmers match these filters.</p>
+              ) : (
+                visibleItems.map((item) => {
+                const passStart = item.passStart ?? '';
+                const passEnd = item.passValidUntil ?? '';
+                const days = passStart && passEnd ? eachIsoDate(passStart, passEnd) : [];
+                const present = new Set(item.presentDays);
+                return (
+                  <section key={item.registrationId} className="attendance-swimmer-block">
+                    <div className="attendance-swimmer-block-head">
+                      <span className="attendance-swimmer-name">{item.fullName}</span>
+                      {passStart && passEnd ? (
+                        <span className="attendance-swimmer-pass-range">
+                          Pass: {rangeLabel(passStart, passEnd)}
+                        </span>
+                      ) : null}
+                    </div>
+                    {days.length === 0 ? (
+                      <p className="pass-empty">No pass period on file.</p>
+                    ) : (
+                      <div className="attendance-sheet-scroll">
+                        <table className="attendance-sheet-table attendance-swimmer-own-table">
+                          <thead>
+                            <tr>
+                              {days.map((day) => {
+                                const kind = kindForDay(day);
+                                return (
+                                  <th
+                                    key={day}
+                                    className={`attendance-day-col${dayKindClass(kind)}`}
+                                    title={dayTitle(day, false, true)}
+                                  >
+                                    {dayHeader(day, 'swimmer')}
+                                  </th>
+                                );
+                              })}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              {days.map((day) => {
+                                const isPresent = present.has(day);
+                                const kind = kindForDay(day);
+                                return (
+                                  <td
+                                    key={day}
+                                    className={`attendance-day-col${dayKindClass(kind)}${
+                                      isPresent ? ' present' : ''
+                                    }`}
+                                    title={dayTitle(day, isPresent, true)}
+                                  >
+                                    {isPresent ? 'P' : ''}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                );
+              })
+              )}
+            </div>
           ) : (
             <div className="attendance-sheet-scroll">
               <table className="attendance-sheet-table">
                 <thead>
                   <tr>
-                    <th className="attendance-sticky-col">Swimmer</th>
+                    <th className="attendance-sticky-col attendance-swimmer-col-head">
+                      <TableColumnFilter
+                        label="Swimmer"
+                        values={sheet.items.map((item) => item.fullName)}
+                        selected={swimmerSelected}
+                        sortDir={swimmerSortDir}
+                        open={openSwimmerFilter}
+                        onToggleOpen={() => setOpenSwimmerFilter((prev) => !prev)}
+                        onClose={() => setOpenSwimmerFilter(false)}
+                        onSelectedChange={setSwimmerSelected}
+                        onSort={setSwimmerSortDir}
+                      />
+                    </th>
                     {sheet.days.map((day) => {
                       const kind = kindForDay(day);
                       return (
@@ -429,30 +587,24 @@ export function AttendanceSheet() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sheet.items.map((item) => {
+                  {visibleItems.length === 0 ? (
+                    <tr>
+                      <td
+                        className="attendance-sticky-col"
+                        colSpan={1 + sheet.days.length}
+                      >
+                        No swimmers match these filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleItems.map((item) => {
                     const present = new Set(item.presentDays);
-                    const passStart = item.passStart ?? '';
-                    const passEnd = item.passValidUntil ?? '';
                     return (
                       <tr key={item.registrationId}>
                         <td className="attendance-sticky-col">
-                          <span
-                            className="attendance-swimmer-name"
-                            title={
-                              view === 'swimmer' && passStart && passEnd
-                                ? `Pass: ${rangeLabel(passStart, passEnd)}`
-                                : undefined
-                            }
-                          >
-                            {item.fullName}
-                          </span>
+                          <span className="attendance-swimmer-name">{item.fullName}</span>
                         </td>
                         {sheet.days.map((day) => {
-                          const inPass =
-                            view !== 'swimmer' ||
-                            !passStart ||
-                            !passEnd ||
-                            (day >= passStart && day <= passEnd);
                           const isPresent = present.has(day);
                           const kind = kindForDay(day);
                           return (
@@ -460,8 +612,8 @@ export function AttendanceSheet() {
                               key={day}
                               className={`attendance-day-col${dayKindClass(kind)}${
                                 isPresent ? ' present' : ''
-                              }${!inPass ? ' attendance-out-of-pass' : ''}`}
-                              title={dayTitle(day, isPresent, inPass)}
+                              }`}
+                              title={dayTitle(day, isPresent, true)}
                             >
                               {isPresent ? 'P' : ''}
                             </td>
@@ -469,7 +621,8 @@ export function AttendanceSheet() {
                         })}
                       </tr>
                     );
-                  })}
+                  })
+                  )}
                 </tbody>
               </table>
             </div>

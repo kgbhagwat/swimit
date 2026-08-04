@@ -407,14 +407,7 @@ export function PlatformPayment() {
       {!loading ? (
         <section className="pass-form-card platform-payment-txns">
           <div className="platform-payment-txns-head">
-            <div>
-              <h2>Recent payments</h2>
-              <p className="muted" style={{ marginTop: 0, marginBottom: 0 }}>
-                {txnRangeActive
-                  ? `Confirmed payments from ${rangeFrom} to ${rangeTo}.`
-                  : 'Last 10 confirmed SaaS subscription payments (amount and UPI verified from screenshot).'}
-              </p>
-            </div>
+            <h2>Recent payments</h2>
             <button
               type="button"
               className="ghost-btn"
@@ -423,7 +416,7 @@ export function PlatformPayment() {
                 setTxnError('');
               }}
             >
-              {showRangeForm ? 'Hide date range' : 'More transaction details'}
+              {showRangeForm ? 'Hide' : 'More transactions'}
             </button>
           </div>
 
@@ -449,7 +442,7 @@ export function PlatformPayment() {
                   .finally(() => setTxnLoading(false));
               }}
             >
-              <label className="field">
+              <label className="field platform-payment-range-field">
                 <span className="label">From</span>
                 <input
                   type="date"
@@ -458,7 +451,7 @@ export function PlatformPayment() {
                   required
                 />
               </label>
-              <label className="field">
+              <label className="field platform-payment-range-field">
                 <span className="label">To</span>
                 <input
                   type="date"
@@ -467,35 +460,39 @@ export function PlatformPayment() {
                   required
                 />
               </label>
-              <div className="platform-payment-range-actions">
-                <button type="submit" className="csv-btn" disabled={txnLoading}>
-                  {txnLoading ? 'Loading…' : 'Get transactions'}
+              <button type="submit" className="submit platform-payment-get-btn" disabled={txnLoading}>
+                {txnLoading ? 'Loading…' : 'Get'}
+              </button>
+              {txnRangeActive ? (
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  disabled={txnLoading}
+                  onClick={() => {
+                    setTxnError('');
+                    setTxnLoading(true);
+                    void loadTransactions()
+                      .then(() => {
+                        setRangeFrom('');
+                        setRangeTo('');
+                      })
+                      .catch((err) => {
+                        setTxnError(err instanceof Error ? err.message : 'Failed to load');
+                      })
+                      .finally(() => setTxnLoading(false));
+                  }}
+                >
+                  Show last 10
                 </button>
-                {txnRangeActive ? (
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    disabled={txnLoading}
-                    onClick={() => {
-                      setTxnError('');
-                      setTxnLoading(true);
-                      void loadTransactions()
-                        .then(() => {
-                          setRangeFrom('');
-                          setRangeTo('');
-                        })
-                        .catch((err) => {
-                          setTxnError(err instanceof Error ? err.message : 'Failed to load');
-                        })
-                        .finally(() => setTxnLoading(false));
-                    }}
-                  >
-                    Show last 10
-                  </button>
-                ) : null}
-              </div>
+              ) : null}
             </form>
           ) : null}
+
+          <p className="muted platform-payment-txns-lede">
+            {txnRangeActive
+              ? `Confirmed payments from ${rangeFrom} to ${rangeTo}.`
+              : 'Last 10 confirmed SaaS subscription payments.'}
+          </p>
 
           {txnError ? <p className="error">{txnError}</p> : null}
 

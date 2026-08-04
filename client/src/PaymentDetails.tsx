@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { PlatformPage } from './PlatformPage';
+import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 
 type RecentPassPayment = {
   id: number;
@@ -12,6 +13,25 @@ type RecentPassPayment = {
   transactionId: string;
   mobile: string;
 };
+
+type PaymentColKey =
+  | 'swimmerName'
+  | 'mobile'
+  | 'paymentDate'
+  | 'passType'
+  | 'amount'
+  | 'paymentMode'
+  | 'transactionId';
+
+const PAYMENT_COLUMNS: Array<{ key: PaymentColKey; label: string }> = [
+  { key: 'swimmerName', label: 'Swimmer' },
+  { key: 'mobile', label: 'Mobile' },
+  { key: 'paymentDate', label: 'Payment date' },
+  { key: 'passType', label: 'Pass' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'paymentMode', label: 'Mode' },
+  { key: 'transactionId', label: 'Transaction ID' },
+];
 
 function formatMoney(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`;
@@ -25,6 +45,25 @@ function daysAgoIso(days: number) {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
+}
+
+function cellValue(row: RecentPassPayment, key: PaymentColKey) {
+  switch (key) {
+    case 'swimmerName':
+      return row.swimmerName || '—';
+    case 'mobile':
+      return row.mobile || '—';
+    case 'paymentDate':
+      return row.paymentDate || '—';
+    case 'passType':
+      return row.passType || '—';
+    case 'amount':
+      return formatMoney(row.amount);
+    case 'paymentMode':
+      return row.paymentMode || '—';
+    case 'transactionId':
+      return row.transactionId || '—';
+  }
 }
 
 const SAMPLE_PAYMENTS: RecentPassPayment[] = [
@@ -97,6 +136,31 @@ export function PaymentDetails() {
   const [rangeActive, setRangeActive] = useState(false);
   const [txnLoading, setTxnLoading] = useState(false);
   const [sampleMode, setSampleMode] = useState(false);
+  const [openFilter, setOpenFilter] = useState<PaymentColKey | null>(null);
+  const [columnSelected, setColumnSelected] = useState<
+    Partial<Record<PaymentColKey, Set<string> | null>>
+  >({});
+  const [sortKey, setSortKey] = useState<PaymentColKey | null>(null);
+  const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
+
+  const visiblePayments = useMemo(() => {
+    let rows = payments.filter((row) =>
+      PAYMENT_COLUMNS.every(({ key }) => {
+        const selected = columnSelected[key];
+        if (!selected) return true;
+        return selected.has(cellValue(row, key));
+      }),
+    );
+    if (sortKey && sortDir) {
+      rows = [...rows].sort((a, b) => {
+        const av = cellValue(a, sortKey);
+        const bv = cellValue(b, sortKey);
+        const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return rows;
+  }, [payments, columnSelected, sortKey, sortDir]);
 
   async function loadPayments(params?: { from?: string; to?: string }) {
     if (isApplicationDemo()) {
@@ -167,11 +231,11 @@ export function PaymentDetails() {
 
   return (
     <PlatformPage title="Payment Details">
-      <p className="lede batch-list-lede">
-        {sampleMode
-          ? 'Sample layout — preview of confirmed pass payments.'
-          : 'Confirmed pass payments for this swimming pool account.'}
-      </p>
+      {!sampleMode ? (
+        <p className="lede batch-list-lede">
+          Confirmed pass payments for this swimming pool account.
+        </p>
+      ) : null}
 
       <section
         className={`pass-form-card pool-core-form platform-payment-txns${sampleMode ? ' pass-form-card--sample' : ''}`}
@@ -182,14 +246,7 @@ export function PaymentDetails() {
           </div>
         ) : null}
         <div className="platform-payment-txns-head">
-          <div>
-            <h2>Recent payments</h2>
-            <p className="muted" style={{ marginTop: 0, marginBottom: 0 }}>
-              {rangeActive
-                ? `Confirmed payments from ${rangeFrom} to ${rangeTo}.`
-                : 'Last 10 confirmed pass payments (amount and UPI verified from screenshot when paid online).'}
-            </p>
-          </div>
+          <h2>Recent payments</h2>
           <button
             type="button"
             className="ghost-btn"
@@ -202,13 +259,13 @@ export function PaymentDetails() {
               }
             }}
           >
-            {showRangeForm ? 'Hide date range' : 'More transaction details'}
+            {showRangeForm ? 'Hide' : 'More transactions'}
           </button>
         </div>
 
         {showRangeForm ? (
           <form className="platform-payment-range" onSubmit={onRangeSubmit}>
-            <label className="field">
+            <label className="field platform-payment-range-field">
               <span className="label">From</span>
               <input
                 type="date"
@@ -217,7 +274,7 @@ export function PaymentDetails() {
                 required
               />
             </label>
-            <label className="field">
+            <label className="field platform-payment-range-field">
               <span className="label">To</span>
               <input
                 type="date"
@@ -226,35 +283,39 @@ export function PaymentDetails() {
                 required
               />
             </label>
-            <div className="platform-payment-range-actions">
-              <button type="submit" className="csv-btn" disabled={txnLoading}>
-                {txnLoading ? 'Loading…' : 'Get transactions'}
+            <button type="submit" className="submit platform-payment-get-btn" disabled={txnLoading}>
+              {txnLoading ? 'Loading…' : 'Get'}
+            </button>
+            {rangeActive ? (
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={txnLoading}
+                onClick={() => {
+                  setError('');
+                  setTxnLoading(true);
+                  void loadPayments()
+                    .then(() => {
+                      setRangeFrom('');
+                      setRangeTo('');
+                    })
+                    .catch((err) =>
+                      setError(err instanceof Error ? err.message : 'Failed to load'),
+                    )
+                    .finally(() => setTxnLoading(false));
+                }}
+              >
+                Show last 10
               </button>
-              {rangeActive ? (
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  disabled={txnLoading}
-                  onClick={() => {
-                    setError('');
-                    setTxnLoading(true);
-                    void loadPayments()
-                      .then(() => {
-                        setRangeFrom('');
-                        setRangeTo('');
-                      })
-                      .catch((err) =>
-                        setError(err instanceof Error ? err.message : 'Failed to load'),
-                      )
-                      .finally(() => setTxnLoading(false));
-                  }}
-                >
-                  Show last 10
-                </button>
-              ) : null}
-            </div>
+            ) : null}
           </form>
         ) : null}
+
+        <p className="muted platform-payment-txns-lede">
+          {rangeActive
+            ? `Confirmed payments from ${rangeFrom} to ${rangeTo}.`
+            : 'Last 10 confirmed pass payments.'}
+        </p>
 
         {loading ? <p className="pass-empty">Loading…</p> : null}
         {error ? <p className="error">{error}</p> : null}
@@ -272,27 +333,50 @@ export function PaymentDetails() {
             <table className="accounts-table platform-payment-txn-table">
               <thead>
                 <tr>
-                  <th>Swimmer</th>
-                  <th>Mobile</th>
-                  <th>Payment date</th>
-                  <th>Pass</th>
-                  <th>Amount</th>
-                  <th>Mode</th>
-                  <th>Transaction ID</th>
+                  {PAYMENT_COLUMNS.map(({ key, label }) => (
+                    <th key={key} className="platform-payment-col-head">
+                      <TableColumnFilter
+                        label={label}
+                        values={payments.map((row) => cellValue(row, key))}
+                        selected={columnSelected[key] ?? null}
+                        sortDir={sortKey === key ? sortDir : null}
+                        open={openFilter === key}
+                        onToggleOpen={() =>
+                          setOpenFilter((prev) => (prev === key ? null : key))
+                        }
+                        onClose={() => setOpenFilter(null)}
+                        onSelectedChange={(next) =>
+                          setColumnSelected((prev) => ({ ...prev, [key]: next }))
+                        }
+                        onSort={(dir) => {
+                          setSortKey(dir ? key : null);
+                          setSortDir(dir);
+                        }}
+                      />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {payments.map((txn) => (
-                  <tr key={txn.id}>
-                    <td>{txn.swimmerName}</td>
-                    <td>{txn.mobile || '—'}</td>
-                    <td>{txn.paymentDate || '—'}</td>
-                    <td>{txn.passType}</td>
-                    <td>{formatMoney(txn.amount)}</td>
-                    <td>{txn.paymentMode || '—'}</td>
-                    <td>{txn.transactionId || '—'}</td>
+                {visiblePayments.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="pass-empty">
+                      No payments match these filters.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  visiblePayments.map((txn) => (
+                    <tr key={txn.id}>
+                      <td>{txn.swimmerName}</td>
+                      <td>{txn.mobile || '—'}</td>
+                      <td>{txn.paymentDate || '—'}</td>
+                      <td>{txn.passType}</td>
+                      <td>{formatMoney(txn.amount)}</td>
+                      <td>{txn.paymentMode || '—'}</td>
+                      <td>{txn.transactionId || '—'}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

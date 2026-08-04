@@ -4,6 +4,8 @@ import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
+import { sampleCoachListRows, sampleSimpleStaffRows } from './sampleStaff';
+import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 import { tenantPath } from './tenantSession';
 
 type StaffRole = 'Coach' | 'Lifeguard' | 'Other';
@@ -15,7 +17,7 @@ type CoachRow = {
   email: string;
   batches: string[];
   teachStrokes: string;
-  isApproved: boolean;
+  isActive: boolean;
 };
 
 type SimpleStaffRow = {
@@ -36,7 +38,7 @@ type StaffApiRow = {
   suitable_batch_ids: string[] | null;
   post_name?: string | null;
   salary?: string | number | null;
-  is_approved?: boolean;
+  is_active?: boolean;
 };
 
 type BatchSlot = {
@@ -46,6 +48,29 @@ type BatchSlot = {
   startTime: string;
   endTime: string;
 };
+
+type CoachColKey = 'fullName' | 'contact' | 'batches' | 'teachStrokes';
+type SimpleColKey = 'fullName' | 'contact' | 'post';
+
+const COACH_COLUMNS: Array<{ key: CoachColKey; label: string }> = [
+  { key: 'fullName', label: 'Coach name' },
+  { key: 'contact', label: 'Contact' },
+  { key: 'batches', label: 'Batches' },
+  { key: 'teachStrokes', label: 'Interested to teach' },
+];
+
+function coachCellValue(row: CoachRow, key: CoachColKey) {
+  if (key === 'batches') return row.batches.length > 0 ? row.batches.join('; ') : '—';
+  if (key === 'teachStrokes') return row.teachStrokes || '—';
+  if (key === 'contact') return row.contact || '—';
+  return row.fullName || '—';
+}
+
+function simpleCellValue(row: SimpleStaffRow, key: SimpleColKey) {
+  if (key === 'contact') return row.contact || '—';
+  if (key === 'post') return row.post || '—';
+  return row.fullName || '—';
+}
 
 function formatBatchTime(value: string) {
   return value.slice(0, 5);
@@ -69,63 +94,6 @@ function downloadCsv(filename: string, header: string[], rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-const SAMPLE_COACHES: CoachRow[] = [
-  {
-    id: -1,
-    fullName: 'Riya Kulkarni',
-    contact: '9876501234',
-    email: 'riya@example.com',
-    batches: ['Morning A — Mixed — 06:00 to 07:00'],
-    teachStrokes: 'Freestyle, Backstroke',
-    isApproved: true,
-  },
-  {
-    id: -2,
-    fullName: 'Amit Sharma',
-    contact: '9876505678',
-    email: 'amit@example.com',
-    batches: ['Evening B — Mixed — 18:00 to 19:00'],
-    teachStrokes: 'Breaststroke, Butterfly',
-    isApproved: true,
-  },
-  {
-    id: -3,
-    fullName: 'Neha Deshmukh',
-    contact: '9876509012',
-    email: 'neha@example.com',
-    batches: ['Morning A — Mixed — 06:00 to 07:00', 'Evening B — Mixed — 18:00 to 19:00'],
-    teachStrokes: 'Freestyle',
-    isApproved: false,
-  },
-];
-
-const SAMPLE_LIFEGUARDS: SimpleStaffRow[] = [
-  {
-    id: -11,
-    fullName: 'Sana Joshi',
-    contact: '9123456780',
-    email: 'sana@example.com',
-    post: 'Lifeguard',
-  },
-  {
-    id: -12,
-    fullName: 'Kabir Shah',
-    contact: '9123456781',
-    email: 'kabir@example.com',
-    post: 'Lifeguard',
-  },
-];
-
-const SAMPLE_OTHERS: SimpleStaffRow[] = [
-  {
-    id: -21,
-    fullName: 'Meera Iyer',
-    contact: '9000011122',
-    email: 'meera@example.com',
-    post: 'Front desk',
-  },
-];
-
 export function CoachList() {
   const [role, setRole] = useState<StaffRole>('Coach');
   const [coaches, setCoaches] = useState<CoachRow[]>([]);
@@ -135,16 +103,28 @@ export function CoachList() {
   const [error, setError] = useState('');
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [sampleMode, setSampleMode] = useState(false);
-  const canEdit = canEditPage('coaches') && !sampleMode;
+  const [openCoachFilter, setOpenCoachFilter] = useState<CoachColKey | null>(null);
+  const [coachSelected, setCoachSelected] = useState<
+    Partial<Record<CoachColKey, Set<string> | null>>
+  >({});
+  const [coachSortKey, setCoachSortKey] = useState<CoachColKey | null>(null);
+  const [coachSortDir, setCoachSortDir] = useState<ColumnSortDir>(null);
+  const [openSimpleFilter, setOpenSimpleFilter] = useState<SimpleColKey | null>(null);
+  const [simpleSelected, setSimpleSelected] = useState<
+    Partial<Record<SimpleColKey, Set<string> | null>>
+  >({});
+  const [simpleSortKey, setSimpleSortKey] = useState<SimpleColKey | null>(null);
+  const [simpleSortDir, setSimpleSortDir] = useState<ColumnSortDir>(null);
+  const canEdit = canEditPage('coaches') || sampleMode;
 
   async function load() {
     setLoading(true);
     setError('');
     try {
       if (isApplicationDemo()) {
-        setCoaches(SAMPLE_COACHES);
-        setLifeguards(SAMPLE_LIFEGUARDS);
-        setOthers(SAMPLE_OTHERS);
+        setCoaches(sampleCoachListRows());
+        setLifeguards(sampleSimpleStaffRows('Lifeguard'));
+        setOthers(sampleSimpleStaffRows('Other'));
         setSampleMode(true);
         return;
       }
@@ -200,7 +180,7 @@ export function CoachList() {
                 Array.isArray(row.teach_strokes) && row.teach_strokes.length > 0
                   ? row.teach_strokes.join(', ')
                   : '—',
-              isApproved: row.is_approved === true,
+              isActive: row.is_active !== false,
             };
           }),
       );
@@ -221,12 +201,72 @@ export function CoachList() {
     void load();
   }, []);
 
-  const visibleSimple = role === 'Lifeguard' ? lifeguards : others;
+  useEffect(() => {
+    setOpenCoachFilter(null);
+    setCoachSelected({});
+    setCoachSortKey(null);
+    setCoachSortDir(null);
+    setOpenSimpleFilter(null);
+    setSimpleSelected({});
+    setSimpleSortKey(null);
+    setSimpleSortDir(null);
+  }, [role]);
+
+  const visibleCoaches = useMemo(() => {
+    const filtered = coaches.filter((row) =>
+      COACH_COLUMNS.every(({ key }) => {
+        const selected = coachSelected[key];
+        if (!selected) return true;
+        return selected.has(coachCellValue(row, key));
+      }),
+    );
+    if (!coachSortKey || !coachSortDir) return filtered;
+    return [...filtered].sort((a, b) => {
+      const cmp = coachCellValue(a, coachSortKey).localeCompare(
+        coachCellValue(b, coachSortKey),
+        undefined,
+        { numeric: true, sensitivity: 'base' },
+      );
+      return coachSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [coaches, coachSelected, coachSortKey, coachSortDir]);
+
+  const simpleSource = role === 'Lifeguard' ? lifeguards : others;
+  const simpleColumns = useMemo(() => {
+    const cols: Array<{ key: SimpleColKey; label: string }> = [
+      { key: 'fullName', label: 'Name' },
+      { key: 'contact', label: 'Contact' },
+    ];
+    if (role === 'Other') cols.push({ key: 'post', label: 'Post' });
+    return cols;
+  }, [role]);
+
+  const visibleSimple = useMemo(() => {
+    const filtered = simpleSource.filter((row) =>
+      simpleColumns.every(({ key }) => {
+        const selected = simpleSelected[key];
+        if (!selected) return true;
+        return selected.has(simpleCellValue(row, key));
+      }),
+    );
+    if (!simpleSortKey || !simpleSortDir) return filtered;
+    return [...filtered].sort((a, b) => {
+      const cmp = simpleCellValue(a, simpleSortKey).localeCompare(
+        simpleCellValue(b, simpleSortKey),
+        undefined,
+        { numeric: true, sensitivity: 'base' },
+      );
+      return simpleSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [simpleSource, simpleColumns, simpleSelected, simpleSortKey, simpleSortDir]);
+
   const visibleCount =
-    role === 'Coach' ? coaches.length : role === 'Lifeguard' ? lifeguards.length : others.length;
+    role === 'Coach'
+      ? visibleCoaches.length
+      : visibleSimple.length;
 
   const countLabel = useMemo(() => {
-    if (sampleMode) return 'Sample layout — preview of coaches, lifeguards, and other staff.';
+    if (sampleMode) return '';
     if (role === 'Coach') return `${visibleCount} coach${visibleCount === 1 ? '' : 'es'}`;
     if (role === 'Lifeguard') {
       return `${visibleCount} lifeguard${visibleCount === 1 ? '' : 's'}`;
@@ -240,7 +280,7 @@ export function CoachList() {
       downloadCsv(
         `staff-coaches-${stamp}.csv`,
         ['Coach name', 'Contact', 'Email', 'Batches', 'Interested to teach'],
-        coaches.map((row) => [
+        visibleCoaches.map((row) => [
           row.fullName,
           row.contact,
           row.email,
@@ -272,57 +312,60 @@ export function CoachList() {
     );
   }
 
-  async function toggleCoachApproval(coach: CoachRow) {
-    if (sampleMode || coach.id < 0) return;
+  async function toggleCoachActive(coach: CoachRow, nextActive: boolean) {
+    if (sampleMode || coach.id < 0) {
+      setCoaches((prev) =>
+        prev.map((row) => (row.id === coach.id ? { ...row, isActive: nextActive } : row)),
+      );
+      return;
+    }
+    if (!canEditPage('coaches')) return;
     setApprovingId(coach.id);
     setError('');
     try {
-      const res = await fetch(`/api/staff-registrations/${coach.id}/approve`, {
+      const res = await fetch(`/api/staff-registrations/${coach.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isApproved: !coach.isApproved }),
+        body: JSON.stringify({ isActive: nextActive }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Failed to update approval');
+      if (!res.ok) throw new Error(body.error ?? 'Failed to update status');
       setCoaches((prev) =>
         prev.map((row) =>
-          row.id === coach.id ? { ...row, isApproved: Boolean(body.isApproved) } : row,
+          row.id === coach.id ? { ...row, isActive: Boolean(body.isActive) } : row,
         ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update approval');
+      setError(err instanceof Error ? err.message : 'Failed to update status');
     } finally {
       setApprovingId(null);
     }
   }
 
-  function ApproveIconButton({ coach }: { coach: CoachRow }) {
-    const approved = coach.isApproved;
+  function CoachActiveToggle({ coach }: { coach: CoachRow }) {
     const busy = approvingId === coach.id;
+    const canToggle = sampleMode || canEditPage('coaches');
     return (
-      <button
-        type="button"
-        className={`icon-action${approved ? ' icon-action-approved' : ' icon-action-unapproved'}`}
-        onClick={() => void toggleCoachApproval(coach)}
-        disabled={busy || sampleMode}
-        aria-label={
-          approved ? `Revoke approval for ${coach.fullName}` : `Approve ${coach.fullName}`
-        }
+      <label
+        className={`status-switch swimmer-active-switch${
+          coach.isActive ? ' is-active' : ' is-paid-inactive'
+        }`}
         title={
-          sampleMode
-            ? approved
-              ? 'Sample — approved'
-              : 'Sample — not approved'
-            : approved
-              ? 'Approved — click to revoke'
-              : 'Approve for payment'
+          coach.isActive
+            ? 'Deactivate coach — will not be available for swimmer allocation'
+            : 'Activate coach — available for swimmer allocation'
         }
-        aria-pressed={approved}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-      </button>
+        <input
+          type="checkbox"
+          checked={coach.isActive}
+          disabled={busy || !canToggle}
+          onChange={(e) => void toggleCoachActive(coach, e.target.checked)}
+          aria-label={
+            coach.isActive ? `Deactivate ${coach.fullName}` : `Activate ${coach.fullName}`
+          }
+        />
+      </label>
     );
   }
 
@@ -331,11 +374,9 @@ export function CoachList() {
   }`;
 
   return (
-    <PlatformPage title="Staff List">
-      <div className="pass-head">
-        <div>
-          <p className="pass-count batch-list-lede">{countLabel}</p>
-        </div>
+    <PlatformPage
+      title="Staff List"
+      actions={
         <div className="list-head-actions">
           <div className="staff-role-radios" role="radiogroup" aria-label="Staff type">
             {(
@@ -359,7 +400,13 @@ export function CoachList() {
           </div>
           <DownloadButton onClick={onDownloadCsv} disabled={visibleCount === 0} />
         </div>
-      </div>
+      }
+    >
+      {countLabel ? (
+        <div className="pass-head">
+          <p className="pass-count batch-list-lede">{countLabel}</p>
+        </div>
+      ) : null}
 
       {role === 'Coach' ? (
         <section className={tableClass}>
@@ -369,10 +416,28 @@ export function CoachList() {
             </div>
           ) : null}
           <div className="coach-table-head">
-            <span>Coach name</span>
-            <span>Contact</span>
-            <span>Batches</span>
-            <span>Interested to teach</span>
+            {COACH_COLUMNS.map(({ key, label }) => (
+              <div key={key} className="staff-col-head">
+                <TableColumnFilter
+                  label={label}
+                  values={coaches.map((row) => coachCellValue(row, key))}
+                  selected={coachSelected[key] ?? null}
+                  sortDir={coachSortKey === key ? coachSortDir : null}
+                  open={openCoachFilter === key}
+                  onToggleOpen={() =>
+                    setOpenCoachFilter((prev) => (prev === key ? null : key))
+                  }
+                  onClose={() => setOpenCoachFilter(null)}
+                  onSelectedChange={(next) =>
+                    setCoachSelected((prev) => ({ ...prev, [key]: next }))
+                  }
+                  onSort={(dir) => {
+                    setCoachSortKey(dir ? key : null);
+                    setCoachSortDir(dir);
+                  }}
+                />
+              </div>
+            ))}
             <span>Actions</span>
           </div>
 
@@ -386,9 +451,11 @@ export function CoachList() {
               </Link>{' '}
               to add one.
             </p>
+          ) : visibleCoaches.length === 0 ? (
+            <p className="pass-empty">No coaches match these filters.</p>
           ) : (
             <div className="pass-table-body">
-              {coaches.map((coach, index) => (
+              {visibleCoaches.map((coach, index) => (
                 <div
                   className={`coach-row${index % 2 === 1 ? ' coach-row-alt' : ''}`}
                   key={coach.id}
@@ -410,13 +477,13 @@ export function CoachList() {
                   </span>
                   <span data-label="Interested to teach">{coach.teachStrokes}</span>
                   <span className="pass-actions" data-label="Actions -">
-                    <ApproveIconButton coach={coach} />
                     {canEdit ? (
                       <EditIconButton
                         to={tenantPath(`/staff-register/${coach.id}`)}
                         label={`Edit ${coach.fullName}`}
                       />
                     ) : null}
+                    <CoachActiveToggle coach={coach} />
                   </span>
                 </div>
               ))}
@@ -431,21 +498,44 @@ export function CoachList() {
             </div>
           ) : null}
           <div className={role === 'Lifeguard' ? 'lifeguard-staff-head' : 'other-staff-head'}>
-            <span>Name</span>
-            <span>Contact</span>
-            {role === 'Other' ? <span>Post</span> : null}
+            {simpleColumns.map(({ key, label }) => (
+              <div key={key} className="staff-col-head">
+                <TableColumnFilter
+                  label={label}
+                  values={simpleSource.map((row) => simpleCellValue(row, key))}
+                  selected={simpleSelected[key] ?? null}
+                  sortDir={simpleSortKey === key ? simpleSortDir : null}
+                  open={openSimpleFilter === key}
+                  onToggleOpen={() =>
+                    setOpenSimpleFilter((prev) => (prev === key ? null : key))
+                  }
+                  onClose={() => setOpenSimpleFilter(null)}
+                  onSelectedChange={(next) =>
+                    setSimpleSelected((prev) => ({ ...prev, [key]: next }))
+                  }
+                  onSort={(dir) => {
+                    setSimpleSortKey(dir ? key : null);
+                    setSimpleSortDir(dir);
+                  }}
+                />
+              </div>
+            ))}
             <span>Actions</span>
           </div>
 
           {loading ? (
             <p className="pass-empty">Loading…</p>
-          ) : visibleSimple.length === 0 ? (
+          ) : simpleSource.length === 0 ? (
             <p className="pass-empty">
               No {role === 'Lifeguard' ? 'lifeguards' : 'other staff'} registered yet. Use{' '}
               <Link className="terms-link" to={tenantPath('/staff-register')}>
                 Staff registration
               </Link>{' '}
               to add one.
+            </p>
+          ) : visibleSimple.length === 0 ? (
+            <p className="pass-empty">
+              No {role === 'Lifeguard' ? 'lifeguards' : 'staff'} match these filters.
             </p>
           ) : (
             <div className="pass-table-body">

@@ -89,6 +89,7 @@ attendanceSheetRouter.get('/', async (req, res) => {
     const dayCount = daysInMonth(year, monthIndex);
     const monthStart = `${month}-01`;
     const monthEnd = `${month}-${String(dayCount).padStart(2, '0')}`;
+    const today = toIsoDate(new Date());
 
     const { rows: swimmers } = await pool.query(
       `SELECT r.id, r.full_name, r.pass_type, r.batch, r.coach, r.is_active, r.pass_valid_until,
@@ -249,9 +250,10 @@ attendanceSheetRouter.get('/', async (req, res) => {
       const presentDates =
         view === 'swimmer' && row.passStart && row.passValidUntil
           ? dateColumns.filter(
-              (d) => d >= row.passStart && d <= row.passValidUntil && attended.has(d),
+              (d) =>
+                d <= today && d >= row.passStart && d <= row.passValidUntil && attended.has(d),
             )
-          : dateColumns.filter((d) => attended.has(d));
+          : dateColumns.filter((d) => d <= today && attended.has(d));
 
       // Day keys for the grid: ISO dates (stable across both views)
       return {

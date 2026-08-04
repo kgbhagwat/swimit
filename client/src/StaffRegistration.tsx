@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { isApplicationDemo } from './applicationDemo';
 import { compressImageToLimit } from './compressImage';
 import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint, sanitizeMobileInput } from './formValidation';
 import { PlatformPage } from './PlatformPage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { TermsModal } from './TermsModal';
+import { getSampleStaffDetail, SAMPLE_STAFF_BATCHES } from './sampleStaff';
 import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
 import { useObjectUrl, useObjectUrls } from './useObjectUrl';
@@ -565,7 +567,10 @@ export function StaffRegistration() {
   const { id: editIdParam } = useParams();
   const navigate = useNavigate();
   const editId = editIdParam ? Number(editIdParam) : null;
-  const isEdit = Number.isFinite(editId) && editId !== null && editId > 0;
+  const isSampleEdit =
+    isApplicationDemo() && editId !== null && Number.isFinite(editId) && editId < 0;
+  const isEdit =
+    (editId !== null && Number.isFinite(editId) && editId > 0) || isSampleEdit;
 
   const [lang, setLang] = useState<Lang>('en');
   const t = copy[isEdit ? 'en' : lang];
@@ -593,9 +598,57 @@ export function StaffRegistration() {
   const [batchesLoading, setBatchesLoading] = useState(false);
 
   useEffect(() => {
-    if (!isEdit || !editId) return;
+    if (!isEdit || editId === null) return;
     setLoadingEdit(true);
     setError('');
+
+    if (isSampleEdit) {
+      const sample = getSampleStaffDetail(editId);
+      if (!sample) {
+        setError('Sample staff not found');
+        setLoadingEdit(false);
+        return;
+      }
+      setForm({
+        registrationFor: sample.registrationFor,
+        fullName: sample.fullName,
+        fullAddress: sample.fullAddress,
+        whatsappMobile: sample.whatsappMobile,
+        otherMobile: sample.otherMobile,
+        email: sample.email,
+        birthdate: sample.birthdate,
+        sex: sample.sex,
+        bloodGroup: sample.bloodGroup,
+        emergencyName: sample.emergencyName,
+        emergencyRelation: sample.emergencyRelation,
+        emergencyMobile: sample.emergencyMobile,
+        hasHealthIssue: sample.hasHealthIssue,
+        healthIssueDetails: sample.healthIssueDetails,
+        doctorName: sample.doctorName,
+        doctorNo: sample.doctorNo,
+        identityDocument: sample.identityDocument,
+        teachStrokes: [...sample.teachStrokes],
+        suitableBatchIds: [...sample.suitableBatchIds],
+        achievements: sample.achievements,
+        hasLifeguardCert: sample.hasLifeguardCert,
+        lifeguardExpiry: sample.lifeguardExpiry,
+        certificateDetails: sample.certificateDetails,
+        postName: sample.postName,
+        salary: sample.salary,
+        acceptedTerms: true,
+      });
+      setIsActive(sample.isActive);
+      setExistingPhotos({
+        identity: null,
+        staff: null,
+        lifeguard: null,
+        certs: [null, null, null],
+      });
+      setAvailableBatches(SAMPLE_STAFF_BATCHES);
+      setLoadingEdit(false);
+      return;
+    }
+
     fetch(`/api/staff-registrations/${editId}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -649,10 +702,15 @@ export function StaffRegistration() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load staff'))
       .finally(() => setLoadingEdit(false));
-  }, [editId, isEdit]);
+  }, [editId, isEdit, isSampleEdit]);
 
   useEffect(() => {
     if (form.registrationFor !== 'Coach') return;
+    if (isSampleEdit || isApplicationDemo()) {
+      setAvailableBatches(SAMPLE_STAFF_BATCHES);
+      setBatchesLoading(false);
+      return;
+    }
     setBatchesLoading(true);
     fetch('/api/batches')
       .then(async (res) => {
@@ -672,7 +730,7 @@ export function StaffRegistration() {
       })
       .catch(() => setAvailableBatches([]))
       .finally(() => setBatchesLoading(false));
-  }, [form.registrationFor]);
+  }, [form.registrationFor, isSampleEdit]);
 
   const identityPreview = useObjectUrl(identityPhoto);
   const staffPreview = useObjectUrl(staffPhoto);
@@ -791,8 +849,10 @@ export function StaffRegistration() {
     }
 
     if (!form.identityDocument) fields.add('identityDocument');
-    if (!identityPhoto && !existingPhotos.identity) fields.add('identityPhoto');
-    if (!staffPhoto && !existingPhotos.staff) fields.add('staffPhoto');
+    if (!isSampleEdit) {
+      if (!identityPhoto && !existingPhotos.identity) fields.add('identityPhoto');
+      if (!staffPhoto && !existingPhotos.staff) fields.add('staffPhoto');
+    }
 
     if (form.registrationFor === 'Coach') {
       if (form.teachStrokes.length === 0) fields.add('teachStrokes');
@@ -815,7 +875,9 @@ export function StaffRegistration() {
       form.registrationFor === 'Coach' || form.registrationFor === 'Lifeguard';
     if (needsLifeguardSection && form.hasLifeguardCert === 'Yes') {
       if (!form.lifeguardExpiry) fields.add('lifeguardExpiry');
-      if (!lifeguardPhoto && !existingPhotos.lifeguard) fields.add('lifeguardPhoto');
+      if (!isSampleEdit && !lifeguardPhoto && !existingPhotos.lifeguard) {
+        fields.add('lifeguardPhoto');
+      }
     }
 
     if (isEdit && form.registrationFor === 'Other') {
@@ -829,7 +891,7 @@ export function StaffRegistration() {
   }
 
   async function onToggleActive(nextActive: boolean) {
-    if (!isEdit || !editId) {
+    if (!isEdit || editId === null || isSampleEdit) {
       setIsActive(nextActive);
       return;
     }
@@ -861,6 +923,16 @@ export function StaffRegistration() {
     setInvalidFields(fields);
     if (fields.size > 0) {
       setErrorCount(fields.size);
+      return;
+    }
+
+    if (isSampleEdit) {
+      setSubmitting(true);
+      setErrorCount(0);
+      setInvalidFields(new Set());
+      setSuccess(t.updateSuccess);
+      setSubmitting(false);
+      setTimeout(() => navigate(tenantPath('/coaches')), 800);
       return;
     }
 

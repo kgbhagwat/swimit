@@ -8,6 +8,7 @@ import {
   isApplicationDemo,
   markSampleSwimmerPaid,
 } from './applicationDemo';
+import { SAMPLE_STAFF_BATCHES } from './sampleStaff';
 import {
   fetchSwimmerProfile,
   SwimmerProfile,
@@ -101,22 +102,7 @@ const SAMPLE_PASS_TYPES: PassTypeOption[] = [
   },
 ];
 
-const SAMPLE_BATCHES: BatchSlot[] = [
-  {
-    id: 'sample-morning-a',
-    name: 'Morning A',
-    type: 'Mixed',
-    startTime: '06:00',
-    endTime: '07:00',
-  },
-  {
-    id: 'sample-evening-b',
-    name: 'Evening B',
-    type: 'Mixed',
-    startTime: '18:00',
-    endTime: '19:00',
-  },
-];
+const SAMPLE_BATCHES = SAMPLE_STAFF_BATCHES;
 
 const SAMPLE_COACHES: CoachOption[] = [
   {
@@ -693,7 +679,6 @@ export function PassPayment() {
       .filter(
         (item) =>
           item.isActive &&
-          item.isApproved &&
           item.suitableBatchIds.some((id) => String(id) === batchId),
       )
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
@@ -782,7 +767,7 @@ export function PassPayment() {
     }
     if (coachingRequired) {
       if (coachesForBatch.length === 0) {
-        missing.push('Coach (approve a coach for this batch in Staff List)');
+                        missing.push('Coach (activate a coach for this batch in Staff List)');
       } else if (!coach.trim()) {
         missing.push('Coach');
       }
@@ -1195,8 +1180,8 @@ export function PassPayment() {
                     <div className="payment-coach-select-wrap">
                       {coachesForBatch.length === 0 ? (
                         <p className="batch-empty">
-                          No approved coaches are available for this batch. Approve coaches in Staff
-                          List first.
+                          No active coaches are available for this batch. Activate coaches in Staff
+                          List and assign them to this batch.
                         </p>
                       ) : (
                         <InPageSelect

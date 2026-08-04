@@ -16,6 +16,7 @@ import {
   SwimmerProfile,
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
+import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 import { tenantPath } from './tenantSession';
 
 type SwimmerStatus = 'active' | 'inactive';
@@ -59,26 +60,18 @@ type BatchSlot = {
   endTime: string;
 };
 
-type Filters = {
-  swimmer: string;
-  contact: string;
-  passType: string;
-  batch: string;
-  coach: string;
-};
-
 type EditForm = {
   batch: string;
   isActive: boolean;
 };
 
-const emptyFilters: Filters = {
-  swimmer: '',
-  contact: '',
-  passType: '',
-  batch: '',
-  coach: '',
-};
+const SWIMMER_COLUMNS: Array<{ key: SortKey; label: string }> = [
+  { key: 'swimmer', label: 'Swimmer' },
+  { key: 'contact', label: 'Contact' },
+  { key: 'passType', label: 'Pass type' },
+  { key: 'batch', label: 'Batch' },
+  { key: 'coach', label: 'Coach' },
+];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -135,6 +128,17 @@ function hasPaidPass(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
   return Boolean(row.passValidUntil) || (Boolean(row.passType) && row.passType !== '—');
 }
 
+function swimmerCellValue(row: SwimmerRow, key: SortKey) {
+  if (key === 'contact') return row.contact || '—';
+  if (key === 'passType') {
+    if (isLongExpired(row.passValidUntil) || !row.passType || row.passType === '—') return '—';
+    return row.passType;
+  }
+  if (key === 'batch') return row.batch || '—';
+  if (key === 'coach') return row.coach || '—';
+  return row.swimmer || '—';
+}
+
 function formatBatchTime(value: string) {
   return value.slice(0, 5);
 }
@@ -181,14 +185,6 @@ function downloadCsv(rows: SwimmerRow[]) {
   anchor.download = `swimmer-list-${todayIso()}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
-}
-
-function SortIcon() {
-  return (
-    <svg className="sort-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <path d="M8 3l3 3.5H5L8 3zm0 10L5 9.5h6L8 13z" />
-    </svg>
-  );
 }
 
 function mapRow(row: RegistrationApiRow): SwimmerRow {
@@ -336,9 +332,12 @@ export function SwimmerList() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [sortKey, setSortKey] = useState<SortKey>('swimmer');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [openFilter, setOpenFilter] = useState<SortKey | null>(null);
+  const [columnSelected, setColumnSelected] = useState<
+    Partial<Record<SortKey, Set<string> | null>>
+  >({});
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
   const [editing, setEditing] = useState<SwimmerRow | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ batch: '', isActive: true });
   const [viewing, setViewing] = useState<SwimmerRow | null>(null);
@@ -535,6 +534,13 @@ export function SwimmerList() {
     void load();
   }, []);
 
+  useEffect(() => {
+    setOpenFilter(null);
+    setColumnSelected({});
+    setSortKey(null);
+    setSortDir(null);
+  }, [status]);
+
   const statusRows = useMemo(() => {
     const queuedIds = new Set(
       sampleMode ? getSamplePassPaymentQueue().map((row) => row.id) : [],
@@ -545,45 +551,29 @@ export function SwimmerList() {
   }, [rows, status, sampleMode]);
 
   const visibleRows = useMemo(() => {
-    const filtered = statusRows.filter((row) => {
-      const match = (value: string, query: string) =>
-        !query.trim() || value.toLowerCase().includes(query.trim().toLowerCase());
-      return (
-        match(row.swimmer, filters.swimmer) &&
-        match(`${row.contact} ${row.email}`, filters.contact) &&
-        match(row.passType, filters.passType) &&
-        match(row.batch, filters.batch) &&
-        match(row.coach, filters.coach)
-      );
-    });
+    const filtered = statusRows.filter((row) =>
+      SWIMMER_COLUMNS.every(({ key }) => {
+        const selected = columnSelected[key];
+        if (!selected) return true;
+        return selected.has(swimmerCellValue(row, key));
+      }),
+    );
 
-    const sorted = [...filtered].sort((a, b) => {
-      const left = a[sortKey].toLowerCase();
-      const right = b[sortKey].toLowerCase();
-      if (left < right) return sortDir === 'asc' ? -1 : 1;
-      if (left > right) return sortDir === 'asc' ? 1 : -1;
-      return 0;
+    if (!sortKey || !sortDir) return filtered;
+    return [...filtered].sort((a, b) => {
+      const cmp = swimmerCellValue(a, sortKey).localeCompare(
+        swimmerCellValue(b, sortKey),
+        undefined,
+        { numeric: true, sensitivity: 'base' },
+      );
+      return sortDir === 'asc' ? cmp : -cmp;
     });
-    return sorted;
-  }, [statusRows, filters, sortKey, sortDir]);
+  }, [statusRows, columnSelected, sortKey, sortDir]);
 
   const summary =
     status === 'active'
       ? `${visibleRows.length} active swimmer${visibleRows.length === 1 ? '' : 's'}`
       : `${visibleRows.length} inactive swimmer${visibleRows.length === 1 ? '' : 's'}`;
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-      return;
-    }
-    setSortKey(key);
-    setSortDir('asc');
-  }
-
-  function setFilter(key: keyof Filters, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  }
 
   function sampleProfileFor(row: SwimmerRow): SwimmerProfile {
     return {
@@ -685,7 +675,17 @@ export function SwimmerList() {
   }
 
   return (
-    <PlatformPage title="Swimmer's List">
+    <PlatformPage
+      title="Swimmer's List"
+      actions={
+        !editing && !viewing ? (
+          <DownloadButton
+            onClick={() => downloadCsv(visibleRows)}
+            disabled={visibleRows.length === 0}
+          />
+        ) : undefined
+      }
+    >
       <div className="swimmer-list-card">
         {viewing ? (
           <section
@@ -756,15 +756,9 @@ export function SwimmerList() {
               </div>
             </div>
 
-            <div className="swimmer-list-meta">
-              <p className="pass-count batch-list-lede">
-                {sampleMode ? 'Sample layout — preview of active and inactive swimmers.' : summary}
-              </p>
-              <DownloadButton
-                onClick={() => downloadCsv(visibleRows)}
-                disabled={visibleRows.length === 0}
-              />
-            </div>
+            {!sampleMode && summary ? (
+              <p className="pass-count batch-list-lede swimmer-list-summary">{summary}</p>
+            ) : null}
             {success ? <p className="success">{success}</p> : null}
 
             <section
@@ -776,70 +770,39 @@ export function SwimmerList() {
                 </div>
               ) : null}
               <div className="swimmer-table-head">
-                {(
-                  [
-                    ['swimmer', 'Swimmer'],
-                    ['contact', 'Contact'],
-                    ['passType', 'Pass type'],
-                    ['batch', 'Batch'],
-                    ['coach', 'Coach'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className="swimmer-sort-btn"
-                    onClick={() => toggleSort(key)}
-                  >
-                    <span>{label}</span>
-                    <SortIcon />
-                  </button>
+                {SWIMMER_COLUMNS.map(({ key, label }) => (
+                  <div key={key} className="swimmer-col-head">
+                    <TableColumnFilter
+                      label={label}
+                      values={statusRows.map((row) => swimmerCellValue(row, key))}
+                      selected={columnSelected[key] ?? null}
+                      sortDir={sortKey === key ? sortDir : null}
+                      open={openFilter === key}
+                      onToggleOpen={() => setOpenFilter((prev) => (prev === key ? null : key))}
+                      onClose={() => setOpenFilter(null)}
+                      onSelectedChange={(next) =>
+                        setColumnSelected((prev) => ({ ...prev, [key]: next }))
+                      }
+                      onSort={(dir) => {
+                        setSortKey(dir ? key : null);
+                        setSortDir(dir);
+                      }}
+                    />
+                  </div>
                 ))}
                 <span>Actions</span>
               </div>
 
-              <div className="swimmer-filter-row">
-                <input
-                  value={filters.swimmer}
-                  onChange={(e) => setFilter('swimmer', e.target.value)}
-                  placeholder="Filter..."
-                  aria-label="Filter swimmer"
-                />
-                <input
-                  value={filters.contact}
-                  onChange={(e) => setFilter('contact', e.target.value)}
-                  placeholder="Filter..."
-                  aria-label="Filter contact"
-                />
-                <input
-                  value={filters.passType}
-                  onChange={(e) => setFilter('passType', e.target.value)}
-                  placeholder="Filter..."
-                  aria-label="Filter pass type"
-                />
-                <input
-                  value={filters.batch}
-                  onChange={(e) => setFilter('batch', e.target.value)}
-                  placeholder="Filter..."
-                  aria-label="Filter batch"
-                />
-                <input
-                  value={filters.coach}
-                  onChange={(e) => setFilter('coach', e.target.value)}
-                  placeholder="Filter..."
-                  aria-label="Filter coach"
-                />
-                <span />
-              </div>
-
               {loading ? (
                 <p className="pass-empty">Loading…</p>
-              ) : visibleRows.length === 0 ? (
+              ) : statusRows.length === 0 ? (
                 <p className="pass-empty swimmer-empty">
                   {status === 'active'
                     ? 'No active swimmers found.'
                     : 'No inactive swimmers found.'}
                 </p>
+              ) : visibleRows.length === 0 ? (
+                <p className="pass-empty swimmer-empty">No swimmers match these filters.</p>
               ) : (
                 <div className="pass-table-body">
                   {visibleRows.map((row, index) => {
