@@ -627,6 +627,143 @@ export async function handleDemoApiRequest(
       closingBalance: 0,
     });
   }
+  if (pathname === '/api/dashboard') {
+    const asOf = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
+    return jsonResponse(buildDemoDashboard(store, asOf));
+  }
 
   return jsonResponse({ error: 'Demo API route not implemented', path: pathname }, 404);
+}
+
+function countBy(rows: Array<Record<string, unknown>>, key: string) {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const name = String(row[key] ?? '').trim() || 'Unassigned';
+    map.set(name, (map.get(name) ?? 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
+  const asOf =
+    asOfRaw && /^\d{4}-\d{2}-\d{2}$/.test(asOfRaw)
+      ? asOfRaw
+      : new Date().toISOString().slice(0, 10);
+  const noticeDays = Number(store.poolCoreInfo.passExpiryNoticeDays ?? 3) || 3;
+  const noticeEnd = new Date(`${asOf}T12:00:00`);
+  noticeEnd.setDate(noticeEnd.getDate() + noticeDays);
+  const noticeEndIso = noticeEnd.toISOString().slice(0, 10);
+
+  const active = store.registrations.filter((row) => row.is_active !== false && row.isActive !== false);
+  const presentToday = new Set(
+    store.attendance
+      .filter((row) => String(row.attendance_date ?? row.attendanceDate ?? '').slice(0, 10) === asOf)
+      .map((row) => Number(row.registration_id ?? row.registrationId ?? 0)),
+  ).size;
+  const expiringSoon = active.filter((row) => {
+    const until = String(row.pass_valid_until ?? row.passValidUntil ?? '').slice(0, 10);
+    return until && until >= asOf && until <= noticeEndIso;
+  }).length;
+  const newToday = store.registrations.filter((row) => {
+    const created = String(row.created_at ?? row.createdAt ?? '').slice(0, 10);
+    return created === asOf;
+  });
+
+  const poolName = String(store.poolCoreInfo.poolName ?? '').trim() || 'Swimming pool';
+
+  // Preview often starts empty — return day-specific sample so the date picker is obvious.
+  if (store.registrations.length === 0) {
+    const seed = Number(asOf.replace(/\D/g, '')) || 1;
+    const present = 12 + (seed % 17);
+    const newAdmissions = 1 + (seed % 5);
+    const cash = 1000 * (2 + (seed % 6));
+    const online = 1000 * (3 + (seed % 8));
+    const count = 2 + (seed % 7);
+    const activeSwimmers = 36 + (seed % 20);
+    const expiringSoonSample = 2 + (seed % 8);
+    return {
+      asOf,
+      poolName: poolName === 'Swimming pool' ? 'Demo Swimming Pool' : poolName,
+      city: 'Pune',
+      summary: {
+        activeUsers: Math.max(store.users.length, 4),
+        activeSwimmers,
+        presentToday: present,
+        expiringSoon: expiringSoonSample,
+        expiryNoticeDays: noticeDays,
+        newAdmissionsToday: newAdmissions,
+      },
+      paymentsToday: { cash, online, total: cash + online, count },
+      activeBy: {
+        batch: [
+          { name: 'Morning A — Mixed — 06:00 to 07:00', count: Math.max(8, Math.round(activeSwimmers * 0.38)) },
+          { name: 'Evening B — Ladies — 17:00 to 18:00', count: Math.max(6, Math.round(activeSwimmers * 0.33)) },
+          {
+            name: 'Afternoon C — Mixed — 14:00 to 15:00',
+            count: Math.max(4, activeSwimmers - Math.round(activeSwimmers * 0.71)),
+          },
+        ],
+        coach: [
+          { name: 'Riya Kulkarni', count: Math.max(10, Math.round(activeSwimmers * 0.42)) },
+          { name: 'Amit Shah', count: Math.max(8, Math.round(activeSwimmers * 0.31)) },
+          { name: 'Unassigned', count: Math.max(4, activeSwimmers - Math.round(activeSwimmers * 0.73)) },
+        ],
+        passType: [
+          { name: 'Monthly Swim', count: Math.max(14, Math.round(activeSwimmers * 0.58)) },
+          { name: 'Quarterly Swim', count: Math.max(6, Math.round(activeSwimmers * 0.25)) },
+          { name: 'Trial Pass', count: Math.max(2, activeSwimmers - Math.round(activeSwimmers * 0.83)) },
+        ],
+      },
+      newAdmissionsBy: {
+        batch: [
+          { name: 'Morning A — Mixed — 06:00 to 07:00', count: Math.max(1, Math.ceil(newAdmissions * 0.6)) },
+          {
+            name: 'Evening B — Ladies — 17:00 to 18:00',
+            count: Math.max(0, newAdmissions - Math.ceil(newAdmissions * 0.6)),
+          },
+        ].filter((row) => row.count > 0),
+        coach: [
+          { name: 'Riya Kulkarni', count: Math.max(1, Math.ceil(newAdmissions * 0.67)) },
+          { name: 'Amit Shah', count: Math.max(0, newAdmissions - Math.ceil(newAdmissions * 0.67)) },
+        ].filter((row) => row.count > 0),
+        passType: [
+          { name: 'Monthly Swim', count: Math.max(1, Math.ceil(newAdmissions * 0.67)) },
+          { name: 'Trial Pass', count: Math.max(0, newAdmissions - Math.ceil(newAdmissions * 0.67)) },
+        ].filter((row) => row.count > 0),
+      },
+    };
+  }
+
+  return {
+    asOf,
+    poolName,
+    city: '',
+    summary: {
+      activeUsers: store.users.length,
+      activeSwimmers: active.length,
+      presentToday,
+      expiringSoon,
+      expiryNoticeDays: noticeDays,
+      newAdmissionsToday: newToday.length,
+    },
+    paymentsToday: { cash: 0, online: 0, total: 0, count: 0 },
+    activeBy: {
+      batch: countBy(active, 'batch'),
+      coach: countBy(active, 'coach'),
+      passType: (() => {
+        const bySnake = countBy(active, 'pass_type');
+        return bySnake.length ? bySnake : countBy(active, 'passType');
+      })(),
+    },
+    newAdmissionsBy: {
+      batch: countBy(newToday, 'batch'),
+      coach: countBy(newToday, 'coach'),
+      passType: (() => {
+        const bySnake = countBy(newToday, 'pass_type');
+        return bySnake.length ? bySnake : countBy(newToday, 'passType');
+      })(),
+    },
+  };
 }

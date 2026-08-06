@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { useT } from './i18n';
 
 export type InPageSelectOption = {
   value: string;
@@ -9,7 +10,7 @@ export function InPageSelect({
   value,
   onChange,
   options,
-  placeholder = 'Select…',
+  placeholder,
   required,
   disabled,
   'aria-label': ariaLabel,
@@ -22,6 +23,8 @@ export function InPageSelect({
   disabled?: boolean;
   'aria-label'?: string;
 }) {
+  const t = useT();
+  const resolvedPlaceholder = placeholder ?? t('Select…');
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
@@ -64,7 +67,7 @@ export function InPageSelect({
         onClick={() => setOpen((prev) => !prev)}
       >
         <span className={selected ? undefined : 'inpage-select-placeholder'}>
-          {selected?.label ?? placeholder}
+          {selected?.label ?? resolvedPlaceholder}
         </span>
         <span className="inpage-select-caret" aria-hidden>
           ▾
@@ -82,7 +85,7 @@ export function InPageSelect({
                   setOpen(false);
                 }}
               >
-                {placeholder}
+                {resolvedPlaceholder}
               </button>
             </li>
           ) : null}

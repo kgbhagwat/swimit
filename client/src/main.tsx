@@ -2,6 +2,7 @@ import { StrictMode, Suspense, lazy, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './styles.css';
+import { LanguageProvider, useT } from './i18n';
 import { installTenantFetch } from './tenantSession';
 import { ApplicationDemoSync } from './ApplicationDemoSync';
 import { RequirePlatformSession } from './RequirePlatformSession';
@@ -23,6 +24,7 @@ const AttendanceSheet = lazy(() =>
 const BalanceSheet = lazy(() =>
   import('./BalanceSheet').then((m) => ({ default: m.BalanceSheet })),
 );
+const Dashboard = lazy(() => import('./Dashboard').then((m) => ({ default: m.Dashboard })));
 const PaymentDetails = lazy(() =>
   import('./PaymentDetails').then((m) => ({ default: m.PaymentDetails })),
 );
@@ -83,9 +85,10 @@ function withPlatformAuth(element: ReactElement) {
 }
 
 function RouteFallback() {
+  const t = useT();
   return (
     <div className="page">
-      <p className="muted">Loading…</p>
+      <p className="muted">{t('Loading…')}</p>
     </div>
   );
 }
@@ -118,6 +121,7 @@ function appFeatureRoutes() {
       <Route path="pass-scanner" element={<PassScanner />} />
       <Route path="coach-payment" element={<CoachPayment />} />
       <Route path="attendance-sheet" element={<AttendanceSheet />} />
+      <Route path="dashboard" element={<Dashboard />} />
       <Route path="balance-sheet" element={<BalanceSheet />} />
       <Route path="payment-details" element={<PaymentDetails />} />
       <Route path="pool-core-info" element={<PoolCoreInfo />} />
@@ -148,6 +152,7 @@ const legacyFeatureRedirects = (
     <Route path="/pass-scanner" element={<RedirectToApplication />} />
     <Route path="/coach-payment" element={<RedirectToApplication />} />
     <Route path="/attendance-sheet" element={<RedirectToApplication />} />
+    <Route path="/dashboard" element={<RedirectToApplication />} />
     <Route path="/balance-sheet" element={<RedirectToApplication />} />
     <Route path="/payment-details" element={<RedirectToApplication />} />
     <Route path="/pool-core-info" element={<RedirectToApplication />} />
@@ -157,36 +162,38 @@ const legacyFeatureRedirects = (
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <ApplicationDemoSync />
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route path="/" element={<MainMenu />} />
-          <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
-          <Route path="/create-account" element={<CreateAccount />} />
-          <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />
-          <Route path="/service-packages" element={<ServicePackages />} />
-          <Route path="/platform" element={withPlatformAuth(<PlatformUsersLayout />)}>
-            <Route path="user-management" element={<UserManagement />} />
-            <Route path="create-user" element={<CreateUser />} />
-            <Route path="whatsapp" element={<WhatsAppMessaging />} />
-            <Route path="payment" element={<PlatformPayment />} />
-          </Route>
-          <Route path="/application-guide" element={<ApplicationGuide />} />
-          <Route path="/application" element={<AppShell />}>
-            {appFeatureRoutes()}
-          </Route>
-          {legacyFeatureRedirects}
-          <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
-          <Route
-            path="/:accountCode/open/staff-register"
-            element={<PublicOpenForm kind="staff" />}
-          />
-          <Route path="/:accountCode" element={<AccountPortal />}>
-            {appFeatureRoutes()}
-          </Route>
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+    <LanguageProvider>
+      <BrowserRouter>
+        <ApplicationDemoSync />
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<MainMenu />} />
+            <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
+            <Route path="/create-account" element={<CreateAccount />} />
+            <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />
+            <Route path="/service-packages" element={<ServicePackages />} />
+            <Route path="/platform" element={withPlatformAuth(<PlatformUsersLayout />)}>
+              <Route path="user-management" element={<UserManagement />} />
+              <Route path="create-user" element={<CreateUser />} />
+              <Route path="whatsapp" element={<WhatsAppMessaging />} />
+              <Route path="payment" element={<PlatformPayment />} />
+            </Route>
+            <Route path="/application-guide" element={<ApplicationGuide />} />
+            <Route path="/application" element={<AppShell />}>
+              {appFeatureRoutes()}
+            </Route>
+            {legacyFeatureRedirects}
+            <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
+            <Route
+              path="/:accountCode/open/staff-register"
+              element={<PublicOpenForm kind="staff" />}
+            />
+            <Route path="/:accountCode" element={<AccountPortal />}>
+              {appFeatureRoutes()}
+            </Route>
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </LanguageProvider>
   </StrictMode>,
 );

@@ -470,14 +470,58 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
 
 whatsappRouter.post('/broadcast', requireTenant, async (req, res) => {
   try {
-    const accountId = tenantId(req);
-    const body = req.body as { message?: string; audience?: string };
+    const requesterAccountId = tenantId(req);
+    const body = req.body as { message?: string; audience?: string; accountCode?: string };
     const message = String(body.message ?? '').trim();
     if (!message) {
       res.status(400).json({ error: 'Message is required' });
       return;
     }
     const audience = String(body.audience ?? 'active_swimmers');
+    const accountCode = String(body.accountCode ?? '')
+      .trim()
+      .toLowerCase();
+    const crossAccountAudience =
+      audience === 'active_account_admins' || audience === 'active_account_users';
+
+    const self = await pool.query<{ account_code: string }>(
+      `SELECT account_code FROM saas_accounts WHERE id = $1`,
+      [requesterAccountId],
+    );
+    const isPlatform = String(self.rows[0]?.account_code ?? '').toLowerCase() === 'swimit';
+
+    if (crossAccountAudience && !isPlatform) {
+      res.status(403).json({ error: 'This audience is only for platform admin' });
+      return;
+    }
+
+    let accountId = requesterAccountId;
+    let targetCode = String(self.rows[0]?.account_code ?? '');
+    if (!crossAccountAudience) {
+      if (accountCode) {
+        if (!isPlatform) {
+          res.status(403).json({ error: 'Swimming pool code targeting is only for platform admin' });
+          return;
+        }
+        if (!/^[a-z0-9]{6}$/.test(accountCode)) {
+          res.status(400).json({ error: 'Enter a valid 6-character swimming pool code' });
+          return;
+        }
+        const target = await pool.query<{ id: number; account_code: string }>(
+          `SELECT id, account_code FROM saas_accounts WHERE account_code = $1`,
+          [accountCode],
+        );
+        if (!target.rows[0]) {
+          res.status(404).json({ error: 'Swimming pool code not found' });
+          return;
+        }
+        accountId = Number(target.rows[0].id);
+        targetCode = String(target.rows[0].account_code);
+      } else if (isPlatform) {
+        res.status(400).json({ error: 'Swimming pool code is required' });
+        return;
+      }
+    }
 
     let mobiles: string[] = [];
     if (audience === 'active_swimmers') {
@@ -494,6 +538,31 @@ whatsappRouter.post('/broadcast', requireTenant, async (req, res) => {
         [accountId],
       );
       mobiles = rows.map((r) => String(r.whatsapp_mobile));
+    } else if (audience === 'active_account_admins') {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT u.mobile
+         FROM app_users u
+         JOIN saas_accounts a ON a.id = u.saas_account_id
+         WHERE COALESCE(u.is_account_admin, FALSE) = TRUE
+           AND u.mobile IS NOT NULL
+           AND TRIM(u.mobile) <> ''
+           AND LOWER(COALESCE(a.status, '')) = 'active'
+           AND LOWER(COALESCE(a.account_code, '')) <> 'swimit'`,
+      );
+      mobiles = rows.map((r) => String(r.mobile));
+      targetCode = 'active-admins';
+    } else if (audience === 'active_account_users') {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT u.mobile
+         FROM app_users u
+         JOIN saas_accounts a ON a.id = u.saas_account_id
+         WHERE u.mobile IS NOT NULL
+           AND TRIM(u.mobile) <> ''
+           AND LOWER(COALESCE(a.status, '')) = 'active'
+           AND LOWER(COALESCE(a.account_code, '')) <> 'swimit'`,
+      );
+      mobiles = rows.map((r) => String(r.mobile));
+      targetCode = 'active-users';
     } else {
       res.status(400).json({ error: 'Invalid audience' });
       return;
@@ -503,12 +572,14 @@ whatsappRouter.post('/broadcast', requireTenant, async (req, res) => {
     const results = await sendBroadcast({
       mobiles: unique.map((e164) => e164.slice(-10)),
       message,
-      saasAccountId: accountId,
+      saasAccountId: crossAccountAudience ? requesterAccountId : accountId,
     });
     res.json({
       sent: results.filter((r) => r.ok).length,
       failed: results.filter((r) => !r.ok).length,
       total: results.length,
+      accountCode: crossAccountAudience ? undefined : targetCode,
+      audience,
       results,
     });
   } catch (err) {

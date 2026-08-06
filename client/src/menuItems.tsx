@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { useT } from './i18n';
 import type { MenuSection } from './menuCatalog';
 
 export type MenuItem = {
@@ -18,7 +19,7 @@ const SECTION_INTROS: Record<MenuSection, string> = {
   Operations:
     'Run the daily desk and gate work — take pass payments, scan entries, message members, and track payables.',
   Information:
-    'Look up swimmers and staff, review attendance, and check payment and finance summaries.',
+    'See the pool dashboard, look up swimmers and staff, review attendance, and check payment summaries.',
   Forms:
     'Capture new swimmer and staff details with standard registration forms.',
 };
@@ -97,6 +98,24 @@ export const MENU_ITEMS: MenuItem[] = [
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M12 3.5a8 8 0 0 0-6.9 12.1L4 20.5l5-1.1A8 8 0 1 0 12 3.5z" />
           <path d="M9.2 9.4c.3-.5.6-.5.9-.5h.3c.2 0 .4 0 .5.4l.7 1.7c.1.2 0 .4-.1.5l-.4.5c-.1.1-.2.3 0 .5.3.5.8 1.1 1.4 1.5.4.3.7.2.9 0l.6-.7c.2-.2.4-.2.6-.1l1.8.5c.3.1.4.2.4.5v.4c0 .3-.2.7-.7.9-.9.4-2.1.3-3.6-.6-1.7-1.1-2.9-2.7-3.3-3.8-.3-.8-.2-1.4.1-1.7z" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
+    section: 'Information',
+    to: '/dashboard',
+    label: 'Dashboard',
+    does: 'Shows active swimmers, today’s attendance, expiring passes, and payment totals.',
+    helps:
+      'Gives owners and desk staff a clear picture of the pool before diving into detailed lists.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+          <rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5" />
+          <rect x="13.5" y="10.5" width="7" height="10" rx="1.5" />
+          <rect x="3.5" y="13" width="7" height="7.5" rx="1.5" />
         </svg>
       </IconWrap>
     ),
@@ -330,19 +349,21 @@ export function MenuTiles({
   items: MenuItem[];
   section: MenuSection;
 }) {
+  const t = useT();
+
   if (items.length === 0) {
-    return <p className="menu-section-empty">No pages in {section} yet.</p>;
+    return <p className="menu-section-empty">{t(`No pages in ${section} yet.`)}</p>;
   }
 
   return (
     <div className="menu-section-overview">
-      <p className="lede menu-section-intro">{SECTION_INTROS[section]}</p>
-      <nav className="menu-desc-list" aria-label={`${section} pages`}>
+      <p className="lede menu-section-intro">{t(SECTION_INTROS[section])}</p>
+      <nav className="menu-desc-list" aria-label={`${t(section)} pages`}>
         {items.map((item) => (
           <article key={item.to} className="menu-desc-item">
-            <h2 className="menu-desc-title">{item.label}</h2>
-            <p className="menu-desc-text">{item.does}</p>
-            <p className="menu-desc-text">{item.helps}</p>
+            <h2 className="menu-desc-title">{t(item.label)}</h2>
+            <p className="menu-desc-text">{t(item.does)}</p>
+            <p className="menu-desc-text">{t(item.helps)}</p>
           </article>
         ))}
       </nav>

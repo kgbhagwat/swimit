@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useT } from './i18n';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PlatformPage } from './PlatformPage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
@@ -10,7 +11,6 @@ import { tenantPath } from './tenantSession';
 import { TermsModal } from './TermsModal';
 import { useObjectUrl } from './useObjectUrl';
 
-type Lang = 'en' | 'mr' | 'hi';
 
 type FormState = {
   fullName: string;
@@ -57,246 +57,6 @@ const initialForm: FormState = {
   identityDocument: '',
   acceptedTerms: false,
 };
-
-const copy = {
-  en: {
-    mainMenu: '← Back',
-    title: 'Registration form',
-    editTitle: 'Edit swimmer',
-    saveChanges: 'Save changes',
-    requiredNote: 'Required information.',
-    personal: 'Personal details',
-    fullName: 'Full name',
-    fullNamePh: 'As per identity document',
-    fullAddress: 'Full address',
-    fullAddressPh: 'House no., street, city, state, PIN',
-    whatsapp: 'WhatsApp mobile no.',
-    otherMobile: 'Another mobile no.',
-    mobilePh: '10-digit mobile number',
-    otherMobilePh: 'Optional 10-digit number',
-    email: 'Email',
-    emailPh: 'name@example.com',
-    birthdate: 'Birth Date',
-    sex: 'Sex',
-    selectSex: 'Select sex',
-    bloodGroup: 'Blood group',
-    selectBlood: 'Select blood group',
-    parentInfo: 'Parent information',
-    parentName: 'Name',
-    parentNamePh: 'Parent / guardian full name',
-    parentRelation: 'Relationship',
-    selectParentRelation: 'Select relationship',
-    parentContact: 'Contact no.',
-    father: 'Father',
-    mother: 'Mother',
-    emergency: 'Emergency contact',
-    parentOnly: 'Parent only',
-    emergencyName: 'Emergency contact name',
-    emergencyNamePh: 'Contact person name',
-    relation: 'Relation',
-    selectRelation: 'Select relation',
-    emergencyNo: 'Emergency contact no.',
-    emergencySameAsApplicant: 'Emergency contact number cannot be the same as the applicant mobile number',
-    medical: 'Medical information',
-    healthIssue: 'Do you have any health issue?',
-    healthDetails: 'Disease / health issue',
-    healthDetailsPh: 'Asthma, epilepsy, heart condition, etc.',
-    doctorName: 'Doctor name',
-    doctorNamePh: 'Optional',
-    doctorNo: 'Doctor no.',
-    doctorNoPh: 'Optional 10-digit number',
-    identity: 'Identity & photos',
-    identityDoc: 'Identity document',
-    selectDoc: 'Select document type',
-    idPhoto: 'Photo of identity proof',
-    idPhotoHint: 'Max 200 KB — upload or take a photo of your identity proof',
-    swimmerPhoto: 'Swimmer photo',
-    swimmerPhotoHint: 'Max 200 KB — recent passport-size photo of the swimmer',
-    takePhoto: 'Take photo',
-    upload: 'Upload',
-    terms: 'I accept the',
-    termsLink: 'Terms & Conditions and Rules & Regulations',
-    submit: 'Submit',
-    submitting: 'Submitting…',
-    success: 'Registration submitted successfully.',
-    ok: 'OK',
-    errorCountOne: '1 error',
-    errorCountMany: '{count} errors',
-    male: 'Male',
-    female: 'Female',
-    other: 'Other',
-    parent: 'Parent',
-    spouse: 'Spouse',
-    sibling: 'Sibling',
-    friend: 'Friend',
-    guardian: 'Guardian',
-    aadhaar: 'Aadhaar card',
-    pan: 'PAN card',
-    passport: 'Passport',
-    driving: 'Driving licence',
-    school: 'School / college ID',
-    yes: 'Yes',
-    no: 'No',
-  },
-  mr: {
-    mainMenu: '← मागे',
-    title: 'नोंदणी फॉर्म',
-    editTitle: 'पोहणाऱ्याचे तपशील संपादित करा',
-    saveChanges: 'बदल जतन करा',
-    requiredNote: 'आवश्यक माहिती.',
-    personal: 'वैयक्तिक तपशील',
-    fullName: 'पूर्ण नाव',
-    fullNamePh: 'ओळखपत्राप्रमाणे',
-    fullAddress: 'पूर्ण पत्ता',
-    fullAddressPh: 'घर क्र., रस्ता, शहर, राज्य, पिन',
-    whatsapp: 'WhatsApp मोबाइल क्र.',
-    otherMobile: 'दुसरा मोबाइल क्र.',
-    mobilePh: '१० अंकी मोबाइल क्रमांक',
-    otherMobilePh: 'पर्यायी १० अंकी क्रमांक',
-    email: 'ईमेल',
-    emailPh: 'name@example.com',
-    birthdate: 'जन्मतारीख',
-    sex: 'लिंग',
-    selectSex: 'लिंग निवडा',
-    bloodGroup: 'रक्तगट',
-    selectBlood: 'रक्तगट निवडा',
-    parentInfo: 'पालक माहिती',
-    parentName: 'नाव',
-    parentNamePh: 'पालक / संरक्षक पूर्ण नाव',
-    parentRelation: 'नाते',
-    selectParentRelation: 'नाते निवडा',
-    parentContact: 'संपर्क क्र.',
-    father: 'वडील',
-    mother: 'आई',
-    emergency: 'आपत्कालीन संपर्क',
-    parentOnly: 'फक्त पालक',
-    emergencyName: 'आपत्कालीन संपर्क नाव',
-    emergencyNamePh: 'संपर्क व्यक्तीचे नाव',
-    relation: 'नाते',
-    selectRelation: 'नाते निवडा',
-    emergencyNo: 'आपत्कालीन संपर्क क्र.',
-    emergencySameAsApplicant: 'आपत्कालीन संपर्क क्रमांक अर्जदाराच्या मोबाइल क्रमांकासारखा असू शकत नाही',
-    medical: 'वैद्यकीय माहिती',
-    healthIssue: 'तुम्हाला काही आरोग्य समस्या आहे का?',
-    healthDetails: 'आजार / आरोग्य समस्या',
-    healthDetailsPh: 'दमा, अपस्मार, हृदयविकार इ.',
-    doctorName: 'डॉक्टरांचे नाव',
-    doctorNamePh: 'पर्यायी',
-    doctorNo: 'डॉक्टर क्र.',
-    doctorNoPh: 'पर्यायी १० अंकी क्रमांक',
-    identity: 'ओळखपत्र आणि फोटो',
-    identityDoc: 'ओळखपत्र',
-    selectDoc: 'दस्तऐवज प्रकार निवडा',
-    idPhoto: 'ओळखपत्राचा फोटो',
-    idPhotoHint: 'कमाल २०० KB — अपलोड करा किंवा स्पष्ट फोटो घ्या',
-    swimmerPhoto: 'पोहणाऱ्याचा फोटो',
-    swimmerPhotoHint: 'कमाल २०० KB — अलीकडील पासपोर्ट-साइज फोटो',
-    takePhoto: 'फोटो घ्या',
-    upload: 'अपलोड',
-    terms: 'मी स्वीकारतो/स्वीकारते',
-    termsLink: 'अटी व शर्ती आणि नियम व विनियम',
-    submit: 'सबमिट',
-    submitting: 'सबमिट होत आहे…',
-    success: 'नोंदणी यशस्वीरित्या सबमिट झाली.',
-    ok: 'ठीक आहे',
-    errorCountOne: '1 त्रुटी',
-    errorCountMany: '{count} त्रुटी',
-    male: 'पुरुष',
-    female: 'स्त्री',
-    other: 'इतर',
-    parent: 'पालक',
-    spouse: 'जोडीदार',
-    sibling: 'भावंड',
-    friend: 'मित्र/मैत्रिण',
-    guardian: 'पालक/संरक्षक',
-    aadhaar: 'आधार कार्ड',
-    pan: 'पॅन कार्ड',
-    passport: 'पासपोर्ट',
-    driving: 'ड्रायव्हिंग लायसन्स',
-    school: 'शाळा / महाविद्यालय ओळखपत्र',
-    yes: 'होय',
-    no: 'नाही',
-  },
-  hi: {
-    mainMenu: '← वापस',
-    title: 'पंजीकरण फॉर्म',
-    editTitle: 'तैराक विवरण संपादित करें',
-    saveChanges: 'परिवर्तन सहेजें',
-    requiredNote: 'आवश्यक जानकारी।',
-    personal: 'व्यक्तिगत विवरण',
-    fullName: 'पूरा नाम',
-    fullNamePh: 'पहचान पत्र के अनुसार',
-    fullAddress: 'पूरा पता',
-    fullAddressPh: 'मकान नं., गली, शहर, राज्य, पिन',
-    whatsapp: 'WhatsApp मोबाइल नं.',
-    otherMobile: 'अन्य मोबाइल नं.',
-    mobilePh: '10 अंकों का मोबाइल नंबर',
-    otherMobilePh: 'वैकल्पिक 10 अंकों का नंबर',
-    email: 'ईमेल',
-    emailPh: 'name@example.com',
-    birthdate: 'जन्म तिथि',
-    sex: 'लिंग',
-    selectSex: 'लिंग चुनें',
-    bloodGroup: 'रक्त समूह',
-    selectBlood: 'रक्त समूह चुनें',
-    parentInfo: 'अभिभावक जानकारी',
-    parentName: 'नाम',
-    parentNamePh: 'अभिभावक / संरक्षक पूरा नाम',
-    parentRelation: 'संबंध',
-    selectParentRelation: 'संबंध चुनें',
-    parentContact: 'संपर्क नं.',
-    father: 'पिता',
-    mother: 'माता',
-    emergency: 'आपातकालीन संपर्क',
-    parentOnly: 'केवल अभिभावक',
-    emergencyName: 'आपातकालीन संपर्क नाम',
-    emergencyNamePh: 'संपर्क व्यक्ति का नाम',
-    relation: 'संबंध',
-    selectRelation: 'संबंध चुनें',
-    emergencyNo: 'आपातकालीन संपर्क नं.',
-    emergencySameAsApplicant: 'आपातकालीन संपर्क नंबर आवेदक के मोबाइल नंबर जैसा नहीं हो सकता',
-    medical: 'चिकित्सा जानकारी',
-    healthIssue: 'क्या आपको कोई स्वास्थ्य समस्या है?',
-    healthDetails: 'रोग / स्वास्थ्य समस्या',
-    healthDetailsPh: 'अस्थमा, मिर्गी, हृदय रोग आदि',
-    doctorName: 'डॉक्टर का नाम',
-    doctorNamePh: 'वैकल्पिक',
-    doctorNo: 'डॉक्टर नं.',
-    doctorNoPh: 'वैकल्पिक 10 अंकों का नंबर',
-    identity: 'पहचान और फोटो',
-    identityDoc: 'पहचान दस्तावेज़',
-    selectDoc: 'दस्तावेज़ प्रकार चुनें',
-    idPhoto: 'पहचान पत्र का फोटो',
-    idPhotoHint: 'अधिकतम 200 KB — अपलोड करें या स्पष्ट फोटो लें',
-    swimmerPhoto: 'तैराक का फोटो',
-    swimmerPhotoHint: 'अधिकतम 200 KB — हाल का पासपोर्ट-साइज़ फोटो',
-    takePhoto: 'फोटो लें',
-    upload: 'अपलोड',
-    terms: 'मैं स्वीकार करता/करती हूँ',
-    termsLink: 'नियम एवं शर्तें और नियम व विनियम',
-    submit: 'सबमिट',
-    submitting: 'सबमिट हो रहा है…',
-    success: 'पंजीकरण सफलतापूर्वक सबमिट हो गया।',
-    ok: 'ठीक है',
-    errorCountOne: '1 त्रुटि',
-    errorCountMany: '{count} त्रुटियाँ',
-    male: 'पुरुष',
-    female: 'महिला',
-    other: 'अन्य',
-    parent: 'अभिभावक',
-    spouse: 'पति/पत्नी',
-    sibling: 'भाई/बहन',
-    friend: 'मित्र',
-    guardian: 'अभिभावक',
-    aadhaar: 'आधार कार्ड',
-    pan: 'पैन कार्ड',
-    passport: 'पासपोर्ट',
-    driving: 'ड्राइविंग लाइसेंस',
-    school: 'स्कूल / कॉलेज आईडी',
-    yes: 'हाँ',
-    no: 'नहीं',
-  },
-} as const;
 
 function Label({ children, required }: { children: string; required?: boolean }) {
   return (
@@ -438,8 +198,7 @@ export function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [lang, setLang] = useState<Lang>('en');
-  const t = copy[lang];
+  const t = useT();
   const [form, setForm] = useState<FormState>(initialForm);
   const [identityPhoto, setIdentityPhoto] = useState<File | null>(null);
   const [swimmerPhoto, setSwimmerPhoto] = useState<File | null>(null);
@@ -527,26 +286,26 @@ export function App() {
 
   function fieldLabel(key: string) {
     const labels: Record<string, string> = {
-      fullName: t.fullName,
-      fullAddress: t.fullAddress,
-      whatsappMobile: t.whatsapp,
-      otherMobile: t.otherMobile,
-      email: t.email,
-      birthdate: t.birthdate,
-      sex: t.sex,
-      bloodGroup: t.bloodGroup,
-      parentName: t.parentName,
-      parentRelation: t.parentRelation,
-      parentMobile: t.parentContact,
-      emergencyName: t.emergencyName,
-      emergencyRelation: t.relation,
-      emergencyMobile: t.emergencyNo,
-      healthIssueDetails: t.healthDetails,
-      doctorNo: t.doctorNo,
-      identityDocument: t.identityDoc,
-      identityPhoto: t.idPhoto,
-      swimmerPhoto: t.swimmerPhoto,
-      acceptedTerms: t.termsLink,
+      fullName: t("Full name"),
+      fullAddress: t("Full address"),
+      whatsappMobile: t("WhatsApp mobile no."),
+      otherMobile: t("Another mobile no."),
+      email: t("Email"),
+      birthdate: t("Birth Date"),
+      sex: t("Sex"),
+      bloodGroup: t("Blood group"),
+      parentName: t("Name"),
+      parentRelation: t("Relationship"),
+      parentMobile: t("Contact no."),
+      emergencyName: t("Emergency contact name"),
+      emergencyRelation: t("Relation"),
+      emergencyMobile: t("Emergency contact no."),
+      healthIssueDetails: t("Disease / health issue"),
+      doctorNo: t("Doctor no."),
+      identityDocument: t("Identity document"),
+      identityPhoto: t("Photo of identity proof"),
+      swimmerPhoto: t("Swimmer photo"),
+      acceptedTerms: t("Terms & Conditions and Rules & Regulations"),
     };
     return labels[key] ?? key;
   }
@@ -733,15 +492,15 @@ export function App() {
 
   if (isEdit && loadingEdit) {
     return (
-      <PlatformPage title={isEdit ? t.editTitle : t.title}>
-        <p className="pass-empty">Loading…</p>
+      <PlatformPage title={isEdit ? "Edit swimmer" : "Registration form"}>
+        <p className="pass-empty">{t("Loading…")}</p>
       </PlatformPage>
     );
   }
 
   if (isEdit && loadError) {
     return (
-      <PlatformPage title={isEdit ? t.editTitle : t.title}>
+      <PlatformPage title={isEdit ? "Edit swimmer" : "Registration form"}>
         <p className="error">{loadError}</p>
       </PlatformPage>
     );
@@ -750,31 +509,17 @@ export function App() {
   if (submitted) {
     return (
       <PlatformPage
-        title={t.title}
+        title="Registration form"
         actions={
           <>
             <SendFormQrButton form="swimmer" />
-            <div className="langs">
-              {(['en', 'mr', 'hi'] as const).map((code, i) => (
-                <span key={code}>
-                  {i > 0 ? <span className="sep"> / </span> : null}
-                  <button
-                    type="button"
-                    className={lang === code ? 'lang active' : 'lang'}
-                    onClick={() => setLang(code)}
-                  >
-                    {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
-                  </button>
-                </span>
-              ))}
-            </div>
           </>
         }
       >
         <div className="registration-success-panel">
-          <p className="success">{t.success}</p>
+          <p className="success">{t("Registration submitted successfully.")}</p>
           <button type="button" className="submit" onClick={onSuccessOk}>
-            {t.ok}
+            {t("OK")}
           </button>
         </div>
       </PlatformPage>
@@ -783,52 +528,38 @@ export function App() {
 
   return (
     <PlatformPage
-      title={isEdit ? t.editTitle : t.title}
+      title={isEdit ? "Edit swimmer" : "Registration form"}
       actions={
         <>
           {isEdit ? null : <SendFormQrButton form="swimmer" />}
-          <div className="langs">
-            {(['en', 'mr', 'hi'] as const).map((code, i) => (
-              <span key={code}>
-                {i > 0 ? <span className="sep"> / </span> : null}
-                <button
-                  type="button"
-                  className={lang === code ? 'lang active' : 'lang'}
-                  onClick={() => setLang(code)}
-                >
-                  {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
-                </button>
-              </span>
-            ))}
-          </div>
         </>
       }
     >
       <p className="required-note">
-        <span className="req">*</span> {t.requiredNote}
+        <span className="req">*</span> {t("Required information.")}
       </p>
 
       <form onSubmit={onSubmit} noValidate>
         <section className="card">
-          <h2>{t.personal}</h2>
+          <h2>{t("Personal details")}</h2>
 
           <label className="field">
-            <Label required>{t.fullName}</Label>
+            <Label required>{t("Full name")}</Label>
             <input
               value={form.fullName}
               onChange={(e) => setField('fullName', e.target.value)}
-              placeholder={t.fullNamePh}
+              placeholder={t("As per identity document")}
               required
               aria-invalid={isInvalid('fullName')}
             />
           </label>
 
           <label className="field">
-            <Label required>{t.fullAddress}</Label>
+            <Label required>{t("Full address")}</Label>
             <textarea
               value={form.fullAddress}
               onChange={(e) => setField('fullAddress', e.target.value)}
-              placeholder={t.fullAddressPh}
+              placeholder={t("House no., street, city, state, PIN")}
               rows={3}
               required
               aria-invalid={isInvalid('fullAddress')}
@@ -837,11 +568,11 @@ export function App() {
 
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.whatsapp}</Label>
+              <Label required>{t("WhatsApp mobile no.")}</Label>
               <input
                 value={form.whatsappMobile}
                 onChange={(e) => setField('whatsappMobile', sanitizeMobileInput(e.target.value))}
-                placeholder={t.mobilePh}
+                placeholder={t("10-digit mobile number")}
                 inputMode="numeric"
                 pattern="\d{10}"
                 required
@@ -852,11 +583,11 @@ export function App() {
               ) : null}
             </label>
             <label className="field">
-              <Label>{t.otherMobile}</Label>
+              <Label>{t("Another mobile no.")}</Label>
               <input
                 value={form.otherMobile}
                 onChange={(e) => setField('otherMobile', sanitizeMobileInput(e.target.value))}
-                placeholder={t.otherMobilePh}
+                placeholder={t("Optional 10-digit number")}
                 inputMode="numeric"
                 pattern="\d{10}"
                 aria-invalid={isInvalid('otherMobile') || Boolean(mobileHint(form.otherMobile))}
@@ -869,12 +600,12 @@ export function App() {
 
           <div className="grid-2">
             <label className="field">
-              <Label>{t.email}</Label>
+              <Label>{t("Email")}</Label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setField('email', e.target.value)}
-                placeholder={t.emailPh}
+                placeholder={t("name@example.com")}
                 pattern="[^@\s]+@[^@\s]+\.[^@\s]+"
                 title="Email must include @ and ."
                 aria-invalid={isInvalid('email') || Boolean(emailHint(form.email))}
@@ -882,7 +613,7 @@ export function App() {
               {emailHint(form.email) ? <span className="field-error">{emailHint(form.email)}</span> : null}
             </label>
             <label className="field">
-              <Label required>{t.birthdate}</Label>
+              <Label required>{t("Birth Date")}</Label>
               <input
                 type="date"
                 value={form.birthdate}
@@ -895,28 +626,28 @@ export function App() {
 
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.sex}</Label>
+              <Label required>{t("Sex")}</Label>
               <select
                 value={form.sex}
                 onChange={(e) => setField('sex', e.target.value)}
                 required
                 aria-invalid={isInvalid('sex')}
               >
-                <option value="">{t.selectSex}</option>
-                <option value="Male">{t.male}</option>
-                <option value="Female">{t.female}</option>
-                <option value="Other">{t.other}</option>
+                <option value="">{t("Select sex")}</option>
+                <option value="Male">{t("Male")}</option>
+                <option value="Female">{t("Female")}</option>
+                <option value="Other">{t("Other")}</option>
               </select>
             </label>
             <label className="field">
-              <Label required>{t.bloodGroup}</Label>
+              <Label required>{t("Blood group")}</Label>
               <select
                 value={form.bloodGroup}
                 onChange={(e) => setField('bloodGroup', e.target.value)}
                 required
                 aria-invalid={isInvalid('bloodGroup')}
               >
-                <option value="">{t.selectBlood}</option>
+                <option value="">{t("Select blood group")}</option>
                 {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Not known'].map((g) => (
                   <option key={g} value={g}>
                     {g}
@@ -929,41 +660,41 @@ export function App() {
 
         {needsParentInfo ? (
           <section className="card">
-            <h2>{t.parentInfo}</h2>
+            <h2>{t("Parent information")}</h2>
             <label className="field">
-              <Label required>{t.parentName}</Label>
+              <Label required>{t("Name")}</Label>
               <input
                 value={form.parentName}
                 onChange={(e) => setField('parentName', e.target.value)}
-                placeholder={t.parentNamePh}
+                placeholder={t("Parent / guardian full name")}
                 required
                 aria-invalid={isInvalid('parentName')}
               />
             </label>
             <div className="grid-2">
               <label className="field">
-                <Label required>{t.parentRelation}</Label>
+                <Label required>{t("Relationship")}</Label>
                 <select
                   value={form.parentRelation}
                   onChange={(e) => setField('parentRelation', e.target.value)}
                   required
                   aria-invalid={isInvalid('parentRelation')}
                 >
-                  <option value="">{t.selectParentRelation}</option>
-                  <option value="Father">{t.father}</option>
-                  <option value="Mother">{t.mother}</option>
-                  <option value="Guardian">{t.guardian}</option>
-                  <option value="Other">{t.other}</option>
+                  <option value="">{t("Select relationship")}</option>
+                  <option value="Father">{t("Father")}</option>
+                  <option value="Mother">{t("Mother")}</option>
+                  <option value="Guardian">{t("Guardian")}</option>
+                  <option value="Other">{t("Other")}</option>
                 </select>
               </label>
               <label className="field">
-                <Label required>{t.parentContact}</Label>
+                <Label required>{t("Contact no.")}</Label>
                 <input
                   value={form.parentMobile}
                   onChange={(e) =>
                     setField('parentMobile', sanitizeMobileInput(e.target.value))
                   }
-                  placeholder={t.mobilePh}
+                  placeholder={t("10-digit mobile number")}
                   inputMode="numeric"
                   pattern="\d{10}"
                   required
@@ -978,7 +709,7 @@ export function App() {
         ) : null}
 
         <section className="card emergency">
-          <h2>{t.emergency}</h2>
+          <h2>{t("Emergency contact")}</h2>
           {needsParentInfo ? (
             <label className="parent-only-check">
               <input
@@ -986,15 +717,15 @@ export function App() {
                 checked={parentOnly}
                 onChange={(e) => onParentOnlyChange(e.target.checked)}
               />
-              <span>{t.parentOnly}</span>
+              <span>{t("Parent only")}</span>
             </label>
           ) : null}
           <label className="field">
-            <Label required>{t.emergencyName}</Label>
+            <Label required>{t("Emergency contact name")}</Label>
             <input
               value={form.emergencyName}
               onChange={(e) => setField('emergencyName', e.target.value)}
-              placeholder={t.emergencyNamePh}
+              placeholder={t("Contact person name")}
               required
               readOnly={parentOnly && needsParentInfo}
               aria-invalid={isInvalid('emergencyName')}
@@ -1002,7 +733,7 @@ export function App() {
           </label>
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.relation}</Label>
+              <Label required>{t("Relation")}</Label>
               <select
                 value={form.emergencyRelation}
                 onChange={(e) => setField('emergencyRelation', e.target.value)}
@@ -1010,23 +741,23 @@ export function App() {
                 disabled={parentOnly && needsParentInfo}
                 aria-invalid={isInvalid('emergencyRelation')}
               >
-                <option value="">{t.selectRelation}</option>
-                <option value="Parent">{t.parent}</option>
-                <option value="Spouse">{t.spouse}</option>
-                <option value="Sibling">{t.sibling}</option>
-                <option value="Friend">{t.friend}</option>
-                <option value="Guardian">{t.guardian}</option>
-                <option value="Other">{t.other}</option>
+                <option value="">{t("Select relation")}</option>
+                <option value="Parent">{t("Parent")}</option>
+                <option value="Spouse">{t("Spouse")}</option>
+                <option value="Sibling">{t("Sibling")}</option>
+                <option value="Friend">{t("Friend")}</option>
+                <option value="Guardian">{t("Guardian")}</option>
+                <option value="Other">{t("Other")}</option>
               </select>
             </label>
             <label className="field">
-              <Label required>{t.emergencyNo}</Label>
+              <Label required>{t("Emergency contact no.")}</Label>
               <input
                 value={form.emergencyMobile}
                 onChange={(e) =>
                   setField('emergencyMobile', sanitizeMobileInput(e.target.value))
                 }
-                placeholder={t.mobilePh}
+                placeholder={t("10-digit mobile number")}
                 inputMode="numeric"
                 pattern="\d{10}"
                 required
@@ -1041,33 +772,33 @@ export function App() {
                   whatsappMobile: form.whatsappMobile,
                   otherMobile: form.otherMobile,
                 }) ? (
-                <span className="field-error">{t.emergencySameAsApplicant}</span>
+                <span className="field-error">{t("Emergency contact number cannot be the same as the applicant mobile number")}</span>
               ) : null}
             </label>
           </div>
         </section>
 
         <section className="card medical">
-          <h2>{t.medical}</h2>
+          <h2>{t("Medical information")}</h2>
           <div className="inline-row">
-            <Label required>{t.healthIssue}</Label>
+            <Label required>{t("Do you have any health issue?")}</Label>
             <select
               value={form.hasHealthIssue}
               onChange={(e) => setField('hasHealthIssue', e.target.value)}
               required
             >
-              <option value="No">{t.no}</option>
-              <option value="Yes">{t.yes}</option>
+              <option value="No">{t("No")}</option>
+              <option value="Yes">{t("Yes")}</option>
             </select>
           </div>
           {form.hasHealthIssue === 'Yes' ? (
             <div className="medical-details">
               <label className="field">
-                <Label required>{t.healthDetails}</Label>
+                <Label required>{t("Disease / health issue")}</Label>
                 <textarea
                   value={form.healthIssueDetails}
                   onChange={(e) => setField('healthIssueDetails', e.target.value)}
-                  placeholder={t.healthDetailsPh}
+                  placeholder={t("Asthma, epilepsy, heart condition, etc.")}
                   rows={4}
                   required
                   aria-invalid={isInvalid('healthIssueDetails')}
@@ -1075,19 +806,19 @@ export function App() {
               </label>
               <div className="grid-2">
                 <label className="field">
-                  <Label>{t.doctorName}</Label>
+                  <Label>{t("Doctor name")}</Label>
                   <input
                     value={form.doctorName}
                     onChange={(e) => setField('doctorName', e.target.value)}
-                    placeholder={t.doctorNamePh}
+                    placeholder={t("Optional")}
                   />
                 </label>
                 <label className="field">
-                  <Label>{t.doctorNo}</Label>
+                  <Label>{t("Doctor no.")}</Label>
                   <input
                     value={form.doctorNo}
                     onChange={(e) => setField('doctorNo', sanitizeMobileInput(e.target.value))}
-                    placeholder={t.doctorNoPh}
+                    placeholder={t("Optional 10-digit number")}
                     inputMode="numeric"
                     pattern="\d{10}"
                     aria-invalid={isInvalid('doctorNo') || Boolean(mobileHint(form.doctorNo))}
@@ -1102,34 +833,34 @@ export function App() {
         </section>
 
         <section className="card">
-          <h2>{t.identity}</h2>
+          <h2>{t("Identity & photos")}</h2>
           <label className="field">
-            <Label required>{t.identityDoc}</Label>
+            <Label required>{t("Identity document")}</Label>
             <select
               value={form.identityDocument}
               onChange={(e) => setField('identityDocument', e.target.value)}
               required
               aria-invalid={isInvalid('identityDocument')}
             >
-              <option value="">{t.selectDoc}</option>
-              <option value="Aadhaar">{t.aadhaar}</option>
-              <option value="PAN">{t.pan}</option>
-              <option value="Passport">{t.passport}</option>
-              <option value="Driving Licence">{t.driving}</option>
-              <option value="School ID">{t.school}</option>
+              <option value="">{t("Select document type")}</option>
+              <option value="Aadhaar">{t("Aadhaar card")}</option>
+              <option value="PAN">{t("PAN card")}</option>
+              <option value="Passport">{t("Passport")}</option>
+              <option value="Driving Licence">{t("Driving licence")}</option>
+              <option value="School ID">{t("School / college ID")}</option>
             </select>
           </label>
 
           <div className="grid-2 photos">
             <PhotoField
-              label={t.idPhoto}
-              hint={t.idPhotoHint}
+              label={t("Photo of identity proof")}
+              hint={t("Max 200 KB — upload or take a photo of your identity proof")}
               required
               file={identityPhoto}
               preview={identityPreview}
               existingUrl={existingIdentityUrl}
-              takeLabel={t.takePhoto}
-              uploadLabel={t.upload}
+              takeLabel={t("Take photo")}
+              uploadLabel={t("Upload")}
               invalid={isInvalid('identityPhoto')}
               onPick={(file) => {
                 setInvalidFields((prev) => {
@@ -1143,14 +874,14 @@ export function App() {
               }}
             />
             <PhotoField
-              label={t.swimmerPhoto}
-              hint={t.swimmerPhotoHint}
+              label={t("Swimmer photo")}
+              hint={t("Max 200 KB — recent passport-size photo of the swimmer")}
               required
               file={swimmerPhoto}
               preview={swimmerPreview}
               existingUrl={existingSwimmerUrl}
-              takeLabel={t.takePhoto}
-              uploadLabel={t.upload}
+              takeLabel={t("Take photo")}
+              uploadLabel={t("Upload")}
               invalid={isInvalid('swimmerPhoto')}
               onPick={(file) => {
                 setInvalidFields((prev) => {
@@ -1179,9 +910,9 @@ export function App() {
                 aria-invalid={isInvalid('acceptedTerms')}
               />
               <span>
-                {t.terms}{' '}
+                {t("I accept the")}{' '}
                 <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
-                  {t.termsLink}
+                  {t("Terms & Conditions and Rules & Regulations")}
                 </button>
               </span>
             </label>
@@ -1191,8 +922,8 @@ export function App() {
               <div className="submit-error-block" role="alert">
                 <p className="error submit-error-count">
                   {errorCount === 1
-                    ? t.errorCountOne
-                    : t.errorCountMany.replace('{count}', String(errorCount))}
+                    ? t("1 error")
+                    : t("{count} errors").replace('{count}', String(errorCount))}
                 </p>
                 {error ? <p className="error submit-error-detail">{error}</p> : null}
                 {missingLabels.length > 0 ? (
@@ -1205,7 +936,7 @@ export function App() {
               </div>
             ) : null}
             <button className="submit" type="submit" disabled={submitting}>
-              {submitting ? t.submitting : isEdit ? t.saveChanges : t.submit}
+              {submitting ? t("Submitting…") : isEdit ? t("Save changes") : t("Submit")}
             </button>
           </div>
         </div>

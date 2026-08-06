@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { InPageSelect } from './InPageSelect';
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 
 type ServicePackage = {
@@ -154,6 +156,7 @@ function defaultRenewPackageId(
 }
 
 export function RenewPayment() {
+  const t = useT();
   const { accountCode = '' } = useParams();
   const code = accountCode.toLowerCase();
   const navigate = useNavigate();
@@ -172,6 +175,10 @@ export function RenewPayment() {
   const [info, setInfo] = useState('');
 
   const renewOptions = useMemo(() => renewPackageOptions(packages), [packages]);
+  const renewPackageSelectOptions = useMemo(
+    () => renewOptions.map((pkg) => ({ value: String(pkg.id), label: pkg.packageName })),
+    [renewOptions],
+  );
   const selectedPackage = useMemo(
     () => renewOptions.find((p) => String(p.id) === renewPackageId),
     [renewOptions, renewPackageId],
@@ -339,8 +346,10 @@ export function RenewPayment() {
       });
       setInfo(
         body.whatsapp?.ok === false
-          ? `Renewal saved, but WhatsApp failed: ${body.whatsapp.error || 'send failed'}. Pay using the QR below and send the screenshot on WhatsApp.`
-          : 'WhatsApp message sent to your mobile. Pay the amount below and send the payment screenshot on WhatsApp.',
+          ? `${t('Renewal saved, but WhatsApp failed')}: ${body.whatsapp.error || t('send failed')}. ${t('Pay using the QR below and send the screenshot on WhatsApp.')}`
+          : t(
+              'WhatsApp message sent to your mobile. Pay the amount below and send the payment screenshot on WhatsApp.',
+            ),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to confirm');
@@ -352,57 +361,62 @@ export function RenewPayment() {
   if (!code) {
     return (
       <PlatformPage title="Renew package">
-        <p className="error">Missing account code.</p>
+        <p className="error">{t('Missing account code.')}</p>
       </PlatformPage>
     );
   }
 
+  const monthsLabel =
+    confirmed && confirmed.months === 1
+      ? t('month')
+      : t('months');
+
   return (
     <PlatformPage title="Renew package">
       <p className="lede">
-        Confirm your renewal, pay SwimIT via UPI / QR, then send the payment screenshot on WhatsApp.
+        {t('Confirm your renewal, pay SwimIT via UPI / QR, then send the payment screenshot on WhatsApp.')}
       </p>
 
-      {loading ? <p className="pass-empty">Loading…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+      {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
       {info ? <p className="success">{info}</p> : null}
 
       {!loading && confirmed ? (
         <section className="pass-form-card renew-confirm-card">
-          <h2>Payment confirmation</h2>
+          <h2>{t('Payment confirmation')}</h2>
           <p className="success" style={{ marginTop: 0 }}>
-            Payment received. Your package has been upgraded.
+            {t('Payment received. Your package has been upgraded.')}
           </p>
           <ul className="renew-confirm-list">
             <li>
-              Package: <strong>{confirmed.renewPackageName}</strong>
+              {t('Package')}: <strong>{confirmed.renewPackageName}</strong>
             </li>
             <li>
-              Duration:{' '}
+              {t('Duration')}:{' '}
               <strong>
-                {confirmed.months} month{confirmed.months === 1 ? '' : 's'}
+                {confirmed.months} {monthsLabel}
               </strong>
             </li>
             <li>
-              Amount:{' '}
+              {t('Amount')}:{' '}
               <strong>
                 {formatMoney(confirmed.detectedAmount ?? confirmed.expectedAmount)}
               </strong>
             </li>
             <li>
-              Transaction ID: <strong>{confirmed.transactionId || '—'}</strong>
+              {t('Transaction ID')}: <strong>{confirmed.transactionId || '—'}</strong>
             </li>
             <li>
-              Valid from <strong>{formatShortDate(confirmed.renewFrom)}</strong> until{' '}
+              {t('Valid from')} <strong>{formatShortDate(confirmed.renewFrom)}</strong> {t('until')}{' '}
               <strong>{formatShortDate(confirmed.newExpiresAt)}</strong>
             </li>
           </ul>
           <div className="pass-form-actions">
             <button type="button" className="ghost-btn" onClick={() => setConfirmed(null)}>
-              Renew again
+              {t('Renew again')}
             </button>
             <Link className="menu-link" to={`/${code}`}>
-              Back to home
+              {t('Back to home')}
             </Link>
           </div>
         </section>
@@ -413,41 +427,38 @@ export function RenewPayment() {
           <form className="pass-form-card renew-form" onSubmit={onConfirm}>
             <div className="renew-field-row">
               <label className="field renew-field-main">
-                <span className="label">Current package</span>
+                <span className="label">{t('Current package')}</span>
                 <input value={account.packageName || '—'} readOnly disabled />
               </label>
               <p className="renew-field-aside">
-                Expires: <strong>{formatShortDate(account.subscriptionExpiresAt)}</strong>
+                {t('Expires')}: <strong>{formatShortDate(account.subscriptionExpiresAt)}</strong>
               </p>
             </div>
 
             <div className="renew-field-row">
               <label className="field renew-field-main">
                 <span className="label">
-                  Renew package <span className="req">*</span>
+                  {t('Renew package')} <span className="req">*</span>
                 </span>
-                <select
+                <InPageSelect
                   value={renewPackageId}
-                  onChange={(e) => setRenewPackageId(e.target.value)}
+                  onChange={setRenewPackageId}
+                  options={renewPackageSelectOptions}
+                  placeholder={t('Select package')}
                   required
                   disabled={Boolean(pending)}
-                >
-                  {renewOptions.map((pkg) => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.packageName}
-                    </option>
-                  ))}
-                </select>
+                  aria-label={t('Renew package')}
+                />
               </label>
               <p className="renew-field-aside">
-                Applicable from: <strong>{formatShortDate(applicableFrom)}</strong>
+                {t('Applicable from')}: <strong>{formatShortDate(applicableFrom)}</strong>
               </p>
             </div>
 
             <div className="renew-field-row">
               <label className="field renew-field-main renew-field-duration">
                 <span className="label">
-                  Duration (months) <span className="req">*</span>
+                  {t('Duration (months)')} <span className="req">*</span>
                 </span>
                 <input
                   type="number"
@@ -460,73 +471,75 @@ export function RenewPayment() {
                 />
               </label>
               <p className="renew-field-aside">
-                Next expiry: <strong>{formatShortDate(nextExpiry)}</strong>
+                {t('Next expiry')}: <strong>{formatShortDate(nextExpiry)}</strong>
               </p>
             </div>
 
             <p className="renew-amount-line">
-              Amount to pay: <strong>{formatMoney(amount)}</strong>
+              {t('Amount to pay')}: <strong>{formatMoney(amount)}</strong>
             </p>
 
             {!pending ? (
               <div className="pass-form-actions">
                 <button type="submit" className="submit" disabled={confirming || amount <= 0}>
-                  {confirming ? 'Confirming…' : 'Confirm'}
+                  {confirming ? t('Confirming…') : t('Confirm')}
                 </button>
                 <button
                   type="button"
                   className="ghost-btn"
                   onClick={() => navigate(`/${code}`)}
                 >
-                  Cancel
+                  {t('Cancel')}
                 </button>
               </div>
             ) : (
               <p className="hint">
-                Renewal confirmed. Complete payment below, then send the screenshot on WhatsApp to
-                the same chat.
+                {t(
+                  'Renewal confirmed. Complete payment below, then send the screenshot on WhatsApp to the same chat.',
+                )}
               </p>
             )}
           </form>
 
           {pending ? (
             <section className="pass-form-card renew-pay-card">
-              <h2>Pay SwimIT</h2>
+              <h2>{t('Pay SwimIT')}</h2>
               <p className="muted" style={{ marginTop: 0 }}>
-                Package: <strong>{pending.renewPackageName}</strong> · {pending.months} month
-                {pending.months === 1 ? '' : 's'} · Amount:{' '}
+                {t('Package')}: <strong>{pending.renewPackageName}</strong> · {pending.months}{' '}
+                {pending.months === 1 ? t('month') : t('months')} · {t('Amount')}:{' '}
                 <strong>{formatMoney(pending.expectedAmount)}</strong>
                 <br />
-                Valid from {pending.renewFrom} until {pending.newExpiresAt}
+                {t('Valid from')} {pending.renewFrom} {t('until')} {pending.newExpiresAt}
               </p>
 
               <div className="online-payment-details">
                 {uploadUrl(payment.paymentQrPath) ? (
                   <img
                     src={uploadUrl(payment.paymentQrPath)!}
-                    alt="SwimIT SaaS payment QR code"
+                    alt={t('SwimIT SaaS payment QR code')}
                     className="online-payment-qr"
                   />
                 ) : (
-                  <p className="muted">No SaaS payment QR configured yet.</p>
+                  <p className="muted">{t('No SaaS payment QR configured yet.')}</p>
                 )}
                 {payment.upiId ? (
                   <p className="online-payment-upi">
-                    <span className="label">UPI ID</span>
+                    <span className="label">{t('UPI ID')}</span>
                     <span className="online-payment-upi-value">{payment.upiId}</span>
                   </p>
                 ) : (
-                  <p className="muted">No UPI ID configured yet.</p>
+                  <p className="muted">{t('No UPI ID configured yet.')}</p>
                 )}
               </div>
 
               <p className="hint">
-                After paying, send the payment screenshot on WhatsApp. When amount and UPI match,
-                your package is upgraded automatically and a confirmation is shown here.
+                {t(
+                  'After paying, send the payment screenshot on WhatsApp. When amount and UPI match, your package is upgraded automatically and a confirmation is shown here.',
+                )}
               </p>
 
               <p>
-                <Link to={`/${code}`}>Back to home</Link>
+                <Link to={`/${code}`}>{t('Back to home')}</Link>
               </p>
             </section>
           ) : null}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CreateUserForm } from './CreateUser';
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import {
   ACCESS_PAGES,
@@ -99,6 +100,7 @@ function UserRow({
   onMessage: (type: 'error' | 'info', text: string) => void;
   readOnly?: boolean;
 }) {
+  const t = useT();
   const allowedPages = platformMode
     ? PLATFORM_ACCESS_PAGES
     : ACCESS_PAGES.filter((page) => !packagePageKeys || packagePageKeys.has(page.key));
@@ -192,7 +194,7 @@ function UserRow({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to save access');
       onUpdated(body as AppUser);
-      onMessage('info', `Access saved for ${user.userName}.`);
+      onMessage('info', `${t('Access saved for')} ${user.userName}.`);
     } catch (err) {
       onMessage('error', err instanceof Error ? err.message : 'Failed to save access');
     } finally {
@@ -203,16 +205,16 @@ function UserRow({
   return (
     <tr className={readOnly ? 'user-mgmt-sample-row' : undefined}>
       <td className="user-col-info">
-        {readOnly ? <p className="user-sample-badge">Sample</p> : null}
+        {readOnly ? <p className="user-sample-badge">{t('Sample')}</p> : null}
         <p className="user-info-name">{user.userName}</p>
         <p>
-          <strong>Mobile</strong> {user.mobile}
+          <strong>{t('Mobile')}</strong> {user.mobile}
         </p>
         <p>
-          <strong>Email</strong> {user.email?.trim() ? user.email : '—'}
+          <strong>{t('Email')}</strong> {user.email?.trim() ? user.email : '—'}
         </p>
         <p>
-          <strong>Created</strong> {formatCreatedAt(String(user.createdAt ?? ''))}
+          <strong>{t('Created')}</strong> {formatCreatedAt(String(user.createdAt ?? ''))}
         </p>
         {!user.isAccountAdmin ? (
           <button
@@ -221,7 +223,7 @@ function UserRow({
             disabled={readOnly || savingPassword}
             onClick={() => void onResetPassword()}
           >
-            {savingPassword ? 'Sending…' : 'Reset Password'}
+            {savingPassword ? t('Sending…') : t('Reset Password')}
           </button>
         ) : null}
       </td>
@@ -262,7 +264,7 @@ function UserRow({
                           });
                         }}
                       />
-                      <span>{section}</span>
+                      <span>{t(section)}</span>
                     </label>
                   </th>
                   <td>
@@ -283,15 +285,15 @@ function UserRow({
                                 disabled={readOnly}
                                 onChange={() => togglePage(page.key)}
                               />
-                              <span>{page.label}</span>
+                              <span>{t(page.label)}</span>
                             </label>
                             {isEditableInformationPage(page.key) ? (
                               <label
                                 className={`user-access-page user-access-edit${
                                   accessDraft.has(page.key) ? '' : ' is-disabled'
                                 }`}
-                                title="Edit"
-                                aria-label={`Edit access for ${page.label}`}
+                                title={t('Edit')}
+                                aria-label={`${t('Edit access for')} ${t(page.label)}`}
                               >
                                 <input
                                   type="checkbox"
@@ -324,7 +326,7 @@ function UserRow({
               disabled={readOnly || savingAccess}
               onClick={() => onRequestRemove(user)}
             >
-              Remove user
+              {t('Remove user')}
             </button>
           ) : null}
           <button
@@ -333,7 +335,7 @@ function UserRow({
             disabled={readOnly || savingAccess}
             onClick={() => void onSaveAccess()}
           >
-            {savingAccess ? 'Saving…' : 'Save access'}
+            {savingAccess ? t('Saving…') : t('Save access')}
           </button>
         </div>
       </td>
@@ -383,6 +385,7 @@ const SAMPLE_PLATFORM_USER: AppUser = {
 };
 
 export function UserManagement() {
+  const t = useT();
   const { pathname } = useLocation();
   const platformMode = isPlatformUsersPath(pathname);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -470,7 +473,7 @@ export function UserManagement() {
       if (!res.ok) throw new Error(body.error ?? 'Failed to remove user');
       setUsers((prev) => prev.filter((row) => row.id > 0 && row.id !== target.id));
       setPendingRemove(null);
-      setInfo(`${target.userName} removed.`);
+      setInfo(`${target.userName} ${t('removed.')}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove user');
     } finally {
@@ -482,7 +485,10 @@ export function UserManagement() {
   const samplePreview = realUsers.length === 0;
 
   return (
-    <PlatformPage title="User Management">
+    <PlatformPage
+      title="User Management"
+      className={`user-management-page${platformMode ? ' user-management-page--saas' : ''}`}
+    >
       <CreateUserForm
         onCreated={(created) => {
           setError('');
@@ -499,27 +505,27 @@ export function UserManagement() {
         }}
       />
 
-      {loading ? <p className="pass-empty">Loading…</p> : null}
+      {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
 
       {!loading ? (
         <section
-          className={`pass-form-card pool-core-form user-mgmt-card${
+          className={`pass-form-card user-mgmt-card${
             samplePreview ? ' user-mgmt-card--sample' : ''
           }`}
         >
           {samplePreview ? (
             <div className="user-mgmt-sample-watermark" aria-hidden="true">
-              Sample
+              {t('Sample')}
             </div>
           ) : null}
-          <h2>Users &amp; access</h2>
-          {error ? <p className="error">{error}</p> : null}
+          <h2>{t('Users & access')}</h2>
+          {error ? <p className="error">{t(error)}</p> : null}
           {info && !/^user created/i.test(info) ? (
-            <p className="success">{info}</p>
+            <p className="success">{t(info)}</p>
           ) : null}
           {samplePreview ? (
             <p className="hint user-mgmt-sample-hint">
-              Sample layout — create a user above to manage real access.
+              {t('Sample layout — create a user above to manage real access.')}
             </p>
           ) : null}
           <div className="user-mgmt-table-wrap">
@@ -530,8 +536,8 @@ export function UserManagement() {
               </colgroup>
               <thead>
                 <tr>
-                  <th scope="col">User information</th>
-                  <th scope="col">Access Details</th>
+                  <th scope="col">{t('User information')}</th>
+                  <th scope="col">{t('Access Details')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -580,11 +586,11 @@ export function UserManagement() {
             className="modal-panel accounts-delete-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="remove-user-title">Remove user?</h2>
+            <h2 id="remove-user-title">{t('Remove user?')}</h2>
             <p className="modal-intro">
-              Remove <strong>{pendingRemove.userName}</strong>
-              {pendingRemove.mobile ? ` (${pendingRemove.mobile})` : ''}? This permanently deletes
-              their login and cannot be undone.
+              {t('Remove')} <strong>{pendingRemove.userName}</strong>
+              {pendingRemove.mobile ? ` (${pendingRemove.mobile})` : ''}
+              {t('? This permanently deletes their login and cannot be undone.')}
             </p>
             <div className="modal-footer accounts-delete-modal-footer">
               <button
@@ -593,7 +599,7 @@ export function UserManagement() {
                 disabled={removingId != null}
                 onClick={() => setPendingRemove(null)}
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button
                 type="button"
@@ -601,7 +607,7 @@ export function UserManagement() {
                 disabled={removingId != null}
                 onClick={() => void confirmRemoveUser()}
               >
-                {removingId != null ? 'Removing…' : 'Remove user'}
+                {removingId != null ? t('Removing…') : t('Remove user')}
               </button>
             </div>
           </div>

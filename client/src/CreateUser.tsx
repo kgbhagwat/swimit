@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
+import { useT } from './i18n';
 import { MobileField } from './MobileField';
 import {
   isPlatformUsersPath,
@@ -33,6 +34,7 @@ type CreateUserFormProps = {
 };
 
 export function CreateUserForm({ onCreated }: CreateUserFormProps) {
+  const t = useT();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -105,72 +107,82 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
       className="pass-form-card pool-core-form create-user-form"
       onSubmit={onSubmit}
     >
-      <h2>
-        Create User{' '}
-        <span className="create-user-heading-note">(A random password is sent on WhatsApp.)</span>
-      </h2>
-
-      <div className="create-user-fields">
-        <label className="field">
-          <span className="label">
-            User Name <span className="req">*</span>
+      <div className="create-user-top">
+        <h2>
+          {t('Create User')}{' '}
+          <span className="create-user-heading-note">
+            {t('(A random password is sent on WhatsApp.)')}
           </span>
-          <input
-            value={form.userName}
-            onChange={(e) => setField('userName', e.target.value)}
-            placeholder="Enter user name"
-            autoComplete="username"
-            required
-          />
-        </label>
+        </h2>
 
-        <MobileField
-          label="User Mobile No."
-          value={form.mobile}
-          onChange={(value) => setField('mobile', value)}
-          required
-        />
+        <div className="create-user-fields">
+          <label className="field field-beside">
+            <span className="label">
+              {t('User Name')} <span className="req">*</span>
+            </span>
+            <input
+              className="create-user-name-input"
+              value={form.userName}
+              onChange={(e) => setField('userName', e.target.value)}
+              placeholder={t('User name')}
+              autoComplete="username"
+              required
+            />
+          </label>
 
-        <label className="field">
-          <span className="label">
-            Email <span className="req">*</span>
-          </span>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => setField('email', e.target.value)}
-            placeholder="name@example.com"
-            autoComplete="email"
-            aria-invalid={Boolean(emailHint(form.email))}
+          <MobileField
+            label={t('Mobile')}
+            value={form.mobile}
+            onChange={(value) => setField('mobile', value)}
             required
+            className="field field-beside"
+            inputClassName="create-user-mobile-input"
+            placeholder={t('10-digit number')}
           />
-          {emailHint(form.email) ? (
-            <span className="field-error">{emailHint(form.email)}</span>
-          ) : null}
-        </label>
+
+          <label className="field field-beside">
+            <span className="label">
+              {t('Email')} <span className="req">*</span>
+            </span>
+            <input
+              className="create-user-email-input"
+              type="email"
+              value={form.email}
+              onChange={(e) => setField('email', e.target.value)}
+              placeholder="name@example.com"
+              autoComplete="email"
+              aria-invalid={Boolean(emailHint(form.email))}
+              required
+            />
+            {emailHint(form.email) ? (
+              <span className="field-error">{t(emailHint(form.email))}</span>
+            ) : null}
+          </label>
+
+          <div className="create-user-row-actions">
+            <button
+              type="button"
+              className="pass-cancel"
+              onClick={() => {
+                setForm(emptyForm);
+                setError('');
+                setSuccess('');
+              }}
+            >
+              {t('Clear')}
+            </button>
+            <button type="submit" className="submit" disabled={saving}>
+              {saving ? t('Saving…') : t('Create User')}
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="pass-form-actions">
-        <button
-          type="button"
-          className="pass-cancel"
-          onClick={() => {
-            setForm(emptyForm);
-            setError('');
-            setSuccess('');
-          }}
-        >
-          Clear
-        </button>
-        {error || success ? (
-          <p className={`${error ? 'error' : 'success'} holiday-action-message`}>
-            {error || success}
-          </p>
-        ) : null}
-        <button type="submit" className="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Create User'}
-        </button>
-      </div>
+      {error || success ? (
+        <p className={`${error ? 'error' : 'success'} create-user-message`}>
+          {t(error || success)}
+        </p>
+      ) : null}
     </form>
   );
 }

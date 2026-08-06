@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
+import { useT } from './i18n';
+import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
 
 type PassType = {
@@ -172,6 +174,7 @@ function coachesForSelection(coaches: CoachOption[], forOptions: string[]) {
 }
 
 export function PassTypePage() {
+  const t = useT();
   const [items, setItems] = useState<PassType[]>([]);
   const [coaches, setCoaches] = useState<CoachOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,7 +183,18 @@ export function PassTypePage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<PassForm>(() => createEmptyForm());
 
-  const matchingCoaches = coachesForSelection(coaches, form.forOptions);
+  const coachSelectOptions = useMemo(() => {
+    const matching = coachesForSelection(coaches, form.forOptions);
+    return [
+      { value: 'Not Required', label: t('Not Required') },
+      { value: 'Any', label: t('Any') },
+      ...matching.map((name) => ({ value: name, label: name })),
+    ];
+  }, [coaches, form.forOptions, t]);
+  const durationUnitOptions = useMemo(
+    () => DURATION_UNITS.map((unit) => ({ value: unit, label: t(unit) })),
+    [t],
+  );
 
   async function load() {
     setLoading(true);
@@ -332,7 +346,7 @@ export function PassTypePage() {
   }
 
   async function onDelete(id: number) {
-    if (!confirm('Delete this pass type?')) return;
+    if (!confirm(t('Delete this pass type?'))) return;
     setError('');
     try {
       const res = await fetch(`/api/pass-types/${id}`, { method: 'DELETE' });
@@ -347,49 +361,58 @@ export function PassTypePage() {
     }
   }
 
+  function translateList(value: string) {
+    return splitList(value)
+      .map((part) => t(part))
+      .join(', ');
+  }
+
   return (
     <PlatformPage title="Pass Type">
       <p className="lede batch-list-lede">
-        {items.length} pass type{items.length === 1 ? '' : 's'}
+        {items.length}{' '}
+        {items.length === 1 ? t('pass type') : t('pass types')}
       </p>
 
       <section className="pass-table-card">
         <div className="pass-table-head">
-          <span>Pass name</span>
-          <span>For</span>
-          <span>Prerequisite</span>
-          <span>Duration</span>
-          <span>Pass Charges</span>
-          <span>Coaching Charges</span>
-          <span>Coach</span>
-          <span>Actions</span>
+          <span>{t('Pass name')}</span>
+          <span>{t('For')}</span>
+          <span>{t('Prerequisite')}</span>
+          <span>{t('Duration')}</span>
+          <span>{t('Pass Charges')}</span>
+          <span>{t('Coaching Charges')}</span>
+          <span>{t('Coach')}</span>
+          <span>{t('Actions')}</span>
         </div>
 
         {loading ? (
-          <p className="pass-empty">Loading…</p>
+          <p className="pass-empty">{t('Loading…')}</p>
         ) : items.length === 0 ? (
-          <p className="pass-empty">No pass types defined yet. Add one using the form below.</p>
+          <p className="pass-empty">
+            {t('No pass types defined yet. Add one using the form below.')}
+          </p>
         ) : (
           <div className="pass-table-body">
             {items.map((item, index) => (
               <div className={`pass-row pass-row-tone-${index % 4}`} key={item.id}>
                 <div className="pass-block-row">
                   <strong data-label="Pass name">{item.passName}</strong>
-                  <span data-label="For">{item.forAudience}</span>
-                  <span data-label="Prerequisite">{item.prerequisite}</span>
+                  <span data-label="For">{translateList(item.forAudience)}</span>
+                  <span data-label="Prerequisite">{translateList(item.prerequisite)}</span>
                   <span data-label="Duration">{item.duration}</span>
                 </div>
                 <div className="pass-block-row">
                   <span data-label="Pass Charges">{formatMoney(item.passCharges)}</span>
                   <span data-label="Coaching Charges">{formatMoney(item.coachingCharges)}</span>
-                  <span data-label="Coach">{item.coach || 'Not Required'}</span>
+                  <span data-label="Coach">{t(item.coach || 'Not Required')}</span>
                   <span className="pass-actions" data-label="Actions">
                     <button
                       type="button"
                       className="accounts-icon-btn accounts-icon-edit"
                       onClick={() => openEdit(item)}
-                      aria-label={`Edit ${item.passName}`}
-                      title="Edit"
+                      aria-label={`${t('Edit')} ${item.passName}`}
+                      title={t('Edit')}
                     >
                       <EditIcon />
                     </button>
@@ -397,8 +420,8 @@ export function PassTypePage() {
                       type="button"
                       className="accounts-icon-btn accounts-icon-delete"
                       onClick={() => onDelete(item.id)}
-                      aria-label={`Delete ${item.passName}`}
-                      title="Delete"
+                      aria-label={`${t('Delete')} ${item.passName}`}
+                      title={t('Delete')}
                     >
                       <DeleteIcon />
                     </button>
@@ -412,22 +435,24 @@ export function PassTypePage() {
 
       <section className="pass-form-card pool-core-form" aria-labelledby="pass-form-title">
         <form className="pass-form" onSubmit={onSubmit}>
-          <h2 id="pass-form-title">{editingId ? 'Edit pass type' : 'Add pass type'}</h2>
+          <h2 id="pass-form-title">
+            {editingId ? t('Edit pass type') : t('Add pass type')}
+          </h2>
           <label className="pass-name-field">
             <span className="pass-option-label">
-              Pass name <span className="req">*</span>
+              {t('Pass name')} <span className="req">*</span>
             </span>
             <input
               value={form.passName}
               onChange={(e) => setForm({ ...form, passName: e.target.value })}
-              placeholder="e.g. General, Level 1, Level 2, Competitive etc"
+              placeholder={t('e.g. General, Level 1, Level 2, Competitive etc')}
               required
-              aria-label="Pass name"
+              aria-label={t('Pass name')}
             />
           </label>
 
           <div className="pass-option-row">
-            <span className="pass-option-label">For</span>
+            <span className="pass-option-label">{t('For')}</span>
             <div className="pass-check-rows">
               <div className="pass-check-row">
                 {FOR_OPTIONS.map((option) => (
@@ -437,7 +462,7 @@ export function PassTypePage() {
                       checked={form.forOptions.includes(option)}
                       onChange={() => updateForOptions(option)}
                     />
-                    <span>{option}</span>
+                    <span>{t(option)}</span>
                   </label>
                 ))}
               </div>
@@ -445,7 +470,7 @@ export function PassTypePage() {
           </div>
 
           <div className="pass-option-row">
-            <span className="pass-option-label">Prerequisite</span>
+            <span className="pass-option-label">{t('Prerequisite')}</span>
             <div className="pass-check-rows">
               <div className="pass-check-row pass-check-row--prereq">
                 {PREREQ_OPTIONS.map((option) => (
@@ -460,7 +485,7 @@ export function PassTypePage() {
                         })
                       }
                     />
-                    <span>{option}</span>
+                    <span>{t(option)}</span>
                   </label>
                 ))}
               </div>
@@ -469,11 +494,10 @@ export function PassTypePage() {
 
           <div className="pass-coach-row">
             <div className="pass-inline-field pass-coach-field">
-              <span className="pass-option-label">Coach</span>
-              <select
+              <span className="pass-option-label">{t('Coach')}</span>
+              <InPageSelect
                 value={form.coach}
-                onChange={(e) => {
-                  const coach = e.target.value;
+                onChange={(coach) => {
                   setForm({
                     ...form,
                     coach,
@@ -484,23 +508,17 @@ export function PassTypePage() {
                       coach === 'Not Required' ? 'Yes' : form.exceedingLimitAllowed,
                   });
                 }}
-                aria-label="Coach"
-              >
-                <option value="Not Required">Not Required</option>
-                <option value="Any">Any</option>
-                {matchingCoaches.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                options={coachSelectOptions}
+                required
+                aria-label={t('Coach')}
+              />
             </div>
 
             {form.coach !== 'Not Required' ? (
               <>
                 <div className="pass-inline-field pass-max-swimmers-field">
                   <span className="pass-option-label pass-option-label-wide">
-                    Max no of swimmers in a batch per coach
+                    {t('Max no of swimmers in a batch per coach')}
                   </span>
                   <input
                     type="text"
@@ -520,19 +538,19 @@ export function PassTypePage() {
                         setForm({ ...form, maxSwimmersPerCoach: formatMaxSwimmers(parsed) });
                       }
                     }}
-                    placeholder="No Limit"
-                    aria-label="Max no of swimmers in a batch per coach"
+                    placeholder={t('No Limit')}
+                    aria-label={t('Max no of swimmers in a batch per coach')}
                   />
                 </div>
 
                 <div className="pass-inline-field pass-exceed-limit-field">
                   <span className="pass-option-label pass-option-label-wide">
-                    Is Exceeding this limit allowed?
+                    {t('Is Exceeding this limit allowed?')}
                   </span>
                   <div
                     className="pass-yes-no"
                     role="radiogroup"
-                    aria-label="Is Exceeding this limit allowed?"
+                    aria-label={t('Is Exceeding this limit allowed?')}
                   >
                     {(['Yes', 'No'] as const).map((option) => (
                       <label key={option} className="pass-yes-no-option">
@@ -543,7 +561,7 @@ export function PassTypePage() {
                           checked={form.exceedingLimitAllowed === option}
                           onChange={() => setForm({ ...form, exceedingLimitAllowed: option })}
                         />
-                        <span>{option}</span>
+                        <span>{t(option)}</span>
                       </label>
                     ))}
                   </div>
@@ -554,7 +572,7 @@ export function PassTypePage() {
 
           <div className="pass-charges-row">
             <div className="pass-inline-field">
-              <span className="pass-option-label">Duration</span>
+              <span className="pass-option-label">{t('Duration')}</span>
               <div className="duration-inputs">
                 <input
                   type="number"
@@ -562,24 +580,20 @@ export function PassTypePage() {
                   value={form.durationValue}
                   onChange={(e) => setForm({ ...form, durationValue: e.target.value })}
                   required
-                  aria-label="Duration value"
+                  aria-label={t('Duration value')}
                 />
-                <select
+                <InPageSelect
                   value={form.durationUnit}
-                  onChange={(e) => setForm({ ...form, durationUnit: e.target.value })}
-                  aria-label="Duration unit"
-                >
-                  {DURATION_UNITS.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(durationUnit) => setForm({ ...form, durationUnit })}
+                  options={durationUnitOptions}
+                  required
+                  aria-label={t('Duration unit')}
+                />
               </div>
             </div>
 
             <div className="pass-inline-field">
-              <span className="pass-option-label">Pass Charges</span>
+              <span className="pass-option-label">{t('Pass Charges')}</span>
               <div className="money-input">
                 <span className="money-prefix" aria-hidden="true">
                   ₹
@@ -590,9 +604,9 @@ export function PassTypePage() {
                   step="1"
                   value={form.passCharges}
                   onChange={(e) => setForm({ ...form, passCharges: e.target.value })}
-                  placeholder="e.g. 1500"
+                  placeholder={t('e.g. 1500')}
                   required
-                  aria-label="Pass charges"
+                  aria-label={t('Pass charges')}
                 />
               </div>
             </div>
@@ -602,7 +616,7 @@ export function PassTypePage() {
             <div className="pass-charges-row pass-coaching-charges-row">
               <div className="pass-inline-field">
                 <span className="pass-option-label pass-option-label-wide">
-                  Coaching Charges <span className="req">*</span>
+                  {t('Coaching Charges')} <span className="req">*</span>
                 </span>
                 <div className="money-input">
                   <span className="money-prefix" aria-hidden="true">
@@ -614,24 +628,26 @@ export function PassTypePage() {
                     step="1"
                     value={form.coachingCharges}
                     onChange={(e) => setForm({ ...form, coachingCharges: e.target.value })}
-                    placeholder="e.g. 400"
+                    placeholder={t('e.g. 400')}
                     required
-                    aria-label="Coaching charges"
+                    aria-label={t('Coaching charges')}
                   />
                 </div>
-                <span className="pass-coach-charges-note">(It should be part of pass charges)</span>
+                <span className="pass-coach-charges-note">
+                  {t('(It should be part of pass charges)')}
+                </span>
               </div>
             </div>
           ) : null}
 
-          {error ? <p className="error">{error}</p> : null}
+          {error ? <p className="error">{t(error)}</p> : null}
 
           <div className="pass-form-actions">
             <button type="button" className="pass-cancel" onClick={closeForm}>
-              Cancel
+              {t('Cancel')}
             </button>
             <button type="submit" className="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save Pass'}
+              {saving ? t('Saving…') : t('Save Pass')}
             </button>
           </div>
         </form>

@@ -1,17 +1,19 @@
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
 
 export function ApplicationGuide() {
+  const t = useT();
   return (
     <PlatformShell>
       <PlatformPage title="View Application">
       <article className="app-guide">
         <p className="lede">
-          Read-only guide to what SwimIT is, how to use it, and why pools choose it.
+          {t('Read-only guide to what SwimIT is, how to use it, and why pools choose it.')}
         </p>
 
         <section className="app-guide-section">
-          <h2>1. What is SwimIT?</h2>
+          <h2>{t("1. What is SwimIT?")}</h2>
           <p>
             <strong>SwimIT</strong> is a cloud-based <strong>Swimming Pool Management System</strong>{' '}
             (SaaS) built for pool operators, coaching academies, and aquatic clubs.
@@ -24,7 +26,7 @@ export function ApplicationGuide() {
         </section>
 
         <section className="app-guide-section">
-          <h2>2. Who is it for?</h2>
+          <h2>{t("2. Who is it for?")}</h2>
           <div className="batch-saved-table-wrap">
             <table className="batch-saved-table">
               <thead>
@@ -70,9 +72,9 @@ export function ApplicationGuide() {
         </section>
 
         <section className="app-guide-section">
-          <h2>3. What the application does</h2>
+          <h2>{t("3. What the application does")}</h2>
 
-          <h3>3.1 Platform (SaaS control)</h3>
+          <h3>{t("3.1 Platform (SaaS control)")}</h3>
           <p>Outside the main app card, platform tools include:</p>
           <ul>
             <li>
@@ -93,13 +95,13 @@ export function ApplicationGuide() {
             pool’s swimmers, payments, or settings.
           </p>
 
-          <h3>3.2 Pool application (per account)</h3>
+          <h3>{t("3.2 Pool application (per account)")}</h3>
           <p>
             After signing in at <code>/{'{account-code}'}</code> (example: <code>/srktnk</code>),
             operators use:
           </p>
 
-          <h4>Setup</h4>
+          <h4>{t("Setup")}</h4>
           <ul>
             <li>
               <strong>Batches</strong> — define swimming batch timings
@@ -120,7 +122,7 @@ export function ApplicationGuide() {
             </li>
           </ul>
 
-          <h4>Operations</h4>
+          <h4>{t("Operations")}</h4>
           <ul>
             <li>
               <strong>Pass Payment</strong> — activate or renew swimmer passes
@@ -140,7 +142,12 @@ export function ApplicationGuide() {
             </li>
           </ul>
 
-          <h4>Information</h4>
+          <p>
+            <strong>Dashboard</strong> (top of the menu) — active swimmers, present today, expiring
+            passes, and payments
+          </p>
+
+          <h4>{t("Information")}</h4>
           <ul>
             <li>
               <strong>Swimmer’s List</strong> — view and manage swimmers
@@ -156,7 +163,7 @@ export function ApplicationGuide() {
             </li>
           </ul>
 
-          <h4>Forms</h4>
+          <h4>{t("Forms")}</h4>
           <ul>
             <li>
               <strong>Registration form</strong> — new swimmer intake (with photos &amp; terms)
@@ -168,9 +175,9 @@ export function ApplicationGuide() {
         </section>
 
         <section className="app-guide-section">
-          <h2>4. How to use SwimIT</h2>
+          <h2>{t("4. How to use SwimIT")}</h2>
 
-          <h3>4.1 Platform operator — onboard a pool</h3>
+          <h3>{t('4.1 Platform operator — onboard a pool')}</h3>
           <ol>
             <li>Open the SwimIT platform home.</li>
             <li>(Optional) Review <strong>Service Packages</strong>.</li>
@@ -197,7 +204,7 @@ export function ApplicationGuide() {
             </li>
           </ol>
 
-          <h3>4.2 Pool admin — first login</h3>
+          <h3>{t('4.2 Pool admin — first login')}</h3>
           <ol>
             <li>
               Open <code>https://your-domain/{'{account-code}'}</code>.
@@ -215,7 +222,7 @@ export function ApplicationGuide() {
             <li>Create staff users and grant only the menus they need.</li>
           </ol>
 
-          <h3>4.3 Daily operations (typical flow)</h3>
+          <h3>{t("4.3 Daily operations (typical flow)")}</h3>
           <ol>
             <li>
               <strong>Register</strong> a new swimmer (form).
@@ -235,7 +242,7 @@ export function ApplicationGuide() {
             </li>
           </ol>
 
-          <h3>4.4 Staff users</h3>
+          <h3>{t("4.4 Staff users")}</h3>
           <ul>
             <li>
               Each staff user has a login and a custom <strong>menu access</strong> list.
@@ -252,7 +259,7 @@ export function ApplicationGuide() {
         </section>
 
         <section className="app-guide-section">
-          <h2>5. Service packages (pricing model)</h2>
+          <h2>{t("5. Service packages (pricing model)")}</h2>
           <p>
             Plans are designed for <strong>single-pool</strong> operators (multi-pool is rare). Limits
             focus on <strong>active swimmers</strong>, <strong>staff users</strong>, and{' '}
@@ -316,7 +323,7 @@ export function ApplicationGuide() {
             </table>
           </div>
 
-          <h3>Core vs Full modules</h3>
+          <h3>{t("Core vs Full modules")}</h3>
           <p>
             <strong>Core</strong> — run the desk: registration, batches, pass types, pass payment,
             scanner, swimmers, attendance, pool info.
@@ -328,9 +335,9 @@ export function ApplicationGuide() {
         </section>
 
         <section className="app-guide-section">
-          <h2>6. Advantages</h2>
+          <h2>{t("6. Advantages")}</h2>
 
-          <h3>For pool owners</h3>
+          <h3>{t("For pool owners")}</h3>
           <ul>
             <li>
               <strong>Less cash leakage</strong> — pass sales and expenses are recorded digitally
@@ -349,7 +356,7 @@ export function ApplicationGuide() {
             </li>
           </ul>
 
-          <h3>For SwimIT (as SaaS)</h3>
+          <h3>{t("For SwimIT (as SaaS)")}</h3>
           <ul>
             <li>
               <strong>Repeatable onboarding</strong> — create account → share link → pool is live
@@ -365,7 +372,7 @@ export function ApplicationGuide() {
             </li>
           </ul>
 
-          <h3>For staff &amp; swimmers</h3>
+          <h3>{t("For staff &amp; swimmers")}</h3>
           <ul>
             <li>Structured registration and ID / pass views</li>
             <li>Consistent attendance records</li>
@@ -374,7 +381,7 @@ export function ApplicationGuide() {
         </section>
 
         <section className="app-guide-section">
-          <h2>7. Key product principles</h2>
+          <h2>{t("7. Key product principles")}</h2>
           <ol>
             <li>
               <strong>One account = one pool app</strong> — no shared operational data between
@@ -398,7 +405,7 @@ export function ApplicationGuide() {
         </section>
 
         <section className="app-guide-section app-guide-pitch">
-          <h2>8. Short elevator pitch</h2>
+          <h2>{t("8. Short elevator pitch")}</h2>
           <blockquote>
             <strong>SwimIT</strong> helps swimming pools run registration, pass sales, gate entry,
             and attendance on one simple web app — with separate logins for each pool, staff access

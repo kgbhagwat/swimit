@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { InPageSelect } from './InPageSelect';
+import { useT } from './i18n';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
 import {
@@ -303,6 +304,7 @@ function holidaysInPassPeriod(
 }
 
 export function PassPayment() {
+  const t = useT();
   const navigate = useNavigate();
   const canEdit = canEditPage('swimmers');
   const [rows, setRows] = useState<PendingSwimmer[]>([]);
@@ -744,12 +746,20 @@ export function PassPayment() {
     if (!exceedingLimitAllowed) {
       setMissingFields([]);
       setError(
-        `This batch already has ${assignmentCount} swimmer${assignmentCount === 1 ? '' : 's'} with coach ${coach} (limit ${maxSwimmersPerCoach}). Exceeding this limit is not allowed for this pass type.`,
+        `${t('This batch already has')} ${assignmentCount} ${
+          assignmentCount === 1 ? t('swimmer') : t('swimmers')
+        } ${t('with coach')} ${coach} (${t('limit')} ${maxSwimmersPerCoach}). ${t(
+          'Exceeding this limit is not allowed for this pass type.',
+        )}`,
       );
       return false;
     }
     return window.confirm(
-      `This batch already has ${assignmentCount} swimmer${assignmentCount === 1 ? '' : 's'} with coach ${coach} (limit ${maxSwimmersPerCoach}). Do you still want to assign?\n\nThe account admin will be notified on WhatsApp.`,
+      `${t('This batch already has')} ${assignmentCount} ${
+        assignmentCount === 1 ? t('swimmer') : t('swimmers')
+      } ${t('with coach')} ${coach} (${t('limit')} ${maxSwimmersPerCoach}). ${t(
+        'Do you still want to assign?',
+      )}\n\n${t('The account admin will be notified on WhatsApp.')}`,
     );
   }
 
@@ -785,7 +795,7 @@ export function PassPayment() {
     }
     if (paymentMode === 'Online') {
       if (!transactionId.trim()) missing.push('Transaction ID');
-      if (!paymentReceived) missing.push('Yes, I saw payment completed successfully');
+      if (!paymentReceived) missing.push('I confirmed amount and upi id of successful payment');
     }
     return missing;
   }
@@ -830,7 +840,9 @@ export function PassPayment() {
 
       if (body.whatsapp?.ok === false) {
         setError(
-          `Payment request saved, but WhatsApp failed: ${body.whatsapp.error || 'send failed'}. Swimmer can still send the screenshot to the business number.`,
+          `${t('Payment request saved, but WhatsApp failed')}: ${
+            body.whatsapp.error || t('send failed')
+          }. ${t('Swimmer can still send the screenshot to the business number.')}`,
         );
       }
       await load();
@@ -904,8 +916,8 @@ export function PassPayment() {
   const displayCoach = !selectedPass
     ? ''
     : selectedPass.coach === 'Not Required'
-      ? 'Not Required'
-      : coach || selectedPass.coach || 'Any';
+      ? t('Not Required')
+      : coach || (selectedPass.coach === 'Any' ? t('Any') : selectedPass.coach) || t('Any');
 
   const sampleOnlineQrUrl = samplePaying ? SAMPLE_PAYMENT_QR_URL : null;
   const onlineQrUrl = uploadUrl(paymentQrPath) ?? sampleOnlineQrUrl;
@@ -940,16 +952,33 @@ export function PassPayment() {
       ]
     : rows;
 
+  const pendingCountLede =
+    rows.length === 1
+      ? `1 ${t('swimmer pending payment for today')}`
+      : `${rows.length} ${t('swimmers pending payment for today')}`;
+
+  const assignmentCountText = assignmentCountLoading
+    ? t('Counting swimmers in this batch with this coach…')
+    : assignmentCount == null
+      ? t('Could not load swimmer count for this batch and coach.')
+      : maxSwimmersPerCoach == null
+        ? `${t('Swimmers in this batch with this coach')}: ${assignmentCount} (${t('No Limit')})`
+        : `${t('Swimmers in this batch with this coach')}: ${assignmentCount} / ${maxSwimmersPerCoach}${
+            assignmentOverLimit && !exceedingLimitAllowed
+              ? ` — ${t('exceeding not allowed')}`
+              : ''
+          }`;
+
   return (
     <PlatformPage title="Pass Payment" className="pass-payment-page">
       {!paying ? (
         <p className="lede batch-list-lede">
           {samplePreview
-            ? 'Sample layout — pending pass payments appear here.'
-            : `${rows.length} swimmer${rows.length === 1 ? '' : 's'} pending payment for today`}
+            ? t('Sample layout — pending pass payments appear here.')
+            : pendingCountLede}
         </p>
       ) : null}
-      {successMessage && !paying ? <p className="success">{successMessage}</p> : null}
+      {successMessage && !paying ? <p className="success">{t(successMessage)}</p> : null}
 
       {!paying ? (
         <section
@@ -959,42 +988,42 @@ export function PassPayment() {
         >
           {samplePreview ? (
             <div className="user-mgmt-sample-watermark" aria-hidden="true">
-              Sample
+              {t('Sample')}
             </div>
           ) : null}
           <div className="pass-table-head">
-            <span>Swimmer</span>
-            <span>Contact</span>
-            <span>Email</span>
-            <span>Type</span>
-            <span>Actions</span>
+            <span>{t('Swimmer')}</span>
+            <span>{t('Contact')}</span>
+            <span>{t('Email')}</span>
+            <span>{t('Type')}</span>
+            <span>{t('Actions')}</span>
           </div>
           {loading ? (
-            <p className="pass-empty">Loading…</p>
+            <p className="pass-empty">{t('Loading…')}</p>
           ) : (
             <div className="pass-table-body">
               {displayRows.map((row, index) => (
                 <div className={`pass-row pass-row-tone-${index % 4}`} key={row.id}>
                   <div className="pass-block-row">
-                    <strong data-label="Swimmer">{row.fullName}</strong>
-                    <span data-label="Contact">{row.contact}</span>
-                    <span data-label="Email">{row.email !== '—' ? row.email : '—'}</span>
-                    <span data-label="Type">
-                      {row.type}
+                    <strong data-label={t('Swimmer')}>{row.fullName}</strong>
+                    <span data-label={t('Contact')}>{row.contact}</span>
+                    <span data-label={t('Email')}>{row.email !== '—' ? row.email : '—'}</span>
+                    <span data-label={t('Type')}>
+                      {t(row.type)}
                       {row.passType ? ` · ${row.passType}` : ''}
                       {row.awaitingWhatsApp ? (
-                        <span className="pass-wa-wait"> · Awaiting WhatsApp payment</span>
+                        <span className="pass-wa-wait"> · {t('Awaiting WhatsApp payment')}</span>
                       ) : null}
                     </span>
                   </div>
                   <div className="pass-block-row">
-                    <span className="pass-actions" data-label="Actions">
+                    <span className="pass-actions" data-label={t('Actions')}>
                       <button
                         type="button"
                         className="terms-link"
                         onClick={() => openPay(row)}
                       >
-                        Pay
+                        {t('Pay')}
                       </button>
                     </span>
                   </div>
@@ -1012,27 +1041,27 @@ export function PassPayment() {
         >
           {samplePaying ? (
             <div className="user-mgmt-sample-watermark" aria-hidden="true">
-              Sample
+              {t('Sample')}
             </div>
           ) : null}
           <div className="swimmer-edit-head">
             <div>
-              <h2 id="pay-title">Collect pass payment</h2>
+              <h2 id="pay-title">{t('Collect pass payment')}</h2>
               <p className="pass-count">
                 {samplePaying
-                  ? `${paying.fullName} · ${paying.type} — sample layout`
-                  : `${paying.fullName} · ${paying.type}`}
+                  ? `${paying.fullName} · ${t(paying.type)} — ${t('sample layout')}`
+                  : `${paying.fullName} · ${t(paying.type)}`}
               </p>
             </div>
             <button type="button" className="csv-btn" onClick={closePay}>
-              Back to list
+              {t('Back to list')}
             </button>
           </div>
 
           <SwimmerProfileReview
             profile={swimmerProfile}
             loading={profileLoading}
-            title="Confirm swimmer details"
+            title={t('Confirm swimmer details')}
             actions={
               canEdit && swimmerProfile && !samplePaying ? (
                 <button
@@ -1044,7 +1073,7 @@ export function PassPayment() {
                     })
                   }
                 >
-                  Edit
+                  {t('Edit')}
                 </button>
               ) : null
             }
@@ -1060,7 +1089,7 @@ export function PassPayment() {
                     }}
                   />
                   <span>
-                    I have verified the swimmer details, identity document and photo
+                    {t('I have verified the swimmer details, identity document and photo')}
                   </span>
                 </label>
               ) : null
@@ -1075,12 +1104,12 @@ export function PassPayment() {
           >
               <label className="field payment-pass-type-field">
                 <span className="label">
-                  Pass <span className="req">*</span>
+                  {t('Pass')} <span className="req">*</span>
                 </span>
                 <InPageSelect
-                  aria-label="Pass"
+                  aria-label={t('Pass')}
                   value={passTypeId}
-                  placeholder="Select pass"
+                  placeholder={t('Select pass')}
                   onChange={(next) => {
                     setPassTypeId(next);
                     setCoach('');
@@ -1096,38 +1125,38 @@ export function PassPayment() {
               {selectedPass ? (
                 <div className="payment-summary">
                   <div className="payment-summary-cell">
-                    <span className="payment-summary-label">Duration of pass</span>
+                    <span className="payment-summary-label">{t('Duration of pass')}</span>
                     <span className="payment-summary-value">{selectedPass.duration}</span>
                   </div>
                   <div className="payment-summary-cell">
-                    <span className="payment-summary-label">Pass charges</span>
+                    <span className="payment-summary-label">{t('Pass charges')}</span>
                     <span className="payment-summary-value">
                       {formatMoney(selectedPass.passCharges)}
                     </span>
                   </div>
                   <div className="payment-summary-cell">
-                    <span className="payment-summary-label">Coach</span>
+                    <span className="payment-summary-label">{t('Coach')}</span>
                     <span className="payment-summary-value">{displayCoach}</span>
                   </div>
                   <div className="payment-summary-cell">
-                    <span className="payment-summary-label">Issue date</span>
+                    <span className="payment-summary-label">{t('Issue date')}</span>
                     <input
                       type="date"
                       value={passStartDate}
                       onChange={(e) => setPassStartDate(e.target.value || todayIso())}
-                      aria-label="Issue date"
+                      aria-label={t('Issue date')}
                     />
                   </div>
                   <div className="payment-summary-cell">
-                    <span className="payment-summary-label">Expiry date</span>
+                    <span className="payment-summary-label">{t('Expiry date')}</span>
                     <span className="payment-summary-value">{passValidUntil}</span>
                   </div>
                   <div className="payment-summary-cell payment-summary-holidays">
-                    <span className="payment-summary-label">Holidays</span>
+                    <span className="payment-summary-label">{t('Holidays')}</span>
                     {holidaysLoading ? (
-                      <span className="hint">Loading holidays…</span>
+                      <span className="hint">{t('Loading holidays…')}</span>
                     ) : periodHolidays.length === 0 ? (
-                      <span className="hint">No holidays in this pass period.</span>
+                      <span className="hint">{t('No holidays in this pass period.')}</span>
                     ) : (
                       <ul className="pass-period-holiday-list">
                         {periodHolidays.map((item) => (
@@ -1145,20 +1174,20 @@ export function PassPayment() {
               <div className="payment-batch-coach-row">
                 <label className="field payment-batch-field">
                   <span className="label">
-                    Batch <span className="req">*</span>
+                    {t('Batch')} <span className="req">*</span>
                   </span>
                   {availableBatches.length === 0 ? (
                     <p className="batch-empty">
-                      No batches available.{' '}
+                      {t('No batches available.')}{' '}
                       <Link className="terms-link" to={tenantPath('/batches')}>
-                        Set up batches
+                        {t('Set up batches')}
                       </Link>
                     </p>
                   ) : (
                     <InPageSelect
-                      aria-label="Batch"
+                      aria-label={t('Batch')}
                       value={batch}
-                      placeholder="Select batch"
+                      placeholder={t('Select batch')}
                       onChange={(next) => {
                         setBatch(next);
                         setCoach('');
@@ -1175,19 +1204,20 @@ export function PassPayment() {
                 {coachingRequired && batch ? (
                   <label className="field payment-coach-field">
                     <span className="label">
-                      Coach <span className="req">*</span>
+                      {t('Coach')} <span className="req">*</span>
                     </span>
                     <div className="payment-coach-select-wrap">
                       {coachesForBatch.length === 0 ? (
                         <p className="batch-empty">
-                          No active coaches are available for this batch. Activate coaches in Staff
-                          List and assign them to this batch.
+                          {t(
+                            'No active coaches are available for this batch. Activate coaches in Staff List and assign them to this batch.',
+                          )}
                         </p>
                       ) : (
                         <InPageSelect
-                          aria-label="Coach"
+                          aria-label={t('Coach')}
                           value={coach}
-                          placeholder="Select coach"
+                          placeholder={t('Select coach')}
                           onChange={(next) => {
                             setCoach(next);
                             setMissingFields([]);
@@ -1204,17 +1234,7 @@ export function PassPayment() {
                             assignmentOverLimit ? ' assignment-count-over' : ''
                           }`}
                         >
-                          {assignmentCountLoading
-                            ? 'Counting swimmers in this batch with this coach…'
-                            : assignmentCount == null
-                              ? 'Could not load swimmer count for this batch and coach.'
-                              : maxSwimmersPerCoach == null
-                                ? `Swimmers in this batch with this coach: ${assignmentCount} (No Limit)`
-                                : `Swimmers in this batch with this coach: ${assignmentCount} / ${maxSwimmersPerCoach}${
-                                    assignmentOverLimit && !exceedingLimitAllowed
-                                      ? ' — exceeding not allowed'
-                                      : ''
-                                  }`}
+                          {assignmentCountText}
                         </p>
                       ) : null}
                     </div>
@@ -1230,9 +1250,9 @@ export function PassPayment() {
                 <div className="payment-mode-left">
                   <div className="field payment-mode-field">
                     <span className="label">
-                      Payment mode <span className="req">*</span>
+                      {t('Payment mode')} <span className="req">*</span>
                     </span>
-                    <div className="payment-mode-choices" role="radiogroup" aria-label="Payment mode">
+                    <div className="payment-mode-choices" role="radiogroup" aria-label={t('Payment mode')}>
                       {paymentModes.map((mode) => (
                         <label
                           key={mode}
@@ -1250,7 +1270,7 @@ export function PassPayment() {
                             }}
                             required
                           />
-                          {mode}
+                          {t(mode)}
                         </label>
                       ))}
                     </div>
@@ -1263,18 +1283,18 @@ export function PassPayment() {
                         checked={paymentReceived}
                         onChange={(e) => setPaymentReceived(e.target.checked)}
                       />
-                      <span>Payment Received</span>
+                      <span>{t('Payment Received')}</span>
                     </label>
                   ) : null}
 
                   {paymentMode === 'Online' ? (
                     <div className="payment-mode-online-followup">
                       {onlineDetailsLoading && !samplePaying ? (
-                        <p className="muted payment-mode-online-muted">Loading payment details…</p>
+                        <p className="muted payment-mode-online-muted">{t('Loading payment details…')}</p>
                       ) : onlineUpi ? (
                         <>
                           <span className="online-payment-upi-heading">
-                            <span className="label">UPI ID</span>
+                            <span className="label">{t('UPI ID')}</span>
                             <span className="online-payment-upi-sep" aria-hidden="true">
                               -
                             </span>
@@ -1286,19 +1306,19 @@ export function PassPayment() {
                             disabled={waRequesting}
                             onClick={() => void onRequestWhatsAppPayment()}
                           >
-                            {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
+                            {waRequesting ? t('Sending…') : t('Send WhatsApp payment request')}
                           </button>
                         </>
                       ) : (
                         <>
                           <span className="online-payment-upi-heading">
-                            <span className="label">UPI ID</span>
+                            <span className="label">{t('UPI ID')}</span>
                             <span className="online-payment-upi-sep" aria-hidden="true">
                               -
                             </span>
                           </span>
                           <p className="muted payment-mode-online-muted">
-                            No UPI ID set in Pool Core Info.
+                            {t('No UPI ID set in Pool Core Info.')}
                           </p>
                           <button
                             type="button"
@@ -1306,7 +1326,7 @@ export function PassPayment() {
                             disabled={waRequesting}
                             onClick={() => void onRequestWhatsAppPayment()}
                           >
-                            {waRequesting ? 'Sending…' : 'Send WhatsApp payment request'}
+                            {waRequesting ? t('Sending…') : t('Send WhatsApp payment request')}
                           </button>
                         </>
                       )}
@@ -1317,13 +1337,13 @@ export function PassPayment() {
                     <div className="online-payment-details">
                       <label className="field transaction-id-field">
                         <span className="label">
-                          Transaction ID <span className="req">*</span>
+                          {t('Transaction ID')} <span className="req">*</span>
                         </span>
                         <input
                           type="text"
                           value={transactionId}
                           onChange={(e) => setTransactionId(e.target.value)}
-                          placeholder="Enter UPI / bank transaction ID"
+                          placeholder={t('Enter UPI / bank transaction ID')}
                           autoComplete="off"
                           disabled={samplePaying}
                         />
@@ -1334,7 +1354,7 @@ export function PassPayment() {
                           checked={paymentReceived}
                           onChange={(e) => setPaymentReceived(e.target.checked)}
                         />
-                        <span>Yes, I saw payment completed successfully</span>
+                        <span>{t('I confirmed amount and upi id of successful payment')}</span>
                       </label>
                     </div>
                   ) : null}
@@ -1345,23 +1365,23 @@ export function PassPayment() {
                     {onlineDetailsLoading && !samplePaying ? null : onlineQrUrl ? (
                       <img
                         src={onlineQrUrl}
-                        alt="Payment QR code"
+                        alt={t('Payment QR code')}
                         className="online-payment-qr"
                       />
                     ) : (
-                      <p className="muted">No payment QR code set in Pool Core Info.</p>
+                      <p className="muted">{t('No payment QR code set in Pool Core Info.')}</p>
                     )}
                   </div>
                 ) : null}
               </div>
 
-              {error ? <p className="error">{error}</p> : null}
+              {error ? <p className="error">{t(error)}</p> : null}
               {missingFields.length > 0 ? (
                 <div className="payment-missing-box" role="alert">
-                  <strong>Missing:</strong>
+                  <strong>{t('Missing')}:</strong>
                   <ul>
                     {missingFields.map((item) => (
-                      <li key={item}>{item}</li>
+                      <li key={item}>{t(item)}</li>
                     ))}
                   </ul>
                 </div>
@@ -1374,12 +1394,12 @@ export function PassPayment() {
                   onClick={closePay}
                   disabled={Boolean(issueSuccessMessage)}
                 >
-                  Cancel
+                  {t('Cancel')}
                 </button>
                 <div className="pass-form-actions-end">
                   {issueSuccessMessage ? (
                     <p className="success payment-issue-success" role="status">
-                      {issueSuccessMessage}
+                      {t(issueSuccessMessage)}
                     </p>
                   ) : null}
                   <button
@@ -1387,7 +1407,7 @@ export function PassPayment() {
                     className="submit"
                     disabled={saving || !paymentReceived || Boolean(issueSuccessMessage)}
                   >
-                    {saving ? 'Issuing…' : 'Issue Pass'}
+                    {saving ? t('Issuing…') : t('Issue Pass')}
                   </button>
                 </div>
               </div>
@@ -1396,7 +1416,7 @@ export function PassPayment() {
           </section>
         )}
 
-        {error && !paying ? <p className="error">{error}</p> : null}
+        {error && !paying ? <p className="error">{t(error)}</p> : null}
     </PlatformPage>
   );
 }

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useT } from './i18n';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { emailHint, isValidEmail, isValidMobile, mobileHint, MOBILE_INVALID_MSG } from './formValidation';
 import { MobileField } from './MobileField';
@@ -111,6 +112,7 @@ function defaultPackageId(packages: ServicePackageOption[]) {
 }
 
 export function CreateAccount() {
+  const t = useT();
   const { id: editIdParam } = useParams();
   const editId = Number(editIdParam);
   const isEdit = Number.isFinite(editId) && editId > 0;
@@ -460,42 +462,42 @@ export function CreateAccount() {
           actions={
             canManageAccounts ? (
               <Link className="menu-link" to="/accounts">
-                ← Accounts
+                {t('← Accounts')}
               </Link>
             ) : undefined
           }
         >
-        <p className="lede">Account details for the pool operator.</p>
-        {warning ? <p className="error">{warning}</p> : null}
+        <p className="lede">{t('Account details for the pool operator.')}</p>
+        {warning ? <p className="error">{t(warning)}</p> : null}
 
         <section className="pass-form-card account-credentials-card">
           <p className={created.whatsappOk ? 'success' : 'error'}>{created.deliveryNote}</p>
 
           <dl className="account-credentials-list">
             <div>
-              <dt>Account / Swimming Pool</dt>
+              <dt>{t('Account / Swimming Pool')}</dt>
               <dd>{created.accountName}</dd>
             </div>
             {created.packageName ? (
               <div>
-                <dt>Package</dt>
+                <dt>{t('Package')}</dt>
                 <dd>{created.packageName}</dd>
               </div>
             ) : null}
             {created.poolAddress ? (
               <div>
-                <dt>Pool address</dt>
+                <dt>{t('Pool address')}</dt>
                 <dd>{created.poolAddress}</dd>
               </div>
             ) : null}
             {created.city ? (
               <div>
-                <dt>City</dt>
+                <dt>{t('City')}</dt>
                 <dd>{created.city}</dd>
               </div>
             ) : null}
             <div>
-              <dt>Contact</dt>
+              <dt>{t('Contact')}</dt>
               <dd>
                 {created.contactName}
                 <br />
@@ -504,13 +506,13 @@ export function CreateAccount() {
               </dd>
             </div>
             <div>
-              <dt>Account code</dt>
+              <dt>{t('Account code')}</dt>
               <dd>
                 <code>{created.accountCode}</code>
               </dd>
             </div>
             <div>
-              <dt>Login URL</dt>
+              <dt>{t('Login URL')}</dt>
               <dd>
                 <a className="terms-link" href={created.loginUrl} target="_blank" rel="noreferrer">
                   {created.loginUrl}
@@ -518,7 +520,7 @@ export function CreateAccount() {
               </dd>
             </div>
             <div>
-              <dt>Admin user</dt>
+              <dt>{t('Admin user')}</dt>
               <dd>
                 <code>{created.adminUserName}</code>
               </dd>
@@ -528,49 +530,47 @@ export function CreateAccount() {
 
         {showPayment ? (
           <section className="pass-form-card account-created-payment-card">
-            <h2>Payment</h2>
+            <h2>{t('Payment')}</h2>
             <p className="muted" style={{ marginTop: 0 }}>
-              This is a paid package. Share the SwimIT payment details below with the pool
-              operator.
+              {t('This is a paid package. Share the SwimIT payment details below with the pool operator.')}
             </p>
             <p className="renew-amount-line">
-              Amount to pay:{' '}
+              {t('Amount to pay:')}{' '}
               <strong>
                 {created.packagePrice > 0
                   ? `${formatMoney(created.packagePrice)} / ${created.billingPeriod}`
                   : '—'}
               </strong>
               {' · '}
-              Package: <strong>{created.packageName}</strong>
+              {t('Package:')} <strong>{created.packageName}</strong>
             </p>
 
-            {platformPayError ? <p className="error">{platformPayError}</p> : null}
+            {platformPayError ? <p className="error">{t(platformPayError)}</p> : null}
 
             <div className="online-payment-details">
               {uploadUrl(platformPay?.paymentQrPath) ? (
                 <img
                   src={uploadUrl(platformPay?.paymentQrPath)!}
-                  alt="SwimIT SaaS payment QR code"
+                  alt={t('SwimIT SaaS payment QR code')}
                   className="online-payment-qr"
                 />
               ) : (
                 <p className="muted">
-                  {platformPay ? 'No SaaS payment QR configured yet.' : 'Loading payment details…'}
+                  {platformPay ? t('No SaaS payment QR configured yet.') : t('Loading payment details…')}
                 </p>
               )}
               {platformPay?.upiId ? (
                 <p className="online-payment-upi">
-                  <span className="label">UPI ID</span>
+                  <span className="label">{t('UPI ID')}</span>
                   <span className="online-payment-upi-value">{platformPay.upiId}</span>
                 </p>
               ) : platformPay ? (
-                <p className="muted">No UPI ID configured yet.</p>
+                <p className="muted">{t('No UPI ID configured yet.')}</p>
               ) : null}
             </div>
 
             <p className="hint">
-              After payment, the pool operator can send the payment screenshot on WhatsApp to
-              SwimIT for confirmation.
+              {t('After payment, the pool operator can send the payment screenshot on WhatsApp to SwimIT for confirmation.')}
             </p>
           </section>
         ) : null}
@@ -578,16 +578,16 @@ export function CreateAccount() {
           <div className="submit-wrap" style={{ marginTop: '1rem' }}>
             {mailto ? (
               <a className="ghost-btn" href={mailto}>
-                Email details
+                {t('Email details')}
               </a>
             ) : null}
             {canManageAccounts ? (
               <Link className="submit" to="/accounts">
-                Go to Accounts
+                {t('Go to Accounts')}
               </Link>
             ) : (
               <Link className="submit" to="/">
-                Back to Home
+                {t('Back to Home')}
               </Link>
             )}
           </div>
@@ -603,76 +603,79 @@ export function CreateAccount() {
         actions={
           canManageAccounts ? (
             <Link className="menu-link" to="/accounts">
-              ← Accounts
+              {t('← Accounts')}
             </Link>
           ) : undefined
         }
       >
-      {loadingAccount ? <p className="muted">Loading account…</p> : null}
+      {loadingAccount ? <p className="muted">{t('Loading account…')}</p> : null}
 
       {!loadingAccount ? (
-      <form className="pass-form-card" onSubmit={onSubmit}>
-        <label className="field create-account-package-field">
-          <span className="label">
-            Package <span className="req">*</span>
-          </span>
-          <select
-            value={form.servicePackageId}
-            onChange={(e) => setField('servicePackageId', e.target.value)}
-            required
-          >
-            {packages.length === 0 ? <option value="">Loading packages…</option> : null}
-            {packages
-              .filter((p) => p.isActive || String(p.id) === form.servicePackageId)
-              .map((pkg) => (
-                <option key={pkg.id} value={pkg.id}>
-                  {pkg.packageName}
-                  {!pkg.isActive ? ' (inactive)' : ''}
-                </option>
-              ))}
-          </select>
-        </label>
-
-        {isEdit ? (
-          <label className="field">
+      <form className="pass-form-card registration-form create-account-form" onSubmit={onSubmit}>
+        <div className="create-account-top-row">
+          <label className="field field-beside create-account-package-field">
             <span className="label">
-              Status <span className="req">*</span>
+              {t('Package')} <span className="req">*</span>
             </span>
             <select
-              value={form.status}
-              onChange={(e) => setField('status', e.target.value)}
+              value={form.servicePackageId}
+              onChange={(e) => setField('servicePackageId', e.target.value)}
               required
             >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
+              {packages.length === 0 ? <option value="">{t('Loading packages…')}</option> : null}
+              {packages
+                .filter((p) => p.isActive || String(p.id) === form.servicePackageId)
+                .map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>
+                    {pkg.packageName}
+                    {!pkg.isActive ? t(' (inactive)') : ''}
+                  </option>
+                ))}
             </select>
           </label>
-        ) : null}
 
-        <div className="form-grid-2">
-          <label className="field">
+          {isEdit ? (
+            <label className="field field-beside create-account-status-field">
+              <span className="label">
+                {t('Status')} <span className="req">*</span>
+              </span>
+              <select
+                value={form.status}
+                onChange={(e) => setField('status', e.target.value)}
+                required
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {t(s)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
+
+        <div className="grid-2">
+          <label className="field field-beside">
             <span className="label">
-              Account / Swimming Pool name <span className="req">*</span>
+              {t('Swimming Pool name')} <span className="req">*</span>
             </span>
             <input
               value={form.accountName}
               onChange={(e) => setField('accountName', e.target.value)}
-              placeholder="e.g. AquaWave Sports Club"
+              placeholder={t('e.g. AquaWave Sports Club')}
               required
             />
           </label>
 
-          <label className="field">
+          <label className="field field-beside">
             <span className="label">
-              Account code <span className="req">*</span>
+              {t('Account code')} <span className="req">*</span>
             </span>
             <input
+              className="field-control-sm create-account-code-input"
               value={form.accountCode}
               onChange={(e) => setField('accountCode', normalizeAccountCodeInput(e.target.value))}
-              placeholder="6 small letters or numbers"
+              placeholder={t('e.g. aqua01')}
               maxLength={6}
               autoCapitalize="none"
               autoCorrect="off"
@@ -681,44 +684,49 @@ export function CreateAccount() {
               aria-describedby="account-code-status"
             />
             <span id="account-code-status" className={`account-code-status ${codeCheck.status}`}>
-              {codeCheck.message}
+              {codeCheck.message ? t(codeCheck.message) : ''}
             </span>
           </label>
         </div>
 
-        <label className="field">
-          <span className="label">Pool address</span>
+        <label className="field field-beside">
+          <span className="label">{t('Pool address')}</span>
           <textarea
             value={form.poolAddress}
             onChange={(e) => setField('poolAddress', e.target.value)}
-            placeholder="Full pool address"
+            placeholder={t('Full pool address')}
             rows={3}
           />
         </label>
 
-        <div className="form-grid-2">
-          <label className="field">
+        <div className="grid-2">
+          <label className="field field-beside">
             <span className="label">
-              Contact name <span className="req">*</span>
+              {t('Contact name')} <span className="req">*</span>
             </span>
             <input
               value={form.contactName}
               onChange={(e) => setField('contactName', e.target.value)}
-              placeholder="Owner / manager name"
+              placeholder={t('Owner / manager name')}
               required
             />
           </label>
 
           <MobileField
-            label="Mobile"
+            label={t('Mobile')}
             value={form.mobile}
             onChange={(value) => setField('mobile', value)}
             required
+            className="field field-beside"
+            inputClassName="create-account-mobile-input"
+            placeholder={t('10-digit number')}
           />
+        </div>
 
-          <label className="field">
+        <div className="grid-2">
+          <label className="field field-beside">
             <span className="label">
-              Email <span className="req">*</span>
+              {t('Email')} <span className="req">*</span>
             </span>
             <input
               type="email"
@@ -734,23 +742,24 @@ export function CreateAccount() {
             ) : null}
           </label>
 
-          <label className="field">
-            <span className="label">City</span>
+          <label className="field field-beside">
+            <span className="label">{t('City')}</span>
             <input
+              className="create-account-city-input"
               value={form.city}
               onChange={(e) => setField('city', e.target.value)}
-              placeholder="City"
+              placeholder={t('City')}
             />
           </label>
         </div>
 
         {isEdit ? (
-          <label className="field">
-            <span className="label">Notes</span>
+          <label className="field field-beside">
+            <span className="label">{t('Notes')}</span>
             <textarea
               value={form.notes}
               onChange={(e) => setField('notes', e.target.value)}
-              placeholder="Internal notes for this account"
+              placeholder={t('Internal notes for this account')}
               rows={3}
             />
           </label>
@@ -764,7 +773,7 @@ export function CreateAccount() {
               disabled={saving}
               onClick={() => navigate('/accounts')}
             >
-              Cancel
+              {t('Cancel')}
             </button>
           ) : null}
           <button
@@ -774,19 +783,19 @@ export function CreateAccount() {
           >
             {saving
               ? isEdit
-                ? 'Saving…'
-                : 'Creating…'
+                ? t('Saving…')
+                : t('Creating…')
               : isEdit
-                ? 'Save changes'
-                : 'Create account'}
+                ? t('Save changes')
+                : t('Create account')}
           </button>
         </div>
       </form>
       ) : null}
 
-      {error ? <p className="error">{error}</p> : null}
-      {warning ? <p className="success">{warning}</p> : null}
-      {success ? <p className="success">{success}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
+      {warning ? <p className="success">{t(warning)}</p> : null}
+      {success ? <p className="success">{t(success)}</p> : null}
       </PlatformPage>
     </PlatformShell>
   );

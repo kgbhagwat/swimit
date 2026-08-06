@@ -10,6 +10,7 @@ export type MenuPageKey =
   | 'register'
   | 'staff-register'
   | 'pass-payment'
+  | 'dashboard'
   | 'swimmers'
   | 'pass-scanner'
   | 'attendance-sheet'
@@ -50,6 +51,7 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },
   { key: 'coach-payment', section: 'Operations', to: '/coach-payment', label: 'Coach Payment' },
   { key: 'pool-expenses', section: 'Operations', to: '/pool-expenses', label: 'Pool Expenses' },
+  { key: 'dashboard', section: 'Information', to: '/dashboard', label: 'Dashboard' },
   { key: 'swimmers', section: 'Information', to: '/swimmers', label: "Swimmer's List" },
   { key: 'attendance-sheet', section: 'Information', to: '/attendance-sheet', label: 'Attendance Sheet' },
   { key: 'coaches', section: 'Information', to: '/coaches', label: 'Staff List' },
@@ -69,6 +71,7 @@ export const CORE_PAGE_KEYS: MenuPageKey[] = [
   'pass-types',
   'pass-payment',
   'pass-scanner',
+  'dashboard',
   'swimmers',
   'attendance-sheet',
   'pool-core-info',
@@ -180,6 +183,10 @@ export function featurePathFromLocation(pathname: string): string {
 
 export function sectionForPath(pathname: string): MenuSection | null {
   const path = featurePathFromLocation(pathname);
+  // Top-level sidebar entry — not nested under a section accordion.
+  if (path === '/dashboard' || path.startsWith('/dashboard/')) {
+    return null;
+  }
   if (path === '/user-management' || path.startsWith('/user-management/')) {
     return 'Setup';
   }

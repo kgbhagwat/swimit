@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { useT } from './i18n';
+import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
 
 type LedgerItem = {
@@ -147,7 +149,12 @@ function sampleBalanceSheet(month: string): SheetResult {
 type FilterMode = 'all' | 'credit' | 'debit';
 
 export function BalanceSheet() {
+  const t = useT();
   const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const monthSelectOptions = useMemo(
+    () => monthOptions.map((value) => ({ value, label: monthLabel(value) })),
+    [monthOptions],
+  );
   const [month, setMonth] = useState(currentMonthValue);
   const [sheet, setSheet] = useState<SheetResult | null>(null);
   const [filter, setFilter] = useState<FilterMode>('all');
@@ -241,14 +248,14 @@ export function BalanceSheet() {
       actions={
         <>
           <label className="balance-month-inline">
-            <span className="label">Month</span>
-            <select value={month} onChange={(e) => setMonth(e.target.value)}>
-              {monthOptions.map((value) => (
-                <option key={value} value={value}>
-                  {monthLabel(value)}
-                </option>
-              ))}
-            </select>
+            <span className="label">{t('Month')}</span>
+            <InPageSelect
+              value={month}
+              onChange={setMonth}
+              options={monthSelectOptions}
+              required
+              aria-label={t('Month')}
+            />
           </label>
           <DownloadButton onClick={downloadCsv} disabled={!sheet || sheet.items.length === 0} />
         </>
@@ -257,11 +264,11 @@ export function BalanceSheet() {
       <div className={`pass-form-card pool-core-form${sampleMode ? ' pass-form-card--sample' : ''}`}>
         {sampleMode ? (
           <div className="user-mgmt-sample-watermark" aria-hidden="true">
-            Sample
+            {t('Sample')}
           </div>
         ) : null}
-        {error ? <p className="error">{error}</p> : null}
-        {loading ? <p className="pass-count batch-list-lede">Loading…</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
+        {loading ? <p className="pass-count batch-list-lede">{t('Loading…')}</p> : null}
 
         {!loading && sheet ? (
           <>
@@ -271,7 +278,7 @@ export function BalanceSheet() {
                 className={`balance-summary-card credit${filter === 'credit' ? ' selected' : ''}`}
                 onClick={() => toggleFilter('credit')}
               >
-                <span>Total credit</span>
+                <span>{t('Total credit')}</span>
                 <strong>{formatMoney(sheet.totalCredit)}</strong>
               </button>
               <button
@@ -279,7 +286,7 @@ export function BalanceSheet() {
                 className={`balance-summary-card debit${filter === 'debit' ? ' selected' : ''}`}
                 onClick={() => toggleFilter('debit')}
               >
-                <span>Total debit</span>
+                <span>{t('Total debit')}</span>
                 <strong>{formatMoney(sheet.totalDebit)}</strong>
               </button>
               <button
@@ -287,47 +294,49 @@ export function BalanceSheet() {
                 className={`balance-summary-card closing${filter === 'all' ? ' selected' : ''}`}
                 onClick={() => setFilter('all')}
               >
-                <span>Closing balance</span>
+                <span>{t('Closing balance')}</span>
                 <strong>{formatMoney(sheet.closingBalance)}</strong>
               </button>
             </div>
 
             <p className="pass-count">
               {filter === 'credit'
-                ? `Showing credit entries (${visibleItems.length})`
+                ? `${t('Showing credit entries')} (${visibleItems.length})`
                 : filter === 'debit'
-                  ? `Showing debit entries (${visibleItems.length})`
-                  : `Showing all entries (${visibleItems.length})`}
+                  ? `${t('Showing debit entries')} (${visibleItems.length})`
+                  : `${t('Showing all entries')} (${visibleItems.length})`}
             </p>
 
             <div className="balance-table">
               <div className="balance-head">
-                <span>Date</span>
-                <span>Particulars</span>
-                <span>Credit</span>
-                <span>Debit</span>
-                <span>Balance</span>
+                <span>{t('Date')}</span>
+                <span>{t('Particulars')}</span>
+                <span>{t('Credit')}</span>
+                <span>{t('Debit')}</span>
+                <span>{t('Balance')}</span>
               </div>
               {visibleItems.length === 0 ? (
                 <p className="pass-empty">
                   {filter === 'credit'
-                    ? 'No credit entries for this month.'
+                    ? t('No credit entries for this month.')
                     : filter === 'debit'
-                      ? 'No debit entries for this month.'
-                      : 'No credit or debit entries for this month.'}
+                      ? t('No debit entries for this month.')
+                      : t('No credit or debit entries for this month.')}
                 </p>
               ) : (
                 visibleItems.map((item) => (
                   <div className="balance-row" key={item.id}>
-                    <span data-label="Date">{formatDisplayDate(item.entryDate)}</span>
-                    <span data-label="Particulars">{item.particulars}</span>
-                    <span data-label="Credit" className="balance-credit">
+                    <span data-label={t('Date')}>{formatDisplayDate(item.entryDate)}</span>
+                    <span className="balance-row-title" data-label={t('Particulars')}>
+                      {item.particulars}
+                    </span>
+                    <span data-label={t('Credit')} className="balance-credit">
                       {item.credit ? formatMoney(item.credit) : '—'}
                     </span>
-                    <span data-label="Debit" className="balance-debit">
+                    <span data-label={t('Debit')} className="balance-debit">
                       {item.debit ? formatMoney(item.debit) : '—'}
                     </span>
-                    <span data-label="Balance">
+                    <span data-label={t('Balance')}>
                       <strong>{formatMoney(item.balance)}</strong>
                     </span>
                   </div>
@@ -338,7 +347,19 @@ export function BalanceSheet() {
             <div className="coach-payment-total-row">
               <div className="coach-payment-total coach-payment-total-compact">
                 <span>
-                  Closing balance: <strong>{formatMoney(sheet.closingBalance)}</strong>
+                  {filter === 'debit' ? (
+                    <>
+                      {t('Total debit')}: <strong>{formatMoney(sheet.totalDebit)}</strong>
+                    </>
+                  ) : filter === 'credit' ? (
+                    <>
+                      {t('Total credit')}: <strong>{formatMoney(sheet.totalCredit)}</strong>
+                    </>
+                  ) : (
+                    <>
+                      {t('Closing balance')}: <strong>{formatMoney(sheet.closingBalance)}</strong>
+                    </>
+                  )}
                 </span>
               </div>
             </div>

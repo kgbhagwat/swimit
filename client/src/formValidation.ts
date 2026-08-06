@@ -44,6 +44,9 @@ export function isValidEmail(value: string) {
 export function mobileHint(value: string) {
   const v = value.trim();
   if (!v) return '';
+  if (!/^\d+$/.test(v)) return MOBILE_INVALID_MSG;
+  if (v.length < 10) return 'Enter all 10 digits';
+  if (!/^[6-9]/.test(v)) return 'Mobile number must start with 6, 7, 8, or 9';
   if (!isValidMobile(v)) return MOBILE_INVALID_MSG;
   return '';
 }

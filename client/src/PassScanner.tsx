@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { Html5Qrcode } from 'html5-qrcode';
 import { IdCard, fetchPoolBrand, type PoolBrand } from './IdCard';
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 
 type ScannedSwimmer = {
@@ -30,6 +31,7 @@ type View = 'idle' | 'scanning' | 'preview' | 'done';
 const emptyBrand: PoolBrand = { poolName: '', poolAddress: '', poolLogoUrl: null };
 
 export function PassScanner() {
+  const t = useT();
   const [view, setView] = useState<View>('idle');
   const [swimmer, setSwimmer] = useState<ScannedSwimmer | null>(null);
   const [brand, setBrand] = useState<PoolBrand>(emptyBrand);
@@ -168,6 +170,16 @@ export function PassScanner() {
       !swimmer.alreadyMarkedToday,
   );
 
+  const attendanceStatus = !swimmer
+    ? ''
+    : !swimmer.isActive
+      ? t('Inactive')
+      : !swimmer.hasValidPassToday
+        ? t('Pass not valid today')
+        : swimmer.alreadyMarkedToday
+          ? t('Already marked for this batch')
+          : t('Ready for attendance');
+
   return (
     <PlatformPage title="Pass Scanner">
       <div className="pass-form-card pool-core-form">
@@ -175,24 +187,24 @@ export function PassScanner() {
           <section className="scanner-panel">
             <div className="scanner-entry">
               <button type="button" className="scanner-start-btn" onClick={() => void startScanner()}>
-                Start QR scanner
+                {t('Start QR scanner')}
               </button>
               <span className="scanner-or" aria-hidden>
-                OR
+                {t('OR')}
               </span>
               <form className="scanner-pass-form" onSubmit={(e) => void onPassNoSubmit(e)}>
                 <label className="scanner-pass-field">
                   <input
                     value={passNo}
                     onChange={(e) => setPassNo(e.target.value)}
-                    placeholder="Pass No."
+                    placeholder={t('Pass No.')}
                     inputMode="numeric"
                     autoComplete="off"
-                    aria-label="Pass No."
+                    aria-label={t('Pass No.')}
                   />
                 </label>
                 <button type="submit" className="scanner-ok-btn" disabled={lookingUp}>
-                  {lookingUp ? '…' : 'OK'}
+                  {lookingUp ? '…' : t('OK')}
                 </button>
               </form>
             </div>
@@ -202,10 +214,10 @@ export function PassScanner() {
         {view === 'scanning' ? (
           <section className="scanner-panel">
             <div id={scannerElementId} className="scanner-viewport" />
-            {lookingUp ? <p className="scanner-hint">Looking up swimmer…</p> : null}
-            <p className="scanner-hint">Point the camera at the swimmer QR code on their pass.</p>
+            {lookingUp ? <p className="scanner-hint">{t('Looking up swimmer…')}</p> : null}
+            <p className="scanner-hint">{t('Point the camera at the swimmer QR code on their pass.')}</p>
             <button type="button" className="pass-cancel" onClick={onReset}>
-              Cancel
+              {t('Cancel')}
             </button>
           </section>
         ) : null}
@@ -234,7 +246,7 @@ export function PassScanner() {
               />
               {swimmer.alreadyMarkedToday ? (
                 <div className="scanner-already-marked-line" aria-hidden>
-                  <span>Attendance already marked for this batch</span>
+                  <span>{t('Attendance already marked for this batch')}</span>
                 </div>
               ) : null}
             </div>
@@ -243,18 +255,11 @@ export function PassScanner() {
                 swimmer.alreadyMarkedToday ? ' is-already-marked' : ''
               }`}
             >
-              <strong>Attendance:</strong>{' '}
-              {!swimmer.isActive
-                ? 'Inactive'
-                : !swimmer.hasValidPassToday
-                  ? 'Pass not valid today'
-                  : swimmer.alreadyMarkedToday
-                    ? 'Already marked for this batch'
-                    : 'Ready for attendance'}
+              <strong>{t('Attendance')}:</strong> {attendanceStatus}
             </p>
             <div className="pass-form-actions">
               <button type="button" className="pass-cancel" onClick={onReset}>
-                Cancel
+                {t('Cancel')}
               </button>
               <button
                 type="button"
@@ -262,7 +267,7 @@ export function PassScanner() {
                 disabled={saving || !canMark}
                 onClick={() => void onConfirmAttendance()}
               >
-                {saving ? 'Saving…' : 'OK'}
+                {saving ? t('Saving…') : t('OK')}
               </button>
             </div>
           </section>
@@ -270,17 +275,17 @@ export function PassScanner() {
 
         {view === 'done' && swimmer ? (
           <section className="scanner-done">
-            <p className="success">{info || 'Attendance registered.'}</p>
+            <p className="success">{info ? t(info) : t('Attendance registered.')}</p>
             <p className="scanner-hint">{swimmer.fullName}</p>
             <div className="pass-form-actions">
               <button type="button" className="scanner-start-btn" onClick={onReset}>
-                Next
+                {t('Next')}
               </button>
             </div>
           </section>
         ) : null}
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
       </div>
     </PlatformPage>
   );

@@ -15,6 +15,7 @@ import {
   type MenuPageKey,
   type MenuSection,
 } from './menuCatalog';
+import { LanguageSwitcher, useT } from './i18n';
 import { MENU_ITEMS, MenuTiles, type MenuItem } from './menuItems';
 import { PassPopupOverlay } from './PassPopupOverlay';
 import { PlatformNav } from './PlatformNav';
@@ -58,6 +59,7 @@ function TenantUserBar({
   user?: TenantUserInfo | null;
   onLogout?: () => void;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -218,7 +220,7 @@ function TenantUserBar({
       <button
         type="button"
         className="tenant-profile-btn"
-        aria-label="User settings"
+        aria-label={t('User settings')}
         aria-expanded={open}
         onClick={() => {
           setOpen((prev) => !prev);
@@ -235,7 +237,7 @@ function TenantUserBar({
 
       {onLogout ? (
         <button type="button" className="tenant-signout-btn" onClick={onLogout}>
-          Sign out
+          {t('Sign out')}
         </button>
       ) : null}
 
@@ -243,10 +245,10 @@ function TenantUserBar({
         <div className="tenant-profile-dropdown">
           <p className="tenant-profile-name">{user.userName}</p>
           <p className="tenant-profile-detail">
-            Account: <strong>{account.accountName}</strong>
+            {t('Account')}: <strong>{account.accountName}</strong>
           </p>
           <p className="tenant-profile-detail">
-            Code: <code>{account.accountCode}</code>
+            {t('Code')}: <code>{account.accountCode}</code>
           </p>
           <p className="tenant-profile-detail">
             Role: {user.isAccountAdmin ? 'Admin' : 'User'}
@@ -409,6 +411,7 @@ export function AppShell({
   featurePage,
   children,
 }: AppShellProps = {}) {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const routeOutlet = useOutlet();
@@ -519,6 +522,7 @@ export function AppShell({
     () =>
       MENU_ITEMS.filter((item) => {
         if (item.section !== section) return false;
+        if (item.to === '/dashboard') return false;
         if (item.to === '/user-management') {
           if (!tenantAccount || !tenantUser) return true;
           return Boolean(tenantUser.isAccountAdmin) && packageIsFull;
@@ -533,6 +537,8 @@ export function AppShell({
   function itemsForSection(name: MenuSection): MenuItem[] {
     return MENU_ITEMS.filter((item) => {
       if (item.section !== name) return false;
+      // Dashboard is a top-level sidebar link, not under Information.
+      if (item.to === '/dashboard') return false;
       if (item.to === '/user-management') {
         if (!tenantAccount || !tenantUser) return true;
         return Boolean(tenantUser.isAccountAdmin) && packageIsFull;
@@ -542,6 +548,10 @@ export function AppShell({
       return tenantAccount && tenantUser ? allowedKeys.has(page.key) : true;
     });
   }
+
+  const canOpenDashboard =
+    !tenantAccount || !tenantUser || allowedKeys.has('dashboard');
+  const dashboardActive = featurePath === '/dashboard' || featurePath.startsWith('/dashboard/');
 
   function onSectionClick(name: MenuSection) {
     if (tenantAccount && tenantUser && !allowedSections.has(name)) return;
@@ -565,7 +575,10 @@ export function AppShell({
 
   const passPopupOnly = isPassPopupWindow();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [appSidebarOpen, setAppSidebarOpen] = useState(true);
+  const [appSidebarOpen, setAppSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return !window.matchMedia('(max-width: 800px)').matches;
+  });
   const [appFullscreen, setAppFullscreen] = useState(() => {
     try {
       return sessionStorage.getItem('swimIT.applicationPreviewFullscreen') === '1';
@@ -573,6 +586,14 @@ export function AppShell({
       return false;
     }
   });
+
+  function isMobileMenu() {
+    return typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches;
+  }
+
+  function closeMobileMenu() {
+    if (isMobileMenu()) setAppSidebarOpen(false);
+  }
 
   useEffect(() => {
     if (tenantAccount) return;
@@ -609,20 +630,40 @@ export function AppShell({
 
   const poolMenu = (
     <>
+      {appSidebarOpen ? (
+        <button
+          type="button"
+          className="platform-sidebar-backdrop"
+          aria-label={t('Close menu')}
+          onClick={closeMobileMenu}
+        />
+      ) : null}
       <nav
         id="pool-app-sidebar"
         className={`platform-sidebar${appSidebarOpen ? '' : ' platform-sidebar--hidden'}`}
-        aria-label="Pool menu"
+        aria-label={t('Pool menu')}
       >
         <div className="platform-sidebar-brand">
           <p className="platform-sidebar-brand-name">SwimIT</p>
           <p className="platform-sidebar-brand-label">
-            {tenantAccount ? 'Pool management' : 'Application preview'}
+            {tenantAccount ? t('Pool management') : t('Application preview')}
           </p>
         </div>
         <ul className="platform-sidebar-list">
+          {canOpenDashboard ? (
+            <li className="platform-sidebar-group">
+              <Link
+                className={`platform-sidebar-link${dashboardActive ? ' active' : ''}`}
+                to={appPath('/dashboard')}
+                aria-current={dashboardActive ? 'page' : undefined}
+                onClick={closeMobileMenu}
+              >
+                <span className="platform-sidebar-link-label">{t('Dashboard')}</span>
+              </Link>
+            </li>
+          ) : null}
           {sectionTabs.map((name) => {
-            const active = highlightSection === name;
+            const active = !dashboardActive && highlightSection === name;
             const children = itemsForSection(name);
             const expanded = active;
             return (
@@ -634,7 +675,7 @@ export function AppShell({
                   aria-current={active && onHome ? 'page' : undefined}
                   onClick={() => onSectionClick(name)}
                 >
-                  <span className="platform-sidebar-link-label">{name}</span>
+                  <span className="platform-sidebar-link-label">{t(name)}</span>
                   <span
                     className={`platform-sidebar-chevron${expanded ? ' open' : ''}`}
                     aria-hidden
@@ -650,8 +691,9 @@ export function AppShell({
                             className={`platform-sidebar-sublink${itemActive ? ' active' : ''}`}
                             to={appPath(item.to)}
                             aria-current={itemActive ? 'page' : undefined}
+                            onClick={closeMobileMenu}
                           >
-                            {item.label}
+                            {t(item.label)}
                           </Link>
                         </li>
                       );
@@ -669,7 +711,7 @@ export function AppShell({
           type="button"
           className="platform-sidebar-toggle"
           onClick={() => setAppSidebarOpen((open) => !open)}
-          aria-label={appSidebarOpen ? 'Hide menu' : 'Show menu'}
+          aria-label={appSidebarOpen ? t('Hide menu') : t('Show menu')}
           aria-expanded={appSidebarOpen}
           aria-controls="pool-app-sidebar"
         >
@@ -678,6 +720,7 @@ export function AppShell({
           <span className="platform-sidebar-toggle-bar" />
         </button>
         <div className="platform-main-topbar-actions">
+          <LanguageSwitcher />
           {tenantAccount ? (
             <TenantUserBar
               account={tenantAccount}
@@ -685,7 +728,7 @@ export function AppShell({
               onLogout={onTenantLogout}
             />
           ) : (
-            <span className="app-preview-topbar-note">View Application</span>
+            <span className="app-preview-topbar-note">{t('View Application')}</span>
           )}
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useT } from './i18n';
 
 export type ColumnSortDir = 'asc' | 'desc' | null;
 
@@ -25,6 +26,8 @@ export function TableColumnFilter({
   onSelectedChange,
   onSort,
 }: TableColumnFilterProps) {
+  const t = useT();
+  const displayLabel = t(label);
   const rootRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   const uniqueValues = useMemo(() => {
@@ -93,27 +96,27 @@ export function TableColumnFilter({
         onClick={onToggleOpen}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={`Filter ${label}`}
+        aria-label={`${t('Filter')} ${displayLabel}`}
       >
-        <span className="table-col-filter-label">{label}</span>
+        <span className="table-col-filter-label">{displayLabel}</span>
         <span className="table-col-filter-chevron" aria-hidden>
           {open ? '▴' : '▾'}
         </span>
       </button>
 
       {open ? (
-        <div className="table-col-filter-menu" role="dialog" aria-label={`${label} filter`}>
+        <div className="table-col-filter-menu" role="dialog" aria-label={`${displayLabel} ${t('Filter')}`}>
           <div className="table-col-filter-menu-top">
             <button type="button" className="table-col-filter-clear" onClick={clearFilter}>
-              Clear
+              {t('Clear')}
             </button>
             <div className="table-col-filter-sort-arrows">
               <button
                 type="button"
                 className={sortDir === 'asc' ? 'selected' : ''}
                 onClick={() => onSort(sortDir === 'asc' ? null : 'asc')}
-                aria-label="Sort ascending"
-                title="Sort ascending"
+                aria-label={t('Sort ascending')}
+                title={t('Sort ascending')}
               >
                 ▲
               </button>
@@ -121,8 +124,8 @@ export function TableColumnFilter({
                 type="button"
                 className={sortDir === 'desc' ? 'selected' : ''}
                 onClick={() => onSort(sortDir === 'desc' ? null : 'desc')}
-                aria-label="Sort descending"
-                title="Sort descending"
+                aria-label={t('Sort descending')}
+                title={t('Sort descending')}
               >
                 ▼
               </button>
@@ -132,8 +135,8 @@ export function TableColumnFilter({
             className="table-col-filter-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search…"
-            aria-label={`Search ${label} values`}
+            placeholder={t('Search…')}
+            aria-label={`${t('Search')} ${displayLabel}`}
           />
           <div className="table-col-filter-list">
             <label className="table-col-filter-item table-col-filter-item--all">
@@ -145,7 +148,7 @@ export function TableColumnFilter({
                 }}
                 onChange={toggleAll}
               />
-              <span>Select all</span>
+              <span>{t('Select all')}</span>
             </label>
             {filteredValues.map((value) => {
               const checked = !selected || selected.has(value);

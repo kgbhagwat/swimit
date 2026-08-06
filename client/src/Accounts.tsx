@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
 import { hasPlatformAccess } from './platformAccess';
@@ -116,6 +117,7 @@ function CancelIcon() {
 }
 
 export function Accounts() {
+  const t = useT();
   const session = getPlatformSession();
   const canManage = Boolean(
     session && hasPlatformAccess(session.menuAccess, 'accounts', session.isAccountAdmin),
@@ -323,21 +325,21 @@ export function Accounts() {
         className="accounts-page"
         actions={
           <Link className="submit" to="/create-account">
-            Create Account
+            {t('Create Account')}
           </Link>
         }
       >
-        {error ? <p className="error">{error}</p> : null}
-        {info ? <p className="success">{info}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
+        {info ? <p className="success">{t(info)}</p> : null}
 
         <section className="pass-table-card">
           {loading ? (
-            <p className="muted">Loading…</p>
+            <p className="muted">{t('Loading…')}</p>
           ) : accounts.length === 0 ? (
             <p className="pass-empty">
-              No SaaS accounts yet.{' '}
+              {t('No SaaS accounts yet.')}{' '}
               <Link className="terms-link" to="/create-account">
-                Create the first account
+                {t('Create the first account')}
               </Link>
               .
             </p>
@@ -347,15 +349,15 @@ export function Accounts() {
                 <table className="batch-saved-table accounts-table">
                   <thead>
                     <tr>
-                      <th>Account</th>
-                      <th>Code</th>
-                      <th>Contact</th>
-                      <th>Opened</th>
-                      <th>Package</th>
-                      <th>Status</th>
-                      <th>Active swimmers</th>
-                      <th>Expires</th>
-                      <th>Actions</th>
+                      <th>{t('Account')}</th>
+                      <th>{t('Code')}</th>
+                      <th>{t('Contact')}</th>
+                      <th>{t('Opened')}</th>
+                      <th>{t('Package')}</th>
+                      <th>{t('Status')}</th>
+                      <th>{t('Active swimmers')}</th>
+                      <th>{t('Expires')}</th>
+                      <th>{t('Actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -408,9 +410,9 @@ export function Accounts() {
                                     prev ? { ...prev, servicePackageId: e.target.value } : prev,
                                   )
                                 }
-                                aria-label="Package"
+                                aria-label={t('Package')}
                               >
-                                <option value="">Select package</option>
+                                <option value="">{t('Select package')}</option>
                                 {packages
                                   .filter(
                                     (p) =>
@@ -420,7 +422,7 @@ export function Accounts() {
                                   .map((pkg) => (
                                     <option key={pkg.id} value={pkg.id}>
                                       {pkg.packageName}
-                                      {!pkg.isActive ? ' (inactive)' : ''}
+                                      {!pkg.isActive ? t(' (inactive)') : ''}
                                     </option>
                                   ))}
                               </select>
@@ -439,11 +441,11 @@ export function Accounts() {
                                     prev ? { ...prev, status: e.target.value } : prev,
                                   )
                                 }
-                                aria-label="Status"
+                                aria-label={t('Status')}
                               >
                                 {STATUSES.map((s) => (
                                   <option key={s} value={s}>
-                                    {s}
+                                    {t(s)}
                                   </option>
                                 ))}
                               </select>
@@ -466,7 +468,7 @@ export function Accounts() {
                                       : prev,
                                   )
                                 }
-                                aria-label="Expires"
+                                aria-label={t('Expires')}
                               />
                             ) : (
                               formatExpiry(item.subscriptionExpiresAt)
@@ -483,7 +485,7 @@ export function Accounts() {
                                       disabled={busy}
                                       onClick={() => void saveEdit(item)}
                                       aria-label={`Save ${item.accountName}`}
-                                      title={savingId === item.id ? 'Saving…' : 'Save'}
+                                      title={savingId === item.id ? t('Saving…') : t('Save')}
                                     >
                                       <SaveIcon />
                                     </button>
@@ -492,8 +494,8 @@ export function Accounts() {
                                       className="accounts-icon-btn accounts-icon-cancel"
                                       disabled={busy}
                                       onClick={cancelEdit}
-                                      aria-label="Cancel edit"
-                                      title="Cancel"
+                                      aria-label={t('Cancel edit')}
+                                      title={t('Cancel')}
                                     >
                                       <CancelIcon />
                                     </button>
@@ -506,7 +508,7 @@ export function Accounts() {
                                       disabled={editingId != null || busy}
                                       onClick={() => startEdit(item)}
                                       aria-label={`Edit ${item.accountName}`}
-                                      title="Edit"
+                                      title={t('Edit')}
                                     >
                                       <EditIcon />
                                     </button>
@@ -520,10 +522,10 @@ export function Accounts() {
                                       aria-label={`Delete ${item.accountName}`}
                                       title={
                                         isPlatform
-                                          ? 'Platform account cannot be deleted'
+                                          ? t('Platform account cannot be deleted')
                                           : deletingId === item.id
-                                            ? 'Deleting…'
-                                            : 'Delete'
+                                            ? t('Deleting…')
+                                            : t('Delete')
                                       }
                                     >
                                       <DeleteIcon />
@@ -536,8 +538,8 @@ export function Accounts() {
                                       aria-label={`Reset admin password for ${item.accountName}`}
                                       title={
                                         resettingId === item.id
-                                          ? 'Resetting…'
-                                          : 'Reset admin password'
+                                          ? t('Resetting…')
+                                          : t('Reset admin password')
                                       }
                                     >
                                       <ResetPasswordIcon />
@@ -556,7 +558,7 @@ export function Accounts() {
                 </table>
               </div>
 
-              <div className="accounts-mobile-list" aria-label="Accounts">
+              <div className="accounts-mobile-list" aria-label={t('Accounts')}>
                 {accounts.map((item, index) => {
                   const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
                   const isEditing = editingId === item.id && editDraft != null;
@@ -571,7 +573,7 @@ export function Accounts() {
                       }`}
                     >
                       <div className="accounts-block-row">
-                        <div className="accounts-block-field" data-label="Account">
+                        <div className="accounts-block-field" data-label={t('Account')}>
                           <strong className="batch-saved-name">{item.accountName}</strong>
                           {item.poolAddress ? (
                             <div className="muted accounts-sub">{item.poolAddress}</div>
@@ -580,7 +582,7 @@ export function Accounts() {
                             <div className="muted accounts-sub">{item.city}</div>
                           ) : null}
                         </div>
-                        <div className="accounts-block-field" data-label="Code">
+                        <div className="accounts-block-field" data-label={t('Code')}>
                           {item.accountCode ? (
                             <a className="terms-link" href={accountLoginUrl(item.accountCode)}>
                               {item.accountCode}
@@ -589,7 +591,7 @@ export function Accounts() {
                             '—'
                           )}
                         </div>
-                        <div className="accounts-block-field" data-label="Contact">
+                        <div className="accounts-block-field" data-label={t('Contact')}>
                           {item.contactName}
                           <div className="muted accounts-sub">
                             {item.mobile}
@@ -601,13 +603,13 @@ export function Accounts() {
                             ) : null}
                           </div>
                         </div>
-                        <div className="accounts-block-field" data-label="Opened">
+                        <div className="accounts-block-field" data-label={t('Opened')}>
                           {formatCreated(item.createdAt)}
                         </div>
                         <div className="accounts-block-actions-cell" aria-hidden="true" />
                       </div>
                       <div className="accounts-block-row">
-                        <div className="accounts-block-field" data-label="Package">
+                        <div className="accounts-block-field" data-label={t('Package')}>
                           {isEditing ? (
                             <select
                               className="accounts-inline-control"
@@ -618,9 +620,9 @@ export function Accounts() {
                                   prev ? { ...prev, servicePackageId: e.target.value } : prev,
                                 )
                               }
-                              aria-label="Package"
+                              aria-label={t('Package')}
                             >
-                              <option value="">Select package</option>
+                              <option value="">{t('Select package')}</option>
                               {packages
                                 .filter(
                                   (p) =>
@@ -629,7 +631,7 @@ export function Accounts() {
                                 .map((pkg) => (
                                   <option key={pkg.id} value={pkg.id}>
                                     {pkg.packageName}
-                                    {!pkg.isActive ? ' (inactive)' : ''}
+                                    {!pkg.isActive ? t(' (inactive)') : ''}
                                   </option>
                                 ))}
                             </select>
@@ -637,7 +639,7 @@ export function Accounts() {
                             item.packageName?.trim() || '—'
                           )}
                         </div>
-                        <div className="accounts-block-field" data-label="Status">
+                        <div className="accounts-block-field" data-label={t('Status')}>
                           {isEditing ? (
                             <select
                               className="accounts-inline-control"
@@ -648,11 +650,11 @@ export function Accounts() {
                                   prev ? { ...prev, status: e.target.value } : prev,
                                 )
                               }
-                              aria-label="Status"
+                              aria-label={t('Status')}
                             >
                               {STATUSES.map((s) => (
                                 <option key={s} value={s}>
-                                  {s}
+                                  {t(s)}
                                 </option>
                               ))}
                             </select>
@@ -660,10 +662,10 @@ export function Accounts() {
                             item.status?.trim() || '—'
                           )}
                         </div>
-                        <div className="accounts-block-field" data-label="Active swimmers">
+                        <div className="accounts-block-field" data-label={t('Active swimmers')}>
                           {item.activeSwimmers ?? 0}
                         </div>
-                        <div className="accounts-block-field" data-label="Expires">
+                        <div className="accounts-block-field" data-label={t('Expires')}>
                           {isEditing ? (
                             <input
                               type="date"
@@ -677,7 +679,7 @@ export function Accounts() {
                                     : prev,
                                 )
                               }
-                              aria-label="Expires"
+                              aria-label={t('Expires')}
                             />
                           ) : (
                             formatExpiry(item.subscriptionExpiresAt)
@@ -694,7 +696,7 @@ export function Accounts() {
                                     disabled={busy}
                                     onClick={() => void saveEdit(item)}
                                     aria-label={`Save ${item.accountName}`}
-                                    title={savingId === item.id ? 'Saving…' : 'Save'}
+                                    title={savingId === item.id ? t('Saving…') : t('Save')}
                                   >
                                     <SaveIcon />
                                   </button>
@@ -703,8 +705,8 @@ export function Accounts() {
                                     className="accounts-icon-btn accounts-icon-cancel"
                                     disabled={busy}
                                     onClick={cancelEdit}
-                                    aria-label="Cancel edit"
-                                    title="Cancel"
+                                    aria-label={t('Cancel edit')}
+                                    title={t('Cancel')}
                                   >
                                     <CancelIcon />
                                   </button>
@@ -717,7 +719,7 @@ export function Accounts() {
                                     disabled={editingId != null || busy}
                                     onClick={() => startEdit(item)}
                                     aria-label={`Edit ${item.accountName}`}
-                                    title="Edit"
+                                    title={t('Edit')}
                                   >
                                     <EditIcon />
                                   </button>
@@ -731,10 +733,10 @@ export function Accounts() {
                                     aria-label={`Delete ${item.accountName}`}
                                     title={
                                       isPlatform
-                                        ? 'Platform account cannot be deleted'
+                                        ? t('Platform account cannot be deleted')
                                         : deletingId === item.id
-                                          ? 'Deleting…'
-                                          : 'Delete'
+                                          ? t('Deleting…')
+                                          : t('Delete')
                                     }
                                   >
                                     <DeleteIcon />
@@ -747,8 +749,8 @@ export function Accounts() {
                                     aria-label={`Reset admin password for ${item.accountName}`}
                                     title={
                                       resettingId === item.id
-                                        ? 'Resetting…'
-                                        : 'Reset admin password'
+                                        ? t('Resetting…')
+                                        : t('Reset admin password')
                                     }
                                   >
                                     <ResetPasswordIcon />
@@ -782,11 +784,11 @@ export function Accounts() {
             className="modal-panel accounts-delete-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="delete-account-title">Delete account?</h2>
+            <h2 id="delete-account-title">{t('Delete account?')}</h2>
             <p className="modal-intro">
-              Delete <strong>{pendingDelete.accountName}</strong>
+              {t('Delete')} <strong>{pendingDelete.accountName}</strong>
               {pendingDelete.accountCode ? ` (${pendingDelete.accountCode})` : ''}?
-              This permanently removes the pool account and its data.
+              {t('This permanently removes the pool account and its data.')}
             </p>
             <div className="modal-footer accounts-delete-modal-footer">
               <button
@@ -795,7 +797,7 @@ export function Accounts() {
                 disabled={deletingId != null}
                 onClick={() => setPendingDelete(null)}
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button
                 type="button"
@@ -803,7 +805,7 @@ export function Accounts() {
                 disabled={deletingId != null}
                 onClick={() => void confirmDelete()}
               >
-                {deletingId != null ? 'Deleting…' : 'Delete'}
+                {deletingId != null ? t('Deleting…') : t('Delete')}
               </button>
             </div>
           </div>
@@ -824,13 +826,13 @@ export function Accounts() {
             className="modal-panel accounts-delete-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="reset-admin-password-title">Reset admin password?</h2>
+            <h2 id="reset-admin-password-title">{t('Reset admin password?')}</h2>
             <p className="modal-intro">
-              Reset the account admin password for{' '}
+              {t('Reset the account admin password for')}{' '}
               <strong>{pendingReset.accountName}</strong>
               {pendingReset.accountCode ? ` (${pendingReset.accountCode})` : ''}?
-              A new temporary password will be sent on WhatsApp to{' '}
-              <strong>{pendingReset.mobile || 'the account contact'}</strong>.
+              {t('A new temporary password will be sent on WhatsApp to')}{' '}
+              <strong>{pendingReset.mobile || t('the account contact')}</strong>.
             </p>
             <div className="modal-footer accounts-delete-modal-footer">
               <button
@@ -839,7 +841,7 @@ export function Accounts() {
                 disabled={resettingId != null}
                 onClick={() => setPendingReset(null)}
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button
                 type="button"
@@ -847,7 +849,7 @@ export function Accounts() {
                 disabled={resettingId != null}
                 onClick={() => void confirmResetPassword()}
               >
-                {resettingId != null ? 'Resetting…' : 'Reset password'}
+                {resettingId != null ? t('Resetting…') : t('Reset password')}
               </button>
             </div>
           </div>

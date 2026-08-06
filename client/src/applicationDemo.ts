@@ -15,6 +15,7 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/pass-scanner',
   '/coach-payment',
   '/attendance-sheet',
+  '/dashboard',
   '/balance-sheet',
   '/payment-details',
   '/pool-core-info',

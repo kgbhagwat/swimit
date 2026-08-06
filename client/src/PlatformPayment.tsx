@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useT } from './i18n';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { PlatformPage } from './PlatformPage';
@@ -59,6 +60,7 @@ function ImageField({
   onPick: (file: File | null) => void;
   onClear: () => void;
 }) {
+  const t = useT();
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [compressing, setCompressing] = useState(false);
@@ -85,9 +87,9 @@ function ImageField({
 
   return (
     <div className="photo-field">
-      <span className="label">{label}</span>
-      {editable ? <p className="hint">{hint}</p> : null}
-      {compressing ? <p className="hint">Compressing image…</p> : null}
+      <span className="label">{t(label)}</span>
+      {editable ? <p className="hint">{t(hint)}</p> : null}
+      {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
       {display ? (
         <div className={`preview-wrap${editable ? ' preview-wrap--deletable' : ''}`}>
           <img src={display} alt={label} className="preview pool-core-preview" />
@@ -96,7 +98,7 @@ function ImageField({
               type="button"
               className="preview-delete-btn"
               aria-label={`Delete ${label}`}
-              title="Delete image"
+              title={t('Delete image')}
               disabled={compressing}
               onClick={onClear}
             >
@@ -110,7 +112,7 @@ function ImageField({
           ) : null}
         </div>
       ) : (
-        <p className="hint">No image uploaded yet.</p>
+        <p className="hint">{t('No image uploaded yet.')}</p>
       )}
       {editable ? (
         <>
@@ -122,7 +124,7 @@ function ImageField({
               onClick={() => cameraRef.current?.click()}
             >
               <CameraActionIcon />
-              Take photo
+              {t('Take photo')}
             </button>
             <button
               type="button"
@@ -131,7 +133,7 @@ function ImageField({
               onClick={() => fileRef.current?.click()}
             >
               <UploadActionIcon />
-              Upload image
+              {t('Upload image')}
             </button>
           </div>
           <input
@@ -161,6 +163,7 @@ function ImageField({
 }
 
 export function PlatformPayment() {
+  const t = useT();
   const session = getPlatformSession();
   const canManage = Boolean(
     session && hasPlatformAccess(session.menuAccess, 'payment', session.isAccountAdmin),
@@ -295,19 +298,18 @@ export function PlatformPayment() {
   }
 
   return (
-    <PlatformPage title="Payment">
+    <PlatformPage title="Payment" className="platform-payment-page">
       <p className="lede">
-        Upload the SwimIT SaaS payment QR code and UPI ID. Pool account admins use these details to
-        pay for their subscription.
+        {t('Upload the SwimIT SaaS payment QR code and UPI ID. Pool account admins use these details to pay for their subscription.')}
       </p>
 
-      {loading ? <p className="pass-empty">Loading…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {success ? <p className="success">{success}</p> : null}
+      {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
+      {success ? <p className="success">{t(success)}</p> : null}
 
       {!loading ? (
         editing && canManage ? (
-          <form className="pass-form-card" onSubmit={onSubmit}>
+          <form className="pass-form-card platform-payment-details-card" onSubmit={onSubmit}>
             <ImageField
               label="SaaS payment QR code"
               hint="Max 200 KB — upload the UPI / payment QR image account holders will scan"
@@ -332,7 +334,7 @@ export function PlatformPayment() {
             <div className="field upi-id-field">
               <div className="upi-id-row">
                 <span className="label">
-                  UPI ID<span className="req"> *</span>
+                  {t('UPI ID')}<span className="req"> *</span>
                 </span>
                 <input
                   value={form.upiId}
@@ -345,39 +347,42 @@ export function PlatformPayment() {
                   autoComplete="off"
                   required
                   aria-invalid={Boolean(upiHint(form.upiId))}
-                  aria-label="UPI ID"
+                  aria-label={t('UPI ID')}
                 />
               </div>
               {upiHint(form.upiId) ? (
-                <span className="field-error">{upiHint(form.upiId)}</span>
+                <span className="field-error">{t(upiHint(form.upiId))}</span>
               ) : null}
             </div>
 
             <div className="pass-form-actions">
               <button type="submit" className="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? t('Saving…') : t('Save')}
               </button>
             </div>
           </form>
         ) : (
-          <section className="pass-form-card pool-core-view">
+          <section className="pass-form-card pool-core-view platform-payment-details-card">
             <div className="photo-field">
-              <span className="label">SaaS payment QR code</span>
+              <span className="label">{t('SaaS payment QR code')}</span>
               {uploadUrl(form.paymentQrPath) ? (
                 <div className="preview-wrap">
                   <img
                     src={uploadUrl(form.paymentQrPath)!}
-                    alt="SaaS payment QR code"
+                    alt={t('SaaS payment QR code')}
                     className="preview pool-core-preview"
                   />
                 </div>
               ) : (
-                <p className="hint">No image uploaded yet.</p>
+                <p className="hint">{t('No image uploaded yet.')}</p>
               )}
             </div>
 
-            <div className="pool-core-view-row">
-              <span className="label">UPI ID</span>
+            <div className="pool-core-view-row pool-core-view-row--inline">
+              <span className="label">{t('UPI ID')}</span>
+              <span className="pool-core-view-sep" aria-hidden="true">
+                –
+              </span>
               <p className="pool-core-view-value">
                 {form.upiId.trim() ? <code>{form.upiId.trim()}</code> : '—'}
               </p>
@@ -394,11 +399,11 @@ export function PlatformPayment() {
                     setError('');
                   }}
                 >
-                  Edit
+                  {t('Edit')}
                 </button>
               </div>
             ) : (
-              <p className="muted">You do not have permission to edit payment settings.</p>
+              <p className="muted">{t('You do not have permission to edit payment settings.')}</p>
             )}
           </section>
         )
@@ -407,7 +412,7 @@ export function PlatformPayment() {
       {!loading ? (
         <section className="pass-form-card platform-payment-txns">
           <div className="platform-payment-txns-head">
-            <h2>Recent payments</h2>
+            <h2>{t('Recent payments')}</h2>
             <button
               type="button"
               className="ghost-btn"
@@ -416,7 +421,7 @@ export function PlatformPayment() {
                 setTxnError('');
               }}
             >
-              {showRangeForm ? 'Hide' : 'More transactions'}
+              {showRangeForm ? t('Hide') : t('More transactions')}
             </button>
           </div>
 
@@ -443,7 +448,7 @@ export function PlatformPayment() {
               }}
             >
               <label className="field platform-payment-range-field">
-                <span className="label">From</span>
+                <span className="label">{t('From')}</span>
                 <input
                   type="date"
                   value={rangeFrom}
@@ -452,7 +457,7 @@ export function PlatformPayment() {
                 />
               </label>
               <label className="field platform-payment-range-field">
-                <span className="label">To</span>
+                <span className="label">{t('To')}</span>
                 <input
                   type="date"
                   value={rangeTo}
@@ -461,7 +466,7 @@ export function PlatformPayment() {
                 />
               </label>
               <button type="submit" className="submit platform-payment-get-btn" disabled={txnLoading}>
-                {txnLoading ? 'Loading…' : 'Get'}
+                {txnLoading ? t('Loading…') : t('Get')}
               </button>
               {txnRangeActive ? (
                 <button
@@ -482,7 +487,7 @@ export function PlatformPayment() {
                       .finally(() => setTxnLoading(false));
                   }}
                 >
-                  Show last 10
+                  {t('Show last 10')}
                 </button>
               ) : null}
             </form>
@@ -490,29 +495,29 @@ export function PlatformPayment() {
 
           <p className="muted platform-payment-txns-lede">
             {txnRangeActive
-              ? `Confirmed payments from ${rangeFrom} to ${rangeTo}.`
-              : 'Last 10 confirmed SaaS subscription payments.'}
+              ? `${t('Confirmed payments from')} ${rangeFrom} ${t('to')} ${rangeTo}.`
+              : t('Last 10 confirmed SaaS subscription payments.')}
           </p>
 
-          {txnError ? <p className="error">{txnError}</p> : null}
+          {txnError ? <p className="error">{t(txnError)}</p> : null}
 
           {transactions.length === 0 ? (
             <p className="pass-empty">
               {txnRangeActive
-                ? 'No confirmed payments in this date range.'
-                : 'No confirmed payments yet.'}
+                ? t('No confirmed payments in this date range.')
+                : t('No confirmed payments yet.')}
             </p>
           ) : (
             <div className="accounts-table-wrap">
               <table className="accounts-table platform-payment-txn-table">
                 <thead>
                   <tr>
-                    <th>Account name</th>
-                    <th>Code</th>
-                    <th>Payment date</th>
-                    <th>Duration</th>
-                    <th>Amount</th>
-                    <th>Transaction ID</th>
+                    <th>{t('Account name')}</th>
+                    <th>{t('Code')}</th>
+                    <th>{t('Payment date')}</th>
+                    <th>{t('Duration')}</th>
+                    <th>{t('Amount')}</th>
+                    <th>{t('Transaction ID')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -539,7 +544,7 @@ export function PlatformPayment() {
                           : '—'}
                       </td>
                       <td>
-                        {txn.durationMonths} month{txn.durationMonths === 1 ? '' : 's'}
+                        {txn.durationMonths} {txn.durationMonths === 1 ? t('month') : t('months')}
                       </td>
                       <td>₹{txn.amount.toLocaleString('en-IN')}</td>
                       <td>{txn.transactionId || '—'}</td>

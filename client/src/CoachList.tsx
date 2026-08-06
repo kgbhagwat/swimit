@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useT } from './i18n';
 import { Link } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
@@ -95,6 +96,7 @@ function downloadCsv(filename: string, header: string[], rows: string[][]) {
 }
 
 export function CoachList() {
+  const t = useT();
   const [role, setRole] = useState<StaffRole>('Coach');
   const [coaches, setCoaches] = useState<CoachRow[]>([]);
   const [lifeguards, setLifeguards] = useState<SimpleStaffRow[]>([]);
@@ -267,12 +269,14 @@ export function CoachList() {
 
   const countLabel = useMemo(() => {
     if (sampleMode) return '';
-    if (role === 'Coach') return `${visibleCount} coach${visibleCount === 1 ? '' : 'es'}`;
-    if (role === 'Lifeguard') {
-      return `${visibleCount} lifeguard${visibleCount === 1 ? '' : 's'}`;
+    if (role === 'Coach') {
+      return `${visibleCount} ${visibleCount === 1 ? t('coach') : t('coaches')}`;
     }
-    return `${visibleCount} staff`;
-  }, [role, visibleCount, sampleMode]);
+    if (role === 'Lifeguard') {
+      return `${visibleCount} ${visibleCount === 1 ? t('lifeguard') : t('lifeguards')}`;
+    }
+    return `${visibleCount} ${t('staff')}`;
+  }, [role, visibleCount, sampleMode, t]);
 
   function onDownloadCsv() {
     const stamp = new Date().toISOString().slice(0, 10);
@@ -303,7 +307,7 @@ export function CoachList() {
 
   function EditIconButton({ to, label }: { to: string; label: string }) {
     return (
-      <Link className="icon-action" to={to} aria-label={label} title={label}>
+      <Link className="icon-action" to={to} aria-label={t(label)} title={label}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
           <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
           <path d="M13.5 6.5l3 3" />
@@ -352,8 +356,8 @@ export function CoachList() {
         }`}
         title={
           coach.isActive
-            ? 'Deactivate coach — will not be available for swimmer allocation'
-            : 'Activate coach — available for swimmer allocation'
+            ? t('Deactivate coach — will not be available for swimmer allocation')
+            : t('Activate coach — available for swimmer allocation')
         }
       >
         <input
@@ -378,7 +382,7 @@ export function CoachList() {
       title="Staff List"
       actions={
         <div className="list-head-actions">
-          <div className="staff-role-radios" role="radiogroup" aria-label="Staff type">
+          <div className="staff-role-radios" role="radiogroup" aria-label={t('Staff type')}>
             {(
               [
                 ['Coach', 'Coach'],
@@ -394,7 +398,7 @@ export function CoachList() {
                   checked={role === value}
                   onChange={() => setRole(value)}
                 />
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </label>
             ))}
           </div>
@@ -412,14 +416,14 @@ export function CoachList() {
         <section className={tableClass}>
           {sampleMode ? (
             <div className="user-mgmt-sample-watermark" aria-hidden="true">
-              Sample
+              {t('Sample')}
             </div>
           ) : null}
           <div className="coach-table-head">
             {COACH_COLUMNS.map(({ key, label }) => (
               <div key={key} className="staff-col-head">
                 <TableColumnFilter
-                  label={label}
+                  label={t(label)}
                   values={coaches.map((row) => coachCellValue(row, key))}
                   selected={coachSelected[key] ?? null}
                   sortDir={coachSortKey === key ? coachSortDir : null}
@@ -438,21 +442,21 @@ export function CoachList() {
                 />
               </div>
             ))}
-            <span>Actions</span>
+            <span>{t('Actions')}</span>
           </div>
 
           {loading ? (
-            <p className="pass-empty">Loading…</p>
+            <p className="pass-empty">{t('Loading…')}</p>
           ) : coaches.length === 0 ? (
             <p className="pass-empty">
-              No coaches registered yet. Use{' '}
+              {t('No coaches registered yet. Use')}{' '}
               <Link className="terms-link" to={tenantPath('/staff-register')}>
-                Staff registration
+                {t('Staff registration')}
               </Link>{' '}
-              to add one.
+              {t('to add one.')}
             </p>
           ) : visibleCoaches.length === 0 ? (
-            <p className="pass-empty">No coaches match these filters.</p>
+            <p className="pass-empty">{t('No coaches match these filters.')}</p>
           ) : (
             <div className="pass-table-body">
               {visibleCoaches.map((coach, index) => (
@@ -460,11 +464,11 @@ export function CoachList() {
                   className={`coach-row${index % 2 === 1 ? ' coach-row-alt' : ''}`}
                   key={coach.id}
                 >
-                  <strong data-label="Coach name">{coach.fullName}</strong>
-                  <span className="coach-contact" data-label="Contact">
+                  <strong data-label={t('Coach name')}>{coach.fullName}</strong>
+                  <span className="coach-contact" data-label={t('Contact')}>
                     {coach.contact}
                   </span>
-                  <span className="coach-batches" data-label="Batches">
+                  <span className="coach-batches" data-label={t('Batches')}>
                     {coach.batches.length > 0 ? (
                       coach.batches.map((batch) => (
                         <span className="coach-batch-line" key={batch}>
@@ -475,8 +479,8 @@ export function CoachList() {
                       <span>—</span>
                     )}
                   </span>
-                  <span data-label="Interested to teach">{coach.teachStrokes}</span>
-                  <span className="pass-actions" data-label="Actions -">
+                  <span data-label={t('Interested to teach')}>{coach.teachStrokes}</span>
+                  <span className="pass-actions" data-label={t('Actions')}>
                     {canEdit ? (
                       <EditIconButton
                         to={tenantPath(`/staff-register/${coach.id}`)}
@@ -494,14 +498,14 @@ export function CoachList() {
         <section className={tableClass}>
           {sampleMode ? (
             <div className="user-mgmt-sample-watermark" aria-hidden="true">
-              Sample
+              {t('Sample')}
             </div>
           ) : null}
           <div className={role === 'Lifeguard' ? 'lifeguard-staff-head' : 'other-staff-head'}>
             {simpleColumns.map(({ key, label }) => (
               <div key={key} className="staff-col-head">
                 <TableColumnFilter
-                  label={label}
+                  label={t(label)}
                   values={simpleSource.map((row) => simpleCellValue(row, key))}
                   selected={simpleSelected[key] ?? null}
                   sortDir={simpleSortKey === key ? simpleSortDir : null}
@@ -520,22 +524,26 @@ export function CoachList() {
                 />
               </div>
             ))}
-            <span>Actions</span>
+            <span>{t('Actions')}</span>
           </div>
 
           {loading ? (
-            <p className="pass-empty">Loading…</p>
+            <p className="pass-empty">{t('Loading…')}</p>
           ) : simpleSource.length === 0 ? (
             <p className="pass-empty">
-              No {role === 'Lifeguard' ? 'lifeguards' : 'other staff'} registered yet. Use{' '}
+              {role === 'Lifeguard'
+                ? t('No lifeguards registered yet. Use')
+                : t('No other staff registered yet. Use')}{' '}
               <Link className="terms-link" to={tenantPath('/staff-register')}>
-                Staff registration
+                {t('Staff registration')}
               </Link>{' '}
-              to add one.
+              {t('to add one.')}
             </p>
           ) : visibleSimple.length === 0 ? (
             <p className="pass-empty">
-              No {role === 'Lifeguard' ? 'lifeguards' : 'staff'} match these filters.
+              {role === 'Lifeguard'
+                ? t('No lifeguards match these filters.')
+                : t('No staff match these filters.')}
             </p>
           ) : (
             <div className="pass-table-body">
@@ -562,7 +570,7 @@ export function CoachList() {
         </section>
       )}
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
     </PlatformPage>
   );
 }

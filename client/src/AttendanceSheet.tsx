@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useT } from './i18n';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
 import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 
@@ -254,7 +256,12 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
 }
 
 export function AttendanceSheet() {
+  const t = useT();
   const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const monthSelectOptions = useMemo(
+    () => monthOptions.map((value) => ({ value, label: monthLabel(value) })),
+    [monthOptions],
+  );
   const [view, setView] = useState<ViewMode>('standard');
   const [month, setMonth] = useState(currentMonthValue);
   const [sheet, setSheet] = useState<SheetResult | null>(null);
@@ -345,9 +352,9 @@ export function AttendanceSheet() {
     const parts = [formatDisplayDate(day)];
     const holidayName = holidayNameByDate.get(day);
     if (holidayName) parts.push(holidayName);
-    else if (weeklyOffSet.has(day)) parts.push('Weekly off');
-    if (isPresent) parts.push('Present');
-    if (!inPass) parts.push('Outside pass');
+    else if (weeklyOffSet.has(day)) parts.push(t('Weekly off'));
+    if (isPresent) parts.push(t('Present'));
+    if (!inPass) parts.push(t('Outside pass'));
     return parts.join(' · ');
   }
 
@@ -393,14 +400,14 @@ export function AttendanceSheet() {
   }
 
   const summaryText = (() => {
-    if (loading) return 'Loading…';
+    if (loading) return t('Loading…');
     if (sampleMode) return '';
     const count = sheet?.swimmerCount ?? 0;
-    const swimmerWord = `swimmer${count === 1 ? '' : 's'}`;
+    const swimmerWord = count === 1 ? t('swimmer') : t('swimmers');
     if (view === 'swimmer') {
-      return `${count} ${swimmerWord} · own pass month (issue date → valid until), attendance till today`;
+      return `${count} ${swimmerWord} · ${t('own pass month (issue date → valid until), attendance till today')}`;
     }
-    return `${count} ${swimmerWord} in ${monthLabel(month)}`;
+    return `${count} ${swimmerWord} ${t('in')} ${monthLabel(month)}`;
   })();
 
   return (
@@ -419,12 +426,12 @@ export function AttendanceSheet() {
       >
         {sampleMode ? (
           <div className="user-mgmt-sample-watermark" aria-hidden="true">
-            Sample
+            {t('Sample')}
           </div>
         ) : null}
         <div className="attendance-filters">
           <div className="attendance-filters-left">
-            <span className="label">View</span>
+            <span className="label">{t('View')}</span>
             <label className={`attendance-view-option${view === 'standard' ? ' selected' : ''}`}>
               <input
                 type="radio"
@@ -432,7 +439,7 @@ export function AttendanceSheet() {
                 checked={view === 'standard'}
                 onChange={() => setView('standard')}
               />
-              Standard month
+              {t('Standard month')}
             </label>
             <label className={`attendance-view-option${view === 'swimmer' ? ' selected' : ''}`}>
               <input
@@ -441,23 +448,23 @@ export function AttendanceSheet() {
                 checked={view === 'swimmer'}
                 onChange={() => setView('swimmer')}
               />
-              Swimmer month
+              {t('Swimmer month')}
             </label>
           </div>
 
           <div className="attendance-filters-right">
-            <span className="label">Month</span>
-            <select value={month} onChange={(e) => setMonth(e.target.value)}>
-              {monthOptions.map((value) => (
-                <option key={value} value={value}>
-                  {monthLabel(value)}
-                </option>
-              ))}
-            </select>
+            <span className="label">{t('Month')}</span>
+            <InPageSelect
+              value={month}
+              onChange={setMonth}
+              options={monthSelectOptions}
+              required
+              aria-label={t('Month')}
+            />
           </div>
         </div>
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
 
         {summaryText ? (
           <div className="attendance-toolbar">
@@ -466,15 +473,15 @@ export function AttendanceSheet() {
         ) : null}
 
         {!loading && sheet && sheet.items.length > 0 ? (
-          <div className="attendance-legend" aria-label="Day colour legend">
+          <div className="attendance-legend" aria-label={t('Day colour legend')}>
             <span className="attendance-legend-item">
-              <span className="attendance-legend-swatch present" /> Present
+              <span className="attendance-legend-swatch present" /> {t('Present')}
             </span>
             <span className="attendance-legend-item">
-              <span className="attendance-legend-swatch weekly-off" /> Weekly off
+              <span className="attendance-legend-swatch weekly-off" /> {t('Weekly off')}
             </span>
             <span className="attendance-legend-item">
-              <span className="attendance-legend-swatch holiday" /> Holiday
+              <span className="attendance-legend-swatch holiday" /> {t('Holiday')}
             </span>
           </div>
         ) : null}
@@ -483,13 +490,13 @@ export function AttendanceSheet() {
           sheet.items.length === 0 ? (
             <p className="pass-empty">
               {view === 'swimmer'
-                ? 'No swimmers with a pass period overlapping this month.'
-                : 'No swimmers found for this month.'}
+                ? t('No swimmers with a pass period overlapping this month.')
+                : t('No swimmers found for this month.')}
             </p>
           ) : view === 'swimmer' ? (
             <div className="attendance-swimmer-blocks">
               {visibleItems.length === 0 ? (
-                <p className="pass-empty">No swimmers match these filters.</p>
+                <p className="pass-empty">{t('No swimmers match these filters.')}</p>
               ) : (
                 visibleItems.map((item) => {
                 const passStart = item.passStart ?? '';
@@ -502,12 +509,12 @@ export function AttendanceSheet() {
                       <span className="attendance-swimmer-name">{item.fullName}</span>
                       {passStart && passEnd ? (
                         <span className="attendance-swimmer-pass-range">
-                          Pass: {rangeLabel(passStart, passEnd)}
+                          {t('Pass')}: {rangeLabel(passStart, passEnd)}
                         </span>
                       ) : null}
                     </div>
                     {days.length === 0 ? (
-                      <p className="pass-empty">No pass period on file.</p>
+                      <p className="pass-empty">{t('No pass period on file.')}</p>
                     ) : (
                       <div className="attendance-sheet-scroll">
                         <table className="attendance-sheet-table attendance-swimmer-own-table">
@@ -561,7 +568,7 @@ export function AttendanceSheet() {
                   <tr>
                     <th className="attendance-sticky-col attendance-swimmer-col-head">
                       <TableColumnFilter
-                        label="Swimmer"
+                        label={t('Swimmer')}
                         values={sheet.items.map((item) => item.fullName)}
                         selected={swimmerSelected}
                         sortDir={swimmerSortDir}
@@ -593,7 +600,7 @@ export function AttendanceSheet() {
                         className="attendance-sticky-col"
                         colSpan={1 + sheet.days.length}
                       >
-                        No swimmers match these filters.
+                        {t('No swimmers match these filters.')}
                       </td>
                     </tr>
                   ) : (

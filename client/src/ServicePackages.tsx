@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useT } from './i18n';
 import { PlatformShell } from './PlatformShell';
 import { PlatformPage } from './PlatformPage';
 import { getPlatformSession } from './platformSession';
@@ -83,18 +84,20 @@ function packageHasFeature(modules: string, feature: PackageFeature, packageName
 }
 
 function FeatureTick({ on }: { on: boolean }) {
+  const t = useT();
   return on ? (
-    <span className="package-tick" aria-label="Included">
+    <span className="package-tick" aria-label={t('Included')}>
       ✓
     </span>
   ) : (
-    <span className="package-tick-off" aria-label="Not included">
+    <span className="package-tick-off" aria-label={t('Not included')}>
       —
     </span>
   );
 }
 
 export function ServicePackages() {
+  const t = useT();
   const session = getPlatformSession();
   const canManagePackages = Boolean(
     session &&
@@ -232,26 +235,26 @@ export function ServicePackages() {
       <PlatformPage title="Service packages" className="service-packages-page">
       {canManagePackages ? (
       <form className="pass-form-card" onSubmit={onSubmit}>
-        <h2>{editingId ? 'Edit package' : 'New package'}</h2>
+        <h2>{editingId ? t('Edit package') : t('New package')}</h2>
 
         <label className="field">
           <span className="label">
-            Package name <span className="req">*</span>
+            {t('Package name')} <span className="req">*</span>
           </span>
           <input
             value={form.packageName}
             onChange={(e) => setField('packageName', e.target.value)}
-            placeholder="e.g. Trial, Starter, Professional"
+            placeholder={t('e.g. Trial, Starter, Professional')}
             required
           />
         </label>
 
         <label className="field">
-          <span className="label">Description</span>
+          <span className="label">{t('Description')}</span>
           <textarea
             value={form.description}
             onChange={(e) => setField('description', e.target.value)}
-            placeholder="Short summary of what this plan includes"
+            placeholder={t('Short summary of what this plan includes')}
             rows={3}
           />
         </label>
@@ -259,7 +262,7 @@ export function ServicePackages() {
         <div className="form-grid-2">
           <label className="field">
             <span className="label">
-              Price (₹) <span className="req">*</span>
+              {t('Price (₹)')} <span className="req">*</span>
             </span>
             <input
               type="number"
@@ -274,14 +277,14 @@ export function ServicePackages() {
 
           <label className="field">
             <span className="label">
-              Billing period <span className="req">*</span>
+              {t('Billing period')} <span className="req">*</span>
             </span>
             <select
               value={form.billingPeriod}
               onChange={(e) => setField('billingPeriod', e.target.value)}
             >
-              <option value="Month">Month</option>
-              <option value="Year">Year</option>
+              <option value="Month">{t('Month')}</option>
+              <option value="Year">{t('Year')}</option>
             </select>
           </label>
 
@@ -292,12 +295,12 @@ export function ServicePackages() {
               min={0}
               value={form.maxActiveSwimmers}
               onChange={(e) => setField('maxActiveSwimmers', e.target.value)}
-              placeholder="Blank = unlimited"
+              placeholder={t('Blank = unlimited')}
             />
           </label>
 
           <label className="field">
-            <span className="label">Max users</span>
+            <span className="label">{t('Max users')}</span>
             <input
               type="number"
               min={1}
@@ -307,38 +310,38 @@ export function ServicePackages() {
           </label>
 
           <label className="field">
-            <span className="label">Trial days</span>
+            <span className="label">{t('Trial days')}</span>
             <input
               type="number"
               min={0}
               value={form.trialDays}
               onChange={(e) => setField('trialDays', e.target.value)}
-              placeholder="0 = paid plan"
+              placeholder={t('0 = paid plan')}
             />
           </label>
 
           <label className="field">
-            <span className="label">Modules</span>
+            <span className="label">{t('Modules')}</span>
             <select value={form.modules} onChange={(e) => setField('modules', e.target.value)}>
-              <option value="core">Core (ops)</option>
-              <option value="full">Full (ops + finance)</option>
+              <option value="core">{t('Core (ops)')}</option>
+              <option value="full">{t('Full (ops + finance)')}</option>
             </select>
           </label>
 
           <label className="field">
-            <span className="label">Support</span>
+            <span className="label">{t('Support')}</span>
             <select
               value={form.supportLevel}
               onChange={(e) => setField('supportLevel', e.target.value)}
             >
               <option value="whatsapp">WhatsApp</option>
-              <option value="priority">Priority</option>
-              <option value="onboarding">Onboarding</option>
+              <option value="priority">{t('Priority')}</option>
+              <option value="onboarding">{t('Onboarding')}</option>
             </select>
           </label>
 
           <label className="field">
-            <span className="label">Max pools</span>
+            <span className="label">{t('Max pools')}</span>
             <input
               type="number"
               min={1}
@@ -349,11 +352,11 @@ export function ServicePackages() {
         </div>
 
         <label className="field">
-          <span className="label">Features (optional override)</span>
+          <span className="label">{t('Features (optional override)')}</span>
           <textarea
             value={form.features}
             onChange={(e) => setField('features', e.target.value)}
-            placeholder="Leave blank to auto-fill from swimmers / modules / support"
+            placeholder={t('Leave blank to auto-fill from swimmers / modules / support')}
             rows={2}
           />
         </label>
@@ -364,33 +367,33 @@ export function ServicePackages() {
             checked={form.isActive}
             onChange={(e) => setField('isActive', e.target.checked)}
           />
-          <span>Active (available for new accounts)</span>
+          <span>{t('Active (available for new accounts)')}</span>
         </label>
 
         <div className="submit-wrap">
           {editingId ? (
             <button type="button" className="ghost-btn" onClick={resetForm}>
-              Cancel edit
+              {t('Cancel edit')}
             </button>
           ) : null}
           <button type="submit" className="submit" disabled={saving}>
-            {saving ? 'Saving…' : editingId ? 'Update package' : 'Create package'}
+            {saving ? t('Saving…') : editingId ? t('Update package') : t('Create package')}
           </button>
         </div>
       </form>
       ) : null}
 
-      {error ? <p className="error">{error}</p> : null}
-      {success ? <p className="success">{success}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
+      {success ? <p className="success">{t(success)}</p> : null}
 
       <section className="pass-table-card service-packages-card">
         {loading ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('Loading…')}</p>
         ) : packages.length === 0 ? (
           <p className="pass-empty">
             {canManagePackages
-              ? 'No service packages yet. Create the first SwimIT plan above.'
-              : 'No service packages yet.'}
+              ? t('No service packages yet. Create the first SwimIT plan above.')
+              : t('No service packages yet.')}
           </p>
         ) : (
           <div className="batch-saved-table-wrap package-compare-wrap">
@@ -398,14 +401,14 @@ export function ServicePackages() {
               <thead>
                 <tr>
                   <th scope="col" className="package-compare-label-col">
-                    Field
+                    {t('Field')}
                   </th>
                   {packages.map((item) => (
                     <th key={item.id} scope="col" className="package-compare-col">
                       <strong className="batch-saved-name">{item.packageName}</strong>
                       {item.trialDays > 0 ? (
                         <div className="muted package-compare-sub">
-                          {item.trialDays}-day entry trial
+                          {item.trialDays}-{t('day entry trial')}
                         </div>
                       ) : null}
                     </th>
@@ -414,63 +417,63 @@ export function ServicePackages() {
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row">Description</th>
+                  <th scope="row">{t('Description')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>{item.description || '—'}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Price</th>
+                  <th scope="row">{t('Price')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>
                       <strong>
                         {item.price === 0
-                          ? 'Free'
+                          ? t('Free')
                           : `${formatMoney(item.price)} / ${item.billingPeriod}`}
                       </strong>
                     </td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Billing</th>
+                  <th scope="row">{t('Billing')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>{item.billingPeriod}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Max active swimmers</th>
+                  <th scope="row">{t('Max active swimmers')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>
-                      {item.maxActiveSwimmers == null ? 'Unlimited' : item.maxActiveSwimmers}
+                      {item.maxActiveSwimmers == null ? t('Unlimited') : item.maxActiveSwimmers}
                     </td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Max users</th>
+                  <th scope="row">{t('Max users')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>{item.maxUsers}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Trial days</th>
+                  <th scope="row">{t('Trial days')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>{item.trialDays > 0 ? item.trialDays : '—'}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Max pools</th>
+                  <th scope="row">{t('Max pools')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>{item.maxPools}</td>
                   ))}
                 </tr>
                 <tr className="package-feature-section">
                   <th scope="row" colSpan={packages.length + 1}>
-                    Core features
+                    {t('Core features')}
                   </th>
                 </tr>
                 {PACKAGE_FEATURES.filter((f) => f.level === 'core').map((feature) => (
                   <tr key={feature.label} className="package-feature-row">
-                    <th scope="row">{feature.label}</th>
+                    <th scope="row">{t(feature.label)}</th>
                     {packages.map((item) => (
                       <td key={item.id}>
                         <FeatureTick
@@ -482,12 +485,12 @@ export function ServicePackages() {
                 ))}
                 <tr className="package-feature-section">
                   <th scope="row" colSpan={packages.length + 1}>
-                    Full features
+                    {t('Full features')}
                   </th>
                 </tr>
                 {PACKAGE_FEATURES.filter((f) => f.level === 'full').map((feature) => (
                   <tr key={feature.label} className="package-feature-row">
-                    <th scope="row">{feature.label}</th>
+                    <th scope="row">{t(feature.label)}</th>
                     {packages.map((item) => (
                       <td key={item.id}>
                         <FeatureTick
@@ -499,11 +502,11 @@ export function ServicePackages() {
                 ))}
                 {canManagePackages ? (
                 <tr>
-                  <th scope="row">Actions</th>
+                  <th scope="row">{t('Actions')}</th>
                   {packages.map((item) => (
                     <td key={item.id}>
                       <button type="button" className="menu-link" onClick={() => startEdit(item)}>
-                        Edit
+                        {t('Edit')}
                       </button>
                       {' · '}
                       <button
@@ -511,7 +514,7 @@ export function ServicePackages() {
                         className="remove-link"
                         onClick={() => void removePackage(item.id)}
                       >
-                        Delete
+                        {t('Delete')}
                       </button>
                     </td>
                   ))}

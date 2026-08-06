@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useT } from './i18n';
 import { isApplicationDemo } from './applicationDemo';
 import { PlatformPage } from './PlatformPage';
 import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
@@ -127,6 +128,7 @@ function filterSampleByRange(from: string, to: string) {
 }
 
 export function PaymentDetails() {
+  const t = useT();
   const [payments, setPayments] = useState<RecentPassPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -233,7 +235,7 @@ export function PaymentDetails() {
     <PlatformPage title="Payment Details">
       {!sampleMode ? (
         <p className="lede batch-list-lede">
-          Confirmed pass payments for this swimming pool account.
+          {t('Confirmed pass payments for this swimming pool account.')}
         </p>
       ) : null}
 
@@ -242,11 +244,11 @@ export function PaymentDetails() {
       >
         {sampleMode ? (
           <div className="user-mgmt-sample-watermark" aria-hidden="true">
-            Sample
+            {t('Sample')}
           </div>
         ) : null}
         <div className="platform-payment-txns-head">
-          <h2>Recent payments</h2>
+          <h2>{t('Recent payments')}</h2>
           <button
             type="button"
             className="ghost-btn"
@@ -259,14 +261,14 @@ export function PaymentDetails() {
               }
             }}
           >
-            {showRangeForm ? 'Hide' : 'More transactions'}
+            {showRangeForm ? t('Hide') : t('More transactions')}
           </button>
         </div>
 
         {showRangeForm ? (
           <form className="platform-payment-range" onSubmit={onRangeSubmit}>
             <label className="field platform-payment-range-field">
-              <span className="label">From</span>
+              <span className="label">{t('From')}</span>
               <input
                 type="date"
                 value={rangeFrom}
@@ -275,7 +277,7 @@ export function PaymentDetails() {
               />
             </label>
             <label className="field platform-payment-range-field">
-              <span className="label">To</span>
+              <span className="label">{t('To')}</span>
               <input
                 type="date"
                 value={rangeTo}
@@ -284,7 +286,7 @@ export function PaymentDetails() {
               />
             </label>
             <button type="submit" className="submit platform-payment-get-btn" disabled={txnLoading}>
-              {txnLoading ? 'Loading…' : 'Get'}
+              {txnLoading ? t('Loading…') : t('Get')}
             </button>
             {rangeActive ? (
               <button
@@ -305,7 +307,7 @@ export function PaymentDetails() {
                     .finally(() => setTxnLoading(false));
                 }}
               >
-                Show last 10
+                {t('Show last 10')}
               </button>
             ) : null}
           </form>
@@ -313,18 +315,18 @@ export function PaymentDetails() {
 
         <p className="muted platform-payment-txns-lede">
           {rangeActive
-            ? `Confirmed payments from ${rangeFrom} to ${rangeTo}.`
-            : 'Last 10 confirmed pass payments.'}
+            ? `${t('Confirmed payments from')} ${rangeFrom} ${t('to')} ${rangeTo}.`
+            : t('Last 10 confirmed pass payments.')}
         </p>
 
-        {loading ? <p className="pass-empty">Loading…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
 
         {!loading && payments.length === 0 ? (
           <p className="pass-empty">
             {rangeActive
-              ? 'No confirmed payments in this date range.'
-              : 'No confirmed payments yet.'}
+              ? t('No confirmed payments in this date range.')
+              : t('No confirmed payments yet.')}
           </p>
         ) : null}
 
@@ -336,7 +338,7 @@ export function PaymentDetails() {
                   {PAYMENT_COLUMNS.map(({ key, label }) => (
                     <th key={key} className="platform-payment-col-head">
                       <TableColumnFilter
-                        label={label}
+                        label={t(label)}
                         values={payments.map((row) => cellValue(row, key))}
                         selected={columnSelected[key] ?? null}
                         sortDir={sortKey === key ? sortDir : null}
@@ -361,19 +363,21 @@ export function PaymentDetails() {
                 {visiblePayments.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="pass-empty">
-                      No payments match these filters.
+                      {t('No payments match these filters.')}
                     </td>
                   </tr>
                 ) : (
                   visiblePayments.map((txn) => (
                     <tr key={txn.id}>
-                      <td>{txn.swimmerName}</td>
-                      <td>{txn.mobile || '—'}</td>
-                      <td>{txn.paymentDate || '—'}</td>
-                      <td>{txn.passType}</td>
-                      <td>{formatMoney(txn.amount)}</td>
-                      <td>{txn.paymentMode || '—'}</td>
-                      <td>{txn.transactionId || '—'}</td>
+                      <td className="payment-txn-swimmer" data-label={t('Swimmer')}>
+                        <strong>{txn.swimmerName}</strong>
+                      </td>
+                      <td data-label={t('Mobile')}>{txn.mobile || '—'}</td>
+                      <td data-label={t('Payment date')}>{txn.paymentDate || '—'}</td>
+                      <td data-label={t('Pass')}>{txn.passType}</td>
+                      <td data-label={t('Amount')}>{formatMoney(txn.amount)}</td>
+                      <td data-label={t('Mode')}>{txn.paymentMode || '—'}</td>
+                      <td data-label={t('Transaction ID')}>{txn.transactionId || '—'}</td>
                     </tr>
                   ))
                 )}

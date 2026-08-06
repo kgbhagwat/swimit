@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useT } from './i18n';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
 import { compressImageToLimit } from './compressImage';
@@ -11,7 +12,6 @@ import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
 import { useObjectUrl, useObjectUrls } from './useObjectUrl';
 
-type Lang = 'en' | 'mr' | 'hi';
 
 type AvailableBatch = {
   id: string;
@@ -86,333 +86,6 @@ const initialForm: FormState = {
   salary: '',
   acceptedTerms: false,
 };
-
-const copy = {
-  en: {
-    mainMenu: '← Back',
-    title: 'Staff registration',
-    editTitle: 'Staff details',
-    saveChanges: 'Save changes',
-    updateSuccess: 'Staff details updated successfully.',
-    active: 'Active',
-    inactive: 'Inactive',
-    backToList: '← Staff List',
-    requiredNote: 'Required information.',
-    registrationFor: 'Registration for',
-    coach: 'Coach',
-    lifeguard: 'Lifeguard',
-    otherRole: 'Other',
-    postDetails: 'Post details',
-    postName: 'Post name',
-    postNamePh: 'e.g. Manager, Accountant, Cleaner',
-    salary: 'Salary',
-    salaryPh: 'e.g. 15000',
-    personal: 'Personal details',
-    fullName: 'Full name',
-    fullNamePh: 'As per identity document',
-    fullAddress: 'Full address',
-    fullAddressPh: 'House no., street, city, state, PIN',
-    whatsapp: 'WhatsApp mobile no.',
-    otherMobile: 'Another mobile no.',
-    mobilePh: '10-digit mobile number',
-    otherMobilePh: 'Optional 10-digit mobile number',
-    email: 'Email',
-    emailPh: 'name@example.com',
-    birthdate: 'Birth Date',
-    underAge: 'Staff must be more than 18 years old',
-    sex: 'Sex',
-    selectSex: 'Select sex',
-    bloodGroup: 'Blood group',
-    selectBlood: 'Select blood group',
-    emergency: 'Emergency contact',
-    emergencyName: 'Emergency contact name',
-    emergencyNamePh: 'Contact person name',
-    relation: 'Relation',
-    selectRelation: 'Select relation',
-    emergencyNo: 'Emergency contact no.',
-    emergencySameAsApplicant: 'Emergency contact number cannot be the same as the applicant mobile number',
-    medical: 'Medical information',
-    healthIssue: 'Do you have any health issue?',
-    healthDetails: 'Disease / health issue',
-    healthDetailsPh: 'Asthma, epilepsy, heart condition, etc.',
-    doctorName: 'Doctor name',
-    doctorNamePh: 'Optional',
-    doctorNo: 'Doctor no.',
-    doctorNoPh: 'Optional 10-digit number',
-    identity: 'Identity & photo',
-    identityDoc: 'Identity document',
-    selectDoc: 'Select document type',
-    idPhoto: 'Photo of identity proof',
-    idPhotoHint: 'Max 200 KB — upload or take a photo of your identity proof',
-    staffPhoto: 'Photo',
-    staffPhotoHint: 'Max 200 KB — recent passport-size photo for identification',
-    takePhoto: 'Take photo',
-    upload: 'Upload',
-    terms: 'I accept the',
-    termsLink: 'Terms & Conditions and Rules & Regulations',
-    submit: 'Submit',
-    submitting: 'Submitting…',
-    success: 'Staff registration submitted successfully.',
-    errorCountOne: '1 error',
-    errorCountMany: '{count} errors',
-    ok: 'OK',
-    male: 'Male',
-    female: 'Female',
-    other: 'Other',
-    parent: 'Parent',
-    spouse: 'Spouse',
-    sibling: 'Sibling',
-    friend: 'Friend',
-    guardian: 'Guardian',
-    aadhaar: 'Aadhaar card',
-    pan: 'PAN card',
-    passport: 'Passport',
-    driving: 'Driving licence',
-    school: 'School / college ID',
-    yes: 'Yes',
-    no: 'No',
-    batchSlot: 'Suitable Batch Slot',
-    noBatches: 'No batches are set up yet.',
-    setupBatches: 'Set up batches first',
-    selectBatches: 'Select one or more suitable batch slots',
-    interestedTeach: 'Interested to teach',
-    freeStyle: 'Free Style',
-    backStroke: 'Back Stroke',
-    breastStroke: 'Breast Stroke',
-    butterfly: 'Butterfly',
-    competitive: 'Competitive',
-    advanceNeedsCompetitive: 'Advance batch requires Competitive under Interested to teach.',
-    ladiesFemaleOnly: 'Ladies batch is allowed for Female coaches only.',
-    achievements: 'Achievements',
-    achievementsPh: 'Competition results, medals, records, coaching experience highlights, etc.',
-    lifeguardCert: 'Life Guard certificate',
-    hasLifeguard: 'Do you have life guard certification?',
-    expiringOn: 'Expiring On',
-    lifeguardPhoto: 'Life Guard certificate photo',
-    lifeguardPhotoHint: 'Max 200 KB — upload or take a clear photo of the Life Guard certificate',
-    certificates: 'Certificates',
-    certificateDetails: 'Certificate details',
-    certificateDetailsPh: 'Lifeguard credentials, coaching certifications, first aid, etc.',
-    certificateUploadHint: 'Optional — upload up to 3 certificate photos (max 200 KB each)',
-    certificateN: 'Certificate',
-  },
-  mr: {
-    mainMenu: '← मागे',
-    title: 'कर्मचारी नोंदणी',
-    editTitle: 'कर्मचारी तपशील',
-    saveChanges: 'बदल जतन करा',
-    updateSuccess: 'कर्मचारी तपशील यशस्वीरित्या अद्ययावत झाले.',
-    active: 'सक्रिय',
-    inactive: 'निष्क्रिय',
-    backToList: '← स्टाफ यादी',
-    requiredNote: 'आवश्यक माहिती.',
-    registrationFor: 'पदाचे नाव',
-    coach: 'कोच',
-    lifeguard: 'लाइफगार्ड',
-    otherRole: 'इतर',
-    postDetails: 'पद तपशील',
-    postName: 'पदाचे नाव',
-    postNamePh: 'उदा. व्यवस्थापक, लेखापाल',
-    salary: 'पगार',
-    salaryPh: 'उदा. 15000',
-    personal: 'वैयक्तिक तपशील',
-    fullName: 'पूर्ण नाव',
-    fullNamePh: 'ओळखपत्राप्रमाणे',
-    fullAddress: 'पूर्ण पत्ता',
-    fullAddressPh: 'घर क्र., रस्ता, शहर, राज्य, पिन',
-    whatsapp: 'WhatsApp मोबाइल क्र.',
-    otherMobile: 'दुसरा मोबाइल क्र.',
-    mobilePh: '१० अंकी मोबाइल क्रमांक',
-    otherMobilePh: 'पर्यायी १० अंकी मोबाइल क्रमांक',
-    email: 'ईमेल',
-    emailPh: 'name@example.com',
-    birthdate: 'जन्मतारीख',
-    underAge: 'कर्मचारी १८ वर्षांपेक्षा जास्त वयाचा असावा',
-    sex: 'लिंग',
-    selectSex: 'लिंग निवडा',
-    bloodGroup: 'रक्तगट',
-    selectBlood: 'रक्तगट निवडा',
-    emergency: 'आपत्कालीन संपर्क',
-    emergencyName: 'आपत्कालीन संपर्क नाव',
-    emergencyNamePh: 'संपर्क व्यक्तीचे नाव',
-    relation: 'नाते',
-    selectRelation: 'नाते निवडा',
-    emergencyNo: 'आपत्कालीन संपर्क क्र.',
-    emergencySameAsApplicant: 'आपत्कालीन संपर्क क्रमांक अर्जदाराच्या मोबाइल क्रमांकासारखा असू शकत नाही',
-    medical: 'वैद्यकीय माहिती',
-    healthIssue: 'तुम्हाला काही आरोग्य समस्या आहे का?',
-    healthDetails: 'आजार / आरोग्य समस्या',
-    healthDetailsPh: 'दमा, अपस्मार, हृदयविकार इ.',
-    doctorName: 'डॉक्टरांचे नाव',
-    doctorNamePh: 'पर्यायी',
-    doctorNo: 'डॉक्टर क्र.',
-    doctorNoPh: 'पर्यायी १० अंकी क्रमांक',
-    identity: 'ओळखपत्र आणि फोटो',
-    identityDoc: 'ओळखपत्र',
-    selectDoc: 'दस्तऐवज प्रकार निवडा',
-    idPhoto: 'ओळखपत्राचा फोटो',
-    idPhotoHint: 'कमाल २०० KB — अपलोड करा किंवा स्पष्ट फोटो घ्या',
-    staffPhoto: 'फोटो',
-    staffPhotoHint: 'कमाल २०० KB — ओळखीसाठी अलीकडील पासपोर्ट-साइज फोटो',
-    takePhoto: 'फोटो घ्या',
-    upload: 'अपलोड',
-    terms: 'मी स्वीकारतो/स्वीकारते',
-    termsLink: 'अटी व शर्ती आणि नियम व विनियम',
-    submit: 'सबमिट',
-    submitting: 'सबमिट होत आहे…',
-    success: 'कर्मचारी नोंदणी यशस्वीरित्या सबमिट झाली.',
-    errorCountOne: '1 त्रुटी',
-    errorCountMany: '{count} त्रुटी',
-    ok: 'ठीक आहे',
-    male: 'पुरुष',
-    female: 'स्त्री',
-    other: 'इतर',
-    parent: 'पालक',
-    spouse: 'जोडीदार',
-    sibling: 'भावंड',
-    friend: 'मित्र/मैत्रिण',
-    guardian: 'पालक/संरक्षक',
-    aadhaar: 'आधार कार्ड',
-    pan: 'पॅन कार्ड',
-    passport: 'पासपोर्ट',
-    driving: 'ड्रायव्हिंग लायसन्स',
-    school: 'शाळा / महाविद्यालय ओळखपत्र',
-    yes: 'होय',
-    no: 'नाही',
-    batchSlot: 'योग्य बॅच स्लॉट',
-    noBatches: 'अद्याप कोणतेही बॅच सेट अप नाहीत.',
-    setupBatches: 'आधी बॅच सेट अप करा',
-    selectBatches: 'एक किंवा अधिक योग्य बॅच स्लॉट निवडा',
-    interestedTeach: 'शिकवण्यास इच्छुक',
-    freeStyle: 'फ्री स्टाइल',
-    backStroke: 'बॅक स्ट्रोक',
-    breastStroke: 'ब्रेस्ट स्ट्रोक',
-    butterfly: 'बटरफ्लाय',
-    competitive: 'स्पर्धात्मक',
-    advanceNeedsCompetitive: 'अॅडव्हान्स बॅचसाठी Interested to teach मध्ये स्पर्धात्मक निवडणे आवश्यक आहे.',
-    ladiesFemaleOnly: 'लेडीज बॅच फक्त महिला कोचसाठी उपलब्ध आहे.',
-    achievements: 'उपलब्धी',
-    achievementsPh: 'स्पर्धा निकाल, पदके, रेकॉर्ड, कोचिंग अनुभव इ.',
-    lifeguardCert: 'लाइफ गार्ड प्रमाणपत्र',
-    hasLifeguard: 'तुमच्याकडे लाइफ गार्ड प्रमाणपत्र आहे का?',
-    expiringOn: 'कालबाह्य तारीख',
-    lifeguardPhoto: 'लाइफ गार्ड प्रमाणपत्र फोटो',
-    lifeguardPhotoHint: 'कमाल २०० KB — लाइफ गार्ड प्रमाणपत्राचा स्पष्ट फोटो अपलोड करा किंवा घ्या',
-    certificates: 'प्रमाणपत्रे',
-    certificateDetails: 'प्रमाणपत्र तपशील',
-    certificateDetailsPh: 'लाइफगार्ड, कोचिंग, प्रथमोपचार प्रमाणपत्रे इ.',
-    certificateUploadHint: 'पर्यायी — जास्तीत जास्त ३ प्रमाणपत्र फोटो (प्रत्येकी कमाल २०० KB)',
-    certificateN: 'प्रमाणपत्र',
-  },
-  hi: {
-    mainMenu: '← वापस',
-    title: 'स्टाफ पंजीकरण',
-    editTitle: 'स्टाफ विवरण',
-    saveChanges: 'परिवर्तन सहेजें',
-    updateSuccess: 'स्टाफ विवरण सफलतापूर्वक अपडेट हो गया।',
-    active: 'सक्रिय',
-    inactive: 'निष्क्रिय',
-    backToList: '← स्टाफ सूची',
-    requiredNote: 'आवश्यक जानकारी।',
-    registrationFor: 'पंजीकरण किसके लिए',
-    coach: 'कोच',
-    lifeguard: 'लाइफगार्ड',
-    otherRole: 'अन्य',
-    postDetails: 'पद विवरण',
-    postName: 'पद का नाम',
-    postNamePh: 'उदा. प्रबंधक, लेखाकार',
-    salary: 'वेतन',
-    salaryPh: 'उदा. 15000',
-    personal: 'व्यक्तिगत विवरण',
-    fullName: 'पूरा नाम',
-    fullNamePh: 'पहचान पत्र के अनुसार',
-    fullAddress: 'पूरा पता',
-    fullAddressPh: 'मकान नं., गली, शहर, राज्य, पिन',
-    whatsapp: 'WhatsApp मोबाइल नं.',
-    otherMobile: 'अन्य मोबाइल नं.',
-    mobilePh: '10 अंकों का मोबाइल नंबर',
-    otherMobilePh: 'वैकल्पिक 10 अंकों का मोबाइल नंबर',
-    email: 'ईमेल',
-    emailPh: 'name@example.com',
-    birthdate: 'जन्म तिथि',
-    underAge: 'स्टाफ की आयु 18 वर्ष से अधिक होनी चाहिए',
-    sex: 'लिंग',
-    selectSex: 'लिंग चुनें',
-    bloodGroup: 'रक्त समूह',
-    selectBlood: 'रक्त समूह चुनें',
-    emergency: 'आपातकालीन संपर्क',
-    emergencyName: 'आपातकालीन संपर्क नाम',
-    emergencyNamePh: 'संपर्क व्यक्ति का नाम',
-    relation: 'संबंध',
-    selectRelation: 'संबंध चुनें',
-    emergencyNo: 'आपातकालीन संपर्क नं.',
-    emergencySameAsApplicant: 'आपातकालीन संपर्क नंबर आवेदक के मोबाइल नंबर जैसा नहीं हो सकता',
-    medical: 'चिकित्सा जानकारी',
-    healthIssue: 'क्या आपको कोई स्वास्थ्य समस्या है?',
-    healthDetails: 'रोग / स्वास्थ्य समस्या',
-    healthDetailsPh: 'अस्थमा, मिर्गी, हृदय रोग आदि',
-    doctorName: 'डॉक्टर का नाम',
-    doctorNamePh: 'वैकल्पिक',
-    doctorNo: 'डॉक्टर नं.',
-    doctorNoPh: 'वैकल्पिक 10 अंकों का नंबर',
-    identity: 'पहचान और फोटो',
-    identityDoc: 'पहचान दस्तावेज़',
-    selectDoc: 'दस्तावेज़ प्रकार चुनें',
-    idPhoto: 'पहचान पत्र का फोटो',
-    idPhotoHint: 'अधिकतम 200 KB — अपलोड करें या स्पष्ट फोटो लें',
-    staffPhoto: 'फोटो',
-    staffPhotoHint: 'अधिकतम 200 KB — पहचान के लिए हाल का पासपोर्ट-साइज़ फोटो',
-    takePhoto: 'फोटो लें',
-    upload: 'अपलोड',
-    terms: 'मैं स्वीकार करता/करती हूँ',
-    termsLink: 'नियम एवं शर्तें और नियम व विनियम',
-    submit: 'सबमिट',
-    submitting: 'सबमिट हो रहा है…',
-    success: 'स्टाफ पंजीकरण सफलतापूर्वक सबमिट हो गया।',
-    errorCountOne: '1 त्रुटि',
-    errorCountMany: '{count} त्रुटियाँ',
-    ok: 'ठीक है',
-    male: 'पुरुष',
-    female: 'महिला',
-    other: 'अन्य',
-    parent: 'अभिभावक',
-    spouse: 'पति/पत्नी',
-    sibling: 'भाई/बहन',
-    friend: 'मित्र',
-    guardian: 'अभिभावक',
-    aadhaar: 'आधार कार्ड',
-    pan: 'पैन कार्ड',
-    passport: 'पासपोर्ट',
-    driving: 'ड्राइविंग लाइसेंस',
-    school: 'स्कूल / कॉलेज आईडी',
-    yes: 'हाँ',
-    no: 'नहीं',
-    batchSlot: 'उपयुक्त बैच स्लॉट',
-    noBatches: 'अभी कोई बैच सेट अप नहीं है।',
-    setupBatches: 'पहले बैच सेट अप करें',
-    selectBatches: 'एक या अधिक उपयुक्त बैच स्लॉट चुनें',
-    interestedTeach: 'सिखाने में रुचि',
-    freeStyle: 'फ्री स्टाइल',
-    backStroke: 'बैक स्ट्रोक',
-    breastStroke: 'ब्रेस्ट स्ट्रोक',
-    butterfly: 'बटरफ्लाई',
-    competitive: 'प्रतिस्पर्धी',
-    advanceNeedsCompetitive: 'एडवांस बैच के लिए Interested to teach में प्रतिस्पर्धी चुनना आवश्यक है।',
-    ladiesFemaleOnly: 'लेडीज बैच केवल महिला कोच के लिए उपलब्ध है।',
-    achievements: 'उपलब्धियाँ',
-    achievementsPh: 'प्रतियोगिता परिणाम, पदक, रिकॉर्ड, कोचिंग अनुभव आदि',
-    lifeguardCert: 'लाइफ गार्ड प्रमाणपत्र',
-    hasLifeguard: 'क्या आपके पास लाइफ गार्ड प्रमाणपत्र है?',
-    expiringOn: 'समाप्ति तिथि',
-    lifeguardPhoto: 'लाइफ गार्ड प्रमाणपत्र फोटो',
-    lifeguardPhotoHint: 'अधिकतम 200 KB — लाइफ गार्ड प्रमाणपत्र का स्पष्ट फोटो अपलोड करें या लें',
-    certificates: 'प्रमाणपत्र',
-    certificateDetails: 'प्रमाणपत्र विवरण',
-    certificateDetailsPh: 'लाइफगार्ड, कोचिंग, प्राथमिक चिकित्सा प्रमाणपत्र आदि',
-    certificateUploadHint: 'वैकल्पिक — अधिकतम 3 प्रमाणपत्र फोटो (प्रत्येक अधिकतम 200 KB)',
-    certificateN: 'प्रमाणपत्र',
-  },
-} as const;
 
 function getAgeYears(birthdate: string) {
   if (!birthdate) return null;
@@ -572,8 +245,7 @@ export function StaffRegistration() {
   const isEdit =
     (editId !== null && Number.isFinite(editId) && editId > 0) || isSampleEdit;
 
-  const [lang, setLang] = useState<Lang>('en');
-  const t = copy[isEdit ? 'en' : lang];
+  const t = useT();
   const [form, setForm] = useState<FormState>(initialForm);
   const [isActive, setIsActive] = useState(true);
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
@@ -930,7 +602,7 @@ export function StaffRegistration() {
       setSubmitting(true);
       setErrorCount(0);
       setInvalidFields(new Set());
-      setSuccess(t.updateSuccess);
+      setSuccess(t("Staff details updated successfully."));
       setSubmitting(false);
       setTimeout(() => navigate(tenantPath('/coaches')), 800);
       return;
@@ -963,7 +635,7 @@ export function StaffRegistration() {
       setErrorCount(0);
       setInvalidFields(new Set());
       if (isEdit) {
-        setSuccess(t.updateSuccess);
+        setSuccess(t("Staff details updated successfully."));
         setTimeout(() => navigate(tenantPath('/coaches')), 800);
       } else {
         setForm(initialForm);
@@ -997,8 +669,8 @@ export function StaffRegistration() {
 
   if (loadingEdit) {
     return (
-      <PlatformPage title={isEdit ? t.editTitle : t.title}>
-        <p className="pass-empty">Loading…</p>
+      <PlatformPage title={isEdit ? "Staff details" : "Staff registration"}>
+        <p className="pass-empty">{t("Loading…")}</p>
       </PlatformPage>
     );
   }
@@ -1006,30 +678,16 @@ export function StaffRegistration() {
   if (submitted) {
     return (
       <PlatformPage
-        title={t.title}
+        title="Staff registration"
         actions={
           <>
-            <div className="langs">
-              {(['en', 'mr', 'hi'] as const).map((code, i) => (
-                <span key={code}>
-                  {i > 0 ? <span className="sep"> / </span> : null}
-                  <button
-                    type="button"
-                    className={lang === code ? 'lang active' : 'lang'}
-                    onClick={() => setLang(code)}
-                  >
-                    {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
-                  </button>
-                </span>
-              ))}
-            </div>
           </>
         }
       >
         <div className="registration-success-panel">
-          <p className="success">{t.success}</p>
+          <p className="success">{t("Staff registration submitted successfully.")}</p>
           <button type="button" className="submit" onClick={onSuccessOk}>
-            {t.ok}
+            {t("OK")}
           </button>
         </div>
       </PlatformPage>
@@ -1038,18 +696,18 @@ export function StaffRegistration() {
 
   return (
     <PlatformPage
-      title={isEdit ? t.editTitle : t.title}
+      title={isEdit ? "Staff details" : "Staff registration"}
       actions={
         <>
           {isEdit ? (
             <Link className="menu-link" to={tenantPath('/coaches')}>
-              {t.backToList}
+              {t("← Staff List")}
             </Link>
           ) : null}
           {isEdit ? (
             <label className="status-switch">
               <span className={isActive ? 'status-on' : 'status-off'}>
-                {isActive ? t.active : t.inactive}
+                {isActive ? t("Active") : t("Inactive")}
               </span>
               <input
                 type="checkbox"
@@ -1061,42 +719,26 @@ export function StaffRegistration() {
           ) : (
             <SendFormQrButton form="staff" />
           )}
-          {isEdit ? null : (
-            <div className="langs">
-              {(['en', 'mr', 'hi'] as const).map((code, i) => (
-                <span key={code}>
-                  {i > 0 ? <span className="sep"> / </span> : null}
-                  <button
-                    type="button"
-                    className={lang === code ? 'lang active' : 'lang'}
-                    onClick={() => setLang(code)}
-                  >
-                    {code === 'en' ? 'English' : code === 'mr' ? 'Marathi' : 'Hindi'}
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
         </>
       }
     >
       <p className="required-note">
-        <span className="req">*</span> {t.requiredNote}
+        <span className="req">*</span> {t("Required information.")}
       </p>
 
       <form onSubmit={onSubmit} noValidate>
         <section className={`card role-card${isInvalid('registrationFor') ? ' field-box-invalid' : ''}`}>
-          <div className="role-row" role="radiogroup" aria-label={t.registrationFor}>
+          <div className="role-row" role="radiogroup" aria-label={t("Registration for")}>
             <span className="role-label">
-              {t.registrationFor}
+              {t("Registration for")}
               <span className="req"> *</span>
             </span>
             <div className="role-choices">
               {(
                 [
-                  ['Coach', t.coach],
-                  ['Lifeguard', t.lifeguard],
-                  ['Other', t.otherRole],
+                  ['Coach', t("Coach")],
+                  ['Lifeguard', t("Lifeguard")],
+                  ['Other', t("Other")],
                 ] as const
               ).map(([value, label]) => (
                 <label
@@ -1120,23 +762,23 @@ export function StaffRegistration() {
         </section>
 
         <section className="card">
-          <h2>{t.personal}</h2>
+          <h2>{t("Personal details")}</h2>
           <label className="field">
-            <Label required>{t.fullName}</Label>
+            <Label required>{t("Full name")}</Label>
             <input
               value={form.fullName}
               onChange={(e) => setField('fullName', e.target.value)}
-              placeholder={t.fullNamePh}
+              placeholder={t("As per identity document")}
               required
               aria-invalid={isInvalid('fullName')}
             />
           </label>
           <label className="field">
-            <Label required>{t.fullAddress}</Label>
+            <Label required>{t("Full address")}</Label>
             <textarea
               value={form.fullAddress}
               onChange={(e) => setField('fullAddress', e.target.value)}
-              placeholder={t.fullAddressPh}
+              placeholder={t("House no., street, city, state, PIN")}
               rows={3}
               required
               aria-invalid={isInvalid('fullAddress')}
@@ -1144,11 +786,11 @@ export function StaffRegistration() {
           </label>
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.whatsapp}</Label>
+              <Label required>{t("WhatsApp mobile no.")}</Label>
               <input
                 value={form.whatsappMobile}
                 onChange={(e) => setField('whatsappMobile', sanitizeMobileInput(e.target.value))}
-                placeholder={t.mobilePh}
+                placeholder={t("10-digit mobile number")}
                 inputMode="numeric"
                 pattern="\d{10}"
                 required
@@ -1159,11 +801,11 @@ export function StaffRegistration() {
               ) : null}
             </label>
             <label className="field">
-              <Label>{t.otherMobile}</Label>
+              <Label>{t("Another mobile no.")}</Label>
               <input
                 value={form.otherMobile}
                 onChange={(e) => setField('otherMobile', sanitizeMobileInput(e.target.value))}
-                placeholder={t.otherMobilePh}
+                placeholder={t("Optional 10-digit mobile number")}
                 inputMode="numeric"
                 pattern="\d{10}"
                 aria-invalid={isInvalid('otherMobile') || Boolean(mobileHint(form.otherMobile))}
@@ -1175,19 +817,19 @@ export function StaffRegistration() {
           </div>
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.email}</Label>
+              <Label required>{t("Email")}</Label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setField('email', e.target.value)}
-                placeholder={t.emailPh}
+                placeholder={t("name@example.com")}
                 required
                 aria-invalid={isInvalid('email') || Boolean(emailHint(form.email))}
               />
               {emailHint(form.email) ? <span className="field-error">{emailHint(form.email)}</span> : null}
             </label>
             <label className="field">
-              <Label required>{t.birthdate}</Label>
+              <Label required>{t("Birth Date")}</Label>
               <input
                 type="date"
                 value={form.birthdate}
@@ -1199,34 +841,34 @@ export function StaffRegistration() {
               {form.birthdate &&
               getAgeYears(form.birthdate) !== null &&
               (getAgeYears(form.birthdate) as number) <= 18 ? (
-                <span className="field-error">{t.underAge}</span>
+                <span className="field-error">{t("Staff must be more than 18 years old")}</span>
               ) : null}
             </label>
           </div>
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.sex}</Label>
+              <Label required>{t("Sex")}</Label>
               <select
                 value={form.sex}
                 onChange={(e) => setField('sex', e.target.value)}
                 required
                 aria-invalid={isInvalid('sex')}
               >
-                <option value="">{t.selectSex}</option>
-                <option value="Male">{t.male}</option>
-                <option value="Female">{t.female}</option>
-                <option value="Other">{t.other}</option>
+                <option value="">{t("Select sex")}</option>
+                <option value="Male">{t("Male")}</option>
+                <option value="Female">{t("Female")}</option>
+                <option value="Other">{t("Other")}</option>
               </select>
             </label>
             <label className="field">
-              <Label required>{t.bloodGroup}</Label>
+              <Label required>{t("Blood group")}</Label>
               <select
                 value={form.bloodGroup}
                 onChange={(e) => setField('bloodGroup', e.target.value)}
                 required
                 aria-invalid={isInvalid('bloodGroup')}
               >
-                <option value="">{t.selectBlood}</option>
+                <option value="">{t("Select blood group")}</option>
                 {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Not known'].map((g) => (
                   <option key={g} value={g}>
                     {g}
@@ -1238,43 +880,43 @@ export function StaffRegistration() {
         </section>
 
         <section className="card emergency">
-          <h2>{t.emergency}</h2>
+          <h2>{t("Emergency contact")}</h2>
           <label className="field">
-            <Label required>{t.emergencyName}</Label>
+            <Label required>{t("Emergency contact name")}</Label>
             <input
               value={form.emergencyName}
               onChange={(e) => setField('emergencyName', e.target.value)}
-              placeholder={t.emergencyNamePh}
+              placeholder={t("Contact person name")}
               required
               aria-invalid={isInvalid('emergencyName')}
             />
           </label>
           <div className="grid-2">
             <label className="field">
-              <Label required>{t.relation}</Label>
+              <Label required>{t("Relation")}</Label>
               <select
                 value={form.emergencyRelation}
                 onChange={(e) => setField('emergencyRelation', e.target.value)}
                 required
                 aria-invalid={isInvalid('emergencyRelation')}
               >
-                <option value="">{t.selectRelation}</option>
-                <option value="Parent">{t.parent}</option>
-                <option value="Spouse">{t.spouse}</option>
-                <option value="Sibling">{t.sibling}</option>
-                <option value="Friend">{t.friend}</option>
-                <option value="Guardian">{t.guardian}</option>
-                <option value="Other">{t.other}</option>
+                <option value="">{t("Select relation")}</option>
+                <option value="Parent">{t("Parent")}</option>
+                <option value="Spouse">{t("Spouse")}</option>
+                <option value="Sibling">{t("Sibling")}</option>
+                <option value="Friend">{t("Friend")}</option>
+                <option value="Guardian">{t("Guardian")}</option>
+                <option value="Other">{t("Other")}</option>
               </select>
             </label>
             <label className="field">
-              <Label required>{t.emergencyNo}</Label>
+              <Label required>{t("Emergency contact no.")}</Label>
               <input
                 value={form.emergencyMobile}
                 onChange={(e) =>
                   setField('emergencyMobile', sanitizeMobileInput(e.target.value))
                 }
-                placeholder={t.mobilePh}
+                placeholder={t("10-digit mobile number")}
                 inputMode="numeric"
                 pattern="\d{10}"
                 required
@@ -1287,33 +929,33 @@ export function StaffRegistration() {
                   whatsappMobile: form.whatsappMobile,
                   otherMobile: form.otherMobile,
                 }) ? (
-                <span className="field-error">{t.emergencySameAsApplicant}</span>
+                <span className="field-error">{t("Emergency contact number cannot be the same as the applicant mobile number")}</span>
               ) : null}
             </label>
           </div>
         </section>
 
         <section className="card medical">
-          <h2>{t.medical}</h2>
+          <h2>{t("Medical information")}</h2>
           <div className="inline-row">
-            <Label required>{t.healthIssue}</Label>
+            <Label required>{t("Do you have any health issue?")}</Label>
             <select
               value={form.hasHealthIssue}
               onChange={(e) => setField('hasHealthIssue', e.target.value)}
               required
             >
-              <option value="No">{t.no}</option>
-              <option value="Yes">{t.yes}</option>
+              <option value="No">{t("No")}</option>
+              <option value="Yes">{t("Yes")}</option>
             </select>
           </div>
           {form.hasHealthIssue === 'Yes' ? (
             <div className="medical-details">
               <label className="field">
-                <Label required>{t.healthDetails}</Label>
+                <Label required>{t("Disease / health issue")}</Label>
                 <textarea
                   value={form.healthIssueDetails}
                   onChange={(e) => setField('healthIssueDetails', e.target.value)}
-                  placeholder={t.healthDetailsPh}
+                  placeholder={t("Asthma, epilepsy, heart condition, etc.")}
                   rows={4}
                   required
                   aria-invalid={isInvalid('healthIssueDetails')}
@@ -1321,19 +963,19 @@ export function StaffRegistration() {
               </label>
               <div className="grid-2">
                 <label className="field">
-                  <Label>{t.doctorName}</Label>
+                  <Label>{t("Doctor name")}</Label>
                   <input
                     value={form.doctorName}
                     onChange={(e) => setField('doctorName', e.target.value)}
-                    placeholder={t.doctorNamePh}
+                    placeholder={t("Optional")}
                   />
                 </label>
                 <label className="field">
-                  <Label>{t.doctorNo}</Label>
+                  <Label>{t("Doctor no.")}</Label>
                   <input
                     value={form.doctorNo}
                     onChange={(e) => setField('doctorNo', sanitizeMobileInput(e.target.value))}
-                    placeholder={t.doctorNoPh}
+                    placeholder={t("Optional 10-digit number")}
                     inputMode="numeric"
                     pattern="\d{10}"
                     aria-invalid={isInvalid('doctorNo') || Boolean(mobileHint(form.doctorNo))}
@@ -1348,33 +990,33 @@ export function StaffRegistration() {
         </section>
 
         <section className="card">
-          <h2>{t.identity}</h2>
+          <h2>{t("Identity & photo")}</h2>
           <label className="field">
-            <Label required>{t.identityDoc}</Label>
+            <Label required>{t("Identity document")}</Label>
             <select
               value={form.identityDocument}
               onChange={(e) => setField('identityDocument', e.target.value)}
               required
               aria-invalid={isInvalid('identityDocument')}
             >
-              <option value="">{t.selectDoc}</option>
-              <option value="Aadhaar">{t.aadhaar}</option>
-              <option value="PAN">{t.pan}</option>
-              <option value="Passport">{t.passport}</option>
-              <option value="Driving Licence">{t.driving}</option>
-              <option value="School ID">{t.school}</option>
+              <option value="">{t("Select document type")}</option>
+              <option value="Aadhaar">{t("Aadhaar card")}</option>
+              <option value="PAN">{t("PAN card")}</option>
+              <option value="Passport">{t("Passport")}</option>
+              <option value="Driving Licence">{t("Driving licence")}</option>
+              <option value="School ID">{t("School / college ID")}</option>
             </select>
           </label>
           <div className="grid-2 photos">
             <PhotoField
-              label={t.idPhoto}
-              hint={t.idPhotoHint}
+              label={t("Photo of identity proof")}
+              hint={t("Max 200 KB — upload or take a photo of your identity proof")}
               required
               file={identityPhoto}
               preview={identityPreview}
               existingUrl={existingPhotos.identity}
-              takeLabel={t.takePhoto}
-              uploadLabel={t.upload}
+              takeLabel={t("Take photo")}
+              uploadLabel={t("Upload")}
               invalid={isInvalid('identityPhoto')}
               onPick={(file) => {
                 clearInvalid('identityPhoto');
@@ -1382,14 +1024,14 @@ export function StaffRegistration() {
               }}
             />
             <PhotoField
-              label={t.staffPhoto}
-              hint={t.staffPhotoHint}
+              label={t("Photo")}
+              hint={t("Max 200 KB — recent passport-size photo for identification")}
               required
               file={staffPhoto}
               preview={staffPreview}
               existingUrl={existingPhotos.staff}
-              takeLabel={t.takePhoto}
-              uploadLabel={t.upload}
+              takeLabel={t("Take photo")}
+              uploadLabel={t("Upload")}
               invalid={isInvalid('staffPhoto')}
               onPick={(file) => {
                 clearInvalid('staffPhoto');
@@ -1402,14 +1044,14 @@ export function StaffRegistration() {
         {form.registrationFor === 'Coach' ? (
           <>
             <section className={`card coach-card${isInvalid('suitableBatchIds') ? ' field-box-invalid' : ''}`}>
-              <h2>{t.batchSlot}</h2>
+              <h2>{t("Suitable Batch Slot")}</h2>
               {batchesLoading ? (
                 <p className="batch-empty">Loading batches…</p>
               ) : availableBatches.length === 0 ? (
                 <p className="batch-empty">
-                  {t.noBatches}{' '}
+                  {t("No batches are set up yet.")}{' '}
                   <Link className="terms-link" to={tenantPath('/batches')}>
-                    {t.setupBatches}
+                    {t("Set up batches first")}
                   </Link>
                 </p>
               ) : (
@@ -1439,25 +1081,25 @@ export function StaffRegistration() {
                   })}
                 </div>
               )}
-              {!isFemaleCoach ? <p className="hint">{t.ladiesFemaleOnly}</p> : null}
+              {!isFemaleCoach ? <p className="hint">{t("Ladies batch is allowed for Female coaches only.")}</p> : null}
               {advanceNeedsCompetitive ? (
-                <p className="field-error">{t.advanceNeedsCompetitive}</p>
+                <p className="field-error">{t("Advance batch requires Competitive under Interested to teach.")}</p>
               ) : null}
             </section>
 
             <section className={`card coach-card${isInvalid('teachStrokes') ? ' field-box-invalid' : ''}`}>
               <h2>
-                {t.interestedTeach}
+                {t("Interested to teach")}
                 <span className="req"> *</span>
               </h2>
               <div className="check-row">
                 {(
                   [
-                    ['Free Style', t.freeStyle],
-                    ['Back Stroke', t.backStroke],
-                    ['Breast Stroke', t.breastStroke],
-                    ['Butterfly', t.butterfly],
-                    ['Competitive', t.competitive],
+                    ['Free Style', t("Free Style")],
+                    ['Back Stroke', t("Back Stroke")],
+                    ['Breast Stroke', t("Breast Stroke")],
+                    ['Butterfly', t("Butterfly")],
+                    ['Competitive', t("Competitive")],
                   ] as const
                 ).map(([value, label]) => (
                   <label key={value} className="radio-option">
@@ -1473,12 +1115,12 @@ export function StaffRegistration() {
             </section>
 
             <section className="card">
-              <h2>{t.achievements}</h2>
+              <h2>{t("Achievements")}</h2>
               <label className="field">
                 <textarea
                   value={form.achievements}
                   onChange={(e) => setField('achievements', e.target.value)}
-                  placeholder={t.achievementsPh}
+                  placeholder={t("Competition results, medals, records, coaching experience highlights, etc.")}
                   rows={4}
                 />
               </label>
@@ -1488,20 +1130,20 @@ export function StaffRegistration() {
 
         {isEdit && form.registrationFor === 'Other' ? (
           <section className="card">
-            <h2>{t.postDetails}</h2>
+            <h2>{t("Post details")}</h2>
             <div className="grid-2">
               <label className="field">
-                <Label required>{t.postName}</Label>
+                <Label required>{t("Post name")}</Label>
                 <input
                   value={form.postName}
                   onChange={(e) => setField('postName', e.target.value)}
-                  placeholder={t.postNamePh}
+                  placeholder={t("e.g. Manager, Accountant, Cleaner")}
                   required
                   aria-invalid={isInvalid('postName')}
                 />
               </label>
               <label className="field">
-                <Label required>{t.salary}</Label>
+                <Label required>{t("Salary")}</Label>
                 <div className="money-input">
                   <span className="money-prefix" aria-hidden="true">
                     ₹
@@ -1512,9 +1154,9 @@ export function StaffRegistration() {
                     step="1"
                     value={form.salary}
                     onChange={(e) => setField('salary', e.target.value)}
-                    placeholder={t.salaryPh}
+                    placeholder={t("e.g. 15000")}
                     required
-                    aria-label={t.salary}
+                    aria-label={t("Salary")}
                     aria-invalid={isInvalid('salary')}
                   />
                 </div>
@@ -1525,9 +1167,9 @@ export function StaffRegistration() {
 
         {form.registrationFor === 'Coach' || form.registrationFor === 'Lifeguard' ? (
           <section className="card lifeguard-card">
-            <h2>{t.lifeguardCert}</h2>
+            <h2>{t("Life Guard certificate")}</h2>
             <div className="lifeguard-row">
-              <span className="lifeguard-question">{t.hasLifeguard}</span>
+              <span className="lifeguard-question">{t("Do you have life guard certification?")}</span>
               <div className="lifeguard-choices">
                 <label className={`choice-chip ${form.hasLifeguardCert === 'Yes' ? 'selected' : ''}`}>
                   <input
@@ -1536,7 +1178,7 @@ export function StaffRegistration() {
                     checked={form.hasLifeguardCert === 'Yes'}
                     onChange={() => setField('hasLifeguardCert', 'Yes')}
                   />
-                  {t.yes}
+                  {t("Yes")}
                 </label>
                 <label className={`choice-chip ${form.hasLifeguardCert === 'No' ? 'selected' : ''}`}>
                   <input
@@ -1550,13 +1192,13 @@ export function StaffRegistration() {
                       setLifeguardPhoto(null);
                     }}
                   />
-                  {t.no}
+                  {t("No")}
                 </label>
               </div>
               {form.hasLifeguardCert === 'Yes' ? (
                 <label className="lifeguard-expiry">
                   <span>
-                    {t.expiringOn}
+                    {t("Expiring On")}
                     <span className="req"> *</span>
                   </span>
                   <input
@@ -1573,14 +1215,14 @@ export function StaffRegistration() {
             {form.hasLifeguardCert === 'Yes' ? (
               <div className="lifeguard-photo">
                 <PhotoField
-                  label={t.lifeguardPhoto}
-                  hint={t.lifeguardPhotoHint}
+                  label={t("Life Guard certificate photo")}
+                  hint={t("Max 200 KB — upload or take a clear photo of the Life Guard certificate")}
                   required
                   file={lifeguardPhoto}
                   preview={lifeguardPreview}
                   existingUrl={existingPhotos.lifeguard}
-                  takeLabel={t.takePhoto}
-                  uploadLabel={t.upload}
+                  takeLabel={t("Take photo")}
+                  uploadLabel={t("Upload")}
                   invalid={isInvalid('lifeguardPhoto')}
                   onPick={(file) => {
                     clearInvalid('lifeguardPhoto');
@@ -1594,28 +1236,28 @@ export function StaffRegistration() {
 
         {form.registrationFor === 'Coach' ? (
           <section className="card">
-            <h2>{t.certificates}</h2>
+            <h2>{t("Certificates")}</h2>
             <label className="field">
-              <Label>{t.certificateDetails}</Label>
+              <Label>{t("Certificate details")}</Label>
               <textarea
                 value={form.certificateDetails}
                 onChange={(e) => setField('certificateDetails', e.target.value)}
-                placeholder={t.certificateDetailsPh}
+                placeholder={t("Lifeguard credentials, coaching certifications, first aid, etc.")}
                 rows={4}
               />
             </label>
-            <p className="hint">{t.certificateUploadHint}</p>
+            <p className="hint">{t("Optional — upload up to 3 certificate photos (max 200 KB each)")}</p>
             <div className="grid-3 photos">
               {[0, 1, 2].map((i) => (
                 <PhotoField
                   key={i}
-                  label={`${t.certificateN} ${i + 1}`}
+                  label={`${t("Certificate")} ${i + 1}`}
                   hint=""
                   file={certPhotos[i]}
                   preview={certPreviews[i]}
                   existingUrl={existingPhotos.certs[i]}
-                  takeLabel={t.takePhoto}
-                  uploadLabel={t.upload}
+                  takeLabel={t("Take photo")}
+                  uploadLabel={t("Upload")}
                   onPick={(file) => setCertPhoto(i, file)}
                 />
               ))}
@@ -1636,9 +1278,9 @@ export function StaffRegistration() {
                 aria-invalid={isInvalid('acceptedTerms')}
               />
               <span>
-                {t.terms}{' '}
+                {t("I accept the")}{' '}
                 <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
-                  {t.termsLink}
+                  {t("Terms & Conditions and Rules & Regulations")}
                 </button>
               </span>
             </label>
@@ -1647,12 +1289,12 @@ export function StaffRegistration() {
             {errorCount > 0 ? (
               <p className="error submit-error-count">
                 {errorCount === 1
-                  ? t.errorCountOne
-                  : t.errorCountMany.replace('{count}', String(errorCount))}
+                  ? t("1 error")
+                  : t("{count} errors").replace('{count}', String(errorCount))}
               </p>
             ) : null}
             <button className="submit" type="submit" disabled={submitting}>
-              {submitting ? t.submitting : isEdit ? t.saveChanges : t.submit}
+              {submitting ? t("Submitting…") : isEdit ? t("Save changes") : t("Submit")}
             </button>
           </div>
         </div>

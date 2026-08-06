@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useT } from './i18n';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   isApplicationDemo,
@@ -8,6 +9,7 @@ import {
 } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { formatBatchDisplay } from './IdCard';
+import { InPageSelect } from './InPageSelect';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
 import { openPassPopup } from './swimmerPass';
@@ -325,6 +327,7 @@ const SAMPLE_BATCHES: BatchSlot[] = [
 ];
 
 export function SwimmerList() {
+  const t = useT();
   const navigate = useNavigate();
   const [status, setStatus] = useState<SwimmerStatus>('active');
   const [rows, setRows] = useState<SwimmerRow[]>([]);
@@ -340,6 +343,22 @@ export function SwimmerList() {
   const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
   const [editing, setEditing] = useState<SwimmerRow | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ batch: '', isActive: true });
+  const editBatchOptions = useMemo(() => {
+    if (!editing) return [];
+    const available = batchesForSwimmerSex(batches, editing.sex);
+    const options = available.map((slot) => {
+      const label = batchLabel(slot);
+      return { value: label, label };
+    });
+    const keepCurrent =
+      Boolean(editForm.batch) &&
+      !available.some((slot) => batchLabel(slot) === editForm.batch) &&
+      !(/—\s*Ladies\s*—/i.test(editForm.batch) && editing.sex !== 'Female');
+    if (keepCurrent) {
+      options.push({ value: editForm.batch, label: editForm.batch });
+    }
+    return options;
+  }, [editing, batches, editForm.batch]);
   const [viewing, setViewing] = useState<SwimmerRow | null>(null);
   const [viewProfile, setViewProfile] = useState<SwimmerProfile | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
@@ -572,8 +591,8 @@ export function SwimmerList() {
 
   const summary =
     status === 'active'
-      ? `${visibleRows.length} active swimmer${visibleRows.length === 1 ? '' : 's'}`
-      : `${visibleRows.length} inactive swimmer${visibleRows.length === 1 ? '' : 's'}`;
+      ? `${visibleRows.length} ${visibleRows.length === 1 ? t('active swimmer') : t('active swimmers')}`
+      : `${visibleRows.length} ${visibleRows.length === 1 ? t('inactive swimmer') : t('inactive swimmers')}`;
 
   function sampleProfileFor(row: SwimmerRow): SwimmerProfile {
     return {
@@ -694,12 +713,12 @@ export function SwimmerList() {
           >
             {sampleMode ? (
               <div className="user-mgmt-sample-watermark" aria-hidden="true">
-                Sample
+                {t('Sample')}
               </div>
             ) : null}
             <div className="swimmer-edit-head">
               <div>
-                <h2 id="swimmer-view-title">Swimmer details</h2>
+                <h2 id="swimmer-view-title">{t('Swimmer details')}</h2>
                 <p className="pass-count">{viewing.swimmer}</p>
               </div>
               <div className="pass-actions">
@@ -709,32 +728,32 @@ export function SwimmerList() {
                     className="submit"
                     onClick={() => openProfileEdit(viewing)}
                   >
-                    Edit
+                    {t('Edit')}
                   </button>
                 ) : null}
                 <button type="button" className="csv-btn" onClick={closeView}>
-                  Back to list
+                  {t('Back to list')}
                 </button>
               </div>
             </div>
 
-            {error ? <p className="error">{error}</p> : null}
+            {error ? <p className="error">{t(error)}</p> : null}
 
             <SwimmerProfileReview
               profile={viewProfile}
               loading={viewLoading}
-              title="Complete registration form"
+              title={t('Complete registration form')}
               hint={
                 canEdit
-                  ? 'Full swimmer registration details. Use Edit to update the registration form.'
-                  : 'Full swimmer registration details (view only).'
+                  ? t('Full swimmer registration details. Use Edit to update the registration form.')
+                  : t('Full swimmer registration details (view only).')
               }
             />
           </section>
         ) : !editing ? (
           <>
             <div className="swimmer-list-toolbar">
-              <div className="staff-role-radios" role="radiogroup" aria-label="Swimmer status">
+              <div className="staff-role-radios" role="radiogroup" aria-label={t('Swimmer status')}>
                 <label className={`staff-role-option ${status === 'active' ? 'selected' : ''}`}>
                   <input
                     type="radio"
@@ -742,7 +761,7 @@ export function SwimmerList() {
                     checked={status === 'active'}
                     onChange={() => setStatus('active')}
                   />
-                  <span>Active Swimmer</span>
+                  <span>{t('Active Swimmer')}</span>
                 </label>
                 <label className={`staff-role-option ${status === 'inactive' ? 'selected' : ''}`}>
                   <input
@@ -751,7 +770,7 @@ export function SwimmerList() {
                     checked={status === 'inactive'}
                     onChange={() => setStatus('inactive')}
                   />
-                  <span>Inactive Swimmer</span>
+                  <span>{t('Inactive Swimmer')}</span>
                 </label>
               </div>
             </div>
@@ -759,21 +778,21 @@ export function SwimmerList() {
             {!sampleMode && summary ? (
               <p className="pass-count batch-list-lede swimmer-list-summary">{summary}</p>
             ) : null}
-            {success ? <p className="success">{success}</p> : null}
+            {success ? <p className="success">{t(success)}</p> : null}
 
             <section
               className={`pass-form-card pool-core-form pass-table-card swimmer-table-card${sampleMode ? ' pass-form-card--sample' : ''}`}
             >
               {sampleMode ? (
                 <div className="user-mgmt-sample-watermark" aria-hidden="true">
-                  Sample
+                  {t('Sample')}
                 </div>
               ) : null}
               <div className="swimmer-table-head">
                 {SWIMMER_COLUMNS.map(({ key, label }) => (
                   <div key={key} className="swimmer-col-head">
                     <TableColumnFilter
-                      label={label}
+                      label={t(label)}
                       values={statusRows.map((row) => swimmerCellValue(row, key))}
                       selected={columnSelected[key] ?? null}
                       sortDir={sortKey === key ? sortDir : null}
@@ -790,19 +809,19 @@ export function SwimmerList() {
                     />
                   </div>
                 ))}
-                <span>Actions</span>
+                <span>{t('Actions')}</span>
               </div>
 
               {loading ? (
-                <p className="pass-empty">Loading…</p>
+                <p className="pass-empty">{t('Loading…')}</p>
               ) : statusRows.length === 0 ? (
                 <p className="pass-empty swimmer-empty">
                   {status === 'active'
-                    ? 'No active swimmers found.'
-                    : 'No inactive swimmers found.'}
+                    ? t('No active swimmers found.')
+                    : t('No inactive swimmers found.')}
                 </p>
               ) : visibleRows.length === 0 ? (
-                <p className="pass-empty swimmer-empty">No swimmers match these filters.</p>
+                <p className="pass-empty swimmer-empty">{t('No swimmers match these filters.')}</p>
               ) : (
                 <div className="pass-table-body">
                   {visibleRows.map((row, index) => {
@@ -819,15 +838,15 @@ export function SwimmerList() {
                       className={`swimmer-row${index % 2 === 1 ? ' swimmer-row-alt' : ''}`}
                       key={row.id}
                     >
-                      <strong data-label="Swimmer">{row.swimmer}</strong>
-                      <span data-label="Contact">
+                      <strong data-label={t('Swimmer')}>{row.swimmer}</strong>
+                      <span data-label={t('Contact')}>
                         <span className="coach-contact">{row.contact}</span>
                         {row.email !== '—' ? (
                           <span className="coach-email">{row.email}</span>
                         ) : null}
                       </span>
-                      <span data-label="Pass type">{displayPassType}</span>
-                      <span data-label="Batch">
+                      <span data-label={t('Pass type')}>{displayPassType}</span>
+                      <span data-label={t('Batch')}>
                         {(() => {
                           const batch = formatBatchDisplay(row.batch);
                           return (
@@ -840,14 +859,14 @@ export function SwimmerList() {
                           );
                         })()}
                       </span>
-                      <span data-label="Coach">{row.coach}</span>
-                      <span className="pass-actions" data-label="Actions -">
+                      <span data-label={t('Coach')}>{row.coach}</span>
+                      <span className="pass-actions" data-label={t('Actions')}>
                         <button
                           type="button"
                           className="icon-action"
                           onClick={() => openView(row)}
                           aria-label={`View ${row.swimmer}`}
-                          title="View"
+                          title={t('View')}
                         >
                           <svg
                             viewBox="0 0 24 24"
@@ -871,10 +890,10 @@ export function SwimmerList() {
                             }`}
                             title={
                               awaitPayment
-                                ? 'Activate to collect pass payment'
+                                ? t('Activate to collect pass payment')
                                 : onActiveList
-                                  ? 'Deactivate this swimmer'
-                                  : 'Activate this swimmer'
+                                  ? t('Deactivate this swimmer')
+                                  : t('Activate this swimmer')
                             }
                           >
                             <input
@@ -899,14 +918,14 @@ export function SwimmerList() {
                               className="terms-link"
                               onClick={() => openPassPopup('qr', row.id)}
                             >
-                              Pass QR
+                              {t('Pass QR')}
                             </button>
                             <button
                               type="button"
                               className="terms-link"
                               onClick={() => openPassPopup('pass', row.id)}
                             >
-                              Pass
+                              {t('Pass')}
                             </button>
                             {!sampleMode ? (
                               <button
@@ -914,9 +933,9 @@ export function SwimmerList() {
                                 className="terms-link"
                                 onClick={() => void resendPass(row)}
                                 disabled={resendingId === row.id}
-                                title="Resend pass & QR on WhatsApp"
+                                title={t('Resend pass & QR on WhatsApp')}
                               >
-                                {resendingId === row.id ? 'Sending…' : 'Resend'}
+                                {resendingId === row.id ? t('Sending…') : t('Resend')}
                               </button>
                             ) : null}
                           </>
@@ -927,7 +946,7 @@ export function SwimmerList() {
                             className="icon-action"
                             onClick={() => openEdit(row)}
                             aria-label={`Edit ${row.swimmer}`}
-                            title="Edit"
+                            title={t('Edit')}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -953,55 +972,38 @@ export function SwimmerList() {
           <section className="pass-form-card pool-core-form swimmer-edit-card" aria-labelledby="swimmer-edit-title">
             <div className="swimmer-edit-head">
               <div>
-                <h2 id="swimmer-edit-title">Edit swimmer</h2>
+                <h2 id="swimmer-edit-title">{t('Edit swimmer')}</h2>
                 <p className="pass-count">{editing.swimmer}</p>
               </div>
               <button type="button" className="csv-btn" onClick={closeEdit}>
-                Back to list
+                {t('Back to list')}
               </button>
             </div>
 
             <form className="swimmer-edit-form" onSubmit={onSaveEdit}>
               <label className="field">
-                <span className="label">Batch details</span>
+                <span className="label">{t('Batch details')}</span>
                 {batchesForSwimmerSex(batches, editing.sex).length === 0 ? (
                   <p className="batch-empty">
-                    No batches available.{' '}
+                    {t('No batches available.')}{' '}
                     <Link className="terms-link" to={tenantPath('/batches')}>
-                      Set up batches
+                      {t('Set up batches')}
                     </Link>
                   </p>
                 ) : (
-                  <select
+                  <InPageSelect
                     value={editForm.batch}
-                    onChange={(e) => setEditForm({ ...editForm, batch: e.target.value })}
-                  >
-                    <option value="">Select batch</option>
-                    {batchesForSwimmerSex(batches, editing.sex).map((slot) => {
-                      const label = batchLabel(slot);
-                      return (
-                        <option key={slot.id} value={label}>
-                          {label}
-                        </option>
-                      );
-                    })}
-                    {editForm.batch &&
-                    !batchesForSwimmerSex(batches, editing.sex).some(
-                      (slot) => batchLabel(slot) === editForm.batch,
-                    ) &&
-                    !(
-                      /—\s*Ladies\s*—/i.test(editForm.batch) &&
-                      editing.sex !== 'Female'
-                    ) ? (
-                      <option value={editForm.batch}>{editForm.batch}</option>
-                    ) : null}
-                  </select>
+                    onChange={(batch) => setEditForm({ ...editForm, batch })}
+                    options={editBatchOptions}
+                    placeholder={t('Select batch')}
+                    aria-label={t('Batch details')}
+                  />
                 )}
               </label>
 
               <fieldset className="swimmer-status-fieldset">
-                <legend className="label">Status</legend>
-                <div className="staff-role-radios" role="radiogroup" aria-label="Active status">
+                <legend className="label">{t('Status')}</legend>
+                <div className="staff-role-radios" role="radiogroup" aria-label={t('Active status')}>
                   <label
                     className={`staff-role-option ${editForm.isActive ? 'selected' : ''}`}
                   >
@@ -1011,7 +1013,7 @@ export function SwimmerList() {
                       checked={editForm.isActive}
                       onChange={() => setEditForm({ ...editForm, isActive: true })}
                     />
-                    <span>Active</span>
+                    <span>{t('Active')}</span>
                   </label>
                   <label
                     className={`staff-role-option ${!editForm.isActive ? 'selected' : ''}`}
@@ -1022,19 +1024,19 @@ export function SwimmerList() {
                       checked={!editForm.isActive}
                       onChange={() => setEditForm({ ...editForm, isActive: false })}
                     />
-                    <span>Inactive</span>
+                    <span>{t('Inactive')}</span>
                   </label>
                 </div>
               </fieldset>
 
-              {error ? <p className="error">{error}</p> : null}
+              {error ? <p className="error">{t(error)}</p> : null}
 
               <div className="pass-form-actions">
                 <button type="button" className="pass-cancel" onClick={closeEdit}>
-                  Cancel
+                  {t('Cancel')}
                 </button>
                 <button type="submit" className="submit" disabled={saving}>
-                  {saving ? 'Saving…' : 'Save changes'}
+                  {saving ? t('Saving…') : t('Save changes')}
                 </button>
               </div>
             </form>

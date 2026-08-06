@@ -1,10 +1,18 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
 import { isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
+import { InPageSelect } from './InPageSelect';
+import { useT } from './i18n';
 import { MobileField } from './MobileField';
 import { PlatformPage } from './PlatformPage';
 import { getActiveSaasAccountId, setActiveTenant } from './tenantSession';
+
+type PoolAccountOption = {
+  accountCode: string;
+  accountName: string;
+  status: string;
+};
 
 async function ensureApplicationTenant() {
   if (!isApplicationDemo()) return;
@@ -17,7 +25,22 @@ async function ensureApplicationTenant() {
   }
 }
 
+function normalizePoolCode(value: string) {
+  return value.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toLowerCase();
+}
+
+type GatewayStatus = {
+  enabled: boolean;
+  phoneNumberIdSet: boolean;
+  publicAppUrl: string | null;
+  tokenValid: boolean;
+  tokenError: string | null;
+  displayPhoneNumber: string | null;
+  verifiedName: string | null;
+};
+
 export function WhatsAppMessaging() {
+  const t = useT();
   const { pathname } = useLocation();
   const showTestSend = pathname.startsWith('/platform/whatsapp');
 
@@ -26,83 +49,86 @@ export function WhatsAppMessaging() {
   const [testMessage, setTestMessage] = useState('Hello from SwimIT WhatsApp test.');
   const [sendMode, setSendMode] = useState<'template' | 'text'>('text');
   const [audience, setAudience] = useState('active_swimmers');
+  const [poolCode, setPoolCode] = useState('');
+  const [poolOptions, setPoolOptions] = useState<PoolAccountOption[]>([]);
+  const [poolsLoading, setPoolsLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [testSending, setTestSending] = useState(false);
-  const [expirySaving, setExpirySaving] = useState(false);
-  const [expiryNoticesEnabled, setExpiryNoticesEnabled] = useState(false);
-  const [expiryDays, setExpiryDays] = useState('3');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const demoMode = isApplicationDemo();
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
 
   useEffect(() => {
-    void (async () => {
-      await ensureApplicationTenant();
-      if (isApplicationDemo()) return;
-      try {
-        const res = await fetch('/api/whatsapp/pass-expiry-notice');
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) return;
-        setExpiryNoticesEnabled(Boolean(body.enabled));
-        setExpiryDays(String(Math.min(9, Math.max(1, Number(body.days) || 3))));
-      } catch {
-        /* ignore */
-      }
-    })();
+    void ensureApplicationTenant();
   }, []);
 
-  async function saveExpiryNoticeSetting(enabled: boolean, daysValue: string) {
-    if (isApplicationDemo()) return;
-    const days = Math.min(9, Math.max(1, Number(daysValue) || 3));
-    setExpirySaving(true);
-    setError('');
-    try {
-      const res = await fetch('/api/whatsapp/pass-expiry-notice', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, days }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Failed to save expiry notice setting');
-      setExpiryNoticesEnabled(Boolean(body.enabled));
-      setExpiryDays(String(body.days ?? days));
-      setInfo(
-        body.enabled
-          ? `Daily morning WhatsApp notices enabled for passes expiring in ${body.days} day${
-              Number(body.days) === 1 ? '' : 's'
-            }.`
-          : 'Daily pass expiry WhatsApp notices turned off.',
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save expiry notice setting');
-      setExpiryNoticesEnabled(false);
-    } finally {
-      setExpirySaving(false);
-    }
-  }
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setStatusLoading(true);
+      try {
+        const res = await fetch('/api/whatsapp/status');
+        const body = (await res.json().catch(() => ({}))) as Partial<GatewayStatus>;
+        if (cancelled) return;
+        setGatewayStatus({
+          enabled: Boolean(body.enabled),
+          phoneNumberIdSet: Boolean(body.phoneNumberIdSet),
+          publicAppUrl: body.publicAppUrl ? String(body.publicAppUrl) : null,
+          tokenValid: Boolean(body.tokenValid),
+          tokenError: body.tokenError ? String(body.tokenError) : null,
+          displayPhoneNumber: body.displayPhoneNumber ? String(body.displayPhoneNumber) : null,
+          verifiedName: body.verifiedName ? String(body.verifiedName) : null,
+        });
+      } catch {
+        if (!cancelled) setGatewayStatus(null);
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  function onExpiryToggle(checked: boolean) {
-    if (demoMode) {
-      setExpiryNoticesEnabled(checked);
-      return;
-    }
-    setExpiryNoticesEnabled(checked);
-    void saveExpiryNoticeSetting(checked, expiryDays);
-  }
-
-  function onExpiryDaysChange(raw: string) {
-    const next = raw.replace(/\D/g, '').slice(0, 1);
-    if (!(next === '' || (Number(next) >= 1 && Number(next) <= 9))) return;
-    setExpiryDays(next === '' ? '' : next);
-    if (demoMode) return;
-  }
-
-  function onExpiryDaysBlur() {
-    const days = !expiryDays || Number(expiryDays) < 1 ? '3' : expiryDays;
-    setExpiryDays(days);
-    if (demoMode) return;
-    if (expiryNoticesEnabled) void saveExpiryNoticeSetting(true, days);
-  }
+  useEffect(() => {
+    if (!showTestSend) return;
+    let cancelled = false;
+    void (async () => {
+      setPoolsLoading(true);
+      try {
+        const res = await fetch('/api/saas-accounts');
+        const body = await res.json().catch(() => []);
+        if (!res.ok || cancelled) return;
+        const rows = (Array.isArray(body) ? body : []) as Array<Record<string, unknown>>;
+        const options = rows
+          .map((row) => ({
+            accountCode: normalizePoolCode(String(row.accountCode ?? '')),
+            accountName: String(row.accountName ?? '').trim(),
+            status: String(row.status ?? '').trim(),
+          }))
+          .filter(
+            (row) =>
+              /^[a-z0-9]{6}$/.test(row.accountCode) &&
+              row.accountCode !== 'swimit' &&
+              row.status.toLowerCase() === 'active',
+          )
+          .sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+        setPoolOptions(options);
+        setPoolCode((prev) => {
+          if (prev && options.some((o) => o.accountCode === prev)) return prev;
+          return options[0]?.accountCode ?? '';
+        });
+      } catch {
+        if (!cancelled) setPoolOptions([]);
+      } finally {
+        if (!cancelled) setPoolsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showTestSend]);
 
   async function onTestSend(e: FormEvent) {
     e.preventDefault();
@@ -127,8 +153,8 @@ export function WhatsAppMessaging() {
       if (!res.ok) throw new Error(body.error ?? 'Test send failed');
       setInfo(
         body.mode === 'template'
-          ? `Template hello_world sent to ${testMobile}. That is Meta’s sample text (not the box below). Check chat +1 555…`
-          : `Custom text sent to ${testMobile}. If nothing arrives, first reply “Hi” to the +1 555… chat, then retry.`,
+          ? `${t('Template hello_world sent to')} ${testMobile}. ${t('That is Meta’s sample text (not the box below). Check chat +1 555…')}`
+          : `${t('Custom text sent to')} ${testMobile}. ${t('If nothing arrives, first reply “Hi” to the +1 555… chat, then retry.')}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test send failed');
@@ -142,15 +168,33 @@ export function WhatsAppMessaging() {
     setSending(true);
     setError('');
     setInfo('');
+    const needsPoolCode =
+      showTestSend &&
+      (audience === 'active_swimmers' || audience === 'all_staff');
     try {
+      if (needsPoolCode) {
+        const code = normalizePoolCode(poolCode);
+        if (!/^[a-z0-9]{6}$/.test(code)) {
+          setError('Select a swimming pool code');
+          setSending(false);
+          return;
+        }
+      }
       const res = await fetch('/api/whatsapp/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, audience }),
+        body: JSON.stringify({
+          message,
+          audience,
+          ...(needsPoolCode ? { accountCode: normalizePoolCode(poolCode) } : {}),
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Broadcast failed');
-      setInfo(`Broadcast done: ${body.sent} sent, ${body.failed} failed (of ${body.total}).`);
+      const codeNote = body.accountCode ? ` — ${body.accountCode}` : '';
+      setInfo(
+        `${t('Broadcast done')}${codeNote}: ${body.sent} ${t('sent')}, ${body.failed} ${t('failed (of')} ${body.total}).`,
+      );
       setMessage('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Broadcast failed');
@@ -159,41 +203,109 @@ export function WhatsAppMessaging() {
     }
   }
 
+  const needsPoolCode =
+    showTestSend && (audience === 'active_swimmers' || audience === 'all_staff');
+
+  const audienceOptions = useMemo(
+    () => [
+      { value: 'active_swimmers', label: t('Active Swimmers') },
+      { value: 'all_staff', label: t('All staff') },
+      ...(showTestSend
+        ? [
+            { value: 'active_account_admins', label: t('Active account Admins') },
+            { value: 'active_account_users', label: t('Active account users') },
+          ]
+        : []),
+    ],
+    [showTestSend, t],
+  );
+
+  const sendModeOptions = useMemo(
+    () => [
+      { value: 'text', label: t('Custom text (message box below)') },
+      { value: 'template', label: t('Meta hello_world template (sample text)') },
+    ],
+    [t],
+  );
+
+  const poolSelectOptions = useMemo(() => {
+    if (poolsLoading) return [{ value: '', label: t('Loading…') }];
+    if (poolOptions.length === 0) return [{ value: '', label: t('No active pools') }];
+    return poolOptions.map((opt) => ({
+      value: opt.accountCode,
+      label: opt.accountName ? `${opt.accountCode} — ${opt.accountName}` : opt.accountCode,
+    }));
+  }, [poolOptions, poolsLoading, t]);
+
   return (
-    <PlatformPage title="WhatsApp">
+    <PlatformPage
+      title="WhatsApp"
+      className={`whatsapp-page${showTestSend ? ' whatsapp-page--saas' : ''}`}
+    >
       <p className="lede batch-list-lede">
-        Send broadcast messages on WhatsApp to active swimmers or staff.
+        {t('Send broadcast messages on WhatsApp to active swimmers or staff.')}
       </p>
 
-      {error ? <p className="error">{error}</p> : null}
+      <div
+        className={`whatsapp-gateway-status${
+          gatewayStatus?.enabled && gatewayStatus.tokenValid
+            ? ' whatsapp-gateway-status--ok'
+            : ' whatsapp-gateway-status--off'
+        }`}
+        role="status"
+      >
+        {statusLoading ? (
+          <span>{t('Checking WhatsApp connection…')}</span>
+        ) : gatewayStatus?.enabled && gatewayStatus.tokenValid ? (
+          <span>
+            <strong>{t('Connected')}</strong>
+            {gatewayStatus.displayPhoneNumber
+              ? ` — ${gatewayStatus.displayPhoneNumber}`
+              : ''}
+            {gatewayStatus.verifiedName ? ` (${gatewayStatus.verifiedName})` : ''}
+          </span>
+        ) : (
+          <span>
+            <strong>{t('Not connected')}</strong>
+            {' — '}
+            {gatewayStatus?.tokenError
+              ? gatewayStatus.tokenError
+              : t(
+                  'Set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in server .env, then restart the server.',
+                )}
+          </span>
+        )}
+      </div>
+
+      {error ? <p className="error">{t(error)}</p> : null}
       {info ? <p className="success">{info}</p> : null}
 
       {showTestSend ? (
         <section className="pass-form-card pool-core-form" style={{ marginBottom: '1rem' }}>
-          <h2>Send test message</h2>
+          <h2>{t('Send test message')}</h2>
           <p className="muted" style={{ marginTop: 0 }}>
-            <strong>App → WhatsApp:</strong> messages you send from here.
+            <strong>{t('App → WhatsApp:')}</strong> {t('messages you send from here.')}
           </p>
           <form onSubmit={onTestSend}>
             <MobileField
-              label="WhatsApp mobile"
+              label={t('WhatsApp mobile')}
               value={testMobile}
               onChange={setTestMobile}
               required
               placeholder="98XXXXXXXX"
             />
             <label className="field">
-              <span className="label">Send as</span>
-              <select
+              <span className="label">{t('Send as')}</span>
+              <InPageSelect
                 value={sendMode}
-                onChange={(e) => setSendMode(e.target.value === 'template' ? 'template' : 'text')}
-              >
-                <option value="text">Custom text (message box below)</option>
-                <option value="template">Meta hello_world template (sample text)</option>
-              </select>
+                onChange={(value) => setSendMode(value === 'template' ? 'template' : 'text')}
+                options={sendModeOptions}
+                required
+                aria-label={t('Send as')}
+              />
             </label>
             <label className="field">
-              <span className="label">Message (used for custom text)</span>
+              <span className="label">{t('Message (used for custom text)')}</span>
               <textarea
                 rows={3}
                 value={testMessage}
@@ -204,12 +316,13 @@ export function WhatsAppMessaging() {
             </label>
             {sendMode === 'text' ? (
               <p className="muted">
-                Custom text usually works only after that person replies once to the Meta test chat (+1
-                555…). Reply “Hi” there, then send.
+                {t(
+                  'Custom text usually works only after that person replies once to the Meta test chat (+1 555…). Reply “Hi” there, then send.',
+                )}
               </p>
             ) : (
               <p className="muted">
-                Template always sends Meta’s fixed “Welcome and congratulations…” sample.
+                {t('Template always sends Meta’s fixed “Welcome and congratulations…” sample.')}
               </p>
             )}
             <div className="pass-form-actions">
@@ -222,7 +335,7 @@ export function WhatsAppMessaging() {
                   (sendMode === 'text' && !testMessage.trim())
                 }
               >
-                {testSending ? 'Sending…' : 'Send test message'}
+                {testSending ? t('Sending…') : t('Send test message')}
               </button>
             </div>
           </form>
@@ -230,66 +343,61 @@ export function WhatsAppMessaging() {
       ) : null}
 
       <section className="pass-form-card pool-core-form whatsapp-broadcast-card">
-        <h2 className="whatsapp-broadcast-title">
-          Broadcast
-          <span className="whatsapp-per-message-note">(per message charges applicable)</span>
-        </h2>
+        <h2 className="whatsapp-broadcast-title">{t('Broadcast')}</h2>
         <form className="pass-form" onSubmit={onBroadcast}>
-          <label className="field whatsapp-audience-field">
-            <span className="label">Audience</span>
-            <select value={audience} onChange={(e) => setAudience(e.target.value)}>
-              <option value="active_swimmers">Active Swimmers</option>
-              <option value="all_staff">All staff</option>
-            </select>
-          </label>
+          <div className="whatsapp-audience-row">
+            <div className="field whatsapp-audience-field field-beside">
+              <span className="label">{t('Audience')}</span>
+              <InPageSelect
+                value={audience}
+                onChange={setAudience}
+                options={audienceOptions}
+                required
+                aria-label={t('Audience')}
+              />
+            </div>
+            {needsPoolCode ? (
+              <div className="field whatsapp-pool-code-field field-beside">
+                <span className="label">
+                  {t('Swimming pool code')} <span className="req">*</span>
+                </span>
+                <InPageSelect
+                  value={poolCode}
+                  onChange={(value) => setPoolCode(normalizePoolCode(value))}
+                  options={poolSelectOptions}
+                  required
+                  disabled={poolsLoading || poolOptions.length === 0}
+                  aria-label={t('Swimming pool code')}
+                />
+              </div>
+            ) : null}
+          </div>
           <div className="whatsapp-message-block">
             <label className="field whatsapp-message-field">
-              <span className="label">Message</span>
+              <span className="label">{t('Message')}</span>
               <textarea
                 rows={4}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Write a WhatsApp broadcast…"
+                placeholder={t('Write a WhatsApp broadcast…')}
                 required
               />
             </label>
             <button
               type="submit"
               className="submit whatsapp-send-broadcast"
-              disabled={sending || !message.trim()}
+              disabled={
+                sending ||
+                !message.trim() ||
+                (needsPoolCode &&
+                  (poolOptions.length === 0 || !/^[a-z0-9]{6}$/.test(poolCode)))
+              }
             >
-              {sending ? 'Sending…' : 'Send broadcast'}
+              {sending ? t('Sending…') : t('Send broadcast')}
             </button>
           </div>
         </form>
       </section>
-
-      <div className="whatsapp-expiry-row">
-        <div className="whatsapp-expiry-sentence">
-          <label className="whatsapp-expiry-check">
-            <input
-              type="checkbox"
-              checked={expiryNoticesEnabled}
-              onChange={(e) => onExpiryToggle(e.target.checked)}
-              disabled={expirySaving}
-            />
-            <span>Send pass expiry message before</span>
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            className="whatsapp-expiry-days-input"
-            maxLength={1}
-            value={expiryDays}
-            onChange={(e) => onExpiryDaysChange(e.target.value)}
-            onBlur={onExpiryDaysBlur}
-            disabled={expirySaving}
-            aria-label="Days before expiry"
-          />
-          <span>days of expiry.</span>
-          <span className="whatsapp-per-message-note">(per message charges applicable)</span>
-        </div>
-      </div>
     </PlatformPage>
   );
 }

@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { DownloadButton } from './DownloadButton';
+import { InPageSelect } from './InPageSelect';
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 
 type Expense = {
@@ -81,7 +83,16 @@ function emptyForm(): ExpenseForm {
 }
 
 export function PoolExpenses() {
+  const t = useT();
   const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const monthSelectOptions = useMemo(
+    () => monthOptions.map((value) => ({ value, label: monthLabel(value) })),
+    [monthOptions],
+  );
+  const modeOptions = useMemo(
+    () => MODES.map((mode) => ({ value: mode, label: t(mode) })),
+    [t],
+  );
   const [month, setMonth] = useState(currentMonthValue);
   const [items, setItems] = useState<Expense[]>([]);
   const [form, setForm] = useState<ExpenseForm>(emptyForm);
@@ -159,7 +170,7 @@ export function PoolExpenses() {
   }
 
   async function onDelete(id: number, description: string) {
-    if (!confirm(`Delete expense “${description}”?`)) return;
+    if (!confirm(`${t('Delete expense')} “${description}”?`)) return;
     setError('');
     try {
       const res = await fetch(`/api/pool-expenses/${id}`, { method: 'DELETE' });
@@ -175,7 +186,13 @@ export function PoolExpenses() {
   }
 
   function downloadCsv() {
-    const header = ['Date', 'Expense description', 'Amount', 'Mode', 'Bill'];
+    const header = [
+      t('Date'),
+      t('Expense description'),
+      t('Amount'),
+      t('Mode'),
+      t('Bill'),
+    ];
     const lines = [
       header.join(','),
       ...items.map((item) =>
@@ -183,8 +200,8 @@ export function PoolExpenses() {
           item.expenseDate ? formatDisplayDate(item.expenseDate) : '',
           item.description,
           String(item.amount),
-          item.mode,
-          item.hasBill ? 'Bill' : 'No bill',
+          t(item.mode),
+          item.hasBill ? t('Bill') : t('No bill'),
         ]
           .map(csvEscape)
           .join(','),
@@ -205,14 +222,14 @@ export function PoolExpenses() {
       actions={
         <>
           <label className="expense-month">
-            <span>Month</span>
-            <select value={month} onChange={(e) => setMonth(e.target.value)}>
-              {monthOptions.map((value) => (
-                <option key={value} value={value}>
-                  {monthLabel(value)}
-                </option>
-              ))}
-            </select>
+            <span>{t('Month')}</span>
+            <InPageSelect
+              value={month}
+              onChange={setMonth}
+              options={monthSelectOptions}
+              required
+              aria-label={t('Month')}
+            />
           </label>
           <DownloadButton onClick={downloadCsv} disabled={items.length === 0} />
         </>
@@ -220,12 +237,12 @@ export function PoolExpenses() {
     >
       <section className="pass-form-card pool-core-form pass-table-card expense-table-card">
         <div className="expense-table-head">
-          <span>Date</span>
-          <span>Expense description</span>
-          <span>Amount</span>
-          <span>Mode</span>
-          <span>Bill</span>
-          <span>Actions</span>
+          <span>{t('Date')}</span>
+          <span>{t('Expense description')}</span>
+          <span>{t('Amount')}</span>
+          <span>{t('Mode')}</span>
+          <span>{t('Bill')}</span>
+          <span>{t('Actions')}</span>
         </div>
 
         <form className="expense-entry-row" onSubmit={onSave}>
@@ -234,14 +251,14 @@ export function PoolExpenses() {
             value={form.expenseDate}
             onChange={(e) => setForm({ ...form, expenseDate: e.target.value })}
             required
-            aria-label="Expense date"
+            aria-label={t('Expense date')}
           />
           <input
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            placeholder="Expense description"
+            placeholder={t('Expense description')}
             required
-            aria-label="Expense description"
+            aria-label={t('Expense description')}
           />
           <input
             type="number"
@@ -251,20 +268,16 @@ export function PoolExpenses() {
             onChange={(e) => setForm({ ...form, amount: e.target.value })}
             placeholder="0"
             required
-            aria-label="Amount"
+            aria-label={t('Amount')}
           />
-          <select
+          <InPageSelect
             value={form.mode}
-            onChange={(e) => setForm({ ...form, mode: e.target.value })}
-            aria-label="Payment mode"
-          >
-            {MODES.map((mode) => (
-              <option key={mode} value={mode}>
-                {mode}
-              </option>
-            ))}
-          </select>
-          <div className="expense-bill-radios" role="radiogroup" aria-label="Bill">
+            onChange={(mode) => setForm({ ...form, mode })}
+            options={modeOptions}
+            required
+            aria-label={t('Payment mode')}
+          />
+          <div className="expense-bill-radios" role="radiogroup" aria-label={t('Bill')}>
             <label className={form.hasBill ? 'selected' : ''}>
               <input
                 type="radio"
@@ -272,7 +285,7 @@ export function PoolExpenses() {
                 checked={form.hasBill}
                 onChange={() => setForm({ ...form, hasBill: true })}
               />
-              <span>Bill</span>
+              <span>{t('Bill')}</span>
             </label>
             <label className={!form.hasBill ? 'selected' : ''}>
               <input
@@ -281,41 +294,43 @@ export function PoolExpenses() {
                 checked={!form.hasBill}
                 onChange={() => setForm({ ...form, hasBill: false })}
               />
-              <span>No bill</span>
+              <span>{t('No bill')}</span>
             </label>
           </div>
           <div className="expense-entry-actions">
             {editingId ? (
               <button type="button" className="pass-cancel" onClick={resetForm}>
-                Cancel
+                {t('Cancel')}
               </button>
             ) : null}
             <button type="submit" className="expense-save" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('Saving…') : t('Save')}
             </button>
           </div>
         </form>
 
         {loading ? (
-          <p className="pass-empty">Loading…</p>
+          <p className="pass-empty">{t('Loading…')}</p>
         ) : items.length === 0 ? (
-          <p className="pass-empty">No expenses recorded for this month.</p>
+          <p className="pass-empty">{t('No expenses recorded for this month.')}</p>
         ) : (
           <div className="pass-table-body">
             {items.map((item) => (
               <div className="expense-row" key={item.id}>
-                <span>{formatDisplayDate(item.expenseDate)}</span>
-                <strong>{item.description}</strong>
-                <span>{formatMoney(item.amount)}</span>
-                <span>{item.mode}</span>
-                <span>{item.hasBill ? 'Bill' : 'No bill'}</span>
-                <span className="pass-actions">
+                <span data-label={t('Date')}>{formatDisplayDate(item.expenseDate)}</span>
+                <strong className="expense-row-title" data-label={t('Description')}>
+                  {item.description}
+                </strong>
+                <span data-label={t('Amount')}>{formatMoney(item.amount)}</span>
+                <span data-label={t('Payment method')}>{t(item.mode)}</span>
+                <span data-label={t('Bill status')}>{item.hasBill ? t('Bill') : t('No bill')}</span>
+                <span className="pass-actions" data-label={t('Actions')}>
                   <button
                     type="button"
                     className="icon-action"
                     onClick={() => startEdit(item)}
-                    aria-label={`Edit ${item.description}`}
-                    title="Edit"
+                    aria-label={`${t('Edit')} ${item.description}`}
+                    title={t('Edit')}
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -332,8 +347,8 @@ export function PoolExpenses() {
                     type="button"
                     className="icon-action icon-action-danger"
                     onClick={() => onDelete(item.id, item.description)}
-                    aria-label={`Delete ${item.description}`}
-                    title="Delete"
+                    aria-label={`${t('Delete')} ${item.description}`}
+                    title={t('Delete')}
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -355,7 +370,7 @@ export function PoolExpenses() {
         )}
       </section>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
     </PlatformPage>
   );
 }

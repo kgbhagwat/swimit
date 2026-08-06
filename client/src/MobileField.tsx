@@ -9,6 +9,7 @@ type MobileFieldProps = {
   placeholder?: string;
   autoComplete?: string;
   className?: string;
+  inputClassName?: string;
   /** Extra invalid state from parent submit checks */
   invalid?: boolean;
 };
@@ -22,6 +23,7 @@ export function MobileField({
   placeholder = '10-digit mobile number',
   autoComplete = 'tel',
   className = 'field',
+  inputClassName,
   invalid = false,
 }: MobileFieldProps) {
   const hint = mobileHint(value);
@@ -37,6 +39,7 @@ export function MobileField({
         ) : null}
       </span>
       <input
+        className={inputClassName}
         value={value}
         onChange={(e) => onChange(sanitizeMobileInput(e.target.value))}
         placeholder={placeholder}

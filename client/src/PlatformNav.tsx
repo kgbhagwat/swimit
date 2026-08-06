@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useId, useRef, useState, type MouseEvent } from '
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { exitApplicationDemo } from './applicationDemo';
+import { LanguageSwitcher, useT } from './i18n';
 import {
   clearPlatformSession,
   getPlatformSession,
@@ -312,10 +313,13 @@ function PlatformLoginModal({
 export function PlatformNav({
   sidebarOpen = true,
   onToggleSidebar,
+  onNavigate,
 }: {
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
+  onNavigate?: () => void;
 } = {}) {
+  const t = useT();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [loginOpen, setLoginOpen] = useState(false);
@@ -375,8 +379,9 @@ export function PlatformNav({
                   className={`platform-sidebar-link${active ? ' active' : ''}`}
                   to={link.to}
                   aria-current={active ? 'page' : undefined}
+                  onClick={onNavigate}
                 >
-                  <span className="platform-sidebar-link-label">{link.label}</span>
+                  <span className="platform-sidebar-link-label">{t(link.label)}</span>
                 </Link>
               </li>
             );
@@ -390,7 +395,7 @@ export function PlatformNav({
             type="button"
             className="platform-sidebar-toggle"
             onClick={onToggleSidebar}
-            aria-label={sidebarOpen ? 'Hide menu' : 'Show menu'}
+            aria-label={sidebarOpen ? t('Hide menu') : t('Show menu')}
             aria-expanded={sidebarOpen}
             aria-controls="platform-sidebar"
           >
@@ -402,6 +407,7 @@ export function PlatformNav({
           <span />
         )}
         <div className="platform-main-topbar-actions">
+          <LanguageSwitcher />
           {platformUser ? (
             <>
               <PlatformProfileMenu session={platformUser} />
@@ -410,7 +416,7 @@ export function PlatformNav({
                 className="platform-main-login"
                 onClick={onLogout}
               >
-                Sign out
+                {t('Sign out')}
               </button>
             </>
           ) : (
@@ -419,7 +425,7 @@ export function PlatformNav({
               className="platform-main-login"
               onClick={() => setLoginOpen(true)}
             >
-              Login
+              {t('Login')}
             </button>
           )}
         </div>

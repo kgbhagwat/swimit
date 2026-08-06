@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useT } from './i18n';
+import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
 
 type Period = 'AM' | 'PM';
@@ -158,11 +160,11 @@ function sessionsOverlap(
   return aStart < bEnd && bStart < aEnd;
 }
 
-function findSessionOverlapError(rows: ScheduleSettings[]) {
+function findSessionOverlapPair(rows: ScheduleSettings[]): [Session, Session] | null {
   for (let i = 0; i < rows.length; i += 1) {
     for (let j = i + 1; j < rows.length; j += 1) {
       if (sessionsOverlap(rows[i], rows[j])) {
-        return `${rows[i].session} and ${rows[j].session} session times overlap`;
+        return [rows[i].session, rows[j].session];
       }
     }
   }
@@ -180,6 +182,7 @@ function TimeSelect({
   required?: boolean;
   example?: boolean;
 }) {
+  const t = useT();
   return (
     <div className={`time-field${example ? ' time-field--example' : ''}`}>
       <select
@@ -187,7 +190,7 @@ function TimeSelect({
         value={value.hour}
         onChange={(e) => onChange({ ...value, hour: e.target.value })}
         required={required}
-        aria-label="Hour"
+        aria-label={t('Hour')}
       >
         {HOURS.map((h) => (
           <option key={h} value={h}>
@@ -201,7 +204,7 @@ function TimeSelect({
         value={value.minute}
         onChange={(e) => onChange({ ...value, minute: e.target.value })}
         required={required}
-        aria-label="Minute"
+        aria-label={t('Minute')}
       >
         {MINUTES.filter((_, i) => i % 5 === 0).map((m) => (
           <option key={m} value={m}>
@@ -217,7 +220,7 @@ function TimeSelect({
         value={value.period}
         onChange={(e) => onChange({ ...value, period: e.target.value as Period })}
         required={required}
-        aria-label="AM/PM"
+        aria-label={t('AM/PM')}
       >
         <option value="AM">am</option>
         <option value="PM">pm</option>
@@ -242,6 +245,7 @@ function DeleteIcon() {
 }
 
 export function BatchList() {
+  const t = useT();
   const [schedules, setSchedules] = useState<ScheduleSettings[]>([defaultSchedule()]);
   const [slots, setSlots] = useState<BatchSlot[]>([]);
   const [coaches, setCoaches] = useState<BatchCoach[]>([]);
@@ -251,6 +255,15 @@ export function BatchList() {
   const [error, setError] = useState('');
   const [errorSource, setErrorSource] = useState<'generate' | 'save' | 'page'>('page');
   const [success, setSuccess] = useState('');
+
+  const sessionOptions = useMemo(
+    () => SESSIONS.map((session) => ({ value: session, label: t(session) })),
+    [t],
+  );
+  const batchTypeOptions = useMemo(
+    () => BATCH_TYPES.map((type) => ({ value: type, label: t(type) })),
+    [t],
+  );
 
   function clearMessages() {
     setError('');
@@ -421,9 +434,12 @@ export function BatchList() {
       }
     }
 
-    const overlapError = findSessionOverlapError(schedules);
-    if (overlapError) {
-      setActionError(overlapError, 'generate');
+    const overlapPair = findSessionOverlapPair(schedules);
+    if (overlapPair) {
+      setActionError(
+        `${t(overlapPair[0])} ${t('and')} ${t(overlapPair[1])} ${t('session times overlap')}`,
+        'generate',
+      );
       return;
     }
 
@@ -438,7 +454,11 @@ export function BatchList() {
     }
 
     setSlots(next.map((slot, index) => ({ ...slot, name: `Batch ${index + 1}` })));
-    setSuccess(`${next.length} slot${next.length === 1 ? '' : 's'} generated`);
+    setSuccess(
+      next.length === 1
+        ? `1 ${t('slot generated')}`
+        : `${next.length} ${t('slots generated')}`,
+    );
   }
 
   function updateSlot(id: string, patch: Partial<BatchSlot>) {
@@ -456,9 +476,12 @@ export function BatchList() {
   async function saveSlots() {
     setSaving(true);
     clearMessages();
-    const overlapError = findSessionOverlapError(schedules);
-    if (overlapError) {
-      setActionError(overlapError, 'save');
+    const overlapPair = findSessionOverlapPair(schedules);
+    if (overlapPair) {
+      setActionError(
+        `${t(overlapPair[0])} ${t('and')} ${t(overlapPair[1])} ${t('session times overlap')}`,
+        'save',
+      );
       setSaving(false);
       return;
     }
@@ -530,7 +553,7 @@ export function BatchList() {
   if (loading) {
     return (
       <PlatformPage title="Batches">
-        <p className="muted">Loading…</p>
+        <p className="muted">{t('Loading…')}</p>
       </PlatformPage>
     );
   }
@@ -538,27 +561,32 @@ export function BatchList() {
   if (mode === 'saved') {
     return (
       <PlatformPage title="Batches">
-        <p className="lede batch-list-lede">Create swimming batches</p>
+        <p className="lede batch-list-lede">{t('Create swimming batches')}</p>
 
         <section className="card saved-summary">
           <div className="saved-schedules">
             {schedules.map((schedule, index) => (
               <div className="saved-schedule" key={schedule.id}>
-                <h3>Schedule {index + 1}</h3>
+                <h3>
+                  {t('Schedule')} {index + 1}
+                </h3>
                 <p>
-                  <strong>Session:</strong> {schedule.session}
+                  <strong>{t('Session')}:</strong> {t(schedule.session)}
                 </p>
                 <p>
-                  <strong>Batch Duration (mins):</strong> {schedule.batchMinutes} mins
+                  <strong>{t('Batch Duration (mins)')}:</strong> {schedule.batchMinutes}{' '}
+                  {t('mins')}
                 </p>
                 <p>
-                  <strong>Break time (mins):</strong> {schedule.breakMinutes} mins
+                  <strong>{t('Break time (mins)')}:</strong> {schedule.breakMinutes} {t('mins')}
                 </p>
                 <p>
-                  <strong>Session start time:</strong> {formatClockDisplay(schedule.firstStart)}
+                  <strong>{t('Session start time')}:</strong>{' '}
+                  {formatClockDisplay(schedule.firstStart)}
                 </p>
                 <p>
-                  <strong>Session end time:</strong> {formatClockDisplay(schedule.lastEnd)}
+                  <strong>{t('Session end time')}:</strong>{' '}
+                  {formatClockDisplay(schedule.lastEnd)}
                 </p>
               </div>
             ))}
@@ -567,10 +595,11 @@ export function BatchList() {
 
         <div className="saved-list-head">
           <h2>
-            {slots.length} batch{slots.length === 1 ? '' : 'es'} scheduled
+            {slots.length}{' '}
+            {slots.length === 1 ? t('batch scheduled') : t('batches scheduled')}
           </h2>
           <button type="button" className="ghost-btn" onClick={() => setMode('edit')}>
-            Modify batches
+            {t('Modify batches')}
           </button>
         </div>
 
@@ -578,12 +607,12 @@ export function BatchList() {
           <table className="batch-saved-table">
             <thead>
               <tr>
-                <th scope="col">Batch</th>
-                <th scope="col">Type</th>
-                <th scope="col">Start time</th>
-                <th scope="col">End time</th>
-                <th scope="col">Active coach</th>
-                <th scope="col">Inactive coach</th>
+                <th scope="col">{t('Batch')}</th>
+                <th scope="col">{t('Type')}</th>
+                <th scope="col">{t('Start time')}</th>
+                <th scope="col">{t('End time')}</th>
+                <th scope="col">{t('Active coach')}</th>
+                <th scope="col">{t('Inactive coach')}</th>
               </tr>
             </thead>
             <tbody>
@@ -594,7 +623,7 @@ export function BatchList() {
                 return (
                   <tr key={slot.id}>
                     <td className="batch-saved-name">{slot.name}</td>
-                    <td>{slot.type}</td>
+                    <td>{t(slot.type)}</td>
                     <td>{formatClockDisplay(slot.startTime)}</td>
                     <td>{formatClockDisplay(slot.endTime)}</td>
                     <td className="batch-saved-coaches">
@@ -626,21 +655,22 @@ export function BatchList() {
           </table>
         </div>
 
-        {error ? <p className="error">{error}</p> : null}
-        {success ? <p className="success">{success}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
+        {success ? <p className="success">{t(success)}</p> : null}
       </PlatformPage>
     );
   }
 
   return (
     <PlatformPage title="Batches">
-      <p className="lede batch-list-lede">Create swimming batches</p>
+      <p className="lede batch-list-lede">{t('Create swimming batches')}</p>
 
       <section className="card schedule-card">
-        <h2>Schedule settings</h2>
+        <h2>{t('Schedule settings')}</h2>
         <p className="schedule-session-note">
-          If there is major break (like lunch break) in batches, then please create session-wise
-          schedule
+          {t(
+            'If there is major break (like lunch break) in batches, then please create session-wise schedule',
+          )}
         </p>
         <form id="batch-schedule-form" onSubmit={onGenerate}>
           <div className="schedule-rows">
@@ -650,23 +680,19 @@ export function BatchList() {
                 <div className="schedule-row" key={schedule.id}>
                   <label className="field">
                     <span className="label">
-                      Session <span className="req">*</span>
+                      {t('Session')} <span className="req">*</span>
                     </span>
-                    <select
+                    <InPageSelect
                       value={schedule.session}
-                      onChange={(e) => updateSession(schedule.id, e.target.value as Session)}
+                      onChange={(value) => updateSession(schedule.id, value as Session)}
+                      options={sessionOptions}
                       required
-                    >
-                      {SESSIONS.map((session) => (
-                        <option key={session} value={session}>
-                          {session}
-                        </option>
-                      ))}
-                    </select>
+                      aria-label={t('Session')}
+                    />
                   </label>
                   <label className="field">
                     <span className="label">
-                      Batch Duration (mins) <span className="req">*</span>
+                      {t('Batch Duration (mins)')} <span className="req">*</span>
                     </span>
                     <input
                       type="number"
@@ -684,7 +710,7 @@ export function BatchList() {
                   </label>
                   <label className="field">
                     <span className="label">
-                      Break time (mins) <span className="req">*</span>
+                      {t('Break time (mins)')} <span className="req">*</span>
                     </span>
                     <input
                       type="number"
@@ -702,7 +728,7 @@ export function BatchList() {
                   </label>
                   <label className="field">
                     <span className="label">
-                      Session start time <span className="req">*</span>
+                      {t('Session start time')} <span className="req">*</span>
                     </span>
                     <TimeSelect
                       value={schedule.firstStart}
@@ -713,7 +739,7 @@ export function BatchList() {
                   </label>
                   <label className="field">
                     <span className="label">
-                      Session end time <span className="req">*</span>
+                      {t('Session end time')} <span className="req">*</span>
                     </span>
                     <TimeSelect
                       value={schedule.lastEnd}
@@ -729,8 +755,8 @@ export function BatchList() {
                           type="button"
                           className="icon-btn icon-add"
                           onClick={addScheduleRow}
-                          title="Add another schedule"
-                          aria-label="Add another schedule"
+                          title={t('Add another schedule')}
+                          aria-label={t('Add another schedule')}
                         >
                           +
                         </button>
@@ -740,8 +766,8 @@ export function BatchList() {
                         type="button"
                         className="icon-btn icon-remove"
                         onClick={() => removeScheduleRow(schedule.id)}
-                        title="Remove schedule"
-                        aria-label="Remove schedule"
+                        title={t('Remove schedule')}
+                        aria-label={t('Remove schedule')}
                       >
                         −
                       </button>
@@ -753,14 +779,14 @@ export function BatchList() {
           </div>
           <div className="schedule-form-actions">
             <button type="button" className="pass-cancel" onClick={onResetSchedules}>
-              Reset
+              {t('Reset')}
             </button>
             <button type="submit" className="submit">
-              Generate Batches
+              {t('Generate Batches')}
             </button>
           </div>
           {error && errorSource === 'generate' ? (
-            <p className="error batch-action-error">{error}</p>
+            <p className="error batch-action-error">{t(error)}</p>
           ) : null}
         </form>
       </section>
@@ -768,31 +794,28 @@ export function BatchList() {
       {slots.length > 0 ? (
         <section className="card slots-card">
           <div className="slots-head">
-            <h2>Batch time slots</h2>
+            <h2>{t('Batch time slots')}</h2>
           </div>
 
           <div className="slots-table-wrap">
             <div className="slots-table-head">
-              <span>Batch</span>
-              <span>Type</span>
-              <span>Start time</span>
-              <span>End time</span>
+              <span>{t('Batch')}</span>
+              <span>{t('Type')}</span>
+              <span>{t('Start time')}</span>
+              <span>{t('End time')}</span>
               <span />
             </div>
             <div className="slots-list">
               {slots.map((slot) => (
                 <div className="slot-row" key={slot.id}>
                   <strong className="slot-name">{slot.name}</strong>
-                  <select
+                  <InPageSelect
                     value={slot.type}
-                    onChange={(e) => updateSlot(slot.id, { type: e.target.value })}
-                  >
-                    {BATCH_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(type) => updateSlot(slot.id, { type })}
+                    options={batchTypeOptions}
+                    required
+                    aria-label={`${slot.name} ${t('type')}`}
+                  />
                   <TimeSelect
                     value={slot.startTime}
                     onChange={(startTime) => updateSlot(slot.id, { startTime })}
@@ -805,8 +828,8 @@ export function BatchList() {
                     type="button"
                     className="icon-action icon-action-danger slot-remove-btn"
                     onClick={() => removeSlot(slot.id)}
-                    aria-label={`Remove ${slot.name}`}
-                    title="Remove"
+                    aria-label={`${t('Remove')} ${slot.name}`}
+                    title={t('Remove')}
                   >
                     <DeleteIcon />
                   </button>
@@ -825,20 +848,20 @@ export function BatchList() {
               }}
               disabled={saving}
             >
-              Cancel
+              {t('Cancel')}
             </button>
             <button type="button" className="submit" onClick={saveSlots} disabled={saving}>
-              {saving ? 'Saving…' : 'Save Batches'}
+              {saving ? t('Saving…') : t('Save Batches')}
             </button>
           </div>
           {error && errorSource === 'save' ? (
-            <p className="error batch-action-error">{error}</p>
+            <p className="error batch-action-error">{t(error)}</p>
           ) : null}
         </section>
       ) : null}
 
-      {error && errorSource === 'page' ? <p className="error">{error}</p> : null}
-      {success ? <p className="success">{success}</p> : null}
+      {error && errorSource === 'page' ? <p className="error">{t(error)}</p> : null}
+      {success ? <p className="success">{t(success)}</p> : null}
     </PlatformPage>
   );
 }

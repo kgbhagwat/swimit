@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { InPageSelect } from './InPageSelect';
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 
 type CoachOption = {
@@ -281,8 +283,17 @@ function csvEscape(value: string) {
 }
 
 export function CoachPayment() {
+  const t = useT();
   const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const monthSelectOptions = useMemo(
+    () => monthOptions.map((value) => ({ value, label: monthLabel(value) })),
+    [monthOptions],
+  );
   const [coaches, setCoaches] = useState<CoachOption[]>([]);
+  const coachSelectOptions = useMemo(
+    () => coaches.map((item) => ({ value: item.full_name, label: item.full_name })),
+    [coaches],
+  );
   const [coach, setCoach] = useState('');
   const [month, setMonth] = useState(currentMonthValue);
   const [basis, setBasis] = useState<Basis>('month');
@@ -425,12 +436,12 @@ export function CoachPayment() {
   function downloadSummaryCsv() {
     if (!summary) return;
     const header = [
-      'Coach name',
-      'Pass type',
-      'Pass charges',
-      'Coaching charges',
-      'Swimmers',
-      'Total coaching charges',
+      t('Coach name'),
+      t('Pass type'),
+      t('Pass charges'),
+      t('Coaching charges'),
+      t('Swimmers'),
+      t('Total coaching charges'),
     ];
     const lines = [
       header.join(','),
@@ -446,7 +457,7 @@ export function CoachPayment() {
           .map(csvEscape)
           .join(','),
       ),
-      ['', '', '', '', 'Grand total', String(summary.grandTotal)].map(csvEscape).join(','),
+      ['', '', '', '', t('Grand total'), String(summary.grandTotal)].map(csvEscape).join(','),
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -460,14 +471,14 @@ export function CoachPayment() {
   function downloadDetailCsv() {
     if (!result) return;
     const header = [
-      'Swimmer',
-      'Pass type',
-      'Batch',
-      basis === 'day' ? 'Attended days' : 'Duration',
-      basis === 'day' ? 'Duration days' : '',
-      'Pass charges',
-      'Coaching charges',
-      'Amount',
+      t('Swimmer'),
+      t('Pass type'),
+      t('Batch'),
+      basis === 'day' ? t('Attended days') : t('Duration'),
+      basis === 'day' ? t('Duration days') : '',
+      t('Pass charges'),
+      t('Coaching charges'),
+      t('Amount'),
     ].filter(Boolean);
     const lines = [
       header.join(','),
@@ -497,7 +508,7 @@ export function CoachPayment() {
           .map(csvEscape)
           .join(','),
       ),
-      ['', '', '', '', '', '', 'Total', String(result.total)].map(csvEscape).join(','),
+      ['', '', '', '', '', '', t('Total'), String(result.total)].map(csvEscape).join(','),
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -515,7 +526,7 @@ export function CoachPayment() {
         <>
           {viewMode === 'summary' ? (
             <button type="button" className="menu-link coach-payment-back" onClick={openDetail}>
-              ← Back
+              ← {t('Back')}
             </button>
           ) : null}
           {viewMode === 'summary' ? (
@@ -530,7 +541,7 @@ export function CoachPayment() {
                 disabled={!result || result.items.length === 0}
               />
               <button type="button" className="submit" onClick={openSummary}>
-                Summary
+                {t('Summary')}
               </button>
             </>
           )}
@@ -542,51 +553,47 @@ export function CoachPayment() {
       >
         {sampleMode ? (
           <div className="user-mgmt-sample-watermark" aria-hidden="true">
-            Sample
+            {t('Sample')}
           </div>
         ) : null}
         {sampleMode ? (
           <p className="lede batch-list-lede">
-            Sample layout — select a coach to preview payment details.
+            {t('Sample layout — select a coach to preview payment details.')}
           </p>
         ) : null}
         <div className="coach-payment-controls">
           {viewMode === 'detail' ? (
             <label className="field">
-              <span className="label">Coach</span>
-              <select
+              <span className="label">{t('Coach')}</span>
+              <InPageSelect
                 value={coach}
-                onChange={(e) => setCoach(e.target.value)}
+                onChange={setCoach}
+                options={coachSelectOptions}
+                placeholder={t('Select coach')}
                 disabled={loadingCoaches}
-              >
-                <option value="">Select coach</option>
-                {coaches.map((item) => (
-                  <option key={item.id} value={item.full_name}>
-                    {item.full_name}
-                  </option>
-                ))}
-              </select>
+                aria-label={t('Coach')}
+              />
             </label>
           ) : (
             <div className="field">
-              <span className="label">View</span>
-              <p className="pass-count coach-payment-view-note">All active coaches</p>
+              <span className="label">{t('View')}</span>
+              <p className="pass-count coach-payment-view-note">{t('All active coaches')}</p>
             </div>
           )}
 
           <label className="field">
-            <span className="label">Month</span>
-            <select value={month} onChange={(e) => setMonth(e.target.value)}>
-              {monthOptions.map((value) => (
-                <option key={value} value={value}>
-                  {monthLabel(value)}
-                </option>
-              ))}
-            </select>
+            <span className="label">{t('Month')}</span>
+            <InPageSelect
+              value={month}
+              onChange={setMonth}
+              options={monthSelectOptions}
+              required
+              aria-label={t('Month')}
+            />
           </label>
 
           <fieldset className="coach-payment-basis">
-            <legend className="label">Payment calculation</legend>
+            <legend className="label">{t('Payment calculation')}</legend>
             <div className="staff-role-radios">
               <label className={`staff-role-option${basis === 'pass' ? ' selected' : ''}`}>
                 <input
@@ -594,7 +601,7 @@ export function CoachPayment() {
                   checked={basis === 'pass'}
                   onChange={() => setBasis('pass')}
                 />
-                Pass basis
+                {t('Pass basis')}
               </label>
               <label className={`staff-role-option${basis === 'month' ? ' selected' : ''}`}>
                 <input
@@ -602,7 +609,7 @@ export function CoachPayment() {
                   checked={basis === 'month'}
                   onChange={() => setBasis('month')}
                 />
-                Month basis
+                {t('Month basis')}
               </label>
               <label className={`staff-role-option${basis === 'day' ? ' selected' : ''}`}>
                 <input
@@ -610,47 +617,47 @@ export function CoachPayment() {
                   checked={basis === 'day'}
                   onChange={() => setBasis('day')}
                 />
-                Day basis
+                {t('Day basis')}
               </label>
             </div>
           </fieldset>
         </div>
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
 
-        {loading ? <p className="pass-count">Calculating…</p> : null}
+        {loading ? <p className="pass-count">{t('Calculating…')}</p> : null}
 
         {!loading && viewMode === 'summary' && summary ? (
           <>
             <div className="pass-table-card coach-payment-table">
               <div className="coach-summary-head">
-                <span>Coach name</span>
-                <span>Pass type</span>
-                <span>Pass charges</span>
-                <span>Coaching charges</span>
-                <span>Swimmers</span>
-                <span>Total coaching charges</span>
+                <span>{t('Coach name')}</span>
+                <span>{t('Pass type')}</span>
+                <span>{t('Pass charges')}</span>
+                <span>{t('Coaching charges')}</span>
+                <span>{t('Swimmers')}</span>
+                <span>{t('Total coaching charges')}</span>
               </div>
               {summary.items.length === 0 ? (
-                <p className="pass-empty">No active coaches found.</p>
+                <p className="pass-empty">{t('No active coaches found.')}</p>
               ) : (
                 summary.items.map((item) => (
                   <div
                     className="coach-summary-row"
                     key={`${item.coachId}-${item.passType}`}
                   >
-                    <span data-label="Coach name">
+                    <span data-label={t('Coach name')}>
                       <strong>{item.coachName}</strong>
                     </span>
-                    <span data-label="Pass type">{item.passType || '—'}</span>
-                    <span data-label="Pass charges">
+                    <span data-label={t('Pass type')}>{item.passType || '—'}</span>
+                    <span data-label={t('Pass charges')}>
                       {formatMoney(item.passCharges ?? 0)}
                     </span>
-                    <span data-label="Coaching charges">
+                    <span data-label={t('Coaching charges')}>
                       {formatMoney(item.coachingCharges ?? 0)}
                     </span>
-                    <span data-label="Swimmers">{item.swimmerCount}</span>
-                    <span data-label="Total coaching charges">
+                    <span data-label={t('Swimmers')}>{item.swimmerCount}</span>
+                    <span data-label={t('Total coaching charges')}>
                       <strong>{formatMoney(item.total)}</strong>
                     </span>
                   </div>
@@ -661,7 +668,7 @@ export function CoachPayment() {
             <div className="coach-payment-total-row">
               <div className="coach-payment-total coach-payment-total-compact">
                 <span>
-                  Grand total: <strong>{formatMoney(summary.grandTotal)}</strong>
+                  {t('Grand total')}: <strong>{formatMoney(summary.grandTotal)}</strong>
                 </span>
               </div>
             </div>
@@ -673,34 +680,34 @@ export function CoachPayment() {
             <>
               <div className="pass-table-card coach-payment-table">
                 <div className="coach-payment-head">
-                  <span>Swimmer</span>
-                  <span>Pass type</span>
-                  <span>Batch</span>
-                  {basis === 'day' ? <span>Days</span> : <span>Duration</span>}
-                  <span>Pass charges</span>
-                  <span>Coaching charges</span>
-                  <span>Amount</span>
+                  <span>{t('Swimmer')}</span>
+                  <span>{t('Pass type')}</span>
+                  <span>{t('Batch')}</span>
+                  {basis === 'day' ? <span>{t('Days')}</span> : <span>{t('Duration')}</span>}
+                  <span>{t('Pass charges')}</span>
+                  <span>{t('Coaching charges')}</span>
+                  <span>{t('Amount')}</span>
                 </div>
                 {result.items.length === 0 ? (
-                  <p className="pass-empty">No swimmers assigned to this coach.</p>
+                  <p className="pass-empty">{t('No swimmers assigned to this coach.')}</p>
                 ) : (
                   result.items.map((item) => (
                     <div className="coach-payment-row" key={item.registrationId}>
-                      <span data-label="Swimmer">
+                      <span className="coach-payment-swimmer" data-label={t('Swimmer')}>
                         <strong>{item.fullName}</strong>
                       </span>
-                      <span data-label="Pass type">{item.passType || '—'}</span>
-                      <span data-label="Batch">{item.batch || '—'}</span>
+                      <span data-label={t('Pass type')}>{item.passType || '—'}</span>
+                      <span data-label={t('Batch')}>{item.batch || '—'}</span>
                       {basis === 'day' ? (
-                        <span data-label="Days">
+                        <span data-label={t('Days')}>
                           {item.attendedDays} / {item.durationDays}
                         </span>
                       ) : (
-                        <span data-label="Duration">{item.duration || '—'}</span>
+                        <span data-label={t('Duration')}>{item.duration || '—'}</span>
                       )}
-                      <span data-label="Pass charges">{formatMoney(item.passCharges ?? 0)}</span>
-                      <span data-label="Coaching charges">{formatMoney(item.coachingCharges)}</span>
-                      <span data-label="Amount">
+                      <span data-label={t('Pass charges')}>{formatMoney(item.passCharges ?? 0)}</span>
+                      <span data-label={t('Coaching charges')}>{formatMoney(item.coachingCharges)}</span>
+                      <span data-label={t('Amount')}>
                         <strong>{formatMoney(item.amount)}</strong>
                       </span>
                     </div>
@@ -710,10 +717,10 @@ export function CoachPayment() {
 
               <div className="coach-payment-total">
                 <span>
-                  Swimmers: <strong>{result.swimmerCount}</strong>
+                  {t('Swimmers')}: <strong>{result.swimmerCount}</strong>
                 </span>
                 <span>
-                  Total coaching charges: <strong>{formatMoney(result.total)}</strong>
+                  {t('Total coaching charges')}: <strong>{formatMoney(result.total)}</strong>
                 </span>
               </div>
             </>

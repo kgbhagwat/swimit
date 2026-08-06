@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
@@ -29,9 +30,16 @@ function isValidUpiId(value: string) {
   return /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,63}$/.test(v);
 }
 
+function upiContainsTenDigits(value: string) {
+  return /\d{10}/.test(String(value ?? ''));
+}
+
 function upiHint(value: string) {
   const v = value.trim();
   if (!v) return '';
+  if (upiContainsTenDigits(v)) {
+    return 'UPI ID should not contain mobile no.';
+  }
   if (!isValidUpiId(v)) return 'Enter a valid UPI ID (e.g. name@upi)';
   return '';
 }
@@ -55,6 +63,7 @@ function ImageField({
   onPick: (file: File | null) => void;
   onClear: () => void;
 }) {
+  const t = useT();
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -81,7 +90,7 @@ function ImageField({
       const ready = await compressImageToLimit(selected);
       setDraftFile(ready);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Unable to process image');
+      alert(err instanceof Error ? err.message : t('Unable to process image'));
       setDraftFile(null);
     } finally {
       setCompressing(false);
@@ -109,7 +118,7 @@ function ImageField({
               setOpen(true);
             }}
           >
-            Upload
+            {t('Upload')}
           </button>
         ) : null}
         {editable && hint ? <span className="pool-core-upload-hint">{hint}</span> : null}
@@ -121,8 +130,8 @@ function ImageField({
             <button
               type="button"
               className="preview-delete-btn"
-              aria-label={`Delete ${label}`}
-              title="Delete image"
+              aria-label={`${t('Delete')} ${label}`}
+              title={t('Delete image')}
               onClick={onClear}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -154,7 +163,9 @@ function ImageField({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="pool-core-image-modal-title">{label}</h2>
-            <p className="modal-intro">Take a photo or upload an image, then confirm with OK.</p>
+            <p className="modal-intro">
+              {t('Take a photo or upload an image, then confirm with OK.')}
+            </p>
             <div className="modal-scroll">
               <div className="photo-actions">
                 <button
@@ -164,7 +175,7 @@ function ImageField({
                   onClick={() => cameraRef.current?.click()}
                 >
                   <CameraActionIcon />
-                  Take photo
+                  {t('Take photo')}
                 </button>
                 <button
                   type="button"
@@ -173,7 +184,7 @@ function ImageField({
                   onClick={() => fileRef.current?.click()}
                 >
                   <UploadActionIcon />
-                  Upload image
+                  {t('Upload image')}
                 </button>
               </div>
               <input
@@ -191,12 +202,12 @@ function ImageField({
                 hidden
                 onChange={(e) => void handleDraftFile(e.target.files?.[0] ?? null)}
               />
-              {compressing ? <p className="hint">Compressing image…</p> : null}
+              {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
               {draftPreview ? (
                 <div className="preview-wrap pool-core-image-modal-preview">
                   <img
                     src={draftPreview}
-                    alt={`${label} preview`}
+                    alt={`${label} ${t('preview')}`}
                     className="preview pool-core-preview"
                   />
                 </div>
@@ -209,7 +220,7 @@ function ImageField({
             </div>
             <div className="modal-footer accounts-delete-modal-footer">
               <button type="button" className="ghost-btn" onClick={() => closeModal(true)}>
-                Cancel
+                {t('Cancel')}
               </button>
               <button
                 type="button"
@@ -217,7 +228,7 @@ function ImageField({
                 disabled={!draftFile || compressing}
                 onClick={confirmDraft}
               >
-                OK
+                {t('OK')}
               </button>
             </div>
           </div>
@@ -228,6 +239,7 @@ function ImageField({
 }
 
 export function PoolCoreInfo() {
+  const t = useT();
   const [form, setForm] = useState<PoolCoreInfoData>(() => ({
     poolName: '',
     poolAddress: '',
@@ -313,6 +325,10 @@ export function PoolCoreInfo() {
         return;
       }
     }
+    if (upiHint(form.upiDetails)) {
+      setError(upiHint(form.upiDetails));
+      return;
+    }
     if (!isValidUpiId(form.upiDetails)) {
       setError('Enter a valid UPI ID (e.g. name@upi)');
       return;
@@ -360,6 +376,13 @@ export function PoolCoreInfo() {
     }
   }
 
+  const paymentOptionsLabel = [
+    form.paymentAcceptCash ? t('Cash') : null,
+    form.paymentAcceptOnline ? t('Online') : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <PlatformPage
       title="Core Info"
@@ -390,10 +413,10 @@ export function PoolCoreInfo() {
                 }}
                 disabled={saving}
               >
-                Reset
+                {t('Reset')}
               </button>
               <button type="submit" form="pool-core-info-form" className="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? t('Saving…') : t('Save')}
               </button>
             </>
           ) : (
@@ -406,29 +429,29 @@ export function PoolCoreInfo() {
                 setError('');
               }}
             >
-              Edit
+              {t('Edit')}
             </button>
           )
         ) : undefined
       }
     >
       <p className="lede batch-list-lede">
-        Pool name, address, terms, payment options, and branding images.
+        {t('Pool name, address, terms, payment options, and branding images.')}
       </p>
-      {loading ? <p className="pass-empty">Loading…</p> : null}
-      {error && !editing ? <p className="error">{error}</p> : null}
-      {success && !editing ? <p className="success">{success}</p> : null}
+      {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
+      {error && !editing ? <p className="error">{t(error)}</p> : null}
+      {success && !editing ? <p className="success">{t(success)}</p> : null}
 
       {!loading && !editing ? (
         <section className="pass-form-card pool-core-form pool-core-view">
           <div className="form-grid-2">
             <div className="pool-core-view-row">
-              <span className="label">Pool Name</span>
+              <span className="label">{t('Pool Name')}</span>
               <p className="pool-core-view-value">{form.poolName.trim() || '—'}</p>
             </div>
 
             <div className="pool-core-view-row">
-              <span className="label">Pool Address</span>
+              <span className="label">{t('Pool Address')}</span>
               <p className="pool-core-view-value pool-core-view-multiline">
                 {form.poolAddress.trim() || '—'}
               </p>
@@ -437,14 +460,14 @@ export function PoolCoreInfo() {
 
           <div className="form-grid-2">
             <div className="pool-core-view-row">
-              <span className="label">Terms & Conditions for swimmer</span>
+              <span className="label">{t('Terms & Conditions for swimmer')}</span>
               <div className="pool-core-view-text">
                 {form.swimmerTerms.trim() || '—'}
               </div>
             </div>
 
             <div className="pool-core-view-row">
-              <span className="label">Terms & Conditions for staff</span>
+              <span className="label">{t('Terms & Conditions for staff')}</span>
               <div className="pool-core-view-text">
                 {form.staffTerms.trim() || '—'}
               </div>
@@ -453,18 +476,11 @@ export function PoolCoreInfo() {
 
           <div className="form-grid-2 pool-core-payment-options-row">
             <div className="pool-core-view-row pool-core-view-row--inline">
-              <span className="label">Payment Options</span>
-              <p className="pool-core-view-value">
-                {[
-                  form.paymentAcceptCash ? 'Cash' : null,
-                  form.paymentAcceptOnline ? 'Online' : null,
-                ]
-                  .filter(Boolean)
-                  .join(', ') || '—'}
-              </p>
+              <span className="label">{t('Payment Options')}</span>
+              <p className="pool-core-view-value">{paymentOptionsLabel || '—'}</p>
             </div>
             <div className="pool-core-view-row pool-core-view-row--inline">
-              <span className="label">UPI ID</span>
+              <span className="label">{t('UPI ID')}</span>
               <p className="pool-core-view-value">
                 {form.upiDetails.trim() ? <code>{form.upiDetails.trim()}</code> : '—'}
               </p>
@@ -473,31 +489,31 @@ export function PoolCoreInfo() {
 
           <div className="grid-2 photos">
             <div className="photo-field">
-              <span className="label">Pool Logo</span>
+              <span className="label">{t('Pool Logo')}</span>
               {uploadUrl(form.poolLogoPath) ? (
                 <div className="preview-wrap">
                   <img
                     src={uploadUrl(form.poolLogoPath)!}
-                    alt="Pool Logo"
+                    alt={t('Pool Logo')}
                     className="preview pool-core-preview"
                   />
                 </div>
               ) : (
-                <p className="hint">No logo uploaded.</p>
+                <p className="hint">{t('No logo uploaded.')}</p>
               )}
             </div>
             <div className="photo-field">
-              <span className="label">Payment QR code</span>
+              <span className="label">{t('Payment QR code')}</span>
               {uploadUrl(form.paymentQrPath) ? (
                 <div className="preview-wrap">
                   <img
                     src={uploadUrl(form.paymentQrPath)!}
-                    alt="Payment QR code"
+                    alt={t('Payment QR code')}
                     className="preview pool-core-preview"
                   />
                 </div>
               ) : (
-                <p className="hint">No payment QR uploaded.</p>
+                <p className="hint">{t('No payment QR uploaded.')}</p>
               )}
             </div>
           </div>
@@ -513,24 +529,24 @@ export function PoolCoreInfo() {
           <div className="form-grid-2">
             <label className="field">
               <span className="label">
-                Pool Name <span className="req">*</span>
+                {t('Pool Name')} <span className="req">*</span>
               </span>
               <input
                 value={form.poolName}
                 onChange={(e) => setForm((prev) => ({ ...prev, poolName: e.target.value }))}
-                placeholder="e.g. Demo Pool"
+                placeholder={t('e.g. Demo Pool')}
                 required
               />
             </label>
 
             <label className="field">
               <span className="label">
-                Pool Address <span className="req">*</span>
+                {t('Pool Address')} <span className="req">*</span>
               </span>
               <textarea
                 value={form.poolAddress}
                 onChange={(e) => setForm((prev) => ({ ...prev, poolAddress: e.target.value }))}
-                placeholder="e.g. 12 Lake View Road, Pune"
+                placeholder={t('e.g. 12 Lake View Road, Pune')}
                 rows={2}
                 required
               />
@@ -539,19 +555,19 @@ export function PoolCoreInfo() {
 
           <div className="form-grid-2">
             <TermsDocumentField
-              label="Terms & Conditions for swimmer"
+              label={t('Terms & Conditions for swimmer')}
               value={form.swimmerTerms}
               onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
-              placeholder="Type or Upload .doc or .txt file."
+              placeholder={t('Type or Upload .doc or .txt file.')}
               rows={4}
               editable
             />
 
             <TermsDocumentField
-              label="Terms & Conditions for staff"
+              label={t('Terms & Conditions for staff')}
               value={form.staffTerms}
               onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
-              placeholder="Type or Upload .doc or .txt file."
+              placeholder={t('Type or Upload .doc or .txt file.')}
               rows={4}
               editable
             />
@@ -565,7 +581,7 @@ export function PoolCoreInfo() {
             >
               <div className="payment-options-heading">
                 <span id="payment-options-label" className="label">
-                  Payment Options <span className="req">*</span>
+                  {t('Payment Options')} <span className="req">*</span>
                 </span>
                 <div className="payment-option-checks">
                   <label className="check-row">
@@ -576,7 +592,7 @@ export function PoolCoreInfo() {
                         setForm((prev) => ({ ...prev, paymentAcceptCash: e.target.checked }))
                       }
                     />
-                    <span>Cash</span>
+                    <span>{t('Cash')}</span>
                   </label>
                   <label className="check-row">
                     <input
@@ -586,9 +602,9 @@ export function PoolCoreInfo() {
                         setForm((prev) => ({ ...prev, paymentAcceptOnline: e.target.checked }))
                       }
                     />
-                    <span>Online</span>
+                    <span>{t('Online')}</span>
                     <span className="payment-online-note">
-                      (Payment QR and UPI ID are required.)
+                      {t('(Payment QR and UPI ID are required.)')}
                     </span>
                   </label>
                 </div>
@@ -598,29 +614,33 @@ export function PoolCoreInfo() {
             <div className="field upi-id-field">
               <div className="upi-id-row">
                 <span className="label">
-                  UPI ID{form.paymentAcceptOnline ? <span className="req"> *</span> : null}
+                  {t('UPI ID')}
+                  {form.paymentAcceptOnline ? <span className="req"> *</span> : null}
                 </span>
-                <input
-                  value={form.upiDetails}
-                  onChange={(e) => setForm((prev) => ({ ...prev, upiDetails: e.target.value }))}
-                  placeholder="name@upi"
-                  inputMode="email"
-                  autoComplete="off"
-                  required={form.paymentAcceptOnline}
-                  aria-invalid={Boolean(upiHint(form.upiDetails))}
-                  aria-label="UPI ID"
-                />
+                <div className="upi-id-input-wrap">
+                  <input
+                    value={form.upiDetails}
+                    onChange={(e) => setForm((prev) => ({ ...prev, upiDetails: e.target.value }))}
+                    placeholder="name@upi"
+                    inputMode="email"
+                    autoComplete="off"
+                    required={form.paymentAcceptOnline}
+                    aria-invalid={Boolean(upiHint(form.upiDetails))}
+                    aria-label={t('UPI ID')}
+                  />
+                  <span className="upi-id-note">{t('UPI ID should not contain mobile no.')}</span>
+                  {upiHint(form.upiDetails) ? (
+                    <span className="field-error">{t(upiHint(form.upiDetails))}</span>
+                  ) : null}
+                </div>
               </div>
-              {upiHint(form.upiDetails) ? (
-                <span className="field-error">{upiHint(form.upiDetails)}</span>
-              ) : null}
             </div>
           </div>
 
           <div className="grid-2 photos">
             <ImageField
-              label="Pool Logo"
-              hint="Max 200 KB"
+              label={t('Pool Logo')}
+              hint={t('Max 200 KB')}
               file={logoFile}
               preview={logoPreview}
               existingUrl={clearLogo ? null : uploadUrl(form.poolLogoPath)}
@@ -635,7 +655,9 @@ export function PoolCoreInfo() {
               }}
             />
             <ImageField
-              label={form.paymentAcceptOnline ? 'Payment QR code *' : 'Payment QR code'}
+              label={
+                form.paymentAcceptOnline ? `${t('Payment QR code')} *` : t('Payment QR code')
+              }
               hint=""
               file={qrFile}
               preview={qrPreview}
@@ -652,8 +674,8 @@ export function PoolCoreInfo() {
             />
           </div>
 
-          {error ? <p className="error">{error}</p> : null}
-          {success ? <p className="success">{success}</p> : null}
+          {error ? <p className="error">{t(error)}</p> : null}
+          {success ? <p className="success">{t(success)}</p> : null}
         </form>
       ) : null}
     </PlatformPage>
