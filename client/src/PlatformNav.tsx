@@ -1,8 +1,10 @@
-import { FormEvent, useEffect, useId, useRef, useState, type MouseEvent } from 'react';
+import { FormEvent, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { exitApplicationDemo } from './applicationDemo';
+import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { LanguageSwitcher, useT } from './i18n';
+import { MobileField } from './MobileField';
 import {
   clearPlatformSession,
   getPlatformSession,
@@ -132,15 +134,25 @@ function PlatformLoginModal({
   onFormChange: (patch: Partial<LoginFormState>) => void;
 }) {
   const navigate = useNavigate();
-  const titleId = useId();
+  const t = useT();
   const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<'login' | 'forgot'>('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMobile, setForgotMobile] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [openedAt, setOpenedAt] = useState(0);
 
   useEffect(() => {
     if (!open) return;
     setOpenedAt(Date.now());
+    setMode('login');
+    setError('');
+    setSuccess('');
+    setForgotEmail('');
+    setForgotMobile('');
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
@@ -229,12 +241,52 @@ function PlatformLoginModal({
     }
   }
 
+  async function onForgotSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    const code = normalizeAccountCode(form.accountCode);
+    if (!ACCOUNT_CODE_RE.test(code)) {
+      setError(t('Enter a valid 6-character account code'));
+      return;
+    }
+    if (!isValidEmail(forgotEmail)) {
+      setError(emailHint(forgotEmail) || t('Enter a valid email address'));
+      return;
+    }
+    if (!isValidMobile(forgotMobile)) {
+      setError(MOBILE_INVALID_MSG);
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          mobile: forgotMobile,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? t('Failed to reset password'));
+      setSuccess(
+        String(body.message ?? t('A new temporary password was sent to your mobile and email.')),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('Failed to reset password'));
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return createPortal(
     <div
       className="modal-backdrop platform-login-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-labelledby={titleId}
+      aria-label={mode === 'forgot' ? t('Forgot password') : t('Login')}
       onMouseDown={closeFromBackdrop}
     >
       <div
@@ -242,67 +294,157 @@ function PlatformLoginModal({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id={titleId}>Login</h2>
-        <p className="modal-intro">
-          Enter account code, user name, and password. Use code <code>swimit</code> for SaaS
-          management.
-        </p>
-        <form className="platform-login-form" onSubmit={onSubmit}>
-          <label className="field">
-            <span className="label">
-              Code <span className="req">*</span>
-            </span>
-            <input
-              value={form.accountCode}
-              onChange={(e) => onFormChange({ accountCode: normalizeAccountCode(e.target.value) })}
-              placeholder="e.g. swimit"
-              maxLength={6}
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              autoComplete="off"
-              required
+        <div className="platform-login-layout">
+          <aside className="platform-login-brand" aria-hidden="true">
+            <img
+              src="/swimit-login.png"
+              alt=""
+              className="platform-login-brand-image"
             />
-          </label>
-          <label className="field">
-            <span className="label">
-              User name <span className="req">*</span>
-            </span>
-            <input
-              value={form.userName}
-              onChange={(e) => onFormChange({ userName: e.target.value })}
-              autoComplete="username"
-              required
-            />
-          </label>
-          <label className="field">
-            <span className="label">
-              Password <span className="req">*</span>
-            </span>
-            <div className="password-input-wrap">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={form.password}
-                onChange={(e) => onFormChange({ password: e.target.value })}
-                autoComplete="current-password"
-                required
-              />
-              <PasswordEyeButton
-                visible={showPassword}
-                onToggle={() => setShowPassword((prev) => !prev)}
+          </aside>
+          <div className="platform-login-content">
+            <div className="platform-login-branding">
+              <img
+                src="/swimit-logo.png"
+                alt="SwimIT — Swimming Pool Management System"
+                className="platform-login-logo"
               />
             </div>
-          </label>
-          {error ? <p className="error">{error}</p> : null}
-          <div className="platform-login-actions">
-            <button type="button" className="ghost-btn" onClick={onClose} disabled={loggingIn}>
-              Cancel
-            </button>
-            <button type="submit" className="submit" disabled={loggingIn}>
-              {loggingIn ? 'Signing in…' : 'Sign in'}
-            </button>
+            {mode === 'login' ? (
+              <form className="platform-login-form" onSubmit={onSubmit}>
+                <label className="field platform-login-code-field">
+                  <span className="label">
+                    {t('Code')} <span className="req">*</span>
+                  </span>
+                  <input
+                    value={form.accountCode}
+                    onChange={(e) => onFormChange({ accountCode: normalizeAccountCode(e.target.value) })}
+                    placeholder="e.g. swimit"
+                    maxLength={6}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    autoComplete="off"
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span className="label">
+                    {t('User name')} <span className="req">*</span>
+                  </span>
+                  <input
+                    value={form.userName}
+                    onChange={(e) => onFormChange({ userName: e.target.value })}
+                    autoComplete="username"
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span className="label">
+                    {t('Password')} <span className="req">*</span>
+                  </span>
+                  <div className="password-input-wrap">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={(e) => onFormChange({ password: e.target.value })}
+                      autoComplete="current-password"
+                      required
+                    />
+                    <PasswordEyeButton
+                      visible={showPassword}
+                      onToggle={() => setShowPassword((prev) => !prev)}
+                    />
+                  </div>
+                </label>
+                <div className="platform-login-forgot-row">
+                  <button
+                    type="button"
+                    className="platform-login-forgot-link"
+                    onClick={() => {
+                      setError('');
+                      setSuccess('');
+                      setMode('forgot');
+                    }}
+                  >
+                    {t('Forgot password?')}
+                  </button>
+                </div>
+                {error ? <p className="error">{error}</p> : null}
+                <div className="platform-login-actions">
+                  <button type="button" className="ghost-btn" onClick={onClose} disabled={loggingIn}>
+                    {t('Cancel')}
+                  </button>
+                  <button type="submit" className="submit" disabled={loggingIn}>
+                    {loggingIn ? t('Signing in…') : t('Sign in')}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form className="platform-login-form" onSubmit={onForgotSubmit}>
+                <p className="platform-login-forgot-help">
+                  {t(
+                    'Enter your account code, registered email, and mobile. If they match, a new temporary password will be sent to your WhatsApp and email.',
+                  )}
+                </p>
+                <label className="field platform-login-code-field">
+                  <span className="label">
+                    {t('Code')} <span className="req">*</span>
+                  </span>
+                  <input
+                    value={form.accountCode}
+                    onChange={(e) => onFormChange({ accountCode: normalizeAccountCode(e.target.value) })}
+                    placeholder="e.g. swimit"
+                    maxLength={6}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    autoComplete="off"
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span className="label">
+                    {t('Email')} <span className="req">*</span>
+                  </span>
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+                <MobileField
+                  label={t('Mobile')}
+                  value={forgotMobile}
+                  onChange={setForgotMobile}
+                  required
+                  className="field"
+                />
+                {error ? <p className="error">{error}</p> : null}
+                {success ? <p className="platform-login-success">{success}</p> : null}
+                <div className="platform-login-actions platform-login-actions-inline">
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    disabled={resetting}
+                    onClick={() => {
+                      setError('');
+                      setSuccess('');
+                      setMode('login');
+                    }}
+                  >
+                    {t('Back to login')}
+                  </button>
+                  <button type="submit" className="submit" disabled={resetting || Boolean(success)}>
+                    {resetting ? t('Sending…') : t('Send password')}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
-        </form>
+        </div>
       </div>
     </div>,
     document.body,
@@ -367,8 +509,11 @@ export function PlatformNav({
         aria-label="Platform menu"
       >
         <div className="platform-sidebar-brand">
-          <p className="platform-sidebar-brand-name">SwimIT</p>
-          <p className="platform-sidebar-brand-label">SaaS platform</p>
+          <img
+            src="/swimit-logo.png"
+            alt="SwimIT — Swimming Pool Management System"
+            className="platform-sidebar-logo"
+          />
         </div>
         <ul className="platform-sidebar-list">
           {visibleLinks.map((link) => {

@@ -24,7 +24,11 @@ type ExpenseForm = {
 const MODES = ['Cash', 'UPI', 'Card', 'Bank transfer'] as const;
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function currentMonthValue() {
@@ -140,8 +144,13 @@ export function PoolExpenses() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError('');
+    const today = todayIso();
+    if (!form.expenseDate || form.expenseDate > today) {
+      setError('Expense date cannot be in the future');
+      return;
+    }
+    setSaving(true);
     try {
       const payload = {
         expenseDate: form.expenseDate,
@@ -249,7 +258,15 @@ export function PoolExpenses() {
           <input
             type="date"
             value={form.expenseDate}
-            onChange={(e) => setForm({ ...form, expenseDate: e.target.value })}
+            max={todayIso()}
+            onChange={(e) => {
+              const next = e.target.value;
+              const today = todayIso();
+              setForm({
+                ...form,
+                expenseDate: next && next > today ? today : next,
+              });
+            }}
             required
             aria-label={t('Expense date')}
           />

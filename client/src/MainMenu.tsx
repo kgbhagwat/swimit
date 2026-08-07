@@ -10,6 +10,14 @@ export function MainMenu() {
     <PlatformShell>
       <PlatformPage title="Application overview" className="home-overview-page">
         <section className="home-app-overview" aria-label={t('Application overview')}>
+          <figure className="home-app-functionality">
+            <img
+              src="/swimit-functionality.png"
+              alt={t('SwimIT functionality overview')}
+              className="home-app-functionality-image"
+            />
+          </figure>
+
           <p>
             <strong>SwimIT</strong>{' '}
             {t(
@@ -54,39 +62,14 @@ export function MainMenu() {
             </li>
           </ul>
 
-          <h3>{t('Workflow')}</h3>
-          <div className="home-workflow" aria-label={t('SwimIT workflow')}>
-            <div className="home-workflow-row">
-              <div className="home-workflow-step">{t('Create Account')}</div>
-              <div className="home-workflow-step">{t('Add pool information')}</div>
-              <div className="home-workflow-step">
-                {t('Define Batch, Pass type, holidays calendar')}
-              </div>
-              <div className="home-workflow-step">{t('Registration of Coach/Staff')}</div>
-            </div>
-            <div className="home-workflow-row home-workflow-row-rtl">
-              <div className="home-workflow-step">
-                {t('Create users and control access per role')}
-              </div>
-              <div className="home-workflow-step">{t('Registration of swimmer')}</div>
-              <div className="home-workflow-step">{t('Batch & Coach Selection')}</div>
-              <div className="home-workflow-step">{t('Payment and pass creation')}</div>
-            </div>
-            <div className="home-workflow-row home-workflow-row-tail">
-              <div className="home-workflow-step">{t('Scan pass for attendance')}</div>
-              <div className="home-workflow-step">{t('Enter day to day expenses')}</div>
-            </div>
-          </div>
+          <figure className="home-workflow-figure" aria-label={t('SwimIT workflow')}>
+            <img
+              src="/swimit-workflow.png"
+              alt={t('SwimIT workflow')}
+              className="home-workflow-image"
+            />
+          </figure>
 
-          <h3>{t('Information get created')}</h3>
-          <div className="home-info-flow" aria-label={t('Information created by SwimIT')}>
-            <div className="home-info-flow-step">{t('Swimmer List')}</div>
-            <div className="home-info-flow-step">
-              {t('Coach/ Staff List along with Certificate')}
-            </div>
-            <div className="home-info-flow-step">{t('Coach Payment calculation')}</div>
-            <div className="home-info-flow-step">{t('Balance Sheet')}</div>
-          </div>
         </section>
       </PlatformPage>
     </PlatformShell>

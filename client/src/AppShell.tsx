@@ -644,10 +644,11 @@ export function AppShell({
         aria-label={t('Pool menu')}
       >
         <div className="platform-sidebar-brand">
-          <p className="platform-sidebar-brand-name">SwimIT</p>
-          <p className="platform-sidebar-brand-label">
-            {tenantAccount ? t('Pool management') : t('Application preview')}
-          </p>
+          <img
+            src="/swimit-logo.png"
+            alt="SwimIT — Swimming Pool Management System"
+            className="platform-sidebar-logo"
+          />
         </div>
         <ul className="platform-sidebar-list">
           {canOpenDashboard ? (

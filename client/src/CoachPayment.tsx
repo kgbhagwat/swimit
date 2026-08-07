@@ -556,14 +556,9 @@ export function CoachPayment() {
             {t('Sample')}
           </div>
         ) : null}
-        {sampleMode ? (
-          <p className="lede batch-list-lede">
-            {t('Sample layout — select a coach to preview payment details.')}
-          </p>
-        ) : null}
         <div className="coach-payment-controls">
           {viewMode === 'detail' ? (
-            <label className="field">
+            <label className="field field-beside coach-payment-coach-field">
               <span className="label">{t('Coach')}</span>
               <InPageSelect
                 value={coach}
@@ -575,13 +570,13 @@ export function CoachPayment() {
               />
             </label>
           ) : (
-            <div className="field">
+            <div className="field field-beside coach-payment-coach-field">
               <span className="label">{t('View')}</span>
               <p className="pass-count coach-payment-view-note">{t('All active coaches')}</p>
             </div>
           )}
 
-          <label className="field">
+          <label className="field field-beside coach-payment-month-field">
             <span className="label">{t('Month')}</span>
             <InPageSelect
               value={month}
@@ -594,7 +589,7 @@ export function CoachPayment() {
 
           <fieldset className="coach-payment-basis">
             <legend className="label">{t('Payment calculation')}</legend>
-            <div className="staff-role-radios">
+            <div className="staff-role-radios" role="group" aria-label={t('Payment calculation')}>
               <label className={`staff-role-option${basis === 'pass' ? ' selected' : ''}`}>
                 <input
                   type="checkbox"

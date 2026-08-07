@@ -3,13 +3,20 @@ import { pool } from '../db/pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { pageKeysForModules } from '../menuAccess.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
+import { isEmailDeliveryConfigured, sendTempPasswordEmail } from '../email.js';
 import { hashPassword, generateTempPassword, verifyPassword } from '../password.js';
+import { getWhatsAppConfig } from '../whatsapp/config.js';
 import { notifyLoginCredentials, notifyPackageRenewalPayment } from '../whatsapp/notify.js';
 import {
   computeRenewalAmount,
   renewFromDate,
   addMonthsDateOnly,
 } from '../paymentAmount.js';
+
+function isValidEmailAddress(value: string) {
+  const email = value.trim();
+  return email.includes('@') && email.includes('.') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 type AccountBody = {
   accountName?: string;
@@ -22,6 +29,8 @@ type AccountBody = {
   servicePackageId?: number | string | null;
   status?: string;
   notes?: string;
+  /** Required true when creating an account. */
+  acceptedTerms?: boolean;
   /** When set, overrides auto-computed subscription expiry. */
   subscriptionExpiresAt?: string | null;
 };
@@ -332,6 +341,10 @@ saasAccountsRouter.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     const body = req.body as AccountBody;
+    if (body.acceptedTerms !== true) {
+      res.status(400).json({ error: 'Please accept the Terms & Conditions to create an account' });
+      return;
+    }
     const error = validate(body);
     if (error) {
       res.status(400).json({ error });
@@ -913,6 +926,147 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to log in' });
+  }
+});
+
+/**
+ * Forgot password: match account user by email + mobile, set a random temporary
+ * password, and send it on WhatsApp (mobile) and email when those channels are configured.
+ */
+saasAccountsRouter.post('/by-code/:code/forgot-password', async (req, res) => {
+  try {
+    const code = normalizeAccountCode(req.params.code);
+    if (!ACCOUNT_CODE_RE.test(code)) {
+      res.status(400).json({ error: 'Invalid account code' });
+      return;
+    }
+
+    const body = req.body as { email?: string; mobile?: string };
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const mobile = sanitizeMobile(body.mobile);
+
+    if (!isValidEmailAddress(email)) {
+      res.status(400).json({ error: 'Enter a valid email address' });
+      return;
+    }
+    if (!isValidMobile(mobile)) {
+      res.status(400).json({ error: MOBILE_INVALID_MSG });
+      return;
+    }
+
+    const whatsappReady = getWhatsAppConfig().enabled;
+    const emailReady = isEmailDeliveryConfigured();
+    if (!whatsappReady && !emailReady) {
+      res.status(503).json({
+        error:
+          'Password reset delivery is not configured (WhatsApp / email). Contact your administrator.',
+      });
+      return;
+    }
+
+    const { rows: accountRows } = await pool.query(
+      `SELECT id, account_name, account_code, status
+       FROM saas_accounts
+       WHERE LOWER(account_code) = $1
+       LIMIT 1`,
+      [code],
+    );
+    if (!accountRows[0]) {
+      res.status(404).json({ error: 'Account not found' });
+      return;
+    }
+    if (String(accountRows[0].status) === 'Suspended') {
+      res.status(403).json({ error: 'This account is suspended' });
+      return;
+    }
+
+    const accountId = Number(accountRows[0].id);
+    const { rows: userRows } = await pool.query(
+      `SELECT id, user_name, mobile, email
+       FROM app_users
+       WHERE saas_account_id = $1
+         AND LOWER(TRIM(email)) = $2
+         AND RIGHT(regexp_replace(COALESCE(mobile, ''), '\\D', '', 'g'), 10) = $3
+       LIMIT 1`,
+      [accountId, email, mobile],
+    );
+    if (!userRows[0]) {
+      res.status(404).json({ error: 'Email and mobile do not match any user for this account' });
+      return;
+    }
+
+    const temporaryPassword = generateTempPassword(8);
+    const passwordHash = await hashPassword(temporaryPassword);
+    await pool.query(
+      `UPDATE app_users
+       SET password_hash = $1, must_change_password = TRUE
+       WHERE id = $2 AND saas_account_id = $3`,
+      [passwordHash, Number(userRows[0].id), accountId],
+    );
+
+    const loginOrigin = String(
+      req.get('origin') || process.env.PUBLIC_APP_URL || process.env.CORS_ORIGIN || 'http://localhost:5173',
+    ).replace(/\/$/, '');
+    const accountCode = String(accountRows[0].account_code);
+    const loginUrl = `${loginOrigin}/${accountCode}`;
+    const userName = String(userRows[0].user_name);
+    const accountName = String(accountRows[0].account_name);
+    const userMobile = String(userRows[0].mobile ?? mobile);
+    const userEmail = String(userRows[0].email ?? email).trim();
+
+    const [whatsapp, mail] = await Promise.all([
+      notifyLoginCredentials({
+        mobile: userMobile,
+        accountName,
+        accountCode,
+        loginUrl,
+        userName,
+        temporaryPassword,
+        saasAccountId: accountId,
+      }),
+      sendTempPasswordEmail({
+        to: userEmail,
+        accountName,
+        accountCode,
+        loginUrl,
+        userName,
+        temporaryPassword,
+      }),
+    ]);
+
+    const whatsappDelivered = whatsapp.ok && !('skipped' in whatsapp && whatsapp.skipped);
+    const emailDelivered = mail.ok && !('skipped' in mail && mail.skipped);
+
+    if (!whatsappDelivered && !emailDelivered) {
+      const details = [
+        !whatsapp.ok ? `WhatsApp: ${whatsapp.error}` : whatsapp.skipped ? 'WhatsApp: not configured' : null,
+        !mail.ok ? `Email: ${mail.error}` : mail.skipped ? 'Email: not configured' : null,
+      ]
+        .filter(Boolean)
+        .join('; ');
+      res.status(502).json({
+        error: `Password was reset, but delivery failed. ${details}. Contact your administrator.`,
+      });
+      return;
+    }
+
+    const channels = [
+      whatsappDelivered ? 'WhatsApp' : null,
+      emailDelivered ? 'email' : null,
+    ].filter(Boolean);
+
+    res.json({
+      ok: true,
+      message: `A new temporary password was sent to your ${channels.join(' and ')}. Sign in and change it.`,
+      delivered: {
+        whatsapp: whatsappDelivered,
+        email: emailDelivered,
+      },
+      userName,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 

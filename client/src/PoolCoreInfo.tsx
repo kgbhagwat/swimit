@@ -1,9 +1,20 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useT } from './i18n';
+import { useLanguage, useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { compressImageToLimit } from './compressImage';
 import { TermsDocumentField } from './TermsDocumentField';
+import { TermsBlocks } from './TermsBlocks';
+import {
+  defaultCoachTerms,
+  isDefaultCoachTerms,
+  resolveCoachTerms,
+} from './coachTermsDefaults';
+import {
+  defaultSwimmerTerms,
+  isDefaultSwimmerTerms,
+  resolveSwimmerTerms,
+} from './swimmerTermsDefaults';
 import { useObjectUrl } from './useObjectUrl';
 
 type PoolCoreInfoData = {
@@ -240,12 +251,13 @@ function ImageField({
 
 export function PoolCoreInfo() {
   const t = useT();
+  const { lang } = useLanguage();
   const [form, setForm] = useState<PoolCoreInfoData>(() => ({
     poolName: '',
     poolAddress: '',
     poolLogoPath: null,
-    swimmerTerms: '',
-    staffTerms: '',
+    swimmerTerms: defaultSwimmerTerms('en'),
+    staffTerms: defaultCoachTerms('en'),
     // Application preview starts unchecked; account pages keep prior defaults until load.
     paymentAcceptCash: false,
     paymentAcceptOnline: false,
@@ -277,8 +289,9 @@ export function PoolCoreInfo() {
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
         poolLogoPath: body.poolLogoPath ?? null,
-        swimmerTerms: body.swimmerTerms ?? '',
-        staffTerms: body.staffTerms ?? '',
+        // Empty / built-in default → language text so the account can edit them.
+        swimmerTerms: resolveSwimmerTerms(String(body.swimmerTerms ?? ''), lang),
+        staffTerms: resolveCoachTerms(String(body.staffTerms ?? ''), lang),
         paymentAcceptCash: body.paymentAcceptCash !== false,
         paymentAcceptOnline: body.paymentAcceptOnline !== false,
         paymentQrPath: body.paymentQrPath ?? null,
@@ -304,6 +317,23 @@ export function PoolCoreInfo() {
   useEffect(() => {
     void load();
   }, []);
+
+  // When UI language changes, swap built-in default terms (keep custom edits).
+  useEffect(() => {
+    if (loading) return;
+    setForm((prev) => {
+      let next = prev;
+      if (isDefaultSwimmerTerms(prev.swimmerTerms)) {
+        const swimmer = defaultSwimmerTerms(lang);
+        if (prev.swimmerTerms !== swimmer) next = { ...next, swimmerTerms: swimmer };
+      }
+      if (isDefaultCoachTerms(prev.staffTerms)) {
+        const staff = defaultCoachTerms(lang);
+        if (prev.staffTerms !== staff) next = { ...next, staffTerms: staff };
+      }
+      return next;
+    });
+  }, [lang, loading]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -355,8 +385,8 @@ export function PoolCoreInfo() {
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
         poolLogoPath: body.poolLogoPath ?? null,
-        swimmerTerms: body.swimmerTerms ?? '',
-        staffTerms: body.staffTerms ?? '',
+        swimmerTerms: resolveSwimmerTerms(String(body.swimmerTerms ?? ''), lang),
+        staffTerms: resolveCoachTerms(String(body.staffTerms ?? ''), lang),
         paymentAcceptCash: body.paymentAcceptCash !== false,
         paymentAcceptOnline: body.paymentAcceptOnline !== false,
         paymentQrPath: body.paymentQrPath ?? null,
@@ -462,14 +492,14 @@ export function PoolCoreInfo() {
             <div className="pool-core-view-row">
               <span className="label">{t('Terms & Conditions for swimmer')}</span>
               <div className="pool-core-view-text">
-                {form.swimmerTerms.trim() || '—'}
+                <TermsBlocks text={form.swimmerTerms.trim() || defaultSwimmerTerms(lang)} />
               </div>
             </div>
 
             <div className="pool-core-view-row">
               <span className="label">{t('Terms & Conditions for staff')}</span>
               <div className="pool-core-view-text">
-                {form.staffTerms.trim() || '—'}
+                <TermsBlocks text={form.staffTerms.trim() || defaultCoachTerms(lang)} />
               </div>
             </div>
           </div>
@@ -554,23 +584,39 @@ export function PoolCoreInfo() {
           </div>
 
           <div className="form-grid-2">
-            <TermsDocumentField
-              label={t('Terms & Conditions for swimmer')}
-              value={form.swimmerTerms}
-              onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
-              placeholder={t('Type or Upload .doc or .txt file.')}
-              rows={4}
-              editable
-            />
+            <div className="pool-core-terms-edit">
+              <TermsDocumentField
+                label={t('Terms & Conditions for swimmer')}
+                value={form.swimmerTerms}
+                onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
+                placeholder={t('Type or Upload .doc or .txt file.')}
+                rows={8}
+                editable
+                richHeadings
+              />
+              <p className="hint pool-core-terms-hint">
+                {t(
+                  'Default swimmer terms are shown. Edit and save to customize them for your pool.',
+                )}
+              </p>
+            </div>
 
-            <TermsDocumentField
-              label={t('Terms & Conditions for staff')}
-              value={form.staffTerms}
-              onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
-              placeholder={t('Type or Upload .doc or .txt file.')}
-              rows={4}
-              editable
-            />
+            <div className="pool-core-terms-edit">
+              <TermsDocumentField
+                label={t('Terms & Conditions for staff')}
+                value={form.staffTerms}
+                onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
+                placeholder={t('Type or Upload .doc or .txt file.')}
+                rows={8}
+                editable
+                richHeadings
+              />
+              <p className="hint pool-core-terms-hint">
+                {t(
+                  'Default coach terms are shown. Edit and save to customize them for your pool.',
+                )}
+              </p>
+            </div>
           </div>
 
           <div className="form-grid-2 pool-core-payment-options-row">

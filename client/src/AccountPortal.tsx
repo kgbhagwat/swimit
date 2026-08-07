@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, Navigate, useOutlet, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useOutlet, useParams } from 'react-router-dom';
 import { AppShell } from './AppShell';
+import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
+import { useT } from './i18n';
+import { MobileField } from './MobileField';
 import { isSaasManagementCode, setPlatformSession } from './platformSession';
 import { setActiveTenant } from './tenantSession';
 
@@ -87,6 +90,8 @@ function PasswordEyeButton({
 export function AccountPortal() {
   const { accountCode = '' } = useParams();
   const code = normalizeAccountCode(accountCode);
+  const navigate = useNavigate();
+  const t = useT();
   const featurePage = useOutlet();
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(() =>
@@ -94,10 +99,15 @@ export function AccountPortal() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loginMode, setLoginMode] = useState<'login' | 'forgot'>('login');
   const [loginUserName, setLoginUserName] = useState('admin');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMobile, setForgotMobile] = useState('');
+  const [resetting, setResetting] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -201,6 +211,7 @@ export function AccountPortal() {
   async function onLogin(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoggingIn(true);
     try {
       const res = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}/login`, {
@@ -251,6 +262,41 @@ export function AccountPortal() {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoggingIn(false);
+    }
+  }
+
+  async function onForgotSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!isValidEmail(forgotEmail)) {
+      setError(emailHint(forgotEmail) || t('Enter a valid email address'));
+      return;
+    }
+    if (!isValidMobile(forgotMobile)) {
+      setError(MOBILE_INVALID_MSG);
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          mobile: forgotMobile,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? t('Failed to reset password'));
+      setSuccess(
+        String(body.message ?? t('A new temporary password was sent to your mobile and email.')),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('Failed to reset password'));
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -374,48 +420,138 @@ export function AccountPortal() {
 
   if (!sessionUser) {
     return (
-      <div className="menu-shell">
-        <div className="menu-card account-login-card">
-          <header className="menu-brand">
-            <h1>SwimIT</h1>
-            <p>{account.accountName}</p>
-          </header>
-          <p className="lede">
-            Sign in with the admin user for account code <code>{code}</code>.
-          </p>
-          <form className="pass-form-card" onSubmit={onLogin} style={{ boxShadow: 'none', padding: 0 }}>
-            <label className="field">
-              <span className="label">User name</span>
-              <input
-                value={loginUserName}
-                onChange={(e) => setLoginUserName(e.target.value)}
-                autoComplete="username"
-                required
+      <div className="account-login-shell">
+        <div
+          className="modal-panel platform-login-panel account-login-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label={loginMode === 'forgot' ? t('Forgot password') : t('Login')}
+        >
+          <div className="platform-login-layout">
+            <aside className="platform-login-brand" aria-hidden="true">
+              <img
+                src="/swimit-login.png"
+                alt=""
+                className="platform-login-brand-image"
               />
-            </label>
-            <label className="field">
-              <span className="label">Password</span>
-              <div className="password-input-wrap">
-                <input
-                  type={showLoginPassword ? 'text' : 'password'}
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
+            </aside>
+            <div className="platform-login-content">
+              <div className="platform-login-branding">
+                <img
+                  src="/swimit-logo.png"
+                  alt="SwimIT — Swimming Pool Management System"
+                  className="platform-login-logo"
                 />
-                <PasswordEyeButton
-                  visible={showLoginPassword}
-                  onToggle={() => setShowLoginPassword((prev) => !prev)}
-                />
+                <p className="platform-login-account-name">{account.accountName}</p>
               </div>
-            </label>
-            {error ? <p className="error">{error}</p> : null}
-            <div className="submit-wrap">
-              <button type="submit" className="submit" disabled={loggingIn}>
-                {loggingIn ? 'Signing in…' : 'Sign in'}
-              </button>
+              {loginMode === 'login' ? (
+                <form className="platform-login-form" onSubmit={onLogin}>
+                  <label className="field">
+                    <span className="label">
+                      {t('User name')} <span className="req">*</span>
+                    </span>
+                    <input
+                      value={loginUserName}
+                      onChange={(e) => setLoginUserName(e.target.value)}
+                      autoComplete="username"
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">
+                      {t('Password')} <span className="req">*</span>
+                    </span>
+                    <div className="password-input-wrap">
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        autoComplete="current-password"
+                        required
+                      />
+                      <PasswordEyeButton
+                        visible={showLoginPassword}
+                        onToggle={() => setShowLoginPassword((prev) => !prev)}
+                      />
+                    </div>
+                  </label>
+                  <div className="platform-login-forgot-row">
+                    <button
+                      type="button"
+                      className="platform-login-forgot-link"
+                      onClick={() => {
+                        setError('');
+                        setSuccess('');
+                        setLoginMode('forgot');
+                      }}
+                    >
+                      {t('Forgot password?')}
+                    </button>
+                  </div>
+                  {error ? <p className="error">{error}</p> : null}
+                  <div className="platform-login-actions">
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      disabled={loggingIn}
+                      onClick={() => navigate('/')}
+                    >
+                      {t('Cancel')}
+                    </button>
+                    <button type="submit" className="submit" disabled={loggingIn}>
+                      {loggingIn ? t('Signing in…') : t('Sign in')}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form className="platform-login-form" onSubmit={onForgotSubmit}>
+                  <p className="platform-login-forgot-help">
+                    {t(
+                      'Enter your registered email and mobile. If they match, a new temporary password will be sent to your WhatsApp and email.',
+                    )}
+                  </p>
+                  <label className="field">
+                    <span className="label">
+                      {t('Email')} <span className="req">*</span>
+                    </span>
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      autoComplete="email"
+                      required
+                    />
+                  </label>
+                  <MobileField
+                    label={t('Mobile')}
+                    value={forgotMobile}
+                    onChange={setForgotMobile}
+                    required
+                    className="field"
+                  />
+                  {error ? <p className="error">{error}</p> : null}
+                  {success ? <p className="platform-login-success">{success}</p> : null}
+                  <div className="platform-login-actions platform-login-actions-inline">
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      disabled={resetting}
+                      onClick={() => {
+                        setError('');
+                        setSuccess('');
+                        setLoginMode('login');
+                      }}
+                    >
+                      {t('Back to login')}
+                    </button>
+                    <button type="submit" className="submit" disabled={resetting || Boolean(success)}>
+                      {resetting ? t('Sending…') : t('Send password')}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
-          </form>
+          </div>
         </div>
       </div>
     );

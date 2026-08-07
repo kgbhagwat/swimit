@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { TermsBlocks } from './TermsBlocks';
 
 type Props = {
   label: string;
@@ -8,7 +9,60 @@ type Props = {
   rows?: number;
   /** When false, make the field read-only. */
   editable?: boolean;
+  /** Show numbered clause headings in bold while editing. */
+  richHeadings?: boolean;
 };
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Plain terms → HTML with bold headings for contenteditable. */
+export function termsPlainToHtml(text: string) {
+  const lines = String(text ?? '')
+    .replace(/\r\n/g, '\n')
+    .split('\n');
+  if (!lines.length) return '';
+
+  return lines
+    .map((line) => {
+      const raw = line;
+      if (!raw.trim()) return '<div><br></div>';
+
+      const withHeading = raw.match(/^((?:\d+|[०-९]+)[).]\s+)(.+?)\s+[–—-]\s+(.+)$/u);
+      if (withHeading) {
+        const [, number, heading, body] = withHeading;
+        return `<div><strong>${escapeHtml(number + heading)}</strong> – ${escapeHtml(body)}</div>`;
+      }
+
+      const numberOnly = raw.match(/^((?:\d+|[०-९]+)[).]\s+)(.+)$/u);
+      if (numberOnly) {
+        const [, number, body] = numberOnly;
+        return `<div><strong>${escapeHtml(number.trimEnd())}</strong> ${escapeHtml(body)}</div>`;
+      }
+
+      return `<div>${escapeHtml(raw)}</div>`;
+    })
+    .join('');
+}
+
+/** Contenteditable HTML → plain terms text for storage. */
+export function termsHtmlToPlain(root: HTMLElement) {
+  const blocks = Array.from(root.querySelectorAll(':scope > div, :scope > p'));
+  const nodes = blocks.length ? blocks : [root];
+  return nodes
+    .map((node) => {
+      const text = (node.textContent ?? '').replace(/\u00a0/g, ' ').trimEnd();
+      return text;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 function countPages(text: string) {
   const matches = text.match(/---\s*Page\s+\d+\s*---/gi);
@@ -59,13 +113,27 @@ export function TermsDocumentField({
   placeholder,
   rows = 10,
   editable = true,
+  richHeadings = false,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const valueRef = useRef(value);
+  const lastEmittedRef = useRef(value);
   valueRef.current = value;
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // Sync external value (language switch / load) into the rich editor.
+  useEffect(() => {
+    if (!richHeadings || !editable) return;
+    const el = editorRef.current;
+    if (!el) return;
+    if (value === lastEmittedRef.current && el.innerHTML) return;
+    if (document.activeElement === el) return;
+    el.innerHTML = termsPlainToHtml(value);
+    lastEmittedRef.current = value;
+  }, [value, richHeadings, editable]);
 
   async function handleFile(fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
@@ -85,6 +153,14 @@ export function TermsDocumentField({
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
     }
+  }
+
+  function emitFromEditor() {
+    const el = editorRef.current;
+    if (!el) return;
+    const plain = termsHtmlToPlain(el);
+    lastEmittedRef.current = plain;
+    onChange(plain);
   }
 
   return (
@@ -112,17 +188,34 @@ export function TermsDocumentField({
             onChange={(e) => void handleFile(e.target.files)}
           />
           {error ? <p className="field-error">{error}</p> : null}
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            rows={rows}
-            className="terms-textarea"
-            disabled={busy}
-          />
+          {richHeadings ? (
+            <div
+              ref={editorRef}
+              className="terms-textarea terms-rich-editor"
+              contentEditable={!busy}
+              role="textbox"
+              aria-multiline="true"
+              data-placeholder={placeholder}
+              suppressContentEditableWarning
+              style={{ minHeight: `${Math.max(rows, 4) * 1.35}rem` }}
+              onInput={emitFromEditor}
+              onBlur={emitFromEditor}
+            />
+          ) : (
+            <textarea
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              rows={rows}
+              className="terms-textarea"
+              disabled={busy}
+            />
+          )}
         </>
       ) : (
-        <div className="pool-core-view-text">{value.trim() ? value : '—'}</div>
+        <div className="pool-core-view-text">
+          {value.trim() ? <TermsBlocks text={value} /> : '—'}
+        </div>
       )}
     </div>
   );

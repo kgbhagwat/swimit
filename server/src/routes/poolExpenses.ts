@@ -37,8 +37,19 @@ function mapRow(row: {
   };
 }
 
+function todayIsoLocal() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function validate(body: ExpenseBody) {
   if (!body.expenseDate?.trim()) return 'Date is required';
+  const expenseDate = body.expenseDate.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) return 'Enter a valid date';
+  if (expenseDate > todayIsoLocal()) return 'Expense date cannot be in the future';
   if (!body.description?.trim()) return 'Expense description is required';
   const amount = Number(body.amount);
   if (Number.isNaN(amount) || amount < 0) return 'Amount is required';

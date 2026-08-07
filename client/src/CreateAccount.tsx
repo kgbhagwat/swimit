@@ -6,6 +6,7 @@ import { MobileField } from './MobileField';
 import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
 import { getPlatformSession } from './platformSession';
+import { TermsModal } from './TermsModal';
 
 type AccountForm = {
   accountName: string;
@@ -132,6 +133,8 @@ export function CreateAccount() {
   /** When true, account code is user-controlled and no longer auto-filled from the name. */
   const [codeEditedByUser, setCodeEditedByUser] = useState(false);
   const [originalCode, setOriginalCode] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -306,8 +309,12 @@ export function CreateAccount() {
     e.preventDefault();
     setError('');
 
+    if (!isEdit && !acceptedTerms) {
+      setError('Please accept the Terms & Conditions to create an account');
+      return;
+    }
     if (!form.accountName.trim()) {
-      setError('Enter account / Swimming Pool name');
+      setError('Enter account / Pool name');
       return;
     }
     if (!ACCOUNT_CODE_RE.test(form.accountCode)) {
@@ -389,6 +396,7 @@ export function CreateAccount() {
           servicePackageId: packageId,
           status: form.status || 'Active',
           notes: form.notes.trim(),
+          acceptedTerms: true,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -419,6 +427,7 @@ export function CreateAccount() {
         whatsappOk: body.whatsapp?.ok === true && !body.whatsapp?.skipped,
       });
       setForm({ ...emptyForm, servicePackageId: defaultPackageId(packages) });
+      setAcceptedTerms(false);
       setCodeEditedByUser(false);
       setCodeCheck({ status: 'idle', message: '' });
     } catch (err) {
@@ -657,7 +666,7 @@ export function CreateAccount() {
         <div className="grid-2">
           <label className="field field-beside">
             <span className="label">
-              {t('Swimming Pool name')} <span className="req">*</span>
+              {t('Pool name')} <span className="req">*</span>
             </span>
             <input
               value={form.accountName}
@@ -765,30 +774,55 @@ export function CreateAccount() {
           </label>
         ) : null}
 
-        <div className="submit-wrap">
+        <div className="footer-row create-account-footer">
           {isEdit ? (
+            <span />
+          ) : (
+            <label className="terms">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                required
+              />
+              <span>
+                {t('I accept the')}{' '}
+                <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
+                  {t('Terms & Conditions')}
+                </button>
+              </span>
+            </label>
+          )}
+          <div className="submit-wrap">
+            {isEdit ? (
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={saving}
+                onClick={() => navigate('/accounts')}
+              >
+                {t('Cancel')}
+              </button>
+            ) : null}
             <button
-              type="button"
-              className="ghost-btn"
-              disabled={saving}
-              onClick={() => navigate('/accounts')}
+              type="submit"
+              className="submit"
+              disabled={
+                saving ||
+                codeCheck.status === 'taken' ||
+                codeCheck.status === 'checking' ||
+                (!isEdit && !acceptedTerms)
+              }
             >
-              {t('Cancel')}
+              {saving
+                ? isEdit
+                  ? t('Saving…')
+                  : t('Creating…')
+                : isEdit
+                  ? t('Save changes')
+                  : t('Create account')}
             </button>
-          ) : null}
-          <button
-            type="submit"
-            className="submit"
-            disabled={saving || codeCheck.status === 'taken' || codeCheck.status === 'checking'}
-          >
-            {saving
-              ? isEdit
-                ? t('Saving…')
-                : t('Creating…')
-              : isEdit
-                ? t('Save changes')
-                : t('Create account')}
-          </button>
+          </div>
         </div>
       </form>
       ) : null}
@@ -796,6 +830,12 @@ export function CreateAccount() {
       {error ? <p className="error">{t(error)}</p> : null}
       {warning ? <p className="success">{t(warning)}</p> : null}
       {success ? <p className="success">{t(success)}</p> : null}
+      <TermsModal
+        open={termsOpen}
+        onClose={() => setTermsOpen(false)}
+        onAccept={() => setAcceptedTerms(true)}
+        variant="account"
+      />
       </PlatformPage>
     </PlatformShell>
   );

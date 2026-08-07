@@ -1,11 +1,10 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useT } from './i18n';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
-import { compressImageToLimit } from './compressImage';
 import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint, sanitizeMobileInput } from './formValidation';
 import { PlatformPage } from './PlatformPage';
-import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
+import { MultiCertificateField, RegistrationPhotoField } from './RegistrationPhotoField';
 import { TermsModal } from './TermsModal';
 import { getSampleStaffDetail, SAMPLE_STAFF_BATCHES } from './sampleStaff';
 import { SendFormQrButton } from './SendFormQrButton';
@@ -117,117 +116,6 @@ function Label({ children, required }: { children: string; required?: boolean })
       {children}
       {required ? <span className="req"> *</span> : null}
     </span>
-  );
-}
-
-function PhotoField({
-  label,
-  hint,
-  required,
-  file,
-  preview,
-  existingUrl,
-  takeLabel,
-  uploadLabel,
-  onPick,
-  invalid,
-}: {
-  label: string;
-  hint: string;
-  required?: boolean;
-  file: File | null;
-  preview: string | null;
-  existingUrl?: string | null;
-  takeLabel: string;
-  uploadLabel: string;
-  onPick: (file: File | null) => void;
-  invalid?: boolean;
-}) {
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const displayPreview = preview || existingUrl || null;
-  const [compressing, setCompressing] = useState(false);
-
-  async function handleFile(selected: File | null) {
-    if (!selected) {
-      onPick(null);
-      return;
-    }
-    setCompressing(true);
-    try {
-      const ready = await compressImageToLimit(selected);
-      onPick(ready);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Unable to process image');
-      onPick(null);
-    } finally {
-      setCompressing(false);
-      if (cameraRef.current) cameraRef.current.value = '';
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  }
-
-  return (
-    <div className={`photo-field${invalid ? ' field-box-invalid' : ''}`}>
-      <Label required={required && !existingUrl}>{label}</Label>
-      {hint ? <p className="hint">{hint}</p> : null}
-      {compressing ? <p className="hint">Compressing image…</p> : null}
-      {displayPreview ? (
-        <div className="preview-wrap">
-          <img src={displayPreview} alt={label} className="preview" />
-          {file ? (
-            <button type="button" className="linkish" onClick={() => onPick(null)}>
-              Remove
-            </button>
-          ) : (
-            <button type="button" className="linkish" onClick={() => fileRef.current?.click()}>
-              Change
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="photo-actions">
-          <button
-            type="button"
-            className="photo-btn"
-            disabled={compressing}
-            onClick={() => cameraRef.current?.click()}
-          >
-            <CameraActionIcon />
-            {takeLabel}
-          </button>
-          <button
-            type="button"
-            className="photo-btn"
-            disabled={compressing}
-            onClick={() => fileRef.current?.click()}
-          >
-            <UploadActionIcon />
-            {uploadLabel}
-          </button>
-        </div>
-      )}
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-      />
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-      />
-      {file ? (
-        <p className="file-name">
-          {file.name} ({Math.ceil(file.size / 1024)} KB)
-        </p>
-      ) : null}
-    </div>
   );
 }
 
@@ -726,8 +614,8 @@ export function StaffRegistration() {
         <span className="req">*</span> {t("Required information.")}
       </p>
 
-      <form onSubmit={onSubmit} noValidate>
-        <section className={`card role-card${isInvalid('registrationFor') ? ' field-box-invalid' : ''}`}>
+      <form onSubmit={onSubmit} noValidate className="pass-form-card pool-core-form registration-form">
+        <section className={`registration-section role-card${isInvalid('registrationFor') ? ' field-box-invalid' : ''}`}>
           <div className="role-row" role="radiogroup" aria-label={t("Registration for")}>
             <span className="role-label">
               {t("Registration for")}
@@ -761,31 +649,33 @@ export function StaffRegistration() {
           </div>
         </section>
 
-        <section className="card">
+        <section className="registration-section">
           <h2>{t("Personal details")}</h2>
-          <label className="field">
-            <Label required>{t("Full name")}</Label>
-            <input
-              value={form.fullName}
-              onChange={(e) => setField('fullName', e.target.value)}
-              placeholder={t("As per identity document")}
-              required
-              aria-invalid={isInvalid('fullName')}
-            />
-          </label>
-          <label className="field">
-            <Label required>{t("Full address")}</Label>
-            <textarea
-              value={form.fullAddress}
-              onChange={(e) => setField('fullAddress', e.target.value)}
-              placeholder={t("House no., street, city, state, PIN")}
-              rows={3}
-              required
-              aria-invalid={isInvalid('fullAddress')}
-            />
-          </label>
           <div className="grid-2">
-            <label className="field">
+            <label className="field field-beside">
+              <Label required>{t("Full name")}</Label>
+              <input
+                value={form.fullName}
+                onChange={(e) => setField('fullName', e.target.value)}
+                placeholder={t("As per identity document")}
+                required
+                aria-invalid={isInvalid('fullName')}
+              />
+            </label>
+            <label className="field field-beside">
+              <Label required>{t("Full address")}</Label>
+              <textarea
+                value={form.fullAddress}
+                onChange={(e) => setField('fullAddress', e.target.value)}
+                placeholder={t("House no., street, city, state, PIN")}
+                rows={3}
+                required
+                aria-invalid={isInvalid('fullAddress')}
+              />
+            </label>
+          </div>
+          <div className="grid-3 registration-align-3">
+            <label className="field field-beside">
               <Label required>{t("WhatsApp mobile no.")}</Label>
               <input
                 value={form.whatsappMobile}
@@ -800,7 +690,7 @@ export function StaffRegistration() {
                 <span className="field-error">{mobileHint(form.whatsappMobile)}</span>
               ) : null}
             </label>
-            <label className="field">
+            <label className="field field-beside">
               <Label>{t("Another mobile no.")}</Label>
               <input
                 value={form.otherMobile}
@@ -814,9 +704,7 @@ export function StaffRegistration() {
                 <span className="field-error">{mobileHint(form.otherMobile)}</span>
               ) : null}
             </label>
-          </div>
-          <div className="grid-2">
-            <label className="field">
+            <label className="field field-beside">
               <Label required>{t("Email")}</Label>
               <input
                 type="email"
@@ -828,10 +716,13 @@ export function StaffRegistration() {
               />
               {emailHint(form.email) ? <span className="field-error">{emailHint(form.email)}</span> : null}
             </label>
-            <label className="field">
+          </div>
+          <div className="grid-3 registration-align-3">
+            <label className="field field-beside">
               <Label required>{t("Birth Date")}</Label>
               <input
                 type="date"
+                className="field-control-sm"
                 value={form.birthdate}
                 max={maxBirthdateForOver18()}
                 onChange={(e) => setField('birthdate', e.target.value)}
@@ -844,11 +735,10 @@ export function StaffRegistration() {
                 <span className="field-error">{t("Staff must be more than 18 years old")}</span>
               ) : null}
             </label>
-          </div>
-          <div className="grid-2">
-            <label className="field">
+            <label className="field field-beside">
               <Label required>{t("Sex")}</Label>
               <select
+                className="field-control-sm"
                 value={form.sex}
                 onChange={(e) => setField('sex', e.target.value)}
                 required
@@ -860,9 +750,10 @@ export function StaffRegistration() {
                 <option value="Other">{t("Other")}</option>
               </select>
             </label>
-            <label className="field">
+            <label className="field field-beside">
               <Label required>{t("Blood group")}</Label>
               <select
+                className="field-control-sm"
                 value={form.bloodGroup}
                 onChange={(e) => setField('bloodGroup', e.target.value)}
                 required
@@ -879,22 +770,23 @@ export function StaffRegistration() {
           </div>
         </section>
 
-        <section className="card emergency">
+        <section className="registration-section registration-section--emergency">
           <h2>{t("Emergency contact")}</h2>
-          <label className="field">
-            <Label required>{t("Emergency contact name")}</Label>
-            <input
-              value={form.emergencyName}
-              onChange={(e) => setField('emergencyName', e.target.value)}
-              placeholder={t("Contact person name")}
-              required
-              aria-invalid={isInvalid('emergencyName')}
-            />
-          </label>
-          <div className="grid-2">
-            <label className="field">
+          <div className="grid-3">
+            <label className="field field-beside">
+              <Label required>{t("Emergency contact name")}</Label>
+              <input
+                value={form.emergencyName}
+                onChange={(e) => setField('emergencyName', e.target.value)}
+                placeholder={t("Contact person name")}
+                required
+                aria-invalid={isInvalid('emergencyName')}
+              />
+            </label>
+            <label className="field field-beside">
               <Label required>{t("Relation")}</Label>
               <select
+                className="field-control-sm"
                 value={form.emergencyRelation}
                 onChange={(e) => setField('emergencyRelation', e.target.value)}
                 required
@@ -909,7 +801,7 @@ export function StaffRegistration() {
                 <option value="Other">{t("Other")}</option>
               </select>
             </label>
-            <label className="field">
+            <label className="field field-beside">
               <Label required>{t("Emergency contact no.")}</Label>
               <input
                 value={form.emergencyMobile}
@@ -935,11 +827,12 @@ export function StaffRegistration() {
           </div>
         </section>
 
-        <section className="card medical">
+        <section className="registration-section registration-section--medical">
           <h2>{t("Medical information")}</h2>
-          <div className="inline-row">
+          <label className="field field-beside medical-health-issue">
             <Label required>{t("Do you have any health issue?")}</Label>
             <select
+              className="field-control-sm"
               value={form.hasHealthIssue}
               onChange={(e) => setField('hasHealthIssue', e.target.value)}
               required
@@ -947,10 +840,10 @@ export function StaffRegistration() {
               <option value="No">{t("No")}</option>
               <option value="Yes">{t("Yes")}</option>
             </select>
-          </div>
+          </label>
           {form.hasHealthIssue === 'Yes' ? (
-            <div className="medical-details">
-              <label className="field">
+            <div className="medical-details grid-2">
+              <label className="field field-beside medical-details-main">
                 <Label required>{t("Disease / health issue")}</Label>
                 <textarea
                   value={form.healthIssueDetails}
@@ -961,8 +854,8 @@ export function StaffRegistration() {
                   aria-invalid={isInvalid('healthIssueDetails')}
                 />
               </label>
-              <div className="grid-2">
-                <label className="field">
+              <div className="medical-doctor-col">
+                <label className="field field-beside">
                   <Label>{t("Doctor name")}</Label>
                   <input
                     value={form.doctorName}
@@ -970,7 +863,7 @@ export function StaffRegistration() {
                     placeholder={t("Optional")}
                   />
                 </label>
-                <label className="field">
+                <label className="field field-beside">
                   <Label>{t("Doctor no.")}</Label>
                   <input
                     value={form.doctorNo}
@@ -989,41 +882,50 @@ export function StaffRegistration() {
           ) : null}
         </section>
 
-        <section className="card">
+        <section className="registration-section">
           <h2>{t("Identity & photo")}</h2>
-          <label className="field">
-            <Label required>{t("Identity document")}</Label>
-            <select
-              value={form.identityDocument}
-              onChange={(e) => setField('identityDocument', e.target.value)}
-              required
-              aria-invalid={isInvalid('identityDocument')}
+          <div className="grid-2 registration-identity-row">
+            <div
+              className={`field field-beside registration-identity-doc${
+                isInvalid('identityPhoto') ? ' field-box-invalid' : ''
+              }`}
             >
-              <option value="">{t("Select document type")}</option>
-              <option value="Aadhaar">{t("Aadhaar card")}</option>
-              <option value="PAN">{t("PAN card")}</option>
-              <option value="Passport">{t("Passport")}</option>
-              <option value="Driving Licence">{t("Driving licence")}</option>
-              <option value="School ID">{t("School / college ID")}</option>
-            </select>
-          </label>
-          <div className="grid-2 photos">
-            <PhotoField
-              label={t("Photo of identity proof")}
-              hint={t("Max 200 KB — upload or take a photo of your identity proof")}
-              required
-              file={identityPhoto}
-              preview={identityPreview}
-              existingUrl={existingPhotos.identity}
-              takeLabel={t("Take photo")}
-              uploadLabel={t("Upload")}
-              invalid={isInvalid('identityPhoto')}
-              onPick={(file) => {
-                clearInvalid('identityPhoto');
-                setIdentityPhoto(file);
-              }}
-            />
-            <PhotoField
+              <Label required>{t("Identity document")}</Label>
+              <select
+                className="field-control-sm registration-identity-doc-select"
+                value={form.identityDocument}
+                onChange={(e) => setField('identityDocument', e.target.value)}
+                required
+                aria-invalid={isInvalid('identityDocument')}
+              >
+                <option value="">{t("Select document type")}</option>
+                <option value="Aadhaar">{t("Aadhaar card")}</option>
+                <option value="PAN">{t("PAN card")}</option>
+                <option value="Passport">{t("Passport")}</option>
+                <option value="Driving Licence">{t("Driving licence")}</option>
+                <option value="School ID">{t("School / college ID")}</option>
+              </select>
+              <RegistrationPhotoField
+                label={t("Photo of identity proof")}
+                hint={t("Max 200 KB — upload or take a photo of your identity proof")}
+                required
+                hideLabel
+                file={identityPhoto}
+                preview={identityPreview}
+                existingUrl={existingPhotos.identity}
+                takeLabel={t("Take photo")}
+                uploadLabel={t("Upload")}
+                invalid={isInvalid('identityPhoto')}
+                onClearExisting={() =>
+                  setExistingPhotos((prev) => ({ ...prev, identity: null }))
+                }
+                onPick={(file) => {
+                  clearInvalid('identityPhoto');
+                  setIdentityPhoto(file);
+                }}
+              />
+            </div>
+            <RegistrationPhotoField
               label={t("Photo")}
               hint={t("Max 200 KB — recent passport-size photo for identification")}
               required
@@ -1033,6 +935,7 @@ export function StaffRegistration() {
               takeLabel={t("Take photo")}
               uploadLabel={t("Upload")}
               invalid={isInvalid('staffPhoto')}
+              onClearExisting={() => setExistingPhotos((prev) => ({ ...prev, staff: null }))}
               onPick={(file) => {
                 clearInvalid('staffPhoto');
                 setStaffPhoto(file);
@@ -1043,7 +946,7 @@ export function StaffRegistration() {
 
         {form.registrationFor === 'Coach' ? (
           <>
-            <section className={`card coach-card${isInvalid('suitableBatchIds') ? ' field-box-invalid' : ''}`}>
+            <section className={`registration-section coach-card${isInvalid('suitableBatchIds') ? ' field-box-invalid' : ''}`}>
               <h2>{t("Suitable Batch Slot")}</h2>
               {batchesLoading ? (
                 <p className="batch-empty">Loading batches…</p>
@@ -1087,52 +990,71 @@ export function StaffRegistration() {
               ) : null}
             </section>
 
-            <section className={`card coach-card${isInvalid('teachStrokes') ? ' field-box-invalid' : ''}`}>
-              <h2>
-                {t("Interested to teach")}
-                <span className="req"> *</span>
-              </h2>
-              <div className="check-row">
-                {(
-                  [
-                    ['Free Style', t("Free Style")],
-                    ['Back Stroke', t("Back Stroke")],
-                    ['Breast Stroke', t("Breast Stroke")],
-                    ['Butterfly', t("Butterfly")],
-                    ['Competitive', t("Competitive")],
-                  ] as const
-                ).map(([value, label]) => (
-                  <label key={value} className="radio-option">
-                    <input
-                      type="checkbox"
-                      checked={form.teachStrokes.includes(value)}
-                      onChange={() => toggleStroke(value)}
-                    />
-                    {label}
-                  </label>
-                ))}
+            <section className={`registration-section coach-card${isInvalid('teachStrokes') ? ' field-box-invalid' : ''}`}>
+              <div className="coach-teach-row">
+                <h2>
+                  {t("Interested to teach")}
+                  <span className="req"> *</span>
+                </h2>
+                <div className="check-row">
+                  {(
+                    [
+                      ['Free Style', t("Free Style")],
+                      ['Back Stroke', t("Back Stroke")],
+                      ['Breast Stroke', t("Breast Stroke")],
+                      ['Butterfly', t("Butterfly")],
+                      ['Competitive', t("Competitive")],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <label key={value} className="radio-option">
+                      <input
+                        type="checkbox"
+                        checked={form.teachStrokes.includes(value)}
+                        onChange={() => toggleStroke(value)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </div>
             </section>
 
-            <section className="card">
-              <h2>{t("Achievements")}</h2>
-              <label className="field">
-                <textarea
-                  value={form.achievements}
-                  onChange={(e) => setField('achievements', e.target.value)}
-                  placeholder={t("Competition results, medals, records, coaching experience highlights, etc.")}
-                  rows={4}
-                />
-              </label>
+            <section className="registration-section">
+              <h2>{t("Achievements and certificates")}</h2>
+              <div className="achievements-cert-row">
+                <label className="field achievements-cert-text">
+                  <textarea
+                    value={form.achievements}
+                    onChange={(e) => setField('achievements', e.target.value)}
+                    placeholder={t("Competition results, medals, records, coaching experience highlights, etc.")}
+                    rows={4}
+                  />
+                </label>
+                <div className="achievements-cert-uploads">
+                  <MultiCertificateField
+                    label={t("Certificates")}
+                    hint={t("Optional — upload up to 3 certificate photos (max 200 KB each)")}
+                    files={certPhotos}
+                    previews={certPreviews}
+                    existingUrls={existingPhotos.certs}
+                    takeLabel={t("Take photo")}
+                    uploadLabel={t("Upload")}
+                    onChangeFiles={setCertPhotos}
+                    onChangeExisting={(certs) =>
+                      setExistingPhotos((prev) => ({ ...prev, certs }))
+                    }
+                  />
+                </div>
+              </div>
             </section>
           </>
         ) : null}
 
         {isEdit && form.registrationFor === 'Other' ? (
-          <section className="card">
+          <section className="registration-section">
             <h2>{t("Post details")}</h2>
             <div className="grid-2">
-              <label className="field">
+              <label className="field field-beside">
                 <Label required>{t("Post name")}</Label>
                 <input
                   value={form.postName}
@@ -1142,7 +1064,7 @@ export function StaffRegistration() {
                   aria-invalid={isInvalid('postName')}
                 />
               </label>
-              <label className="field">
+              <label className="field field-beside">
                 <Label required>{t("Salary")}</Label>
                 <div className="money-input">
                   <span className="money-prefix" aria-hidden="true">
@@ -1166,12 +1088,12 @@ export function StaffRegistration() {
         ) : null}
 
         {form.registrationFor === 'Coach' || form.registrationFor === 'Lifeguard' ? (
-          <section className="card lifeguard-card">
-            <h2>{t("Life Guard certificate")}</h2>
-            <div className="lifeguard-row">
+          <section className="registration-section lifeguard-card">
+            <div className="lifeguard-head-row">
+              <h2>{t("Life Guard certificate")}</h2>
               <span className="lifeguard-question">{t("Do you have life guard certification?")}</span>
               <div className="lifeguard-choices">
-                <label className={`choice-chip ${form.hasLifeguardCert === 'Yes' ? 'selected' : ''}`}>
+                <label className="radio-option">
                   <input
                     type="radio"
                     name="hasLifeguardCert"
@@ -1180,7 +1102,7 @@ export function StaffRegistration() {
                   />
                   {t("Yes")}
                 </label>
-                <label className={`choice-chip ${form.hasLifeguardCert === 'No' ? 'selected' : ''}`}>
+                <label className="radio-option">
                   <input
                     type="radio"
                     name="hasLifeguardCert"
@@ -1196,71 +1118,43 @@ export function StaffRegistration() {
                 </label>
               </div>
               {form.hasLifeguardCert === 'Yes' ? (
-                <label className="lifeguard-expiry">
-                  <span>
-                    {t("Expiring On")}
-                    <span className="req"> *</span>
-                  </span>
-                  <input
-                    type="date"
-                    value={form.lifeguardExpiry}
-                    onChange={(e) => setField('lifeguardExpiry', e.target.value)}
-                    required
-                    aria-invalid={isInvalid('lifeguardExpiry')}
-                  />
-                </label>
+                <>
+                  <label className="lifeguard-expiry field field-beside">
+                    <span className="label">
+                      {t("Expiring On")}
+                      <span className="req"> *</span>
+                    </span>
+                    <input
+                      className="field-control-sm"
+                      type="date"
+                      value={form.lifeguardExpiry}
+                      onChange={(e) => setField('lifeguardExpiry', e.target.value)}
+                      required
+                      aria-invalid={isInvalid('lifeguardExpiry')}
+                    />
+                  </label>
+                  <div className="lifeguard-photo-inline">
+                    <RegistrationPhotoField
+                      label={t("Certificate")}
+                      hint={t("Max 200 KB — upload or take a clear photo of the Life Guard certificate")}
+                      required
+                      file={lifeguardPhoto}
+                      preview={lifeguardPreview}
+                      existingUrl={existingPhotos.lifeguard}
+                      takeLabel={t("Take photo")}
+                      uploadLabel={t("Upload")}
+                      invalid={isInvalid('lifeguardPhoto')}
+                      onClearExisting={() =>
+                        setExistingPhotos((prev) => ({ ...prev, lifeguard: null }))
+                      }
+                      onPick={(file) => {
+                        clearInvalid('lifeguardPhoto');
+                        setLifeguardPhoto(file);
+                      }}
+                    />
+                  </div>
+                </>
               ) : null}
-            </div>
-
-            {form.hasLifeguardCert === 'Yes' ? (
-              <div className="lifeguard-photo">
-                <PhotoField
-                  label={t("Life Guard certificate photo")}
-                  hint={t("Max 200 KB — upload or take a clear photo of the Life Guard certificate")}
-                  required
-                  file={lifeguardPhoto}
-                  preview={lifeguardPreview}
-                  existingUrl={existingPhotos.lifeguard}
-                  takeLabel={t("Take photo")}
-                  uploadLabel={t("Upload")}
-                  invalid={isInvalid('lifeguardPhoto')}
-                  onPick={(file) => {
-                    clearInvalid('lifeguardPhoto');
-                    setLifeguardPhoto(file);
-                  }}
-                />
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-
-        {form.registrationFor === 'Coach' ? (
-          <section className="card">
-            <h2>{t("Certificates")}</h2>
-            <label className="field">
-              <Label>{t("Certificate details")}</Label>
-              <textarea
-                value={form.certificateDetails}
-                onChange={(e) => setField('certificateDetails', e.target.value)}
-                placeholder={t("Lifeguard credentials, coaching certifications, first aid, etc.")}
-                rows={4}
-              />
-            </label>
-            <p className="hint">{t("Optional — upload up to 3 certificate photos (max 200 KB each)")}</p>
-            <div className="grid-3 photos">
-              {[0, 1, 2].map((i) => (
-                <PhotoField
-                  key={i}
-                  label={`${t("Certificate")} ${i + 1}`}
-                  hint=""
-                  file={certPhotos[i]}
-                  preview={certPreviews[i]}
-                  existingUrl={existingPhotos.certs[i]}
-                  takeLabel={t("Take photo")}
-                  uploadLabel={t("Upload")}
-                  onPick={(file) => setCertPhoto(i, file)}
-                />
-              ))}
             </div>
           </section>
         ) : null}
@@ -1280,7 +1174,7 @@ export function StaffRegistration() {
               <span>
                 {t("I accept the")}{' '}
                 <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
-                  {t("Terms & Conditions and Rules & Regulations")}
+                  {t("Terms & Conditions")}
                 </button>
               </span>
             </label>

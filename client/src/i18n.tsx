@@ -23,6 +23,20 @@ const mr: Record<string, string> = {
   'Close menu': 'मेनू बंद करा',
   'Sign out': 'साइन आउट',
   Login: 'लॉगिन',
+  'Forgot password?': 'पासवर्ड विसरलात?',
+  'Forgot password': 'पासवर्ड विसरलात',
+  'Enter your account code, registered email, and mobile. If they match, a new temporary password will be sent to your WhatsApp and email.':
+    'खाते कोड, नोंदणीकृत ईमेल आणि मोबाईल टाका. जुळल्यास नवीन तात्पुरता पासवर्ड WhatsApp आणि ईमेलवर पाठवला जाईल.',
+  'Enter your registered email and mobile. If they match, a new temporary password will be sent to your WhatsApp and email.':
+    'नोंदणीकृत ईमेल आणि मोबाईल टाका. जुळल्यास नवीन तात्पुरता पासवर्ड WhatsApp आणि ईमेलवर पाठवला जाईल.',
+  'Back to login': 'लॉगिनकडे परत',
+  'Send password': 'पासवर्ड पाठवा',
+  'Signing in…': 'साइन इन होत आहे…',
+  'Sign in': 'साइन इन',
+  Password: 'पासवर्ड',
+  'Enter a valid 6-character account code': 'वैध ६ अक्षरी खाते कोड टाका',
+  'A new temporary password was sent to your mobile and email.':
+    'नवीन तात्पुरता पासवर्ड तुमच्या मोबाईल आणि ईमेलवर पाठवला आहे.',
   'User settings': 'वापरकर्ता सेटिंग्ज',
   Account: 'खाते',
   Code: 'कोड',
@@ -36,6 +50,7 @@ const mr: Record<string, string> = {
   'Service Packages': 'सेवा पॅकेजेस',
   'Service packages': 'सेवा पॅकेजेस',
   'Application overview': 'अप्लिकेशन आढावा',
+  'Swimming Pool Management System': 'पोहण्याच्या तलावाचे व्यवस्थापन प्रणाली',
   'is a cloud-based Swimming Pool Management System (SaaS) built for pool operators and aquatic clubs.':
     'हे पूल चालवणाऱ्या आणि एक्वाटिक क्लबसाठी बनवलेले क्लाउड-आधारित स्विमिंग पूल मॅनेजमेंट सिस्टम (SaaS) आहे.',
   'It helps digitize the day-to-day work of a pool. You can create batches, pass types, and a holiday calendar as per pool requirements. Register swimmers and coaches/staff with standard registration form.':
@@ -59,6 +74,7 @@ const mr: Record<string, string> = {
   'Helps to send broadcast message to all active swimmers and All staff members.':
     'सर्व सक्रिय पोहणारे आणि सर्व स्टाफ सदस्य यांना ब्रॉडकास्ट मेसेज पाठवता येतो.',
   Workflow: 'वर्कफ्लो',
+  'SwimIT functionality overview': 'SwimIT कार्यक्षमता आढावा',
   'SwimIT workflow': 'SwimIT वर्कफ्लो',
   'Add pool information': 'पूलची माहिती भरा',
   'Define Batch, Pass type, holidays calendar': 'बॅच, पास प्रकार, सुट्टी कॅलेंडर ठरवा',
@@ -504,7 +520,7 @@ const mr: Record<string, string> = {
   "Enter a valid email address": "वैध ईमेल पत्ता टाका",
   "Enter a valid price": "वैध किंमत भरा",
   "Enter a valid UPI ID (e.g. name@upi)": "वैध UPI ID टाका (उदा. name@upi)",
-  "Enter account / Swimming Pool name": "खाते / स्विमिंग पूल नाव भरा",
+  "Enter account / Pool name": "खाते / पूल नाव भरा",
   "Enter all 6 characters": "सर्व ६ अक्षरे भरा",
   "Enter an expiry date": "समाप्ती दिनांक भरा",
   "Enter coaching charges when Coach is selected": "कोच निवडल्यास कोचिंग शुल्क टाका",
@@ -518,6 +534,7 @@ const mr: Record<string, string> = {
   "exceeding not allowed": "ओलांडण्यास परवानगी नाही",
   "Exceeding this limit is not allowed for this pass type.": "या पास प्रकारासाठी ही मर्यादा ओलांडता येत नाही.",
   "Expense date": "खर्चाची तारीख",
+  "Expense date cannot be in the future": "खर्चाची तारीख भविष्यातील असू शकत नाही",
   "Expired": "कालबाह्य",
   "Expires": "समाप्ती",
   "Expiring On": "कालबाह्य तारीख",
@@ -608,6 +625,8 @@ const mr: Record<string, string> = {
   "Hour": "तास",
   "House no., street, city, state, PIN": "घर क्र., रस्ता, शहर, राज्य, पिन",
   "I accept the": "मी स्वीकारतो/स्वीकारते",
+  'Please accept the Terms & Conditions to create an account':
+    'खाते तयार करण्यासाठी अटी व शर्ती स्वीकारा',
   "I confirmed amount and upi id of successful payment": "यशस्वी पेमेंटची रक्कम आणि UPI ID मी पुष्ट केली",
   "I have verified the swimmer details, identity document and photo": "मी पोहणाऱ्याचे तपशील, ओळखपत्र आणि फोटो तपासले आहेत",
   "Identity & photo": "ओळखपत्र आणि फोटो",
@@ -732,6 +751,7 @@ const mr: Record<string, string> = {
   "Notes / Reason": "नोंदी / कारण",
   "Nothing": "काही नाही",
   "OK": "ठीक आहे",
+  "Accept": "स्वीकारा",
   "Onboarding": "ऑनबोर्डिंग",
   "Online today": "आज ऑनलाइन",
   "Only the account admin can renew the package.": "फक्त खाते एडमिन पॅकेज नूतनीकरण करू शकतो.",
@@ -942,14 +962,25 @@ const mr: Record<string, string> = {
   "swimmers pending payment for today": "पोहणाऱ्यांचे आजचे पेमेंट प्रलंबित",
   "Swimming": "स्विमिंग",
   "Swimming pool code": "स्विमिंग पूल कोड",
-  "Swimming Pool name": "स्विमिंग पूलचे नाव",
+  "Pool name": "पूलचे नाव",
   "Take a photo or upload an image, then confirm with OK.": "फोटो काढा किंवा प्रतिमा अपलोड करा, नंतर OK ने पुष्टी करा.",
+  "Upload one or more certificate photos (up to 3). Each image must be max 200 KB — larger photos are compressed automatically.":
+    "एक किंवा अधिक प्रमाणपत्र फोटो अपलोड करा (कमाल ३). प्रत्येक प्रतिमा कमाल २०० KB — मोठ्या फोटोंचे आपोआप संकुचन होते.",
+  "certificate attached": "प्रमाणपत्र जोडले",
+  "certificates attached": "प्रमाणपत्रे जोडली",
+  "No certificates selected yet.": "अद्याप कोणतेही प्रमाणपत्र निवडलेले नाही.",
   "Take photo": "फोटो घ्या",
   "Template always sends Meta’s fixed “Welcome and congratulations…” sample.": "टेम्पलेट नेहमी Meta चा ठराविक “Welcome and congratulations…” नमुना पाठवतो.",
   "Template hello_world sent to": "hello_world टेम्पलेट पाठवला",
-  "Terms & Conditions and Rules & Regulations": "अटी व शर्ती आणि नियम व विनियम",
+  "Terms & Conditions": "अटी व शर्ती",
+  'Please read carefully before submitting your registration.':
+    'नोंदणी सबमिट करण्यापूर्वी काळजीपूर्वक वाचा.',
   "Terms & Conditions for staff": "स्टाफसाठी अटी व शर्ती",
   "Terms & Conditions for swimmer": "पोहणाऱ्यासाठी अटी व शर्ती",
+  'Default swimmer terms are shown. Edit and save to customize them for your pool.':
+    'डीफॉल्ट पोहणाऱ्याच्या अटी दाखवल्या आहेत. तुमच्या पूलसाठी बदलून सेव्ह करा.',
+  'Default coach terms are shown. Edit and save to customize them for your pool.':
+    'डीफॉल्ट कोच अटी दाखवल्या आहेत. तुमच्या पूलसाठी बदलून सेव्ह करा.',
   "Test send failed": "चाचणी पाठवणे अयशस्वी",
   "That is Meta’s sample text (not the box below). Check chat +1 555…": "तो Meta चा नमुना मजकूर आहे (खालील बॉक्स नाही). चॅट +1 555… तपासा",
   "The account admin will be notified on WhatsApp.": "खाते एडमिनला WhatsApp वर कळवले जाईल.",

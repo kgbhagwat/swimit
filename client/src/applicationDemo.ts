@@ -71,7 +71,7 @@ function emptyStore(): DemoStore {
       poolName: '',
       poolAddress: '',
       poolLogoPath: null,
-      swimmerTerms: '',
+      swimmerTerms: '', // TermsModal / Core Info fill language defaults when empty
       staffTerms: '',
       paymentQrPath: null,
       upiDetails: '',
