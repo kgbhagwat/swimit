@@ -416,8 +416,9 @@ export function AppShell({
   const navigate = useNavigate();
   const routeOutlet = useOutlet();
   const featurePath = featurePathFromLocation(location.pathname);
-  const onHome = featurePath === '/';
-  const pageContent = onHome
+  /** Section overview (Setup / Operations / …) — not Dashboard. */
+  const onSectionMenu = featurePath === '/' || featurePath === '/menu';
+  const pageContent = onSectionMenu
     ? null
     : featurePage !== undefined
       ? featurePage
@@ -433,6 +434,8 @@ export function AppShell({
       ? sectionFromNav
       : (readStoredMenuSection() ?? 'Setup');
   });
+  /** Which sidebar accordion is open; null on Dashboard until the user opens one. */
+  const [expandedSection, setExpandedSection] = useState<MenuSection | null>(null);
 
   function appPath(path: string) {
     return `${homePath}${path}`;
@@ -509,14 +512,19 @@ export function AppShell({
   }, [section]);
 
   const pathSection = sectionForPath(location.pathname);
-  const highlightSection = !onHome && pathSection ? pathSection : section;
+  const dashboardActive = featurePath === '/dashboard' || featurePath.startsWith('/dashboard/');
 
   useEffect(() => {
-    if (!onHome && pathSection) {
+    if (pathSection) {
       if (tenantAccount && !allowedSections.has(pathSection)) return;
       setSection(pathSection);
+      setExpandedSection(pathSection);
+      return;
     }
-  }, [onHome, pathSection, tenantAccount, allowedSections]);
+    if (dashboardActive) {
+      setExpandedSection(null);
+    }
+  }, [pathSection, dashboardActive, tenantAccount, allowedSections]);
 
   const visibleItems = useMemo(
     () =>
@@ -551,15 +559,12 @@ export function AppShell({
 
   const canOpenDashboard =
     !tenantAccount || !tenantUser || allowedKeys.has('dashboard');
-  const dashboardActive = featurePath === '/dashboard' || featurePath.startsWith('/dashboard/');
 
   function onSectionClick(name: MenuSection) {
     if (tenantAccount && tenantUser && !allowedSections.has(name)) return;
-    if (!onHome) {
-      navigate(homePath, { state: { section: name } });
-      return;
-    }
     setSection(name);
+    setExpandedSection(name);
+    navigate(appPath('/menu'), { state: { section: name } });
   }
 
   function isItemActive(item: MenuItem) {
@@ -618,7 +623,7 @@ export function AppShell({
 
   const homeBody =
     pageContent ??
-    (onHome ? (
+    (onSectionMenu ? (
       <PlatformPage title={section}>
         <MenuTiles items={visibleItems} section={section} />
       </PlatformPage>
@@ -664,16 +669,16 @@ export function AppShell({
             </li>
           ) : null}
           {sectionTabs.map((name) => {
-            const active = !dashboardActive && highlightSection === name;
             const children = itemsForSection(name);
-            const expanded = active;
+            const expanded = expandedSection === name;
+            const active = pathSection === name || (onSectionMenu && section === name);
             return (
               <li key={name} className="platform-sidebar-group">
                 <button
                   type="button"
                   className={`platform-sidebar-link platform-sidebar-section${active ? ' active' : ''}`}
                   aria-expanded={expanded}
-                  aria-current={active && onHome ? 'page' : undefined}
+                  aria-current={active ? 'page' : undefined}
                   onClick={() => onSectionClick(name)}
                 >
                   <span className="platform-sidebar-link-label">{t(name)}</span>

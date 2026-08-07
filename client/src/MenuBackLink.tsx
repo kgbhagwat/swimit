@@ -25,7 +25,7 @@ function platformBackTarget(pathname: string) {
   if (PLATFORM_HOME_PATHS.has(pathname) || isPlatformUsersPath(pathname)) {
     return '/';
   }
-  return '/application';
+  return '/application/dashboard';
 }
 
 export function MenuBackLink({ label = '← Back' }: MenuBackLinkProps) {

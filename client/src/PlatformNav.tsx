@@ -50,7 +50,7 @@ const LINKS = [
     requiresAuth: false,
   },
   {
-    to: '/application',
+    to: '/application/dashboard',
     label: 'View Application',
     match: (path: string) =>
       path === '/application' || path.startsWith('/application/'),
@@ -233,7 +233,7 @@ function PlatformLoginModal({
       }
 
       onClose();
-      navigate(`/${code}`);
+      navigate(`/${code}/dashboard`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

@@ -99,10 +99,17 @@ function RedirectToApplication() {
   return <Navigate to={`/application${pathname}${search}${hash}`} replace />;
 }
 
+/** Empty outlet so AppShell can render the section menu (Setup / Operations / …). */
+function AppSectionMenu() {
+  return null;
+}
+
 /** Feature pages nested under AppShell (`/application/...` or `/:accountCode/...`). */
 function appFeatureRoutes() {
   return (
     <>
+      <Route index element={<Navigate to="dashboard" replace />} />
+      <Route path="menu" element={<AppSectionMenu />} />
       <Route path="register" element={<App />} />
       <Route path="register/:id" element={<App />} />
       <Route path="staff-register" element={<StaffRegistration />} />

@@ -1,6 +1,8 @@
 import { type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useT } from './i18n';
 import type { MenuSection } from './menuCatalog';
+import { tenantPath } from './tenantSession';
 
 export type MenuItem = {
   to: string;
@@ -361,7 +363,11 @@ export function MenuTiles({
       <nav className="menu-desc-list" aria-label={`${t(section)} pages`}>
         {items.map((item) => (
           <article key={item.to} className="menu-desc-item">
-            <h2 className="menu-desc-title">{t(item.label)}</h2>
+            <h2 className="menu-desc-title">
+              <Link className="menu-desc-link" to={tenantPath(item.to)}>
+                {t(item.label)}
+              </Link>
+            </h2>
             <p className="menu-desc-text">{t(item.does)}</p>
             <p className="menu-desc-text">{t(item.helps)}</p>
           </article>

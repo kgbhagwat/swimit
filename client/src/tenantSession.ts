@@ -34,12 +34,12 @@ export function getActiveAccountCode(): string | null {
 export function tenantPath(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   if (isApplicationDemo()) {
-    if (normalized === '/') return '/application';
+    if (normalized === '/') return '/application/dashboard';
     return `/application${normalized}`;
   }
   const code = getActiveAccountCode();
   if (!code) return normalized;
-  if (normalized === '/') return `/${code}`;
+  if (normalized === '/') return `/${code}/dashboard`;
   return `/${code}${normalized}`;
 }
 

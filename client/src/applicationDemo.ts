@@ -20,6 +20,7 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/payment-details',
   '/pool-core-info',
   '/holiday-management',
+  '/menu',
 ]);
 
 const DEMO_FLAG_KEY = 'swimIT.applicationDemo';

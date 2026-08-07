@@ -415,7 +415,7 @@ export function RenewPayment() {
             <button type="button" className="ghost-btn" onClick={() => setConfirmed(null)}>
               {t('Renew again')}
             </button>
-            <Link className="menu-link" to={`/${code}`}>
+            <Link className="menu-link" to={`/${code}/dashboard`}>
               {t('Back to home')}
             </Link>
           </div>
@@ -487,7 +487,7 @@ export function RenewPayment() {
                 <button
                   type="button"
                   className="ghost-btn"
-                  onClick={() => navigate(`/${code}`)}
+                  onClick={() => navigate(`/${code}/dashboard`)}
                 >
                   {t('Cancel')}
                 </button>
@@ -539,7 +539,7 @@ export function RenewPayment() {
               </p>
 
               <p>
-                <Link to={`/${code}`}>{t('Back to home')}</Link>
+                <Link to={`/${code}/dashboard`}>{t('Back to home')}</Link>
               </p>
             </section>
           ) : null}
