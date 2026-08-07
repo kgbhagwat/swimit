@@ -354,14 +354,6 @@ export function StaffRegistration() {
     }));
   }
 
-  function setCertPhoto(index: number, file: File | null) {
-    setCertPhotos((prev) => {
-      const next = [...prev];
-      next[index] = file;
-      return next;
-    });
-  }
-
   function isInvalid(field: string) {
     return invalidFields.has(field);
   }
