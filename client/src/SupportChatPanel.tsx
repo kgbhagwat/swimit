@@ -149,6 +149,7 @@ export function SupportChatPanel({
   const [sending, setSending] = useState(false);
   const [topOffset, setTopOffset] = useState(60);
   const [renewChoices, setRenewChoices] = useState<RenewChoice[]>([]);
+  const [clearing, setClearing] = useState(false);
 
   const peerLabel =
     mode === 'platform'
@@ -274,6 +275,38 @@ export function SupportChatPanel({
     await sendReply();
   }
 
+  async function clearChat() {
+    if (!ticket?.id || mode !== 'platform' || clearing) return;
+    if (
+      !window.confirm(
+        t('Clear all messages in this chat? This cannot be undone.'),
+      )
+    ) {
+      return;
+    }
+    setClearing(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/support/platform/tickets/${ticket.id}/clear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authorUserId }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error || 'Failed to clear chat');
+      setMessages([]);
+      setRenewChoices([]);
+      setReply('');
+      setAttachFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      notifySupportInboxChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to clear chat');
+    } finally {
+      setClearing(false);
+    }
+  }
+
   if (!open) return null;
 
   const panel = (
@@ -394,10 +427,18 @@ export function SupportChatPanel({
             <button
               type="button"
               className="wa-chat-choice-btn"
-              disabled={sending || !ticket}
+              disabled={sending || clearing || !ticket}
               onClick={() => void sendText('renew')}
             >
               {t('Start renew')}
+            </button>
+            <button
+              type="button"
+              className="wa-chat-choice-btn wa-chat-choice-btn--danger"
+              disabled={sending || clearing || !ticket || messages.length === 0}
+              onClick={() => void clearChat()}
+            >
+              {clearing ? t('Clearing…') : t('Clear chat')}
             </button>
           </div>
         ) : null}

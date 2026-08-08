@@ -627,6 +627,18 @@ supportRouter.post(
           text: body,
         });
         renewChoices = renew.choices;
+        // Renew chip/numbered replies are bot-handled — never badge platform for those.
+        if (renew.suppressPlatformUnread) {
+          await pool.query(
+            `UPDATE support_tickets
+             SET platform_last_read_at = GREATEST(
+               COALESCE(platform_last_read_at, TIMESTAMPTZ 'epoch'),
+               $1::timestamptz
+             )
+             WHERE id = $2 AND saas_account_id = $3`,
+            [msgRes.rows[0].created_at, ticketId, accountId],
+          );
+        }
       } catch (err) {
         console.error('[support-renew] reply handling failed', err);
       }
@@ -740,6 +752,7 @@ supportRouter.get('/platform/tickets/:id', requireTenant, async (req, res) => {
 supportRouter.get('/platform/unread-by-account', requireTenant, async (req, res) => {
   try {
     if (!(await requirePlatformTenant(req, res))) return;
+    // Count only real discussion messages — not renew chip / numbered selections.
     const { rows } = await pool.query<{ saas_account_id: number; count: number }>(
       `SELECT t.saas_account_id, COUNT(*)::int AS count
        FROM support_ticket_messages m
@@ -748,6 +761,10 @@ supportRouter.get('/platform/unread-by-account', requireTenant, async (req, res)
        WHERE m.author_role = 'account_admin'
          AND LOWER(COALESCE(a.account_code, '')) <> 'swimit'
          AND m.created_at > COALESCE(t.platform_last_read_at, TIMESTAMPTZ 'epoch')
+         AND NOT (
+           LOWER(TRIM(regexp_replace(COALESCE(m.body, ''), '\\s+', ' ', 'g'))) ~
+           '^(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|renew|renew now|renew package|package renew|start renew|same|same package|change|change package|confirm|confirm & pay|confirm and pay|remind me later|later|cancel|yes|no|one|two)$'
+         )
        GROUP BY t.saas_account_id`,
     );
     const unreadByAccountId: Record<string, number> = {};
@@ -871,6 +888,83 @@ supportRouter.post('/platform/tickets', requireTenant, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create support chat' });
+  }
+});
+
+/** Platform: clear all messages in a pool support channel (keeps channel open). */
+supportRouter.post('/platform/tickets/:id/clear', requireTenant, async (req, res) => {
+  try {
+    const platformAccountId = await requirePlatformTenant(req, res);
+    if (!platformAccountId) return;
+    const ticketId = Number(req.params.id);
+    if (!Number.isFinite(ticketId) || ticketId <= 0) {
+      res.status(400).json({ error: 'Invalid ticket id' });
+      return;
+    }
+    const authorUserId = parseUserId(req.body?.authorUserId);
+    if (!authorUserId) {
+      res.status(400).json({ error: 'authorUserId is required' });
+      return;
+    }
+    const author = await resolveAccountUser(platformAccountId, authorUserId);
+    if (!author) {
+      res.status(403).json({ error: 'Platform user not found for this account' });
+      return;
+    }
+
+    const ticketRes = await pool.query<{ id: number; saas_account_id: number }>(
+      `SELECT t.id, t.saas_account_id
+       FROM support_tickets t
+       JOIN saas_accounts a ON a.id = t.saas_account_id
+       WHERE t.id = $1
+         AND LOWER(COALESCE(a.account_code, '')) <> 'swimit'`,
+      [ticketId],
+    );
+    if (!ticketRes.rows[0]) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+    const targetAccountId = Number(ticketRes.rows[0].saas_account_id);
+
+    const files = await pool.query<{ attachment_path: string }>(
+      `SELECT attachment_path FROM support_ticket_messages
+       WHERE ticket_id = $1 AND saas_account_id = $2
+         AND COALESCE(TRIM(attachment_path), '') <> ''`,
+      [ticketId, targetAccountId],
+    );
+    for (const row of files.rows) {
+      const name = String(row.attachment_path ?? '').trim();
+      if (!name || name.includes('..') || name.includes('/') || name.includes('\\')) continue;
+      try {
+        fs.unlinkSync(path.join(uploadDir, name));
+      } catch {
+        // ignore missing files
+      }
+    }
+
+    await pool.query(
+      `DELETE FROM support_ticket_messages
+       WHERE ticket_id = $1 AND saas_account_id = $2`,
+      [ticketId, targetAccountId],
+    );
+    await ensureRenewSessionTable();
+    await pool.query(
+      `DELETE FROM support_renew_sessions WHERE saas_account_id = $1`,
+      [targetAccountId],
+    );
+    await pool.query(
+      `UPDATE support_tickets
+       SET updated_at = NOW(),
+           platform_last_read_at = NOW(),
+           account_last_read_at = NOW()
+       WHERE id = $1 AND saas_account_id = $2`,
+      [ticketId, targetAccountId],
+    );
+
+    res.json({ ok: true, ticketId, messages: [] as unknown[], renewChoices: [] as unknown[] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to clear chat' });
   }
 });
 

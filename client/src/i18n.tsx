@@ -356,6 +356,11 @@ const mr: Record<string, string> = {
   'on WhatsApp as before.': 'असलेला स्क्रीनशॉट आधीप्रमाणे WhatsApp वर पाठवा.',
   'on WhatsApp.': 'असलेला स्क्रीनशॉट WhatsApp वर पाठवा.',
   'Pay with UPI app': 'UPI अॅपने पैसे भरा',
+  'Clear chat': 'चॅट साफ करा',
+  'Clearing…': 'साफ होत आहे…',
+  'Clear all messages in this chat? This cannot be undone.':
+    'या चॅटमधील सर्व संदेश साफ करायचे? हे पूर्ववत करता येणार नाही.',
+  'Failed to clear chat': 'चॅट साफ करता आली नाही',
   'Open UPI payment app': 'UPI पेमेंट अॅप उघडा',
   'Scan this QR to pay, or tap to open your UPI app.':
     'पेमेंटसाठी हा QR स्कॅन करा, किंवा UPI अॅप उघडण्यासाठी टॅप करा.',

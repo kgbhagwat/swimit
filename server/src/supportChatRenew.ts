@@ -429,6 +429,19 @@ export function isRenewStartCommand(text: string) {
   );
 }
 
+/** Chip / numbered replies used by the renew bot — should not badge platform staff. */
+export function isRenewChoiceMessage(text: string) {
+  const raw = String(text ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  if (!raw) return false;
+  if (/^\d{1,2}$/.test(raw)) return true;
+  return /^(renew|renew now|renew package|package renew|start renew|same|same package|change|change package|confirm|confirm & pay|confirm and pay|remind me later|later|cancel|yes|no|one|two)$/.test(
+    raw,
+  );
+}
+
 /** Start / restart renew flow (used by account typing "renew" or SwimIT platform). */
 export async function startManualRenewPrompt(accountId: number, ticketId: number) {
   await ensureRenewSessionTable();
@@ -475,24 +488,32 @@ export async function startManualRenewPrompt(accountId: number, ticketId: number
   return choicesForStep('awaiting_renew');
 }
 
-/** Handle admin chat reply when a renew session is active. Returns true if handled. */
+type RenewReplyResult = {
+  handled: boolean;
+  choices: RenewChoice[];
+  /** True only for renew chip/numbered replies — do not badge platform staff. */
+  suppressPlatformUnread: boolean;
+};
+
+/** Handle admin chat reply when a renew session is active. */
 export async function handleSupportRenewReply(params: {
   accountId: number;
   userId: number;
   ticketId: number;
   text: string;
-}): Promise<{ handled: boolean; choices: RenewChoice[] }> {
+}): Promise<RenewReplyResult> {
   await ensureRenewSessionTable();
   const session = await loadSession(params.accountId);
   const wantsRenew = isRenewStartCommand(params.text);
+  const choiceLike = isRenewChoiceMessage(params.text);
 
   if (wantsRenew && (!session || session.step === 'done')) {
     const choices = await startManualRenewPrompt(params.accountId, params.ticketId);
-    return { handled: true, choices };
+    return { handled: true, choices, suppressPlatformUnread: true };
   }
 
   if (!session || session.step === 'done') {
-    return { handled: false, choices: [] };
+    return { handled: false, choices: [], suppressPlatformUnread: false };
   }
 
   const choice = normalizeChoice(params.text);
@@ -515,7 +536,11 @@ export async function handleSupportRenewReply(params: {
           '2. Change package',
         ].join('\n'),
       );
-      return { handled: true, choices: choicesForStep('awaiting_same_or_change') };
+      return {
+        handled: true,
+        choices: choicesForStep('awaiting_same_or_change'),
+        suppressPlatformUnread: true,
+      };
     }
     if (choice === '2') {
       await upsertSession({ ...session, ticketId: params.ticketId, step: 'done' });
@@ -523,13 +548,18 @@ export async function handleSupportRenewReply(params: {
         params.accountId,
         'Okay — we will keep this chat open. Type "renew" here anytime before expiry to start again.',
       );
-      return { handled: true, choices: [] };
+      return { handled: true, choices: [], suppressPlatformUnread: true };
     }
     await postPlatformChatMessage(
       params.accountId,
       'Please reply with 1 (Renew now) or 2 (Remind me later).',
     );
-    return { handled: true, choices: choicesForStep('awaiting_renew') };
+    // Free-text during renew = likely a discussion — badge platform.
+    return {
+      handled: true,
+      choices: choicesForStep('awaiting_renew'),
+      suppressPlatformUnread: choiceLike,
+    };
   }
 
   if (session.step === 'awaiting_same_or_change') {
@@ -552,6 +582,7 @@ export async function handleSupportRenewReply(params: {
             id: String(i + 1),
             label: `${pkg.packageName} — ${formatInrAmount(pkg.price)} / ${pkg.billingPeriod}`,
           })),
+          suppressPlatformUnread: true,
         };
       }
       const quote = await buildRenewQuote({
@@ -564,10 +595,18 @@ export async function handleSupportRenewReply(params: {
           params.accountId,
           'Current package cannot be renewed (trial or inactive). Please choose another package (reply 2).',
         );
-        return { handled: true, choices: choicesForStep('awaiting_same_or_change') };
+        return {
+          handled: true,
+          choices: choicesForStep('awaiting_same_or_change'),
+          suppressPlatformUnread: true,
+        };
       }
       await saveQuote(params.accountId, params.ticketId, quote, session.expiresOn);
-      return { handled: true, choices: choicesForStep('quoted') };
+      return {
+        handled: true,
+        choices: choicesForStep('quoted'),
+        suppressPlatformUnread: true,
+      };
     }
     if (choice === '2') {
       const packages = await listPaidPackages();
@@ -590,13 +629,18 @@ export async function handleSupportRenewReply(params: {
           id: String(i + 1),
           label: `${pkg.packageName} — ${formatInrAmount(pkg.price)} / ${pkg.billingPeriod}`,
         })),
+        suppressPlatformUnread: true,
       };
     }
     await postPlatformChatMessage(
       params.accountId,
       'Please reply with 1 (Same package) or 2 (Change package).',
     );
-    return { handled: true, choices: choicesForStep('awaiting_same_or_change') };
+    return {
+      handled: true,
+      choices: choicesForStep('awaiting_same_or_change'),
+      suppressPlatformUnread: choiceLike,
+    };
   }
 
   if (session.step === 'awaiting_package') {
@@ -614,6 +658,7 @@ export async function handleSupportRenewReply(params: {
           id: String(i + 1),
           label: `${pkg.packageName} — ${formatInrAmount(pkg.price)} / ${pkg.billingPeriod}`,
         })),
+        suppressPlatformUnread: choiceLike,
       };
     }
     const quote = await buildRenewQuote({
@@ -629,17 +674,22 @@ export async function handleSupportRenewReply(params: {
           id: String(i + 1),
           label: `${pkg.packageName} — ${formatInrAmount(pkg.price)} / ${pkg.billingPeriod}`,
         })),
+        suppressPlatformUnread: true,
       };
     }
     await saveQuote(params.accountId, params.ticketId, quote, session.expiresOn);
-    return { handled: true, choices: choicesForStep('quoted') };
+    return {
+      handled: true,
+      choices: choicesForStep('quoted'),
+      suppressPlatformUnread: true,
+    };
   }
 
   if (session.step === 'quoted') {
     if (choice === '1') {
       if (!session.selectedPackageId) {
         await upsertSession({ ...session, step: 'done' });
-        return { handled: true, choices: [] };
+        return { handled: true, choices: [], suppressPlatformUnread: true };
       }
       const quote = await buildRenewQuote({
         saasAccountId: params.accountId,
@@ -649,7 +699,7 @@ export async function handleSupportRenewReply(params: {
       if (!quote) {
         await postPlatformChatMessage(params.accountId, 'Unable to build quote. Please try again later.');
         await upsertSession({ ...session, step: 'done' });
-        return { handled: true, choices: [] };
+        return { handled: true, choices: [], suppressPlatformUnread: true };
       }
       try {
         await startPaidRenewal({
@@ -667,9 +717,13 @@ export async function handleSupportRenewReply(params: {
           params.accountId,
           `${message}\n\nYou can reply 1 to try again, or 2 to cancel.`,
         );
-        return { handled: true, choices: choicesForStep('quoted') };
+        return {
+          handled: true,
+          choices: choicesForStep('quoted'),
+          suppressPlatformUnread: true,
+        };
       }
-      return { handled: true, choices: [] };
+      return { handled: true, choices: [], suppressPlatformUnread: true };
     }
     if (choice === '2') {
       await upsertSession({ ...session, step: 'done' });
@@ -677,14 +731,18 @@ export async function handleSupportRenewReply(params: {
         params.accountId,
         'Renewal cancelled. Type "renew" in this chat anytime to start again.',
       );
-      return { handled: true, choices: [] };
+      return { handled: true, choices: [], suppressPlatformUnread: true };
     }
     await postPlatformChatMessage(
       params.accountId,
       'Please reply with 1 (Confirm & pay) or 2 (Cancel).',
     );
-    return { handled: true, choices: choicesForStep('quoted') };
+    return {
+      handled: true,
+      choices: choicesForStep('quoted'),
+      suppressPlatformUnread: choiceLike,
+    };
   }
 
-  return { handled: false, choices: [] };
+  return { handled: false, choices: [], suppressPlatformUnread: false };
 }

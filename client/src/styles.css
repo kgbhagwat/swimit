@@ -13408,6 +13408,15 @@ button.menu-link {
   cursor: not-allowed;
 }
 
+.wa-chat-choice-btn--danger {
+  border-color: #c62828;
+  color: #c62828;
+}
+
+.wa-chat-choice-btn--danger:hover:not(:disabled) {
+  background: #fdecea;
+}
+
 .wa-chat-composer {
   display: flex;
   align-items: flex-end;
