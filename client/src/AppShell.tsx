@@ -20,6 +20,7 @@ import { MENU_ITEMS, MenuTiles, type MenuItem } from './menuItems';
 import { PassPopupOverlay } from './PassPopupOverlay';
 import { PlatformNav } from './PlatformNav';
 import { PlatformPage } from './PlatformPage';
+import { SupportInboxButton } from './SupportInboxButton';
 import { setActiveTenant } from './tenantSession';
 import { isPassPopupWindow } from './swimmerPass';
 
@@ -60,7 +61,6 @@ function TenantUserBar({
   onLogout?: () => void;
 }) {
   const t = useT();
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -198,25 +198,6 @@ function TenantUserBar({
 
   return (
     <div className="tenant-user-bar" ref={ref}>
-      {user.isAccountAdmin && account.packageName ? (
-        <span className="tenant-package-badge" title="Service package">
-          Package: <strong>{account.packageName}</strong>
-          <button
-            type="button"
-            className="tenant-package-edit"
-            aria-label="Edit package / renew"
-            title="Renew or change package"
-            onClick={() => {
-              navigate(`/${account.accountCode.toLowerCase()}/renew-payment`);
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-            </svg>
-          </button>
-        </span>
-      ) : null}
       <button
         type="button"
         className="tenant-profile-btn"
@@ -236,8 +217,26 @@ function TenantUserBar({
       </button>
 
       {onLogout ? (
-        <button type="button" className="tenant-signout-btn" onClick={onLogout}>
-          {t('Sign out')}
+        <button
+          type="button"
+          className="tenant-signout-btn"
+          onClick={onLogout}
+          aria-label={t('Sign out')}
+          title={t('Sign out')}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+            <path d="M9 12h12" />
+            <path d="M17 8l4 4-4 4" />
+          </svg>
         </button>
       ) : null}
 
@@ -726,6 +725,12 @@ export function AppShell({
           <span className="platform-sidebar-toggle-bar" />
         </button>
         <div className="platform-main-topbar-actions">
+          {tenantAccount && tenantUser?.isAccountAdmin && tenantUser.id ? (
+            <SupportInboxButton
+              accountCode={tenantAccount.accountCode}
+              authorUserId={tenantUser.id}
+            />
+          ) : null}
           <LanguageSwitcher />
           {tenantAccount ? (
             <TenantUserBar

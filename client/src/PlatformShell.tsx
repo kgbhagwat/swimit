@@ -1,10 +1,19 @@
 import { useState, type ReactNode } from 'react';
 import { useT } from './i18n';
 import { PlatformNav } from './PlatformNav';
+import { getPlatformSession } from './platformSession';
+import { getActiveSaasAccountId, setActiveTenant } from './tenantSession';
 
 /** Top bar + left sidebar chrome for SaaS platform pages. */
 export function PlatformShell({ children }: { children: ReactNode }) {
   const t = useT();
+  const session = getPlatformSession();
+  if (session && getActiveSaasAccountId() !== session.accountId) {
+    setActiveTenant({
+      id: session.accountId,
+      accountCode: session.accountCode,
+    });
+  }
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
     return !window.matchMedia('(max-width: 800px)').matches;

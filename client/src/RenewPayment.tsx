@@ -3,11 +3,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
+import { QrImage } from './QrImage';
+import { buildUpiPayUri } from './upiPay';
 
 type ServicePackage = {
   id: number;
   packageName: string;
   price: number;
+  discountedRate: number | null;
   billingPeriod: string;
   isActive: boolean;
   trialDays: number;
@@ -117,7 +120,11 @@ function addMonthsDateOnly(fromIsoDate: string, months: number) {
 function computeAmount(pkg: ServicePackage | undefined, months: number) {
   if (!pkg) return 0;
   const m = Math.max(1, Math.min(36, Math.floor(months) || 1));
-  const price = Math.max(0, Number(pkg.price) || 0);
+  const discounted =
+    pkg.discountedRate != null && Number(pkg.discountedRate) > 0
+      ? Number(pkg.discountedRate)
+      : null;
+  const price = Math.max(0, discounted ?? (Number(pkg.price) || 0));
   const amount =
     String(pkg.billingPeriod).toLowerCase() === 'year' ? price * (m / 12) : price * m;
   return Math.round(amount * 100) / 100;
@@ -225,14 +232,24 @@ export function RenewPayment() {
       setAccount(acct);
 
       const opts: ServicePackage[] = (Array.isArray(pkgBody) ? pkgBody : [])
-        .map((row: Record<string, unknown>) => ({
-          id: Number(row.id),
-          packageName: String(row.packageName ?? ''),
-          price: Number(row.price ?? 0),
-          billingPeriod: String(row.billingPeriod ?? 'Month'),
-          isActive: row.isActive !== false,
-          trialDays: Number(row.trialDays ?? 0),
-        }))
+        .map((row: Record<string, unknown>) => {
+          const discountedRaw =
+            row.discountedRate == null || row.discountedRate === ''
+              ? null
+              : Number(row.discountedRate);
+          return {
+            id: Number(row.id),
+            packageName: String(row.packageName ?? ''),
+            price: Number(row.price ?? 0),
+            discountedRate:
+              discountedRaw != null && Number.isFinite(discountedRaw) && discountedRaw > 0
+                ? discountedRaw
+                : null,
+            billingPeriod: String(row.billingPeriod ?? 'Month'),
+            isActive: row.isActive !== false,
+            trialDays: Number(row.trialDays ?? 0),
+          };
+        })
         .filter((p: ServicePackage) => p.isActive);
       setPackages(opts);
 
@@ -513,7 +530,33 @@ export function RenewPayment() {
               </p>
 
               <div className="online-payment-details">
-                {uploadUrl(payment.paymentQrPath) ? (
+                {payment.upiId && pending.expectedAmount > 0 ? (
+                  <>
+                    <QrImage
+                      value={buildUpiPayUri(
+                        payment.upiId,
+                        pending.expectedAmount,
+                        `SwimIT renew ${pending.renewPackageName}`,
+                      )}
+                      alt={t('SwimIT SaaS payment QR code')}
+                      className="online-payment-qr"
+                      size={220}
+                    />
+                    <a
+                      className="csv-btn qr-pay-app-btn"
+                      href={buildUpiPayUri(
+                        payment.upiId,
+                        pending.expectedAmount,
+                        `SwimIT renew ${pending.renewPackageName}`,
+                      )}
+                    >
+                      {t('Pay with UPI app')}
+                    </a>
+                    <p className="hint" style={{ marginTop: 0 }}>
+                      {t('Scan this QR to pay, or tap to open your UPI app.')}
+                    </p>
+                  </>
+                ) : uploadUrl(payment.paymentQrPath) ? (
                   <img
                     src={uploadUrl(payment.paymentQrPath)!}
                     alt={t('SwimIT SaaS payment QR code')}
@@ -533,9 +576,11 @@ export function RenewPayment() {
               </div>
 
               <p className="hint">
-                {t(
-                  'After paying, send the payment screenshot on WhatsApp. When amount and UPI match, your package is upgraded automatically and a confirmation is shown here.',
-                )}
+                {payment.upiId
+                  ? `${t('After paying, send the screenshot with visible')} ${payment.upiId} ${t('on WhatsApp.')} ${t('When amount and UPI match, your package is upgraded automatically and a confirmation is shown here.')}`
+                  : t(
+                      'After paying, send the payment screenshot on WhatsApp. When amount and UPI match, your package is upgraded automatically and a confirmation is shown here.',
+                    )}
               </p>
 
               <p>

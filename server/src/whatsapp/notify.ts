@@ -1,5 +1,6 @@
 import { pool } from '../db/pool.js';
 import { renderPassCardPng, renderPassQrPng } from '../passCardImage.js';
+import { buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
 import {
   formatWhatsAppUserError,
@@ -717,16 +718,34 @@ export async function notifyPackageRenewalPayment(params: {
   paymentQrPath?: string | null;
   saasAccountId: number;
 }): Promise<NotifyCredentialsResult> {
-  const amountLabel = `₹${params.amount.toLocaleString('en-IN')}`;
+  const amountLabel = `₹${params.amount.toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+  const hasAmountQr = Boolean(String(params.upiId ?? '').trim());
+  const upiPayUri = hasAmountQr
+    ? buildUpiPayUri({
+        upiId: params.upiId,
+        amount: params.amount,
+        payeeName: 'SwimIT',
+        note: `SwimIT renew ${params.packageName}`.slice(0, 80),
+      })
+    : '';
   const body = [
     `SwimIT subscription renewal for ${params.accountName}`,
     '',
     `You selected to renew for package: ${params.packageName}`,
     `Duration: ${params.months} month${params.months === 1 ? '' : 's'}`,
-    `Amount: ${amountLabel}`,
+    `Amount: *${amountLabel}*`,
     '',
-    'Please pay the mentioned amount using the QR code shown and send the payment screenshot here.',
-    params.upiId ? `UPI ID: ${params.upiId}` : '',
+    hasAmountQr
+      ? 'Scan the payment QR below, or tap the link to open your UPI app.'
+      : 'Please pay the mentioned amount using the QR code shown.',
+    upiPayUri ? `Pay now: ${upiPayUri}` : '',
+    params.upiId
+      ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
+      : 'After paying, send the payment screenshot on WhatsApp.',
+    params.upiId ? `UPI ID: *${params.upiId}*` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -775,16 +794,35 @@ export async function notifyPackageRenewalPayment(params: {
       status: result.skipped ? 'skipped' : 'sent',
     });
 
-    if (cfg.publicAppUrl && params.paymentQrPath && !result.skipped) {
-      const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
-      try {
-        await sendWhatsAppImage(
-          params.mobile,
-          qrUrl,
-          `Pay ${amountLabel} for ${params.packageName}`,
-        );
-      } catch (qrErr) {
-        console.warn('[whatsapp] renewal QR image send failed', qrErr);
+    if (!result.skipped) {
+      const caption = `Pay ${amountLabel} for ${params.packageName}`;
+      let amountQrSent = false;
+      if (hasAmountQr) {
+        try {
+          const qrPng = await renderUpiPayQrPng({
+            upiId: params.upiId,
+            amount: params.amount,
+            payeeName: 'SwimIT',
+            note: `SwimIT renew ${params.packageName}`.slice(0, 80),
+          });
+          const mediaId = await uploadWhatsAppMedia({
+            buffer: qrPng,
+            mimeType: 'image/png',
+            filename: `renew-pay-${params.saasAccountId}.png`,
+          });
+          await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
+          amountQrSent = true;
+        } catch (qrErr) {
+          console.warn('[whatsapp] amount-locked renewal QR failed', qrErr);
+        }
+      }
+      if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
+        const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+        try {
+          await sendWhatsAppImage(params.mobile, qrUrl, caption);
+        } catch (qrErr) {
+          console.warn('[whatsapp] renewal QR image send failed', qrErr);
+        }
       }
     }
 
@@ -820,18 +858,38 @@ export async function notifyPassPaymentRequest(params: {
   upiId: string;
   paymentQrPath?: string | null;
   saasAccountId: number;
+  poolName?: string;
 }): Promise<NotifyCredentialsResult> {
-  const amountLabel = `₹${params.amount.toLocaleString('en-IN')}`;
+  const amountLabel = `₹${params.amount.toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+  const hasAmountQr = Boolean(String(params.upiId ?? '').trim()) && params.amount > 0;
+  const payeeName = String(params.poolName ?? 'SwimIT').trim() || 'SwimIT';
+  const upiPayUri = hasAmountQr
+    ? buildUpiPayUri({
+        upiId: params.upiId,
+        amount: params.amount,
+        payeeName,
+        note: `Pass ${params.passType}`.slice(0, 80),
+      })
+    : '';
   const body = [
     `Hello ${params.fullName},`,
     '',
     'Please complete your SwimIT pass payment.',
     `Pass: ${params.passType}`,
-    `Amount: ${amountLabel}`,
+    `Amount: *${amountLabel}*`,
     `Valid until: ${params.passValidUntil}`,
     '',
-    'Pay using the pool QR code / UPI shown and send the payment screenshot here.',
-    params.upiId ? `UPI ID: ${params.upiId}` : '',
+    hasAmountQr
+      ? 'Scan the payment QR below, or tap the link to open your UPI app.'
+      : 'Pay using the pool QR code / UPI shown.',
+    upiPayUri ? `Pay now: ${upiPayUri}` : '',
+    params.upiId
+      ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
+      : 'After paying, send the payment screenshot on WhatsApp.',
+    params.upiId ? `UPI ID: *${params.upiId}*` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -865,16 +923,35 @@ export async function notifyPassPaymentRequest(params: {
       status: result.skipped ? 'skipped' : 'sent',
     });
 
-    if (cfg.publicAppUrl && params.paymentQrPath && !result.skipped) {
-      const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
-      try {
-        await sendWhatsAppImage(
-          params.mobile,
-          qrUrl,
-          `Pay ${amountLabel} for ${params.passType}`,
-        );
-      } catch (qrErr) {
-        console.warn('[whatsapp] pass payment QR send failed', qrErr);
+    if (!result.skipped) {
+      const caption = `Pay ${amountLabel} for ${params.passType}`;
+      let amountQrSent = false;
+      if (hasAmountQr) {
+        try {
+          const qrPng = await renderUpiPayQrPng({
+            upiId: params.upiId,
+            amount: params.amount,
+            payeeName,
+            note: `Pass ${params.passType}`.slice(0, 80),
+          });
+          const mediaId = await uploadWhatsAppMedia({
+            buffer: qrPng,
+            mimeType: 'image/png',
+            filename: `pass-pay-${params.saasAccountId}.png`,
+          });
+          await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
+          amountQrSent = true;
+        } catch (qrErr) {
+          console.warn('[whatsapp] amount-locked pass payment QR failed', qrErr);
+        }
+      }
+      if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
+        const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+        try {
+          await sendWhatsAppImage(params.mobile, qrUrl, caption);
+        } catch (qrErr) {
+          console.warn('[whatsapp] pass payment QR send failed', qrErr);
+        }
       }
     }
 

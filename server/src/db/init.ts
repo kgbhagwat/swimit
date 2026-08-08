@@ -242,6 +242,7 @@ ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS max_active_swimmers INT;
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS trial_days INT NOT NULL DEFAULT 0;
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS modules TEXT NOT NULL DEFAULT 'core';
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS support_level TEXT NOT NULL DEFAULT 'whatsapp';
+ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS discounted_rate NUMERIC(12, 2);
 
 CREATE TABLE IF NOT EXISTS saas_accounts (
   id SERIAL PRIMARY KEY,
@@ -294,6 +295,103 @@ CREATE TABLE IF NOT EXISTS whatsapp_inbound (
 
 CREATE INDEX IF NOT EXISTS idx_whatsapp_inbound_account ON whatsapp_inbound (saas_account_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_outbound_account ON whatsapp_outbound (saas_account_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  created_by_user_id INT REFERENCES app_users(id) ON DELETE SET NULL,
+  category TEXT NOT NULL DEFAULT 'complaint',
+  subject TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (category IN ('complaint', 'suggestion')),
+  CHECK (status IN ('open', 'closed'))
+);
+
+CREATE TABLE IF NOT EXISTS support_ticket_messages (
+  id SERIAL PRIMARY KEY,
+  ticket_id INT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  author_user_id INT REFERENCES app_users(id) ON DELETE SET NULL,
+  author_role TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  attachment_path TEXT NOT NULL DEFAULT '',
+  attachment_name TEXT NOT NULL DEFAULT '',
+  attachment_mime TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (author_role IN ('account_admin', 'platform'))
+);
+
+ALTER TABLE support_ticket_messages ADD COLUMN IF NOT EXISTS attachment_path TEXT NOT NULL DEFAULT '';
+ALTER TABLE support_ticket_messages ADD COLUMN IF NOT EXISTS attachment_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE support_ticket_messages ADD COLUMN IF NOT EXISTS attachment_mime TEXT NOT NULL DEFAULT '';
+
+DO $$
+DECLARE
+  cname text;
+BEGIN
+  FOR cname IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'support_ticket_messages'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%char_length%body%'
+  LOOP
+    EXECUTE format('ALTER TABLE support_ticket_messages DROP CONSTRAINT %I', cname);
+  END LOOP;
+END $$;
+
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_account
+  ON support_tickets (saas_account_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status
+  ON support_tickets (status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket
+  ON support_ticket_messages (ticket_id, created_at ASC);
+
+ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS account_last_read_at TIMESTAMPTZ;
+ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS platform_last_read_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS account_notifications (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'package',
+  title TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  read_at TIMESTAMPTZ,
+  CHECK (kind IN ('package'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_notifications_account
+  ON account_notifications (saas_account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_account_notifications_unread
+  ON account_notifications (saas_account_id, created_at DESC)
+  WHERE read_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS support_renew_sessions (
+  saas_account_id INT PRIMARY KEY REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  ticket_id INT REFERENCES support_tickets(id) ON DELETE SET NULL,
+  step TEXT NOT NULL DEFAULT 'awaiting_renew',
+  expires_on DATE,
+  selected_package_id INT REFERENCES service_packages(id) ON DELETE SET NULL,
+  months INT NOT NULL DEFAULT 1,
+  package_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  broadcast_count INT NOT NULL DEFAULT 0,
+  broadcast_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (step IN (
+    'awaiting_renew',
+    'awaiting_same_or_change',
+    'awaiting_package',
+    'quoted',
+    'done'
+  ))
+);
 
 CREATE TABLE IF NOT EXISTS saas_package_renewals (
   id SERIAL PRIMARY KEY,

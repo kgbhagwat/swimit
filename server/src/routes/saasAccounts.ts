@@ -1288,7 +1288,7 @@ saasAccountsRouter.post('/by-code/:code/renew', async (req, res) => {
     }
 
     const { rows: pkgRows } = await pool.query(
-      `SELECT id, package_name, price, billing_period, is_active, trial_days
+      `SELECT id, package_name, price, discounted_rate, billing_period, is_active, trial_days
        FROM service_packages WHERE id = $1`,
       [renewPackageId],
     );
@@ -1307,8 +1307,13 @@ saasAccountsRouter.post('/by-code/:code/renew', async (req, res) => {
       return;
     }
 
+    const listPrice = Number(pkgRows[0].price);
+    const discounted =
+      pkgRows[0].discounted_rate != null && Number(pkgRows[0].discounted_rate) > 0
+        ? Number(pkgRows[0].discounted_rate)
+        : null;
     const expectedAmount = computeRenewalAmount({
-      price: Number(pkgRows[0].price),
+      price: discounted ?? listPrice,
       billingPeriod: String(pkgRows[0].billing_period ?? 'Month'),
       months,
     });

@@ -5,6 +5,7 @@ type PackageBody = {
   packageName?: string;
   description?: string;
   price?: number | string;
+  discountedRate?: number | string | null;
   billingPeriod?: string;
   maxPools?: number | string;
   maxUsers?: number | string;
@@ -20,20 +21,38 @@ const BILLING_PERIODS = ['Month', 'Year'] as const;
 const MODULES = ['core', 'full'] as const;
 const SUPPORT_LEVELS = ['whatsapp', 'priority', 'onboarding'] as const;
 
-const PACKAGE_SELECT = `SELECT id, package_name, description, price, billing_period, max_pools, max_users,
-              max_active_swimmers, trial_days, modules, support_level, features, is_active, created_at
+const PACKAGE_SELECT = `SELECT id, package_name, description, price, discounted_rate, billing_period,
+              max_pools, max_users, max_active_swimmers, trial_days, modules, support_level,
+              features, is_active, created_at
        FROM service_packages`;
+
+function parseDiscountedRate(value: unknown) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  if (n === 0) return null;
+  return Math.round(n * 100) / 100;
+}
 
 function mapRow(row: Record<string, unknown>) {
   const maxActiveSwimmers =
     row.max_active_swimmers == null || row.max_active_swimmers === ''
       ? null
       : Number(row.max_active_swimmers);
+  const discountedRaw =
+    row.discounted_rate == null || row.discounted_rate === ''
+      ? null
+      : Number(row.discounted_rate);
+  const discountedRate =
+    discountedRaw != null && Number.isFinite(discountedRaw) && discountedRaw > 0
+      ? discountedRaw
+      : null;
   return {
     id: Number(row.id),
     packageName: String(row.package_name ?? ''),
     description: String(row.description ?? ''),
     price: Number(row.price ?? 0),
+    discountedRate,
     billingPeriod: String(row.billing_period ?? 'Month'),
     maxPools: Number(row.max_pools ?? 1),
     maxUsers: Number(row.max_users ?? 5),
@@ -70,6 +89,11 @@ function validate(body: PackageBody) {
   if (!body.packageName?.trim()) return 'Package name is required';
   const price = Number(body.price);
   if (Number.isNaN(price) || price < 0) return 'Enter a valid price';
+  const discountedRate = parseDiscountedRate(body.discountedRate);
+  if (discountedRate === undefined) return 'Enter a valid discounted rate (or leave blank)';
+  if (discountedRate != null && discountedRate > price) {
+    return 'Discounted rate cannot be greater than price';
+  }
   const period = String(body.billingPeriod ?? '').trim();
   if (!(BILLING_PERIODS as readonly string[]).includes(period)) {
     return 'Billing period must be Month or Year';
@@ -96,10 +120,12 @@ function packageValues(body: PackageBody) {
   const trialDays = Number(body.trialDays ?? 0);
   const modules = String(body.modules ?? 'core').trim() || 'core';
   const supportLevel = String(body.supportLevel ?? 'whatsapp').trim() || 'whatsapp';
+  const discountedRate = parseDiscountedRate(body.discountedRate) ?? null;
   return [
     body.packageName!.trim(),
     String(body.description ?? '').trim(),
     Number(body.price),
+    discountedRate,
     String(body.billingPeriod).trim(),
     Number(body.maxPools ?? 1),
     Number(body.maxUsers ?? 5),
@@ -141,11 +167,12 @@ servicePackagesRouter.post('/', async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO service_packages
-       (package_name, description, price, billing_period, max_pools, max_users,
+       (package_name, description, price, discounted_rate, billing_period, max_pools, max_users,
         max_active_swimmers, trial_days, modules, support_level, features, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING id, package_name, description, price, billing_period, max_pools, max_users,
-                 max_active_swimmers, trial_days, modules, support_level, features, is_active, created_at`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING id, package_name, description, price, discounted_rate, billing_period, max_pools,
+                 max_users, max_active_swimmers, trial_days, modules, support_level, features,
+                 is_active, created_at`,
       packageValues(body),
     );
     res.status(201).json(mapRow(rows[0]));
@@ -180,18 +207,20 @@ servicePackagesRouter.put('/:id', async (req, res) => {
        SET package_name = $1,
            description = $2,
            price = $3,
-           billing_period = $4,
-           max_pools = $5,
-           max_users = $6,
-           max_active_swimmers = $7,
-           trial_days = $8,
-           modules = $9,
-           support_level = $10,
-           features = $11,
-           is_active = $12
-       WHERE id = $13
-       RETURNING id, package_name, description, price, billing_period, max_pools, max_users,
-                 max_active_swimmers, trial_days, modules, support_level, features, is_active, created_at`,
+           discounted_rate = $4,
+           billing_period = $5,
+           max_pools = $6,
+           max_users = $7,
+           max_active_swimmers = $8,
+           trial_days = $9,
+           modules = $10,
+           support_level = $11,
+           features = $12,
+           is_active = $13
+       WHERE id = $14
+       RETURNING id, package_name, description, price, discounted_rate, billing_period, max_pools,
+                 max_users, max_active_swimmers, trial_days, modules, support_level, features,
+                 is_active, created_at`,
       [...values, id],
     );
     if (rows.length === 0) {

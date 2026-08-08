@@ -21,8 +21,10 @@ import { saasAccountsRouter } from './routes/saasAccounts.js';
 import { whatsappRouter } from './routes/whatsapp.js';
 import { platformPaymentRouter } from './routes/platformPayment.js';
 import { dashboardRouter } from './routes/dashboard.js';
+import { supportRouter } from './routes/support.js';
 import { requireTenant } from './middleware/tenant.js';
 import { startSubscriptionExpiryReminders } from './subscriptionReminders.js';
+import { startSubscriptionChatExpiryReminders } from './subscriptionChatReminders.js';
 import { startPassExpiryReminders } from './passExpiryReminders.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -74,6 +76,7 @@ app.use('/api/service-packages', servicePackagesRouter);
 app.use('/api/saas-accounts', saasAccountsRouter);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/platform-payment', platformPaymentRouter);
+app.use('/api/support', supportRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
@@ -121,5 +124,6 @@ app.listen(port, '0.0.0.0', () => {
     console.log(`Serving client from ${clientDist}`);
   }
   startSubscriptionExpiryReminders();
+  startSubscriptionChatExpiryReminders();
   startPassExpiryReminders();
 });

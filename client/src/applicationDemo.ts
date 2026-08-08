@@ -22,7 +22,6 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/holiday-management',
   '/menu',
 ]);
-
 const DEMO_FLAG_KEY = 'swimIT.applicationDemo';
 const DEMO_DATA_KEY = 'swimIT.applicationDemoData.v3';
 const SAMPLE_PASS_PAYMENT_QUEUE_KEY = 'swimIT.applicationDemo.passPaymentQueue';

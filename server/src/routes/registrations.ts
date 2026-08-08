@@ -1018,7 +1018,7 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
     }
 
     const poolPay = await pool.query(
-      `SELECT upi_details, payment_qr_path, payment_accept_online
+      `SELECT pool_name, upi_details, payment_qr_path, payment_accept_online
        FROM pool_core_info WHERE saas_account_id = $1 LIMIT 1`,
       [accountId],
     );
@@ -1027,12 +1027,19 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
       return;
     }
     const upiId = String(poolPay.rows[0]?.upi_details ?? '').trim();
+    const poolName = String(poolPay.rows[0]?.pool_name ?? '').trim();
     const paymentQrPath = poolPay.rows[0]?.payment_qr_path
       ? String(poolPay.rows[0].payment_qr_path)
       : null;
     if (!upiId && !paymentQrPath) {
       res.status(400).json({
         error: 'Set pool payment QR / UPI in Pool Core Info before requesting WhatsApp payment',
+      });
+      return;
+    }
+    if (!upiId) {
+      res.status(400).json({
+        error: 'Set pool UPI ID in Pool Core Info to send an amount-filled payment QR',
       });
       return;
     }
@@ -1073,6 +1080,7 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
       upiId,
       paymentQrPath,
       saasAccountId: accountId,
+      poolName: poolName || undefined,
     });
 
     void maybeNotifyBatchCoachOverLimit({

@@ -1,5 +1,6 @@
 import { isApplicationDemo } from './applicationDemo';
 import { handleDemoApiRequest } from './demoApi';
+import { getPlatformSession } from './platformSession';
 
 const ACCOUNT_ID_KEY = 'swimIT.activeSaasAccountId';
 const ACCOUNT_CODE_KEY = 'swimIT.activeAccountCode';
@@ -57,6 +58,15 @@ function shouldAttachTenant(url: string) {
   return !PLATFORM_API_PREFIXES.some((prefix) => url.includes(prefix));
 }
 
+function tenantIdForRequest(url: string): number | null {
+  // Platform support APIs must use the SwimIT staff account, never the pool target id.
+  if (url.includes('/api/support/platform')) {
+    const platform = getPlatformSession();
+    if (platform?.accountId) return platform.accountId;
+  }
+  return getActiveSaasAccountId();
+}
+
 /** Patch window.fetch for Application demo mock + tenant header. */
 export function installTenantFetch() {
   const original = window.fetch.bind(window);
@@ -75,7 +85,7 @@ export function installTenantFetch() {
       return original(input, init);
     }
 
-    const accountId = getActiveSaasAccountId();
+    const accountId = tenantIdForRequest(url);
     if (accountId == null) {
       return original(input, init);
     }

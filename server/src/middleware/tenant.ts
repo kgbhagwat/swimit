@@ -10,9 +10,15 @@ declare module 'express-serve-static-core' {
 /** Resolve and validate X-Saas-Account-Id for tenant-scoped APIs. */
 export async function requireTenant(req: Request, res: Response, next: NextFunction) {
   // Header is preferred; query fallback supports <img src> for sealed identity photos.
+  // Do not use query.accountId on /api/support/platform/* — that param is the pool
+  // being chatted with, not the SwimIT staff tenant.
+  const path = String(req.originalUrl || req.url || '');
+  const allowQueryAccountId = !path.includes('/api/support/platform');
   const raw =
     req.header('x-saas-account-id') ??
-    (typeof req.query.accountId === 'string' ? req.query.accountId : undefined) ??
+    (allowQueryAccountId && typeof req.query.accountId === 'string'
+      ? req.query.accountId
+      : undefined) ??
     (typeof req.query.saasAccountId === 'string' ? req.query.saasAccountId : undefined);
   const id = Number(raw);
   if (!Number.isFinite(id) || id <= 0) {

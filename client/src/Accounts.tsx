@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
 import { hasPlatformAccess } from './platformAccess';
 import { getPlatformSession } from './platformSession';
+import {
+  SUPPORT_INBOX_CHANGED,
+  SupportBellIcon,
+  SupportChatPanel,
+  type SupportChatTarget,
+} from './SupportChatPanel';
 
 type Account = {
   id: number;
@@ -134,6 +140,28 @@ export function Accounts() {
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [info, setInfo] = useState('');
+  const [chatTarget, setChatTarget] = useState<SupportChatTarget | null>(null);
+  const [unreadByAccountId, setUnreadByAccountId] = useState<Record<string, number>>({});
+
+  const loadUnread = useCallback(async () => {
+    if (!canManage) {
+      setUnreadByAccountId({});
+      return;
+    }
+    try {
+      const res = await fetch('/api/support/platform/unread-by-account');
+      const body = (await res.json().catch(() => ({}))) as {
+        unreadByAccountId?: Record<string, number>;
+      };
+      if (!res.ok) {
+        setUnreadByAccountId({});
+        return;
+      }
+      setUnreadByAccountId(body.unreadByAccountId ?? {});
+    } catch {
+      setUnreadByAccountId({});
+    }
+  }, [canManage]);
 
   async function load() {
     setLoading(true);
@@ -167,6 +195,52 @@ export function Accounts() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    void loadUnread();
+    const onChanged = () => void loadUnread();
+    window.addEventListener(SUPPORT_INBOX_CHANGED, onChanged);
+    const timer = window.setInterval(() => void loadUnread(), 45_000);
+    return () => {
+      window.removeEventListener(SUPPORT_INBOX_CHANGED, onChanged);
+      window.clearInterval(timer);
+    };
+  }, [loadUnread]);
+
+  function openAccountChat(item: Account) {
+    if (!item.accountCode || String(item.accountCode).toLowerCase() === 'swimit') return;
+    setChatTarget({
+      id: item.id,
+      accountCode: String(item.accountCode),
+      accountName: item.accountName,
+    });
+  }
+
+  function renderAccountChatBell(item: Account) {
+    const isPlatform = String(item.accountCode ?? '').toLowerCase() === 'swimit';
+    if (isPlatform || !canManage || !session?.userId) return null;
+    const unread = unreadByAccountId[String(item.id)] ?? 0;
+    return (
+      <button
+        type="button"
+        className="accounts-chat-bell"
+        onClick={() => openAccountChat(item)}
+        aria-label={
+          unread > 0
+            ? `${t('Chat')} ${item.accountName} (${unread})`
+            : `${t('Chat')} ${item.accountName}`
+        }
+        title={t('Chat')}
+      >
+        <SupportBellIcon />
+        {unread > 0 ? (
+          <span className="tenant-support-badge" aria-hidden>
+            {unread > 99 ? '99+' : unread}
+          </span>
+        ) : null}
+      </button>
+    );
+  }
 
   function startEdit(account: Account) {
     setError('');
@@ -369,13 +443,18 @@ export function Accounts() {
                       return (
                         <tr key={item.id} className={isEditing ? 'accounts-row-editing' : undefined}>
                           <td className="accounts-col-account">
-                            <strong className="batch-saved-name">{item.accountName}</strong>
-                            {item.poolAddress ? (
-                              <div className="muted accounts-sub">{item.poolAddress}</div>
-                            ) : null}
-                            {item.city ? (
-                              <div className="muted accounts-sub">{item.city}</div>
-                            ) : null}
+                            <div className="accounts-name-with-chat">
+                              {renderAccountChatBell(item)}
+                              <div>
+                                <strong className="batch-saved-name">{item.accountName}</strong>
+                                {item.poolAddress ? (
+                                  <div className="muted accounts-sub">{item.poolAddress}</div>
+                                ) : null}
+                                {item.city ? (
+                                  <div className="muted accounts-sub">{item.city}</div>
+                                ) : null}
+                              </div>
+                            </div>
                           </td>
                           <td className="accounts-col-code">
                             {item.accountCode ? (
@@ -574,13 +653,18 @@ export function Accounts() {
                     >
                       <div className="accounts-block-row">
                         <div className="accounts-block-field" data-label={t('Account')}>
-                          <strong className="batch-saved-name">{item.accountName}</strong>
-                          {item.poolAddress ? (
-                            <div className="muted accounts-sub">{item.poolAddress}</div>
-                          ) : null}
-                          {item.city ? (
-                            <div className="muted accounts-sub">{item.city}</div>
-                          ) : null}
+                          <div className="accounts-name-with-chat">
+                            {renderAccountChatBell(item)}
+                            <div>
+                              <strong className="batch-saved-name">{item.accountName}</strong>
+                              {item.poolAddress ? (
+                                <div className="muted accounts-sub">{item.poolAddress}</div>
+                              ) : null}
+                              {item.city ? (
+                                <div className="muted accounts-sub">{item.city}</div>
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
                         <div className="accounts-block-field" data-label={t('Code')}>
                           {item.accountCode ? (
@@ -854,6 +938,19 @@ export function Accounts() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {session?.userId && chatTarget ? (
+        <SupportChatPanel
+          open
+          onClose={() => {
+            setChatTarget(null);
+            void loadUnread();
+          }}
+          mode="platform"
+          authorUserId={session.userId}
+          targetAccount={chatTarget}
+        />
       ) : null}
     </PlatformShell>
   );

@@ -1,3 +1,4 @@
+import { createAccountNotification } from './accountNotifications.js';
 import { pool } from './db/pool.js';
 import { pageKeysForModules } from './menuAccess.js';
 import {
@@ -166,6 +167,15 @@ export async function processPackageRenewalInbound(params: {
       ].join('\n'),
       'package_renewal_mismatch',
     );
+    await createAccountNotification({
+      saasAccountId: params.saasAccountId,
+      title: 'Package payment not confirmed',
+      body: [
+        'We received your payment screenshot, but could not confirm it yet.',
+        ...reasons,
+        'Please pay the exact amount and send the screenshot again, or open Support if you need help.',
+      ].join('\n'),
+    });
     return;
   }
 
@@ -246,4 +256,19 @@ export async function processPackageRenewalInbound(params: {
       .join('\n'),
     'package_renewal_verified',
   );
+
+  await createAccountNotification({
+    saasAccountId: params.saasAccountId,
+    title: 'Package payment confirmed',
+    body: [
+      `Package: ${renewPackageName}`,
+      `Duration: ${months} month${months === 1 ? '' : 's'}`,
+      `Amount: ₹${expected.toLocaleString('en-IN')}`,
+      transactionId ? `Transaction ID: ${transactionId}` : '',
+      `Valid from: ${renewFrom}`,
+      `Valid until: ${newExpires}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  });
 }
