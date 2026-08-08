@@ -251,6 +251,7 @@ export function AccountPortal() {
         }
       } else if (account && !user.mustChangePassword) {
         setActiveTenant({ id: account.id, accountCode: account.accountCode || code });
+        navigate(`/${code}/dashboard`, { replace: true });
       }
       setLoginPassword('');
       setCurrentPassword('');

@@ -415,8 +415,10 @@ export function AppShell({
   const navigate = useNavigate();
   const routeOutlet = useOutlet();
   const featurePath = featurePathFromLocation(location.pathname);
-  /** Section overview (Setup / Operations / …) — not Dashboard. */
-  const onSectionMenu = featurePath === '/' || featurePath === '/menu';
+  /** Section overview (Setup / Operations / …) — not account root or Dashboard. */
+  const onSectionMenu = featurePath === '/menu';
+  // Keep account root (`/:code`) and `/application` free so the index route can
+  // redirect to Dashboard. Only `/menu` shows the section tile grid.
   const pageContent = onSectionMenu
     ? null
     : featurePage !== undefined
