@@ -91,8 +91,8 @@ const mr: Record<string, string> = {
     'SwimIT हे तुमचे स्विमिंग पूल ऑपरेशन्स, सदस्य, वेळापत्रक आणि आणखी बरेच काही सहजपणे व्यवस्थापित करण्यासाठी एक ऑल-इन-वन प्लॅटफॉर्म आहे.',
   'Everything You Need To Run Your Pool Better':
     'तुमचा पूल चांगल्या प्रकारे चालवण्यासाठी आवश्यक असलेले सर्व काही',
-  'Explore the SwimIT toolkit for members, schedules, payments, attendance, messaging, and day-to-day pool operations.':
-    'सदस्य, वेळापत्रक, पेमेंट, हजेरी, मेसेजिंग आणि रोजच्या पूल ऑपरेशन्ससाठी SwimIT टूलकिट पाहा.',
+  'Explore the SwimIT toolkit for members, schedules, water quality, payments, attendance, messaging, and day-to-day pool operations.':
+    'सदस्य, वेळापत्रक, पाण्याची गुणवत्ता, पेमेंट, हजेरी, मेसेजिंग आणि रोजच्या पूल ऑपरेशन्ससाठी SwimIT टूलकिट पाहा.',
   'Members Management': 'सदस्य व्यवस्थापन',
   'Schedule Management': 'वेळापत्रक व्यवस्थापन',
   'Water Quality Monitoring': 'पाण्याची गुणवत्ता निरीक्षण',
@@ -103,8 +103,14 @@ const mr: Record<string, string> = {
     'सदस्य तपशील, प्लॅन, नूतनीकरण आणि हजेरी सहजपणे व्यवस्थापित करा.',
   'Create, manage and update schedules in real-time.':
     'वेळापत्रक रिअल-टाइममध्ये तयार करा, व्यवस्थापित करा आणि अपडेट करा.',
-  'Track and maintain water quality with automated alerts and reports.':
-    'स्वयंचलित सूचना आणि अहवालांसह पाण्याची गुणवत्ता ट्रॅक करा आणि राखा.',
+  'Track and maintain water quality and reports.':
+    'पाण्याची गुणवत्ता आणि अहवाल ट्रॅक करा आणि राखा.',
+  'Log daily pH, chlorine, alkalinity, and hardness readings':
+    'दररोज pH, क्लोरीन, अल्कॅलिनिटी आणि हार्डनेस रीडिंग्ज नोंदवा',
+  'See Pass or Fail instantly when values are out of range':
+    'मूल्ये श्रेणीबाहेर असताना लगेच पास किंवा फेल पहा',
+  'Download month-wise water quality records for your pool':
+    'तुमच्या पूलसाठी महिन्यानुसार पाण्याची गुणवत्ता नोंदी डाउनलोड करा',
   'Get actionable insights with detailed reports and analytics.':
     'तपशीलवार अहवाल आणि विश्लेषणाने उपयुक्त माहिती मिळवा.',
   'Receive instant alerts for critical tasks and important updates.':
@@ -176,6 +182,19 @@ const mr: Record<string, string> = {
   'Pass Scanner': 'पास स्कॅनर',
   'Coach Payment': 'प्रशिक्षक पेमेंट',
   'Pool Expenses': 'पूल खर्च',
+  'Water Quality': 'पाण्याची गुणवत्ता',
+  'Delete record': 'नोंद हटवा',
+  'No water quality records for this month.': 'या महिन्यासाठी पाण्याची गुणवत्ता नोंद नाही.',
+  'No water quality records yet.': 'अद्याप पाण्याची गुणवत्ता नोंद नाही.',
+  'Date cannot be in the future': 'तारीख भविष्यातील असू शकत नाही',
+  'Tester name is required': 'तपासणी करणाऱ्याचे नाव आवश्यक आहे',
+  'pH Level': 'pH पातळी',
+  'Free Chlorine': 'फ्री क्लोरीन',
+  'Total Alkalinity': 'एकूण अल्कॅलिनिटी',
+  'Calcium Hardness': 'कॅल्शियम हार्डनेस',
+  'Tester Name': 'तपासणी करणाऱ्याचे नाव',
+  Result: 'निकाल',
+  Fail: 'फेल',
   "Swimmer's List": 'पोहणाऱ्यांची यादी',
   'Attendance Sheet': 'हजेरी पत्रक',
   'Staff List': 'कर्मचारी यादी',

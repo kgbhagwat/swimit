@@ -5,6 +5,14 @@ import { PlatformPage } from './PlatformPage';
 
 type NamedCount = { name: string; count: number };
 
+type WaterQualityPoint = {
+  recordDate: string;
+  phLevel: number;
+  freeChlorine: number;
+  totalAlkalinity: number;
+  calciumHardness: number;
+};
+
 type DashboardData = {
   asOf: string;
   poolName: string;
@@ -33,7 +41,27 @@ type DashboardData = {
     coach: NamedCount[];
     passType: NamedCount[];
   };
+  waterQuality?: WaterQualityPoint[];
 };
+
+const WQ_PARAMS = [
+  { key: 'phLevel' as const, label: 'pH Level', unit: '', min: 7.2, max: 7.6 },
+  { key: 'freeChlorine' as const, label: 'Free Chlorine', unit: 'ppm', min: 1, max: 3 },
+  {
+    key: 'totalAlkalinity' as const,
+    label: 'Total Alkalinity',
+    unit: 'ppm',
+    min: 80,
+    max: 120,
+  },
+  {
+    key: 'calciumHardness' as const,
+    label: 'Calcium Hardness',
+    unit: 'ppm',
+    min: 200,
+    max: 400,
+  },
+];
 
 function todayIso() {
   const now = new Date();
@@ -115,7 +143,164 @@ function sampleDashboard(asOf: string): DashboardData {
         { name: 'Trial Pass', count: Math.max(0, newAdmissions - Math.ceil(newAdmissions * 0.67)) },
       ].filter((row) => row.count > 0),
     },
+    waterQuality: sampleWaterQualitySeries(asOf),
   };
+}
+
+function sampleWaterQualitySeries(asOf: string): WaterQualityPoint[] {
+  const points: WaterQualityPoint[] = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const date = new Date(`${asOf}T12:00:00`);
+    date.setDate(date.getDate() - i);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const recordDate = `${y}-${m}-${d}`;
+    if (recordDate > asOf) continue;
+    const seed = Number(recordDate.replace(/\D/g, '')) || 1;
+    points.push({
+      recordDate,
+      phLevel: Number((7.1 + ((seed + i) % 7) * 0.1).toFixed(1)),
+      freeChlorine: Number((0.6 + ((seed + i * 2) % 5) * 0.5).toFixed(1)),
+      totalAlkalinity: 70 + ((seed + i * 3) % 8) * 10,
+      calciumHardness: 180 + ((seed + i * 5) % 9) * 30,
+    });
+  }
+  return points;
+}
+
+function formatWqValue(value: number, unit: string) {
+  const text = value.toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  return unit ? `${text} ${unit}` : text;
+}
+
+function WaterQualityParamChart({
+  label,
+  unit,
+  min,
+  max,
+  points,
+  emptyLabel,
+}: {
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  points: { date: string; value: number }[];
+  emptyLabel: string;
+}) {
+  const t = useT();
+  if (points.length === 0) {
+    return (
+      <div className="dashboard-breakdown-panel dashboard-wq-panel">
+        <h3>{label}</h3>
+        <p className="dashboard-empty muted">{emptyLabel}</p>
+      </div>
+    );
+  }
+
+  const values = points.map((p) => p.value);
+  const dataMax = Math.max(max, ...values);
+  const pad = Math.max(dataMax * 0.08, 0.1);
+  const yMin = 0;
+  const yMax = dataMax + pad;
+  const ySpan = Math.max(yMax - yMin, 0.01);
+
+  const width = 240;
+  const height = 110;
+  const padL = 4;
+  const padR = 4;
+  const padT = 8;
+  const padB = 18;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const xAt = (index: number) =>
+    points.length === 1
+      ? padL + plotW / 2
+      : padL + (index / (points.length - 1)) * plotW;
+  const yAt = (value: number) => padT + (1 - (value - yMin) / ySpan) * plotH;
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${xAt(index).toFixed(1)} ${yAt(point.value).toFixed(1)}`)
+    .join(' ');
+
+  const rangeTop = yAt(max);
+  const rangeBottom = yAt(min);
+  const rangeY = Math.min(rangeTop, rangeBottom);
+  const rangeH = Math.max(Math.abs(rangeBottom - rangeTop), 1);
+
+  const latest = points[points.length - 1];
+  const inRange = latest.value >= min && latest.value <= max;
+
+  return (
+    <div className="dashboard-breakdown-panel dashboard-wq-panel">
+      <div className="dashboard-wq-panel-head">
+        <h3>{label}</h3>
+        <div className="dashboard-wq-head-meta">
+          <span className="dashboard-wq-latest">{formatWqValue(latest.value, unit)}</span>
+          <span className={`dashboard-wq-result ${inRange ? 'is-pass' : 'is-fail'}`}>
+            {inRange ? t('Pass') : t('Fail')}
+          </span>
+        </div>
+      </div>
+      <div className="dashboard-wq-chart" role="img" aria-label={`${label} trend`}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="dashboard-wq-svg" preserveAspectRatio="none">
+          <rect
+            className="dashboard-wq-range"
+            x={padL}
+            y={rangeY}
+            width={plotW}
+            height={rangeH}
+            rx={2}
+          />
+          <line
+            className="dashboard-wq-range-line"
+            x1={padL}
+            y1={rangeTop}
+            x2={padL + plotW}
+            y2={rangeTop}
+          />
+          <line
+            className="dashboard-wq-range-line"
+            x1={padL}
+            y1={rangeBottom}
+            x2={padL + plotW}
+            y2={rangeBottom}
+          />
+          <path className="dashboard-wq-line" d={linePath} />
+          {points.map((point, index) => {
+            const out = point.value < min || point.value > max;
+            return (
+              <circle
+                key={point.date}
+                className={`dashboard-wq-dot${out ? ' is-out' : ''}`}
+                cx={xAt(index)}
+                cy={yAt(point.value)}
+                r={3.2}
+              >
+                <title>{`${point.date}: ${formatWqValue(point.value, unit)}`}</title>
+              </circle>
+            );
+          })}
+          {points.map((point, index) => (
+            <text
+              key={`${point.date}-label`}
+              className="dashboard-wq-x-label"
+              x={xAt(index)}
+              y={height - 4}
+              textAnchor="middle"
+            >
+              {point.date.slice(8, 10)}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
 }
 
 function BreakdownList({ items, emptyLabel }: { items: NamedCount[]; emptyLabel: string }) {
@@ -192,9 +377,6 @@ export function Dashboard() {
   const glanceTitle = isToday
     ? t('Today at a glance')
     : `${dayLabel} ${t('at a glance')}`;
-  const admissionsTitle = isToday
-    ? t('New admissions today')
-    : `${t('New admissions on')} ${dayLabel}`;
 
   return (
     <PlatformPage
@@ -273,33 +455,6 @@ export function Dashboard() {
             </div>
           </section>
 
-          <section className="card dashboard-card pool-core-form" aria-label={admissionsTitle}>
-            <h2>{admissionsTitle}</h2>
-            <div className="dashboard-breakdown-grid">
-              <div className="dashboard-breakdown-panel dashboard-breakdown-panel--batch">
-                <h3>{t('Per batch')}</h3>
-                <BreakdownList
-                  items={data.newAdmissionsBy.batch}
-                  emptyLabel={t('No new admissions on this day.')}
-                />
-              </div>
-              <div className="dashboard-breakdown-panel dashboard-breakdown-panel--coach">
-                <h3>{t('Per coach')}</h3>
-                <BreakdownList
-                  items={data.newAdmissionsBy.coach}
-                  emptyLabel={t('No new admissions on this day.')}
-                />
-              </div>
-              <div className="dashboard-breakdown-panel dashboard-breakdown-panel--pass">
-                <h3>{t('Per pass type')}</h3>
-                <BreakdownList
-                  items={data.newAdmissionsBy.passType}
-                  emptyLabel={t('No new admissions on this day.')}
-                />
-              </div>
-            </div>
-          </section>
-
           <section className="card dashboard-card pool-core-form" aria-label={t('Active swimmers by group')}>
             <h2>{t('Active swimmers')}</h2>
             <div className="dashboard-breakdown-grid">
@@ -324,6 +479,26 @@ export function Dashboard() {
                   emptyLabel={t('No active swimmers for this day.')}
                 />
               </div>
+            </div>
+          </section>
+
+          <section className="card dashboard-card pool-core-form" aria-label={t('Water Quality')}>
+            <h2>{t('Water Quality')}</h2>
+            <div className="dashboard-wq-grid">
+              {WQ_PARAMS.map((param) => (
+                <WaterQualityParamChart
+                  key={param.key}
+                  label={t(param.label)}
+                  unit={param.unit}
+                  min={param.min}
+                  max={param.max}
+                  emptyLabel={t('No water quality records yet.')}
+                  points={(data.waterQuality ?? []).map((row) => ({
+                    date: row.recordDate,
+                    value: row[param.key],
+                  }))}
+                />
+              ))}
             </div>
           </section>
         </div>

@@ -19,6 +19,7 @@ export type MenuPageKey =
   | 'coaches'
   | 'coach-payment'
   | 'pool-expenses'
+  | 'water-quality'
   | 'balance-sheet'
   | 'payment-details'
   | 'pool-core-info'
@@ -51,6 +52,7 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },
   { key: 'coach-payment', section: 'Operations', to: '/coach-payment', label: 'Coach Payment' },
   { key: 'pool-expenses', section: 'Operations', to: '/pool-expenses', label: 'Pool Expenses' },
+  { key: 'water-quality', section: 'Operations', to: '/water-quality', label: 'Water Quality' },
   { key: 'dashboard', section: 'Information', to: '/dashboard', label: 'Dashboard' },
   { key: 'swimmers', section: 'Information', to: '/swimmers', label: "Swimmer's List" },
   { key: 'attendance-sheet', section: 'Information', to: '/attendance-sheet', label: 'Attendance Sheet' },
@@ -82,6 +84,7 @@ export const CORE_PAGE_KEYS: MenuPageKey[] = [
 export const FULL_ONLY_PAGE_KEYS: MenuPageKey[] = [
   'coach-payment',
   'pool-expenses',
+  'water-quality',
   'balance-sheet',
   'holiday-management',
   'whatsapp',

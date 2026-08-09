@@ -276,6 +276,22 @@ export const MENU_ITEMS: MenuItem[] = [
     ),
   },
   {
+    section: 'Operations',
+    to: '/water-quality',
+    label: 'Water Quality',
+    does: 'Records daily water quality checks and related readings for the pool.',
+    helps:
+      'Keeps a month-wise log so staff can track water conditions and download records when needed.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3c-3.6 4.2-6 7.4-6 10.2A6 6 0 0 0 12 19a6 6 0 0 0 6-5.8C18 10.4 15.6 7.2 12 3z" />
+          <path d="M9.5 14.2c.4 1.4 1.5 2.3 2.5 2.3" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
     section: 'Information',
     to: '/balance-sheet',
     label: 'Balance Sheet',

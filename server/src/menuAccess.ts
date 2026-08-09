@@ -9,6 +9,7 @@ export const ACCESS_PAGE_KEYS = [
   'pass-scanner',
   'coach-payment',
   'pool-expenses',
+  'water-quality',
   'dashboard',
   'swimmers',
   'attendance-sheet',
@@ -61,6 +62,7 @@ export const CORE_PAGE_KEYS: readonly AccessPageKey[] = [
 export const FULL_ONLY_PAGE_KEYS: readonly AccessPageKey[] = [
   'coach-payment',
   'pool-expenses',
+  'water-quality',
   'balance-sheet',
   'holiday-management',
   'whatsapp',

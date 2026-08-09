@@ -237,6 +237,45 @@ dashboardRouter.get('/', async (req, res) => {
       ),
     ]);
 
+    let waterQuality: Array<{
+      recordDate: string;
+      phLevel: number;
+      freeChlorine: number;
+      totalAlkalinity: number;
+      calciumHardness: number;
+    }> = [];
+    try {
+      const wq = await pool.query<{
+        record_date: string | Date;
+        ph_level: string | number;
+        free_chlorine: string | number;
+        total_alkalinity: string | number;
+        calcium_hardness: string | number;
+      }>(
+        `SELECT record_date, ph_level, free_chlorine, total_alkalinity, calcium_hardness
+         FROM water_quality
+         WHERE saas_account_id = $1
+           AND record_date <= $2::date
+         ORDER BY record_date DESC, id DESC
+         LIMIT 7`,
+        [accountId, asOf],
+      );
+      waterQuality = wq.rows
+        .map((row) => ({
+          recordDate:
+            typeof row.record_date === 'string'
+              ? row.record_date.slice(0, 10)
+              : row.record_date.toISOString().slice(0, 10),
+          phLevel: Number(row.ph_level),
+          freeChlorine: Number(row.free_chlorine),
+          totalAlkalinity: Number(row.total_alkalinity),
+          calciumHardness: Number(row.calcium_hardness),
+        }))
+        .reverse();
+    } catch (wqErr) {
+      console.warn('[dashboard] water quality series unavailable', wqErr);
+    }
+
     const active = Number(swimmerStats.rows[0]?.active ?? 0);
     const expiringSoon = Number(swimmerStats.rows[0]?.expiring_soon ?? 0);
     const cash = Number(paymentOnDate.rows[0]?.cash ?? 0);
@@ -271,6 +310,7 @@ dashboardRouter.get('/', async (req, res) => {
         coach: toNamedCounts(newByCoach.rows),
         passType: toNamedCounts(newByPassType.rows),
       },
+      waterQuality,
     });
   } catch (err) {
     console.error(err);

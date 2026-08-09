@@ -34,6 +34,13 @@ export function MarketingFeatureIcon({
           <path d="M15.5 13.8v1.4l.9.6" />
         </svg>
       );
+    case 'water':
+      return (
+        <svg {...common}>
+          <path d="M12 3c-3.6 4.2-6 7.4-6 10.2A6 6 0 0 0 12 19a6 6 0 0 0 6-5.8C18 10.4 15.6 7.2 12 3z" />
+          <path d="M9.5 14.2c.4 1.4 1.5 2.3 2.5 2.3" />
+        </svg>
+      );
     case 'reports':
       return (
         <svg {...common}>

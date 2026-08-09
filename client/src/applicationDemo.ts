@@ -12,6 +12,7 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/pass-payment',
   '/whatsapp',
   '/pool-expenses',
+  '/water-quality',
   '/pass-scanner',
   '/coach-payment',
   '/attendance-sheet',
@@ -53,6 +54,7 @@ export type DemoStore = {
   holidaysWeekly: string[];
   holidays: Array<Record<string, unknown>>;
   expenses: Array<Record<string, unknown>>;
+  waterQuality: Array<Record<string, unknown>>;
   attendance: Array<Record<string, unknown>>;
 };
 
@@ -83,6 +85,7 @@ function emptyStore(): DemoStore {
     holidaysWeekly: [],
     holidays: [],
     expenses: [],
+    waterQuality: [],
     attendance: [],
   };
 }

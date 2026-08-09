@@ -31,6 +31,9 @@ const PaymentDetails = lazy(() =>
 const PoolExpenses = lazy(() =>
   import('./PoolExpenses').then((m) => ({ default: m.PoolExpenses })),
 );
+const WaterQuality = lazy(() =>
+  import('./WaterQuality').then((m) => ({ default: m.WaterQuality })),
+);
 const PassPayment = lazy(() => import('./PassPayment').then((m) => ({ default: m.PassPayment })));
 const PassTypePage = lazy(() =>
   import('./PassTypePage').then((m) => ({ default: m.PassTypePage })),
@@ -131,6 +134,7 @@ function appFeatureRoutes() {
       <Route path="pass-payment" element={<PassPayment />} />
       <Route path="whatsapp" element={<WhatsAppMessaging />} />
       <Route path="pool-expenses" element={<PoolExpenses />} />
+      <Route path="water-quality" element={<WaterQuality />} />
       <Route path="pass-scanner" element={<PassScanner />} />
       <Route path="coach-payment" element={<CoachPayment />} />
       <Route path="attendance-sheet" element={<AttendanceSheet />} />
@@ -162,6 +166,7 @@ const legacyFeatureRedirects = (
     <Route path="/pass-payment" element={<RedirectToApplication />} />
     <Route path="/whatsapp" element={<RedirectToApplication />} />
     <Route path="/pool-expenses" element={<RedirectToApplication />} />
+    <Route path="/water-quality" element={<RedirectToApplication />} />
     <Route path="/pass-scanner" element={<RedirectToApplication />} />
     <Route path="/coach-payment" element={<RedirectToApplication />} />
     <Route path="/attendance-sheet" element={<RedirectToApplication />} />

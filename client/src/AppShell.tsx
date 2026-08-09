@@ -775,7 +775,19 @@ export function AppShell({
       <button
         type="button"
         className="app-fullscreen-toggle"
-        onClick={() => setAppFullscreen((open) => !open)}
+        onClick={() => {
+          if (appFullscreen) {
+            setAppFullscreen(false);
+            try {
+              sessionStorage.setItem('swimIT.applicationPreviewFullscreen', '0');
+            } catch {
+              /* ignore */
+            }
+            navigate('/');
+            return;
+          }
+          setAppFullscreen(true);
+        }}
         aria-label={appFullscreen ? 'Exit full screen' : 'Open application full screen'}
         title={appFullscreen ? 'Exit full screen' : 'Full screen'}
       >

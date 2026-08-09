@@ -3,7 +3,7 @@ export type MarketingFeature = {
   title: string;
   summary: string;
   details: string[];
-  icon: 'members' | 'schedule' | 'reports' | 'alerts' | 'integration';
+  icon: 'members' | 'schedule' | 'water' | 'reports' | 'alerts' | 'integration';
 };
 
 export const MARKETING_FEATURES: MarketingFeature[] = [
@@ -28,6 +28,17 @@ export const MARKETING_FEATURES: MarketingFeature[] = [
       'Update schedules without paper registers or scattered sheets',
     ],
     icon: 'schedule',
+  },
+  {
+    id: 'water',
+    title: 'Water Quality Monitoring',
+    summary: 'Track and maintain water quality and reports.',
+    details: [
+      'Log daily pH, chlorine, alkalinity, and hardness readings',
+      'See Pass or Fail instantly when values are out of range',
+      'Download month-wise water quality records for your pool',
+    ],
+    icon: 'water',
   },
   {
     id: 'reports',

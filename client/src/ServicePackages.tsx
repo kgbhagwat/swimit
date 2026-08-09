@@ -70,6 +70,7 @@ const PACKAGE_FEATURES: PackageFeature[] = [
   { label: 'Pool core info', level: 'core' },
   { label: 'Coach payment', level: 'full' },
   { label: 'Pool expenses', level: 'full' },
+  { label: 'Water quality', level: 'full' },
   { label: 'Balance sheet', level: 'full' },
   { label: 'Payment details', level: 'full' },
   { label: 'Holiday management', level: 'full' },

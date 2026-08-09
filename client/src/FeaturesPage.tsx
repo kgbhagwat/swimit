@@ -15,7 +15,7 @@ export function FeaturesPage() {
           <h1>{t('Everything You Need To Run Your Pool Better')}</h1>
           <p className="marketing-features-page-lead">
             {t(
-              'Explore the SwimIT toolkit for members, schedules, payments, attendance, messaging, and day-to-day pool operations.',
+              'Explore the SwimIT toolkit for members, schedules, water quality, payments, attendance, messaging, and day-to-day pool operations.',
             )}
           </p>
         </header>

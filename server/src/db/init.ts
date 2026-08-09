@@ -141,6 +141,42 @@ CREATE TABLE IF NOT EXISTS pool_expenses (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS water_quality (
+  id SERIAL PRIMARY KEY,
+  record_date DATE NOT NULL,
+  ph_level NUMERIC(8, 2) NOT NULL DEFAULT 0,
+  free_chlorine NUMERIC(8, 2) NOT NULL DEFAULT 0,
+  total_alkalinity NUMERIC(8, 2) NOT NULL DEFAULT 0,
+  calcium_hardness NUMERIC(8, 2) NOT NULL DEFAULT 0,
+  tester_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Migrate early placeholder schema (expense-shaped columns) if present.
+ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS record_date DATE;
+ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS ph_level NUMERIC(8, 2) NOT NULL DEFAULT 0;
+ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS free_chlorine NUMERIC(8, 2) NOT NULL DEFAULT 0;
+ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS total_alkalinity NUMERIC(8, 2) NOT NULL DEFAULT 0;
+ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS calcium_hardness NUMERIC(8, 2) NOT NULL DEFAULT 0;
+ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS tester_name TEXT NOT NULL DEFAULT '';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'water_quality' AND column_name = 'expense_date'
+  ) THEN
+    EXECUTE 'UPDATE water_quality SET record_date = expense_date WHERE record_date IS NULL';
+  END IF;
+END $$;
+UPDATE water_quality SET record_date = CURRENT_DATE WHERE record_date IS NULL;
+ALTER TABLE water_quality ALTER COLUMN record_date SET NOT NULL;
+ALTER TABLE water_quality DROP COLUMN IF EXISTS expense_date;
+ALTER TABLE water_quality DROP COLUMN IF EXISTS description;
+ALTER TABLE water_quality DROP COLUMN IF EXISTS amount;
+ALTER TABLE water_quality DROP COLUMN IF EXISTS mode;
+ALTER TABLE water_quality DROP COLUMN IF EXISTS has_bill;
+
 CREATE TABLE IF NOT EXISTS swimmer_attendance (
   id SERIAL PRIMARY KEY,
   registration_id INT NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
@@ -493,6 +529,7 @@ ALTER TABLE batch_schedule_settings ADD COLUMN IF NOT EXISTS saas_account_id INT
 ALTER TABLE batch_slots ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE pool_expenses ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
+ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE holidays ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE swimmer_attendance ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
@@ -529,6 +566,7 @@ CREATE INDEX IF NOT EXISTS staff_registrations_saas_account_idx ON staff_registr
 CREATE INDEX IF NOT EXISTS batch_slots_saas_account_idx ON batch_slots (saas_account_id);
 CREATE INDEX IF NOT EXISTS pass_types_saas_account_idx ON pass_types (saas_account_id);
 CREATE INDEX IF NOT EXISTS pool_expenses_saas_account_idx ON pool_expenses (saas_account_id);
+CREATE INDEX IF NOT EXISTS water_quality_saas_account_idx ON water_quality (saas_account_id);
 CREATE INDEX IF NOT EXISTS holidays_saas_account_idx ON holidays (saas_account_id);
 CREATE INDEX IF NOT EXISTS swimmer_attendance_saas_date_idx
   ON swimmer_attendance (saas_account_id, attendance_date);
@@ -551,6 +589,7 @@ async function assignOrphanRowsToAccount(accountId: number) {
     'batch_slots',
     'pass_types',
     'pool_expenses',
+    'water_quality',
     'holidays',
     'swimmer_attendance',
     'pass_payments',

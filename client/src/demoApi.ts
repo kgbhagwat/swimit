@@ -304,6 +304,61 @@ function handleExpenses(
   return jsonResponse({ error: 'Method not allowed' }, 405);
 }
 
+function handleWaterQuality(
+  method: string,
+  pathname: string,
+  searchParams: URLSearchParams,
+  body: Record<string, unknown>,
+  store: DemoStore,
+) {
+  if (!Array.isArray(store.waterQuality)) store.waterQuality = [];
+  if (method === 'GET' && pathname === '/api/water-quality') {
+    const month = searchParams.get('month') ?? '';
+    const rows = month
+      ? store.waterQuality.filter((e) => String(e.recordDate ?? '').startsWith(month))
+      : store.waterQuality;
+    return jsonResponse(rows);
+  }
+  if (method === 'POST' && pathname === '/api/water-quality') {
+    const row = {
+      id: allocDemoId(store),
+      recordDate: formString(body, 'recordDate'),
+      phLevel: Number(body.phLevel) || 0,
+      freeChlorine: Number(body.freeChlorine) || 0,
+      totalAlkalinity: Number(body.totalAlkalinity) || 0,
+      calciumHardness: Number(body.calciumHardness) || 0,
+      testerName: formString(body, 'testerName'),
+    };
+    store.waterQuality.push(row);
+    writeDemoStore(store);
+    return jsonResponse(row, 201);
+  }
+  const idMatch = pathname.match(/^\/api\/water-quality\/(\d+)$/);
+  if (idMatch && method === 'PUT') {
+    const id = Number(idMatch[1]);
+    const idx = store.waterQuality.findIndex((e) => Number(e.id) === id);
+    if (idx < 0) return jsonResponse({ error: 'Not found' }, 404);
+    store.waterQuality[idx] = {
+      ...store.waterQuality[idx],
+      recordDate: formString(body, 'recordDate') || String(store.waterQuality[idx].recordDate),
+      phLevel: Number(body.phLevel ?? store.waterQuality[idx].phLevel) || 0,
+      freeChlorine: Number(body.freeChlorine ?? store.waterQuality[idx].freeChlorine) || 0,
+      totalAlkalinity: Number(body.totalAlkalinity ?? store.waterQuality[idx].totalAlkalinity) || 0,
+      calciumHardness: Number(body.calciumHardness ?? store.waterQuality[idx].calciumHardness) || 0,
+      testerName: formString(body, 'testerName') || String(store.waterQuality[idx].testerName),
+    };
+    writeDemoStore(store);
+    return jsonResponse(store.waterQuality[idx]);
+  }
+  if (idMatch && method === 'DELETE') {
+    const id = Number(idMatch[1]);
+    store.waterQuality = store.waterQuality.filter((e) => Number(e.id) !== id);
+    writeDemoStore(store);
+    return jsonResponse({ ok: true });
+  }
+  return jsonResponse({ error: 'Method not allowed' }, 405);
+}
+
 function handleUsers(method: string, pathname: string, body: Record<string, unknown>, store: DemoStore) {
   if (method === 'GET' && pathname === '/api/users') {
     return jsonResponse(store.users);
@@ -592,6 +647,9 @@ export async function handleDemoApiRequest(
   if (pathname.startsWith('/api/pool-expenses')) {
     return handleExpenses(method, pathname, searchParams, body, store);
   }
+  if (pathname.startsWith('/api/water-quality')) {
+    return handleWaterQuality(method, pathname, searchParams, body, store);
+  }
   if (pathname.startsWith('/api/users')) return handleUsers(method, pathname, body, store);
   if (pathname.startsWith('/api/registrations')) {
     return handleRegistrations(method, pathname, body, store);
@@ -673,6 +731,34 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
 
   const poolName = String(store.poolCoreInfo.poolName ?? '').trim() || 'Swimming pool';
 
+  function sampleWaterQualitySeries(forDate: string) {
+    const points: Array<{
+      recordDate: string;
+      phLevel: number;
+      freeChlorine: number;
+      totalAlkalinity: number;
+      calciumHardness: number;
+    }> = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const date = new Date(`${forDate}T12:00:00`);
+      date.setDate(date.getDate() - i);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const recordDate = `${y}-${m}-${d}`;
+      if (recordDate > forDate) continue;
+      const seed = Number(recordDate.replace(/\D/g, '')) || 1;
+      points.push({
+        recordDate,
+        phLevel: Number((7.1 + ((seed + i) % 7) * 0.1).toFixed(1)),
+        freeChlorine: Number((0.6 + ((seed + i * 2) % 5) * 0.5).toFixed(1)),
+        totalAlkalinity: 70 + ((seed + i * 3) % 8) * 10,
+        calciumHardness: 180 + ((seed + i * 5) % 9) * 30,
+      });
+    }
+    return points;
+  }
+
   // Preview often starts empty — return day-specific sample so the date picker is obvious.
   if (store.registrations.length === 0) {
     const seed = Number(asOf.replace(/\D/g, '')) || 1;
@@ -733,8 +819,25 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
           { name: 'Trial Pass', count: Math.max(0, newAdmissions - Math.ceil(newAdmissions * 0.67)) },
         ].filter((row) => row.count > 0),
       },
+      waterQuality: sampleWaterQualitySeries(asOf),
     };
   }
+
+  const storedWq = Array.isArray(store.waterQuality)
+    ? store.waterQuality
+        .filter((row) => String(row.recordDate ?? '').slice(0, 10) <= asOf)
+        .sort((a, b) =>
+          String(a.recordDate ?? '').localeCompare(String(b.recordDate ?? '')),
+        )
+        .slice(-7)
+        .map((row) => ({
+          recordDate: String(row.recordDate ?? '').slice(0, 10),
+          phLevel: Number(row.phLevel) || 0,
+          freeChlorine: Number(row.freeChlorine) || 0,
+          totalAlkalinity: Number(row.totalAlkalinity) || 0,
+          calciumHardness: Number(row.calciumHardness) || 0,
+        }))
+    : [];
 
   return {
     asOf,
@@ -765,5 +868,6 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
         return bySnake.length ? bySnake : countBy(newToday, 'passType');
       })(),
     },
+    waterQuality: storedWq.length ? storedWq : sampleWaterQualitySeries(asOf),
   };
 }

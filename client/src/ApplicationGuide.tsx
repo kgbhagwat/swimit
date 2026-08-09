@@ -140,6 +140,9 @@ export function ApplicationGuide() {
             <li>
               <strong>Pool Expenses</strong> — record day-to-day expenses <em>(Full)</em>
             </li>
+            <li>
+              <strong>Water Quality</strong> — record water quality checks <em>(Full)</em>
+            </li>
           </ul>
 
           <p>
