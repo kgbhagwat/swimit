@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { LanguageSwitcher, useT } from './i18n';
 import { PlatformLoginModal, type PlatformLoginFormState } from './PlatformLoginModal';
+import { ThemeToggle, useTheme } from './theme';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home', end: true },
@@ -11,12 +12,21 @@ const NAV_LINKS = [
 
 export function MarketingLayout({ children }: { children: ReactNode }) {
   const t = useT();
+  const location = useLocation();
+  const { setTheme } = useTheme();
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginForm, setLoginForm] = useState<PlatformLoginFormState>({
     accountCode: '',
     userName: 'admin',
     password: '',
   });
+
+  /* Home always opens in light mode; user can still switch to dark with the toggle. */
+  useEffect(() => {
+    if (location.pathname === '/' || location.pathname === '/home') {
+      setTheme('light');
+    }
+  }, [location.pathname, setTheme]);
 
   return (
     <div className="marketing-site">
@@ -45,6 +55,7 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="marketing-nav-actions">
+          <ThemeToggle />
           <LanguageSwitcher />
           <button
             type="button"

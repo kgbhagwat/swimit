@@ -8,6 +8,7 @@ import {
 } from './platformSession';
 import { hasPlatformAccess, type PlatformAccessPageKey } from './platformAccess';
 import { PlatformLoginModal, type PlatformLoginFormState } from './PlatformLoginModal';
+import { ThemeToggle, useTheme } from './theme';
 import { setActiveTenant } from './tenantSession';
 
 function PasswordEyeButton({
@@ -117,6 +118,7 @@ export function PlatformNav({
   onNavigate?: () => void;
 } = {}) {
   const t = useT();
+  const { setTheme } = useTheme();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [loginOpen, setLoginOpen] = useState(false);
@@ -164,22 +166,29 @@ export function PlatformNav({
         aria-label="Platform menu"
       >
         <div className="platform-sidebar-brand">
-          <img
-            src="/swimit-logo.png"
-            alt="SwimIT — Swimming Pool Management System"
-            className="platform-sidebar-logo"
-          />
+          <Link to="/" className="platform-sidebar-brand-link" onClick={onNavigate}>
+            <img
+              src="/swimit-wordmark.png"
+              alt="SwimIT — Swimming Pool Management System"
+              className="platform-sidebar-logo"
+            />
+          </Link>
         </div>
         <ul className="platform-sidebar-list">
           {visibleLinks.map((link) => {
             const active = link.match(pathname);
+            const opensApplication =
+              link.to.startsWith('/application') || link.label === 'View Application';
             return (
               <li key={link.to}>
                 <Link
                   className={`platform-sidebar-link${active ? ' active' : ''}`}
                   to={link.to}
                   aria-current={active ? 'page' : undefined}
-                  onClick={onNavigate}
+                  onClick={() => {
+                    if (opensApplication) setTheme('dark');
+                    onNavigate?.();
+                  }}
                 >
                   <span className="platform-sidebar-link-label">{t(link.label)}</span>
                 </Link>
@@ -207,6 +216,7 @@ export function PlatformNav({
           <span />
         )}
         <div className="platform-main-topbar-actions">
+          <ThemeToggle />
           <LanguageSwitcher />
           {platformUser ? (
             <>

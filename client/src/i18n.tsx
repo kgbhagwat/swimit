@@ -43,6 +43,8 @@ const mr: Record<string, string> = {
   Account: 'खाते',
   Code: 'कोड',
   Language: 'भाषा',
+  'Switch to dark theme': 'गडद थीमवर स्विच करा',
+  'Switch to light theme': 'हलकी थीमवर स्विच करा',
   English: 'English',
   Marathi: 'मराठी',
   'Loading…': 'लोड होत आहे…',

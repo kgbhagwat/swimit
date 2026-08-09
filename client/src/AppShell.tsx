@@ -21,6 +21,7 @@ import { PassPopupOverlay } from './PassPopupOverlay';
 import { PlatformNav } from './PlatformNav';
 import { PlatformPage } from './PlatformPage';
 import { SupportInboxButton } from './SupportInboxButton';
+import { ThemeToggle, useTheme } from './theme';
 import { setActiveTenant } from './tenantSession';
 import { isPassPopupWindow } from './swimmerPass';
 
@@ -411,6 +412,7 @@ export function AppShell({
   children,
 }: AppShellProps = {}) {
   const t = useT();
+  const { setTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -613,6 +615,12 @@ export function AppShell({
     setSearchParams(next, { replace: true });
   }, [tenantAccount, searchParams, setSearchParams]);
 
+  /* View Application preview opens in dark mode. */
+  useEffect(() => {
+    if (tenantAccount) return;
+    setTheme('dark');
+  }, [tenantAccount, setTheme]);
+
   function isMobileMenu() {
     return typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches;
   }
@@ -670,11 +678,13 @@ export function AppShell({
         aria-label={t('Pool menu')}
       >
         <div className="platform-sidebar-brand">
-          <img
-            src="/swimit-logo.png"
-            alt="SwimIT — Swimming Pool Management System"
-            className="platform-sidebar-logo"
-          />
+          <Link to={appPath('/dashboard')} className="platform-sidebar-brand-link" onClick={closeMobileMenu}>
+            <img
+              src="/swimit-wordmark.png"
+              alt="SwimIT — Swimming Pool Management System"
+              className="platform-sidebar-logo"
+            />
+          </Link>
         </div>
         <ul className="platform-sidebar-list">
           {canOpenDashboard ? (
@@ -753,6 +763,7 @@ export function AppShell({
               authorUserId={tenantUser.id}
             />
           ) : null}
+          <ThemeToggle />
           <LanguageSwitcher />
           {tenantAccount ? (
             <TenantUserBar

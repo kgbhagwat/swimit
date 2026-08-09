@@ -1,19 +1,19 @@
 :root {
-  --ink: #1b2f55;
-  --muted: #6b7280;
+  --ink: #0f2748;
+  --muted: #4a6484;
   --line: #d7dde8;
-  --bg: #f3f5f9;
+  --bg: #e5f2fd;
   --app-surface: #e5f2fd;
   --card: #ffffff;
   --emergency: #eaf3fb;
   --medical: #f8efe4;
   --accent: #2f6fed;
-  --accent-dark: #1f54c4;
+  --accent-dark: #1d4ed8;
   --danger: #d92d20;
   --ok: #067647;
   --saas-card: #dfb8ff;
   --saas-card-border: #c89aef;
-  --font: 'Segoe UI', 'Noto Sans', system-ui, sans-serif;
+  --font: 'Outfit', 'Segoe UI', 'Noto Sans', system-ui, sans-serif;
   /* Do not fall back to Segoe UI for Marathi — it draws a dotted circle under ॅ */
   --font-mr: 'Noto Sans Devanagari', 'Nirmala UI', 'Mangal', 'Noto Sans', sans-serif;
 }
@@ -46,6 +46,12 @@ body:has(.platform-shell),
 #root:has(.platform-shell) {
   height: 100%;
   overflow: hidden;
+}
+
+body:has(.platform-shell) {
+  background: #e5f2fd;
+  background-image: none;
+  color: var(--ink);
 }
 
 body {
@@ -124,13 +130,17 @@ a {
   min-width: 0;
 }
 
-/* Application pages: match Batch List card background + type */
+/* Application pages: white panels on Home-matched blue surface */
 .app-shell-body .pass-form-card,
 .app-shell-body .pass-table-card,
 .app-shell-body .attendance-filters,
-.app-shell-body .card:not(.saved-summary):not(.emergency):not(.medical) {
-  background: var(--app-surface);
-  border-color: #b7d4de;
+.app-shell-body .card:not(.saved-summary):not(.emergency):not(.medical),
+.platform-shell-main .pass-form-card,
+.platform-shell-main .pass-table-card,
+.platform-shell-main .card:not(.saved-summary):not(.emergency):not(.medical) {
+  background: #fff;
+  border-color: rgba(47, 111, 237, 0.12);
+  box-shadow: 0 1px 2px rgba(15, 39, 72, 0.04);
 }
 
 .app-shell-body .coach-payment-head,
@@ -162,17 +172,18 @@ a {
 
 .app-shell-body .swimmer-edit-card.pool-core-form,
 .app-shell-body .pass-form-card.pool-core-form.swimmer-edit-card {
-  background: var(--app-surface);
-  border-color: #b7d4de;
+  background: #fff;
+  border-color: rgba(47, 111, 237, 0.12);
 }
 
 .app-shell-body .swimmer-edit-card h2,
 .app-shell-body .platform-payment-txns h2,
 .app-shell-body .attendance-title {
   font-size: 1.2rem;
-  font-weight: 800;
-  color: #1a3568;
+  font-weight: 750;
+  color: #143867;
   line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .app-shell-body .coach-payment-controls .label,
@@ -212,9 +223,10 @@ a {
 .app-shell-body .card > h2,
 .app-shell-body .attendance-title {
   font-size: 1.2rem;
-  font-weight: 800;
-  color: #1a3568;
+  font-weight: 750;
+  color: #143867;
   line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .app-shell-body .pass-form-card .label,
@@ -2283,7 +2295,9 @@ button.platform-rail-link {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
-  background: #fff;
+  background: #e5f2fd;
+  color: var(--ink);
+  font-family: var(--font);
   transition: grid-template-columns 0.2s ease;
   overflow: hidden;
 }
@@ -2311,7 +2325,7 @@ button.platform-rail-link {
   grid-column: 2;
   grid-row: 1;
   z-index: 30;
-  background: #02204d;
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .platform-shell > .platform-shell-main {
@@ -2319,7 +2333,7 @@ button.platform-rail-link {
   grid-row: 2;
   min-width: 0;
   min-height: 0;
-  background: #fff;
+  background: #e5f2fd;
   overflow: auto;
   overscroll-behavior: contain;
   position: relative;
@@ -2357,7 +2371,7 @@ button.platform-rail-link {
 }
 
 .app-preview-topbar-note {
-  color: #e8f0ff;
+  color: #27486f;
   font-size: 0.88rem;
   font-weight: 700;
 }
@@ -2373,18 +2387,18 @@ button.platform-rail-link {
   width: 3.35rem;
   height: 3.35rem;
   padding: 0;
-  border: 1.5px solid #fdba74;
+  border: 1.5px solid rgba(47, 111, 237, 0.35);
   border-radius: 14px;
-  background: #fff7ed;
-  color: #ea580c;
+  background: #fff;
+  color: var(--accent);
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(10, 35, 70, 0.16);
+  box-shadow: 0 8px 20px rgba(15, 39, 72, 0.12);
 }
 
 .app-fullscreen-toggle:hover {
-  background: #ffedd5;
-  border-color: #f97316;
-  color: #c2410c;
+  background: #f7fbff;
+  border-color: var(--accent-dark);
+  color: var(--accent-dark);
 }
 
 .app-fullscreen-toggle svg {
@@ -2407,7 +2421,7 @@ button.platform-rail-link {
   border-radius: 0;
   box-shadow: none;
   box-sizing: border-box;
-  background: #fff;
+  background: transparent;
 }
 
 .platform-main-topbar {
@@ -2415,18 +2429,20 @@ button.platform-rail-link {
   align-items: center;
   justify-content: space-between;
   gap: 0.55rem;
-  padding: 0.75rem 1.25rem 0.7rem;
-  background: #02204d;
+  padding: 0.7rem 1.25rem 0.65rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(47, 111, 237, 0.08);
   box-sizing: border-box;
-  color: #fff;
+  color: var(--ink);
 }
 
 .platform-main-topbar .tenant-package-badge {
-  color: #d7e8ff;
+  color: var(--muted);
 }
 
 .platform-main-topbar .tenant-package-badge strong {
-  color: #fff;
+  color: var(--ink);
 }
 
 .platform-main-topbar-actions {
@@ -2506,47 +2522,61 @@ button.platform-rail-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem 1.15rem;
-  border-radius: 999px;
-  border: none;
+  padding: 0.42rem 0.95rem;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
   font: inherit;
+  font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(47, 111, 237, 0.28);
+  box-shadow: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .platform-main-login:hover {
   background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  transform: translateY(-1px);
 }
 
 .platform-sidebar {
   display: flex;
   flex-direction: column;
-  background: #02204d;
-  color: #fff;
-  border-right: 1px solid rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  border-right: 1px solid rgba(47, 111, 237, 0.1);
   overflow-y: auto;
 }
 
 .platform-sidebar-brand {
-  padding: 0.85rem 0.75rem 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.95rem 0.85rem 0.85rem;
+  border-bottom: 1px solid rgba(47, 111, 237, 0.08);
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
+.platform-sidebar-brand-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
 .platform-sidebar-logo {
   display: block;
   width: 100%;
-  max-width: 13.5rem;
+  max-width: 12.5rem;
   height: auto;
   object-fit: contain;
-  background: #fff;
-  border-radius: 10px;
-  padding: 0.55rem 0.65rem;
+  object-position: center;
+  background: transparent;
+  border-radius: 0;
+  padding: 0.15rem 0.2rem;
 }
 
 .platform-sidebar-list {
@@ -2568,7 +2598,7 @@ button.platform-rail-link {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.92);
+  color: #27486f;
   text-decoration: none;
   font: inherit;
   font-size: 0.95rem;
@@ -2578,14 +2608,14 @@ button.platform-rail-link {
 }
 
 .platform-sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(47, 111, 237, 0.08);
+  color: var(--accent);
 }
 
 .platform-sidebar-link.active {
-  background: #004ebd;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  background: rgba(47, 111, 237, 0.12);
+  color: var(--accent);
+  box-shadow: none;
 }
 
 .platform-sidebar-link-label {
@@ -2633,7 +2663,7 @@ button.platform-rail-link {
   display: block;
   padding: 0.48rem 0.75rem;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--muted);
   text-decoration: none;
   font-size: 0.88rem;
   font-weight: 600;
@@ -2641,14 +2671,14 @@ button.platform-rail-link {
 }
 
 .platform-sidebar-sublink:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(47, 111, 237, 0.07);
+  color: var(--accent);
 }
 
 .platform-sidebar-sublink.active {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  box-shadow: inset 2px 0 0 #7ad7e4;
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--accent-dark);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .platform-main-topbar .platform-profile-btn,
@@ -2712,7 +2742,7 @@ button.platform-rail-link {
 .menu-section-intro {
   margin: 0 0 1.15rem;
   max-width: none;
-  color: #3a4f73;
+  color: var(--muted);
   line-height: 1.5;
 }
 
@@ -2748,9 +2778,10 @@ button.platform-rail-link {
 
 .menu-desc-title {
   margin: 0 0 0.55rem;
-  color: #163a6b;
+  color: #143867;
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: 750;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
@@ -2823,13 +2854,13 @@ button.platform-rail-link {
     width: min(250px, 86vw);
     max-height: none;
     z-index: 50;
-    border-right: 1px solid rgba(0, 0, 0, 0.15);
+    border-right: 1px solid rgba(47, 111, 237, 0.1);
     border-bottom: none;
     transform: translateX(0);
     transition: transform 0.2s ease, visibility 0.2s ease;
     visibility: visible;
     pointer-events: auto;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+    box-shadow: 4px 0 24px rgba(15, 39, 72, 0.1);
   }
 
   .platform-shell--sidebar-collapsed > .platform-sidebar,
@@ -3285,23 +3316,24 @@ button.platform-rail-link {
 
 .home-app-overview {
   margin: 0 0 1.15rem;
-  padding: 1rem 1.1rem 1.1rem;
-  border: 1px solid #b7d4de;
-  border-radius: 12px;
-  background: #e5f2fd;
-  box-shadow: none;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border: 1px solid rgba(47, 111, 237, 0.12);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 39, 72, 0.04);
 }
 
 .home-app-overview h3 {
   margin: 0.95rem 0 0.35rem;
-  color: #1e4a82;
-  font-size: 0.92rem;
-  font-weight: 700;
+  color: #143867;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
 }
 
 .home-app-overview > p {
   margin: 0;
-  color: #3a4f73;
+  color: var(--muted);
   line-height: 1.5;
   font-size: 0.95rem;
 }
@@ -3313,7 +3345,7 @@ button.platform-rail-link {
 .home-app-overview-points {
   margin: 0.35rem 0 0;
   padding-left: 1.15rem;
-  color: #3a4f73;
+  color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.45;
 }
@@ -3631,19 +3663,19 @@ button.platform-rail-link {
   min-height: 3.4rem;
   height: 3.4rem;
   padding: 0 0.95rem 0 3.1rem;
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--accent);
   color: #fff;
   text-decoration: none;
   font-weight: 700;
   font-size: 0.9rem;
-  box-shadow: 0 6px 14px rgba(30, 100, 200, 0.2);
+  box-shadow: 0 6px 14px rgba(47, 111, 237, 0.18);
   transition: background 0.15s ease, transform 0.15s ease;
   overflow: visible;
 }
 
 .menu-tile:hover {
-  background: #1d4ed8;
+  background: var(--accent-dark);
   transform: translateY(-1px);
 }
 
@@ -10039,9 +10071,10 @@ button.icon-action.icon-action-unapproved:hover:not(:disabled) {
 .service-packages-heading h1,
 .service-packages-heading h2 {
   margin: 0;
-  color: #1a3568;
-  font-size: 1.35rem;
-  font-weight: 800;
+  color: #143867;
+  font-size: clamp(1.25rem, 2.2vw, 1.5rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
@@ -10218,22 +10251,22 @@ button.menu-link {
 }
 
 .pass-form-card.pool-core-form {
-  background: var(--app-surface);
-  border-color: #b7d4de;
+  background: #fff;
+  border-color: rgba(47, 111, 237, 0.12);
   padding: 0.75rem 0.9rem 0.85rem;
   margin-bottom: 0.5rem;
 }
 
 .pass-form-card h2 {
   margin: 0 0 0.75rem;
-  color: #1a3568;
+  color: #143867;
   font-size: 1.15rem;
 }
 
 .pass-form-card.pool-core-form .pass-form > h2 {
   font-size: 1.2rem;
-  font-weight: 800;
-  color: #1a3568;
+  font-weight: 750;
+  color: #143867;
   margin: 0 0 0.65rem;
 }
 
@@ -12768,33 +12801,35 @@ button.menu-link {
   max-width: 52rem;
   margin: 0 auto;
   background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 16px;
+  border: 1px solid rgba(47, 111, 237, 0.12);
+  border-radius: 14px;
   padding: 1.5rem 1.6rem 1.75rem;
-  box-shadow: 0 12px 32px rgba(26, 53, 104, 0.07);
+  box-shadow: 0 1px 2px rgba(15, 39, 72, 0.04);
 }
 
 .app-guide-header {
   margin-bottom: 1.35rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(47, 111, 237, 0.1);
 }
 
 .app-guide-eyebrow {
   margin: 0 0 0.35rem;
-  color: #5b6b84;
+  color: var(--accent);
   font-size: 0.8rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .app-guide-header h1 {
   margin: 0;
-  color: #163a6b;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(1.55rem, 3.5vw, 2rem);
-  line-height: 1.2;
+  color: #143867;
+  font-family: var(--font);
+  font-size: clamp(1.35rem, 2.6vw, 1.85rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .app-guide-section {
@@ -12803,25 +12838,28 @@ button.menu-link {
 
 .app-guide-section h2 {
   margin: 0 0 0.65rem;
-  color: #163a6b;
-  font-size: 1.2rem;
+  color: #143867;
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
 }
 
 .app-guide-section h3 {
   margin: 1rem 0 0.45rem;
-  color: #243b66;
+  color: #27486f;
   font-size: 1.02rem;
+  font-weight: 700;
 }
 
 .app-guide-section h4 {
   margin: 0.75rem 0 0.3rem;
-  color: #3a4f73;
+  color: var(--muted);
   font-size: 0.95rem;
 }
 
 .app-guide-section p,
 .app-guide-section li {
-  color: #2f4060;
+  color: var(--muted);
   line-height: 1.55;
 }
 
@@ -12936,14 +12974,17 @@ button.menu-link {
 .dashboard-card,
 .app-shell-body .dashboard-card.card {
   padding: 0.95rem 1.05rem 1.1rem;
-  background: var(--app-surface);
-  border-color: #b7d4de;
+  background: #fff;
+  border-color: rgba(47, 111, 237, 0.12);
+  box-shadow: 0 1px 2px rgba(15, 39, 72, 0.04);
 }
 
 .dashboard-card > h2 {
   margin: 0 0 0.65rem;
   font-size: 1.05rem;
-  color: #1a3568;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #143867;
 }
 
 .dashboard-page--loading {
@@ -13113,8 +13154,10 @@ button.menu-link {
 }
 
 .dashboard-wq-panel {
-  background: #e5f2fd;
-  border-color: #b7d4de;
+  background: #f7fbff;
+  border: 1px solid rgba(47, 111, 237, 0.1);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem 0.85rem;
 }
 
 .dashboard-wq-panel-head {
@@ -15155,4 +15198,1236 @@ body:has(.marketing-site),
   .pricing-card.is-popular {
     transform: none;
   }
+}
+/* Theme toggle */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 1px solid #b7c9e8;
+  border-radius: 10px;
+  background: #fff;
+  color: #1b3a66;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: #f7fbff;
+}
+
+.theme-toggle svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.marketing-nav-actions .theme-toggle {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+/* Dark theme */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #e8f0fa;
+  --muted: #9bb0c9;
+  --line: #2a4260;
+  --bg: #0f1f33;
+  --app-surface: #12263d;
+  --card: #172a42;
+  --emergency: #1a3048;
+  --medical: #2a2430;
+  --accent: #4b84f5;
+  --accent-dark: #6b9cff;
+  --danger: #f07167;
+  --ok: #3dba84;
+}
+
+html[data-theme='dark'] body {
+  color: var(--ink);
+  background-color: #0b1728;
+}
+
+html[data-theme='dark'] body:has(.platform-shell) {
+  background: #0f1f33;
+  background-image: none;
+}
+
+html[data-theme='dark'] body:has(.marketing-site) {
+  background: #0f1f33;
+}
+
+html[data-theme='dark'] .marketing-site {
+  --mkt-ink: #e8f0fa;
+  --mkt-muted: #9bb0c9;
+  --mkt-accent: #4b84f5;
+  --mkt-accent-deep: #6b9cff;
+  --mkt-surface: #0f1f33;
+  background: var(--mkt-surface);
+  color: var(--mkt-ink);
+}
+
+html[data-theme='dark'] .marketing-nav {
+  background: rgba(15, 31, 51, 0.92);
+  border-bottom-color: rgba(75, 132, 245, 0.16);
+}
+
+html[data-theme='dark'] .marketing-brand-logo,
+html[data-theme='dark'] .platform-sidebar-logo,
+html[data-theme='dark'] .platform-login-logo,
+html[data-theme='dark'] .platform-sidebar-brand img,
+html[data-theme='dark'] .marketing-brand img,
+html[data-theme='dark'] img[src*='swimit-wordmark'],
+html[data-theme='dark'] img[src*='swimit-logo'] {
+  /* invert logo for dark UI; lighten blend drops the resulting black PNG plate into the navy surface */
+  filter: invert(1) hue-rotate(180deg);
+  background: transparent !important;
+  mix-blend-mode: lighten;
+}
+
+html[data-theme='dark'] .marketing-nav-link {
+  color: #c5d6eb;
+}
+
+html[data-theme='dark'] .marketing-nav-link:hover,
+html[data-theme='dark'] .marketing-nav-link.is-active {
+  color: var(--mkt-accent);
+}
+
+html[data-theme='dark'] .marketing-btn--outline,
+html[data-theme='dark'] .marketing-btn--ghost {
+  background: transparent;
+  border-color: var(--mkt-accent);
+  color: var(--mkt-accent);
+}
+
+html[data-theme='dark'] .marketing-btn--outline:hover,
+html[data-theme='dark'] .marketing-btn--ghost:hover {
+  background: rgba(75, 132, 245, 0.12);
+  color: var(--mkt-accent-deep);
+  border-color: var(--mkt-accent-deep);
+}
+
+html[data-theme='dark'] .marketing-hero-title,
+html[data-theme='dark'] .marketing-section-title {
+  color: var(--mkt-ink);
+}
+
+html[data-theme='dark'] .marketing-hero-accent {
+  color: #7eb0ff;
+}
+
+html[data-theme='dark'] .marketing-hero-lead,
+html[data-theme='dark'] .marketing-feature-item p,
+html[data-theme='dark'] .marketing-features-page-lead,
+html[data-theme='dark'] .marketing-feature-detail-copy p,
+html[data-theme='dark'] .marketing-feature-detail-copy li {
+  color: var(--mkt-muted);
+}
+
+html[data-theme='dark'] .marketing-highlights {
+  background: linear-gradient(180deg, #16304d 0%, #12263d 100%);
+}
+
+html[data-theme='dark'] .marketing-highlight {
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .marketing-feature-icon {
+  background: #1a3452;
+  color: #7eb0ff;
+}
+
+html[data-theme='dark'] .marketing-feature-item h3,
+html[data-theme='dark'] .marketing-feature-detail-copy h2,
+html[data-theme='dark'] .marketing-features-page-head h1 {
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] .marketing-feature-detail {
+  border-color: rgba(75, 132, 245, 0.16);
+  background: #172a42;
+}
+
+html[data-theme='dark'] .marketing-wave path:nth-child(1) {
+  fill: #16304d;
+}
+
+html[data-theme='dark'] .marketing-wave path:nth-child(2) {
+  fill: #12263d;
+}
+
+html[data-theme='dark'] .pricing-card,
+html[data-theme='dark'] .create-account-card,
+html[data-theme='dark'] .pass-form-card,
+html[data-theme='dark'] .pass-form-card.pool-core-form,
+html[data-theme='dark'] .card:not(.saved-summary):not(.emergency):not(.medical),
+html[data-theme='dark'] .app-guide,
+html[data-theme='dark'] .home-app-overview,
+html[data-theme='dark'] .dashboard-card,
+html[data-theme='dark'] .app-shell-body .dashboard-card.card,
+html[data-theme='dark'] .app-shell-body .pass-form-card,
+html[data-theme='dark'] .app-shell-body .pass-table-card,
+html[data-theme='dark'] .app-shell-body .card:not(.saved-summary):not(.emergency):not(.medical),
+html[data-theme='dark'] .platform-shell-main .pass-form-card,
+html[data-theme='dark'] .platform-shell-main .pass-table-card,
+html[data-theme='dark'] .platform-shell-main .card:not(.saved-summary):not(.emergency):not(.medical) {
+  background: #172a42;
+  border-color: rgba(75, 132, 245, 0.18);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .platform-shell {
+  background: #0f1f33;
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .platform-shell > .platform-shell-main {
+  background: #0f1f33;
+}
+
+html[data-theme='dark'] .platform-sidebar {
+  background: rgba(18, 38, 61, 0.98);
+  border-right-color: rgba(75, 132, 245, 0.16);
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .platform-sidebar-brand {
+  border-bottom-color: rgba(75, 132, 245, 0.14);
+}
+
+html[data-theme='dark'] .platform-sidebar-link {
+  color: #c5d6eb;
+}
+
+html[data-theme='dark'] .platform-sidebar-link:hover {
+  background: rgba(75, 132, 245, 0.12);
+  color: #7eb0ff;
+}
+
+html[data-theme='dark'] .platform-sidebar-link.active {
+  background: rgba(75, 132, 245, 0.18);
+  color: #9ec0ff;
+}
+
+html[data-theme='dark'] .platform-sidebar-sublink {
+  color: #9bb0c9;
+}
+
+html[data-theme='dark'] .platform-sidebar-sublink:hover {
+  background: rgba(75, 132, 245, 0.1);
+  color: #7eb0ff;
+}
+
+html[data-theme='dark'] .platform-sidebar-sublink.active {
+  background: rgba(75, 132, 245, 0.14);
+  color: #9ec0ff;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+html[data-theme='dark'] .platform-main-topbar {
+  background: rgba(18, 38, 61, 0.96);
+  border-bottom-color: rgba(75, 132, 245, 0.14);
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .app-preview-topbar-note {
+  color: #c5d6eb;
+}
+
+html[data-theme='dark'] .platform-sidebar-toggle {
+  border-color: #3a5578;
+  background: #1a3452;
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .platform-sidebar-toggle:hover {
+  border-color: var(--accent);
+  background: #203d5c;
+}
+
+html[data-theme='dark'] .theme-toggle {
+  border-color: #3a5578;
+  background: #1a3452;
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .theme-toggle:hover {
+  border-color: var(--accent);
+  background: #203d5c;
+  color: #9ec0ff;
+}
+
+html[data-theme='dark'] .lang-switcher {
+  border-color: #3a5578;
+  background: #1a3452;
+}
+
+html[data-theme='dark'] .lang-switcher-btn {
+  color: #9bb0c9;
+}
+
+html[data-theme='dark'] .lang-switcher-btn:hover:not(.is-active) {
+  color: #e8f0fa;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] .platform-main-topbar .tenant-profile-btn,
+html[data-theme='dark'] .platform-main-topbar .platform-profile-btn,
+html[data-theme='dark'] .platform-topbar .platform-profile-btn {
+  border-color: #3a5578;
+  background: #1a3452;
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .platform-main-topbar .tenant-profile-btn:hover,
+html[data-theme='dark'] .platform-main-topbar .tenant-profile-btn[aria-expanded='true'],
+html[data-theme='dark'] .platform-main-topbar .platform-profile-btn:hover,
+html[data-theme='dark'] .platform-main-topbar .platform-profile-btn[aria-expanded='true'] {
+  background: #203d5c;
+  border-color: var(--accent);
+  color: #9ec0ff;
+}
+
+html[data-theme='dark'] .platform-page-heading h1,
+html[data-theme='dark'] .platform-page-heading h2,
+html[data-theme='dark'] .service-packages-heading h1,
+html[data-theme='dark'] .service-packages-heading h2,
+html[data-theme='dark'] .pass-form-card h2,
+html[data-theme='dark'] .pass-form-card.pool-core-form .pass-form > h2,
+html[data-theme='dark'] .dashboard-card > h2,
+html[data-theme='dark'] .app-shell-body .pass-form-card > h2,
+html[data-theme='dark'] .app-shell-body .card > h2,
+html[data-theme='dark'] .menu-desc-title,
+html[data-theme='dark'] .home-app-overview h3,
+html[data-theme='dark'] .app-guide-header h1,
+html[data-theme='dark'] .app-guide-section h2 {
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] .menu-section-intro,
+html[data-theme='dark'] .menu-desc-text,
+html[data-theme='dark'] .home-app-overview > p,
+html[data-theme='dark'] .home-app-overview-points,
+html[data-theme='dark'] .app-guide-section p,
+html[data-theme='dark'] .app-guide-section li,
+html[data-theme='dark'] .platform-main-topbar .tenant-package-badge {
+  color: var(--muted);
+}
+
+html[data-theme='dark'] .menu-desc-item {
+  border-bottom-color: rgba(75, 132, 245, 0.12);
+}
+
+html[data-theme='dark'] .app-fullscreen-toggle {
+  background: #172a42;
+  border-color: rgba(75, 132, 245, 0.35);
+  color: #7eb0ff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme='dark'] .app-fullscreen-toggle:hover {
+  background: #1a3452;
+  border-color: var(--accent);
+  color: #9ec0ff;
+}
+
+html[data-theme='dark'] .page {
+  background: #172a42;
+  color: var(--ink);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme='dark'] .platform-shell-main > .page,
+html[data-theme='dark'] .platform-shell-main > .menu-card,
+html[data-theme='dark'] .platform-shell-main > .menu-card--full,
+html[data-theme='dark'] .app-shell-body .page {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Dark theme: all entry + selection controls */
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='range']):not([type='submit']):not([type='button']):not([type='image']),
+html[data-theme='dark'] select,
+html[data-theme='dark'] textarea,
+html[data-theme='dark'] .field input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='submit']):not([type='button']),
+html[data-theme='dark'] .field select,
+html[data-theme='dark'] .field textarea,
+html[data-theme='dark'] .field-control-sm,
+html[data-theme='dark'] .signup-otp-input,
+html[data-theme='dark'] .terms-textarea,
+html[data-theme='dark'] .terms-rich-editor,
+html[data-theme='dark'] .pool-core-form .terms-rich-editor,
+html[data-theme='dark'] .pool-core-form .terms-textarea,
+html[data-theme='dark'] [contenteditable='true'],
+html[data-theme='dark'] .inpage-select-btn,
+html[data-theme='dark'] .inpage-select-trigger,
+html[data-theme='dark'] .inpage-select-menu,
+html[data-theme='dark'] .time-field,
+html[data-theme='dark'] .pool-core-view-text,
+html[data-theme='dark'] .send-form-qr-mobile,
+html[data-theme='dark'] .password-field input,
+html[data-theme='dark'] .mobile-field input,
+html[data-theme='dark'] input[type='date'],
+html[data-theme='dark'] input[type='time'],
+html[data-theme='dark'] input[type='number'],
+html[data-theme='dark'] input[type='email'],
+html[data-theme='dark'] input[type='tel'],
+html[data-theme='dark'] input[type='text'],
+html[data-theme='dark'] input[type='password'],
+html[data-theme='dark'] input[type='search'],
+html[data-theme='dark'] input[type='url'] {
+  background: #12263d !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+  color-scheme: dark;
+}
+
+html[data-theme='dark'] .time-field select,
+html[data-theme='dark'] .inpage-select-trigger span,
+html[data-theme='dark'] .inpage-select-option {
+  background: transparent !important;
+  color: #e8f0fa !important;
+  border-color: transparent !important;
+}
+
+html[data-theme='dark'] .inpage-select-placeholder,
+html[data-theme='dark'] .inpage-select-caret {
+  color: #7a90a8 !important;
+}
+
+html[data-theme='dark'] .inpage-select-option:hover,
+html[data-theme='dark'] .inpage-select-option:focus-visible {
+  background: #1a3452 !important;
+  color: #9ec0ff !important;
+}
+
+html[data-theme='dark'] .inpage-select-option.is-selected {
+  background: #203d5c !important;
+  color: #9ec0ff !important;
+}
+
+html[data-theme='dark'] .inpage-select.is-open .inpage-select-trigger {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(75, 132, 245, 0.22);
+}
+
+html[data-theme='dark'] .inpage-select-menu {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme='dark'] input::placeholder,
+html[data-theme='dark'] textarea::placeholder,
+html[data-theme='dark'] .terms-textarea::placeholder,
+html[data-theme='dark'] .pool-core-form input::placeholder,
+html[data-theme='dark'] .pool-core-form textarea::placeholder,
+html[data-theme='dark'] .pool-core-form .terms-rich-editor:empty:before,
+html[data-theme='dark'] .pool-core-form .terms-rich-editor[data-placeholder]:empty:before {
+  color: #7a90a8 !important;
+}
+
+html[data-theme='dark'] .terms-rich-editor,
+html[data-theme='dark'] .pool-core-form .terms-rich-editor,
+html[data-theme='dark'] .terms-rich-editor div,
+html[data-theme='dark'] .terms-rich-editor p,
+html[data-theme='dark'] .terms-rich-editor span,
+html[data-theme='dark'] .terms-rich-editor li {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .terms-rich-editor strong,
+html[data-theme='dark'] .pool-core-form .terms-rich-editor strong {
+  color: #9ec0ff !important;
+}
+
+html[data-theme='dark'] .password-eye {
+  color: #9bb0c9;
+}
+
+html[data-theme='dark'] .password-eye:hover {
+  color: #e8f0fa;
+}
+
+/* Native date/time calendar icon contrast */
+html[data-theme='dark'] input[type='date']::-webkit-calendar-picker-indicator,
+html[data-theme='dark'] input[type='time']::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}
+
+html[data-theme='dark'] .table-col-filter-menu {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme='dark'] .table-col-filter-search,
+html[data-theme='dark'] .table-col-filter-menu input {
+  background: #12263d !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .table-col-filter-item,
+html[data-theme='dark'] .table-col-filter-item span,
+html[data-theme='dark'] .table-col-filter-label,
+html[data-theme='dark'] .table-col-filter-empty {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .table-col-filter-trigger:hover,
+html[data-theme='dark'] .table-col-filter-trigger.is-open {
+  background: rgba(75, 132, 245, 0.14);
+}
+
+html[data-theme='dark'] .tenant-menu,
+html[data-theme='dark'] .tenant-dropdown,
+html[data-theme='dark'] .platform-profile-menu,
+html[data-theme='dark'] .platform-login-panel,
+html[data-theme='dark'] .platform-login-content,
+html[data-theme='dark'] .modal-panel {
+  background: #172a42 !important;
+  color: #e8f0fa !important;
+  border-color: rgba(75, 132, 245, 0.18);
+}
+
+html[data-theme='dark'] .tenant-menu input,
+html[data-theme='dark'] .tenant-dropdown input,
+html[data-theme='dark'] .platform-profile-menu input,
+html[data-theme='dark'] .platform-login-form input,
+html[data-theme='dark'] .platform-login-form select,
+html[data-theme='dark'] .platform-login-form .password-input-wrap,
+html[data-theme='dark'] .password-input-wrap,
+html[data-theme='dark'] .modal-panel input,
+html[data-theme='dark'] .modal-panel select,
+html[data-theme='dark'] .modal-panel textarea {
+  background: #12263d !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .batch-saved-table th,
+html[data-theme='dark'] .batch-saved-table td,
+html[data-theme='dark'] .pass-table-head,
+html[data-theme='dark'] .pass-row {
+  color: #d7e6f8;
+  background: transparent;
+}
+
+html[data-theme='dark'] .batch-saved-table thead th,
+html[data-theme='dark'] .pass-table-head,
+html[data-theme='dark'] .app-shell-body .coach-payment-head,
+html[data-theme='dark'] .app-shell-body .swimmer-table-head,
+html[data-theme='dark'] .app-shell-body .coach-table-head {
+  background: #1a3452;
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] .dashboard-kpi {
+  border-color: rgba(75, 132, 245, 0.18);
+  color: #0f2748;
+}
+
+html[data-theme='dark'] .dashboard-kpi-label,
+html[data-theme='dark'] .dashboard-kpi-value,
+html[data-theme='dark'] .dashboard-kpi-sub,
+html[data-theme='dark'] .dashboard-kpi-hint {
+  color: inherit;
+}
+
+html[data-theme='dark'] .dashboard-wq-panel {
+  background: #1a3452;
+  border-color: rgba(75, 132, 245, 0.18);
+}
+
+html[data-theme='dark'] .dashboard-card h3 {
+  color: #9bb0c9;
+}
+
+html[data-theme='dark'] .pricing-card h2,
+html[data-theme='dark'] .pricing-card .pricing-price {
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .pricing-card .pricing-features li {
+  color: var(--muted);
+}
+
+/* Dark theme: force readable font colors across app surfaces */
+html[data-theme='dark'] .marketing-site,
+html[data-theme='dark'] .platform-shell,
+html[data-theme='dark'] .platform-shell-main,
+html[data-theme='dark'] .page,
+html[data-theme='dark'] .card,
+html[data-theme='dark'] .pass-form-card,
+html[data-theme='dark'] .pass-table-card,
+html[data-theme='dark'] .dashboard-card,
+html[data-theme='dark'] .home-app-overview,
+html[data-theme='dark'] .app-guide,
+html[data-theme='dark'] .menu-section-overview,
+html[data-theme='dark'] .platform-page,
+html[data-theme='dark'] .tenant-menu,
+html[data-theme='dark'] .tenant-dropdown,
+html[data-theme='dark'] .platform-profile-menu {
+  color: var(--ink);
+}
+
+html[data-theme='dark'] h1,
+html[data-theme='dark'] h2,
+html[data-theme='dark'] h3,
+html[data-theme='dark'] h4,
+html[data-theme='dark'] h5,
+html[data-theme='dark'] h6,
+html[data-theme='dark'] .batch-saved-name,
+html[data-theme='dark'] .pass-form-card .label,
+html[data-theme='dark'] .card .label,
+html[data-theme='dark'] .label,
+html[data-theme='dark'] .pass-option-label,
+html[data-theme='dark'] label,
+html[data-theme='dark'] strong,
+html[data-theme='dark'] b,
+html[data-theme='dark'] dt,
+html[data-theme='dark'] summary {
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] p,
+html[data-theme='dark'] li,
+html[data-theme='dark'] td,
+html[data-theme='dark'] th,
+html[data-theme='dark'] dd,
+html[data-theme='dark'] figcaption,
+html[data-theme='dark'] .pass-row,
+html[data-theme='dark'] .pass-table-body,
+html[data-theme='dark'] .swimmer-row,
+html[data-theme='dark'] .coach-row,
+html[data-theme='dark'] .batch-saved-table,
+html[data-theme='dark'] .batch-saved-table td,
+html[data-theme='dark'] .batch-saved-table th,
+html[data-theme='dark'] .attendance-summary,
+html[data-theme='dark'] .field-hint,
+html[data-theme='dark'] .hint,
+html[data-theme='dark'] .help-text,
+html[data-theme='dark'] .inline-hint,
+html[data-theme='dark'] .platform-page p,
+html[data-theme='dark'] .app-shell-body .label,
+html[data-theme='dark'] .app-shell-body .pass-option-label,
+html[data-theme='dark'] .coach-payment-controls .label,
+html[data-theme='dark'] .expense-month span,
+html[data-theme='dark'] .balance-month-inline .label,
+html[data-theme='dark'] .attendance-filters .label,
+html[data-theme='dark'] .scanner-pass-field .label,
+html[data-theme='dark'] .parent-only-check,
+html[data-theme='dark'] .menu-desc-text,
+html[data-theme='dark'] .app-preview-topbar-note {
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .muted,
+html[data-theme='dark'] .lede,
+html[data-theme='dark'] .pass-count,
+html[data-theme='dark'] .eyebrow,
+html[data-theme='dark'] .marketing-eyebrow,
+html[data-theme='dark'] .app-shell-body .lede,
+html[data-theme='dark'] .app-shell-body .pass-count,
+html[data-theme='dark'] .app-shell-body .muted,
+html[data-theme='dark'] .app-shell-body input::placeholder,
+html[data-theme='dark'] .app-shell-body textarea::placeholder,
+html[data-theme='dark'] .card input::placeholder,
+html[data-theme='dark'] .card textarea::placeholder,
+html[data-theme='dark'] .pass-form-card input::placeholder,
+html[data-theme='dark'] .pass-form-card textarea::placeholder {
+  color: var(--muted);
+}
+
+html[data-theme='dark'] a:not(.menu-tile):not(.marketing-btn):not(.platform-sidebar-link):not(.platform-sidebar-sublink) {
+  color: #7eb0ff;
+}
+
+html[data-theme='dark'] .error,
+html[data-theme='dark'] .req {
+  color: var(--danger);
+}
+
+/* Keep contrast on filled controls / KPI tiles */
+html[data-theme='dark'] .menu-tile,
+html[data-theme='dark'] .menu-tile .menu-tile-label,
+html[data-theme='dark'] .marketing-btn--primary,
+html[data-theme='dark'] .platform-main-login,
+html[data-theme='dark'] .lang-switcher-btn.is-active,
+html[data-theme='dark'] button.submit,
+html[data-theme='dark'] .submit {
+  color: #fff;
+}
+
+html[data-theme='dark'] .menu-tile-icon {
+  color: #4b84f5;
+  background: #12263d;
+  border-color: #4b84f5;
+}
+
+html[data-theme='dark'] .dashboard-kpi,
+html[data-theme='dark'] .dashboard-kpi .dashboard-kpi-label,
+html[data-theme='dark'] .dashboard-kpi .dashboard-kpi-value,
+html[data-theme='dark'] .dashboard-kpi .dashboard-kpi-sub,
+html[data-theme='dark'] .dashboard-kpi .dashboard-kpi-hint {
+  color: #0f2748;
+}
+
+html[data-theme='dark'] .dashboard-breakdown-panel,
+html[data-theme='dark'] .dashboard-breakdown-panel h3,
+html[data-theme='dark'] .dashboard-breakdown-panel li,
+html[data-theme='dark'] .dashboard-breakdown-panel span {
+  color: #0f2748;
+}
+
+html[data-theme='dark'] .dashboard-wq-panel,
+html[data-theme='dark'] .dashboard-wq-panel h3,
+html[data-theme='dark'] .dashboard-wq-panel span,
+html[data-theme='dark'] .dashboard-wq-latest,
+html[data-theme='dark'] .dashboard-wq-x-label {
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .dashboard-wq-result.is-pass {
+  color: #3dba84;
+}
+
+html[data-theme='dark'] .dashboard-wq-result.is-fail {
+  color: #f07167;
+}
+
+html[data-theme='dark'] .tenant-signout-btn {
+  color: #f07167;
+}
+
+html[data-theme='dark'] code {
+  color: #d7e6f8;
+  background: #1a3452;
+}
+
+/* Dark theme: remaining white panels / chips / grids */
+html[data-theme='dark'] .choice-chip,
+html[data-theme='dark'] .holiday-section .choice-chip {
+  background: #12263d !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .choice-chip.selected,
+html[data-theme='dark'] .holiday-section .choice-chip.selected {
+  background: #1a3452 !important;
+  border-color: var(--accent) !important;
+  color: #9ec0ff !important;
+}
+
+html[data-theme='dark'] .holiday-national-list,
+html[data-theme='dark'] .holiday-list,
+html[data-theme='dark'] .holiday-section.card,
+html[data-theme='dark'] .user-management-page .user-mgmt-table-wrap,
+html[data-theme='dark'] .user-management-page .user-mgmt-table,
+html[data-theme='dark'] .user-management-page .user-mgmt-table > thead > tr > th,
+html[data-theme='dark'] .user-management-page .user-mgmt-table > tbody > tr > td,
+html[data-theme='dark'] .user-access-grid th,
+html[data-theme='dark'] .user-access-grid td,
+html[data-theme='dark'] .user-mgmt-card,
+html[data-theme='dark'] .user-management-page:not(.user-management-page--saas) .create-user-form,
+html[data-theme='dark'] .user-management-page:not(.user-management-page--saas) .user-mgmt-card,
+html[data-theme='dark'] .app-shell-body .user-management-page .create-user-form,
+html[data-theme='dark'] .app-shell-body .user-management-page .user-mgmt-card,
+html[data-theme='dark'] .money-input,
+html[data-theme='dark'] .money-prefix,
+html[data-theme='dark'] .pass-name-field input,
+html[data-theme='dark'] .duration-inputs input,
+html[data-theme='dark'] .pass-inline-field input,
+html[data-theme='dark'] .pass-yes-no,
+html[data-theme='dark'] .batch-saved-table-wrap,
+html[data-theme='dark'] .pass-table-card,
+html[data-theme='dark'] .pass-table-body,
+html[data-theme='dark'] .swimmer-list-card,
+html[data-theme='dark'] .attendance-card,
+html[data-theme='dark'] .coach-payment-head,
+html[data-theme='dark'] .expense-table-head {
+  background: #172a42 !important;
+  border-color: rgba(75, 132, 245, 0.18) !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .money-prefix {
+  background: #1a3452 !important;
+  color: #9ec0ff !important;
+  border-right-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .money-input input {
+  background: #12263d !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .pass-option-label,
+html[data-theme='dark'] .pass-form-card.pool-core-form .pass-option-label,
+html[data-theme='dark'] .pass-form-card.pool-core-form .pass-yes-no-option,
+html[data-theme='dark'] .app-shell-body .pass-option-label,
+html[data-theme='dark'] .app-shell-body .label,
+html[data-theme='dark'] .holiday-section .label,
+html[data-theme='dark'] .holiday-section .choice-chip,
+html[data-theme='dark'] .holiday-national-item,
+html[data-theme='dark'] .holiday-national-name,
+html[data-theme='dark'] .holiday-national-date,
+html[data-theme='dark'] .holiday-section h2,
+html[data-theme='dark'] .user-management-page .create-user-form .create-user-top > h2,
+html[data-theme='dark'] .user-management-page .user-mgmt-card > h2,
+html[data-theme='dark'] .user-mgmt-card > h2,
+html[data-theme='dark'] .user-info-name,
+html[data-theme='dark'] .user-management-page .user-info-name,
+html[data-theme='dark'] .user-management-page .create-user-form .label,
+html[data-theme='dark'] .user-management-page .user-access-page,
+html[data-theme='dark'] .user-management-page .user-access-menu,
+html[data-theme='dark'] .user-access-menu,
+html[data-theme='dark'] .user-access-page,
+html[data-theme='dark'] .user-access-grid th,
+html[data-theme='dark'] .user-access-grid td,
+html[data-theme='dark'] .user-mgmt-table,
+html[data-theme='dark'] .user-mgmt-table td,
+html[data-theme='dark'] .user-mgmt-table th {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .holiday-national-item:hover {
+  background: #1a3452 !important;
+}
+
+html[data-theme='dark'] .holiday-national-item.selected {
+  background: #203d5c !important;
+  border-color: rgba(75, 132, 245, 0.35) !important;
+}
+
+html[data-theme='dark'] .holiday-national-item.added {
+  background: #152538 !important;
+}
+
+html[data-theme='dark'] .user-access-grid th {
+  background: #1a3452 !important;
+}
+
+html[data-theme='dark'] .user-access-grid,
+html[data-theme='dark'] .user-mgmt-table,
+html[data-theme='dark'] .user-access-grid th,
+html[data-theme='dark'] .user-access-grid td,
+html[data-theme='dark'] .user-mgmt-table > thead > tr > th,
+html[data-theme='dark'] .user-mgmt-table > tbody > tr > td {
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .user-mgmt-sample-watermark {
+  color: rgba(232, 240, 250, 0.1) !important;
+}
+
+html[data-theme='dark'] .holiday-heading-note,
+html[data-theme='dark'] .holiday-section .hint,
+html[data-theme='dark'] .holiday-national-date,
+html[data-theme='dark'] .user-management-page .user-mgmt-sample-hint,
+html[data-theme='dark'] .user-management-page .create-user-heading-note {
+  color: #9bb0c9 !important;
+}
+
+html[data-theme='dark'] .platform-sidebar-brand,
+html[data-theme='dark'] .platform-sidebar-brand-link {
+  background: transparent !important;
+}
+
+html[data-theme='dark'] .pass-yes-no {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+html[data-theme='dark'] .secondary,
+html[data-theme='dark'] button.secondary,
+html[data-theme='dark'] .pass-form-actions .secondary {
+  background: #1a3452 !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+/* Dark theme: remaining chips, tables, filters, summaries */
+html[data-theme='dark'] .staff-role-option,
+html[data-theme='dark'] .attendance-view-option,
+html[data-theme='dark'] .coach-payment-basis .staff-role-option,
+html[data-theme='dark'] .choice-chip {
+  background: #12263d !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .staff-role-option.selected,
+html[data-theme='dark'] .attendance-view-option.selected,
+html[data-theme='dark'] .coach-payment-basis .staff-role-option.selected,
+html[data-theme='dark'] .choice-chip.selected {
+  background: #1a3452 !important;
+  border-color: var(--accent) !important;
+  color: #9ec0ff !important;
+}
+
+html[data-theme='dark'] .user-access-page-group {
+  background: #12263d !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .user-access-page-group .user-access-page,
+html[data-theme='dark'] .user-access-page-group .user-access-edit {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .expense-entry-row,
+html[data-theme='dark'] .expense-row,
+html[data-theme='dark'] .expense-table-head {
+  background: #152538 !important;
+  border-color: rgba(75, 132, 245, 0.16) !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .expense-bill-radios label {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .attendance-filters,
+html[data-theme='dark'] .app-shell-body .attendance-card.pool-core-form .attendance-filters {
+  background: #152538 !important;
+  border-color: rgba(75, 132, 245, 0.16) !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .attendance-filters .label,
+html[data-theme='dark'] .attendance-summary,
+html[data-theme='dark'] .attendance-legend-item {
+  color: #d7e6f8 !important;
+}
+
+html[data-theme='dark'] .attendance-sheet-scroll,
+html[data-theme='dark'] .attendance-sheet-table,
+html[data-theme='dark'] .attendance-sheet-table th,
+html[data-theme='dark'] .attendance-sheet-table td {
+  background: #172a42 !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .attendance-sheet-table thead th,
+html[data-theme='dark'] .attendance-sheet-table thead .attendance-sticky-col,
+html[data-theme='dark'] .attendance-sheet-table thead .attendance-sticky-col.attendance-swimmer-col-head {
+  background: #1a3452 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .attendance-sheet-table tbody .attendance-sticky-col,
+html[data-theme='dark'] .attendance-swimmer-name {
+  background: #1a3452 !important;
+  color: #9ec0ff !important;
+}
+
+html[data-theme='dark'] .attendance-sheet-table tbody tr:hover .attendance-sticky-col {
+  background: #203d5c !important;
+}
+
+html[data-theme='dark'] .attendance-sheet-table tbody tr:hover td.attendance-day-col:not(.present):not(.attendance-weekly-off):not(.attendance-holiday):not(.attendance-out-of-pass) {
+  background: #1a3452 !important;
+}
+
+html[data-theme='dark'] .attendance-sheet-table thead .attendance-day-col.attendance-weekly-off {
+  background: #4a3a14 !important;
+  color: #ffe8b8 !important;
+}
+
+html[data-theme='dark'] .attendance-sheet-table thead .attendance-day-col.attendance-holiday {
+  background: #4a1f1f !important;
+  color: #f8c9c9 !important;
+}
+
+html[data-theme='dark'] .attendance-day-col.present {
+  background: #1f4a38 !important;
+  color: #b8f0d0 !important;
+}
+
+html[data-theme='dark'] .swimmer-table-head,
+html[data-theme='dark'] .coach-table-head,
+html[data-theme='dark'] .lifeguard-staff-head,
+html[data-theme='dark'] .other-staff-head,
+html[data-theme='dark'] .coach-payment-head,
+html[data-theme='dark'] .pass-table-head,
+html[data-theme='dark'] .app-shell-body .swimmer-table-head,
+html[data-theme='dark'] .app-shell-body .coach-table-head,
+html[data-theme='dark'] .app-shell-body .coach-payment-head,
+html[data-theme='dark'] .app-shell-body .lifeguard-staff-head,
+html[data-theme='dark'] .app-shell-body .other-staff-head,
+html[data-theme='dark'] .app-shell-body .expense-table-head {
+  background: #1a3452 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .swimmer-table-head *,
+html[data-theme='dark'] .coach-table-head *,
+html[data-theme='dark'] .lifeguard-staff-head *,
+html[data-theme='dark'] .other-staff-head *,
+html[data-theme='dark'] .swimmer-sort-btn,
+html[data-theme='dark'] .table-col-filter-label,
+html[data-theme='dark'] .table-col-filter-chevron {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .swimmer-row,
+html[data-theme='dark'] .coach-row,
+html[data-theme='dark'] .lifeguard-staff-row,
+html[data-theme='dark'] .other-staff-row,
+html[data-theme='dark'] .coach-payment-row,
+html[data-theme='dark'] .pass-row {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .balance-summary-card,
+html[data-theme='dark'] .balance-summary-card.credit,
+html[data-theme='dark'] .balance-summary-card.debit,
+html[data-theme='dark'] .balance-summary-card.closing {
+  background: #172a42 !important;
+  border-color: rgba(75, 132, 245, 0.22) !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .balance-summary-card.credit {
+  background: #143528 !important;
+  border-color: #2f6b4a !important;
+}
+
+html[data-theme='dark'] .balance-summary-card.debit {
+  background: #3a1f22 !important;
+  border-color: #6b3a3a !important;
+}
+
+html[data-theme='dark'] .balance-summary-card span,
+html[data-theme='dark'] .balance-summary-card strong {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .balance-summary-card.credit span,
+html[data-theme='dark'] .balance-summary-card.credit strong {
+  color: #8fefb8 !important;
+}
+
+html[data-theme='dark'] .balance-summary-card.debit span,
+html[data-theme='dark'] .balance-summary-card.debit strong {
+  color: #ffb4ae !important;
+}
+
+html[data-theme='dark'] .balance-table,
+html[data-theme='dark'] .balance-head,
+html[data-theme='dark'] .balance-row,
+html[data-theme='dark'] .balance-table > .balance-row:nth-child(even),
+html[data-theme='dark'] .app-shell-body .balance-table .balance-head {
+  background: #172a42 !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .balance-head {
+  background: #1a3452 !important;
+}
+
+html[data-theme='dark'] .balance-table > .balance-row:nth-child(even) {
+  background: #152538 !important;
+}
+
+html[data-theme='dark'] .balance-head > span,
+html[data-theme='dark'] .balance-row > span,
+html[data-theme='dark'] .balance-row > span strong,
+html[data-theme='dark'] .balance-row-title {
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .balance-credit {
+  color: #3dba84 !important;
+}
+
+html[data-theme='dark'] .balance-debit {
+  color: #f07167 !important;
+}
+
+html[data-theme='dark'] .coach-payment-total,
+html[data-theme='dark'] .coach-payment-total-compact {
+  background: #172a42 !important;
+  border-color: rgba(75, 132, 245, 0.22) !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .coach-payment-total span,
+html[data-theme='dark'] .coach-payment-total strong {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .accounts-table-wrap,
+html[data-theme='dark'] .accounts-table,
+html[data-theme='dark'] .accounts-table.platform-payment-txn-table,
+html[data-theme='dark'] .accounts-table.platform-payment-txn-table th,
+html[data-theme='dark'] .accounts-table.platform-payment-txn-table td,
+html[data-theme='dark'] .accounts-table.platform-payment-txn-table tbody tr:nth-child(even) td,
+html[data-theme='dark'] .platform-payment-page .accounts-table-wrap,
+html[data-theme='dark'] .accounts-page .accounts-table,
+html[data-theme='dark'] .accounts-page .accounts-table thead th,
+html[data-theme='dark'] .accounts-page .accounts-table tbody td {
+  background: #172a42 !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .accounts-table.platform-payment-txn-table thead th,
+html[data-theme='dark'] .accounts-table.platform-payment-txn-table .platform-payment-filter-row th {
+  background: #1a3452 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .accounts-table.platform-payment-txn-table .platform-payment-filter-row input {
+  background: #12263d !important;
+  color: #e8f0fa !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .ghost-btn {
+  background: #1a3452 !important;
+  color: #9ec0ff !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .status-switch,
+html[data-theme='dark'] .swimmer-active-switch {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .pass-actions .terms-link,
+html[data-theme='dark'] .pass-actions a,
+html[data-theme='dark'] .view-btn {
+  color: #9ec0ff !important;
+}
+
+/* Dark theme: registration form section panels */
+html[data-theme='dark'] {
+  --emergency: #152538;
+  --medical: #2a2430;
+}
+
+html[data-theme='dark'] .card.emergency,
+html[data-theme='dark'] .card.medical,
+html[data-theme='dark'] .role-card,
+html[data-theme='dark'] .registration-form .registration-section--emergency,
+html[data-theme='dark'] .registration-form .registration-section--medical,
+html[data-theme='dark'] .registration-form .role-card,
+html[data-theme='dark'] .registration-form .coach-card,
+html[data-theme='dark'] .registration-form .lifeguard-card {
+  background: #152538 !important;
+  border-color: rgba(75, 132, 245, 0.2) !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .registration-form .registration-section--medical,
+html[data-theme='dark'] .card.medical {
+  background: #241f2c !important;
+  border-color: rgba(180, 140, 100, 0.35) !important;
+}
+
+html[data-theme='dark'] .registration-form .role-card {
+  background: #2a1f24 !important;
+  border-color: rgba(240, 113, 103, 0.35) !important;
+}
+
+html[data-theme='dark'] .registration-form .registration-section > h2,
+html[data-theme='dark'] .registration-form .registration-section--emergency h2,
+html[data-theme='dark'] .registration-form .registration-section--medical h2,
+html[data-theme='dark'] .registration-form .role-card h2,
+html[data-theme='dark'] .registration-form .role-label,
+html[data-theme='dark'] .registration-form .staff-role-top .radio-option,
+html[data-theme='dark'] .registration-form .label,
+html[data-theme='dark'] .role-label {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .photo-btn,
+html[data-theme='dark'] .menu-send-qr,
+html[data-theme='dark'] .send-form-qr-btn,
+html[data-theme='dark'] .pool-core-upload-trigger {
+  background: #1a3452 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .photo-btn:hover,
+html[data-theme='dark'] .menu-send-qr:hover:not(:disabled),
+html[data-theme='dark'] .pool-core-upload-trigger:hover {
+  background: #203d5c !important;
+  border-color: var(--accent) !important;
+  color: #9ec0ff !important;
+}
+
+/* Dark theme: pricing compare table */
+html[data-theme='dark'] .pricing-compare h2,
+html[data-theme='dark'] .pricing-footer-cta h2,
+html[data-theme='dark'] .pricing-admin-head h2 {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .pricing-compare-lead,
+html[data-theme='dark'] .pricing-footer-cta p {
+  color: #9bb0c9 !important;
+}
+
+html[data-theme='dark'] .pricing-compare-wrap {
+  background: #172a42 !important;
+  border-color: rgba(75, 132, 245, 0.22) !important;
+}
+
+html[data-theme='dark'] .pricing-compare-table th,
+html[data-theme='dark'] .pricing-compare-table td {
+  color: #e8f0fa !important;
+  border-bottom-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .pricing-compare-table thead th {
+  background: #1a3452 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .pricing-compare-table tbody th {
+  background: #152538 !important;
+  color: #d7e6f8 !important;
+}
+
+html[data-theme='dark'] .pricing-compare-table tbody td {
+  background: #172a42 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .pricing-compare-table .package-tick,
+html[data-theme='dark'] .package-tick {
+  color: #3dba84 !important;
+  background: #143528 !important;
+}
+
+html[data-theme='dark'] .pricing-compare-table .package-tick-off {
+  color: #6b7f99 !important;
+}
+
+html[data-theme='dark'] .pricing-footer-cta {
+  background: linear-gradient(180deg, #172a42 0%, #12263d 100%) !important;
+  border-color: rgba(75, 132, 245, 0.22) !important;
+}
+
+html[data-theme='dark'] .pricing-admin {
+  background: #152538 !important;
+  border-color: rgba(75, 132, 245, 0.28) !important;
+  color: #e8f0fa !important;
 }

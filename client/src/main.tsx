@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './styles.css';
 import { LanguageProvider, useT } from './i18n';
+import { ThemeProvider } from './theme';
 import { installTenantFetch } from './tenantSession';
 import { ApplicationDemoSync } from './ApplicationDemoSync';
 import { RequirePlatformSession } from './RequirePlatformSession';
@@ -181,40 +182,42 @@ const legacyFeatureRedirects = (
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LanguageProvider>
-      <BrowserRouter>
-        <ApplicationDemoSync />
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/" element={<MarketingHome />} />
-            <Route path="/home" element={<Navigate to="/" replace />} />
-            <Route path="/features" element={<FeaturesPage />} />
-            <Route path="/application-overview" element={<MainMenu />} />
-            <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
-            <Route path="/create-account" element={<CreateAccount />} />
-            <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />
-            <Route path="/service-packages" element={<ServicePackages />} />
-            <Route path="/platform" element={withPlatformAuth(<PlatformUsersLayout />)}>
-              <Route path="user-management" element={<UserManagement />} />
-              <Route path="create-user" element={<CreateUser />} />
-              <Route path="whatsapp" element={<WhatsAppMessaging />} />
-              <Route path="payment" element={<PlatformPayment />} />
-            </Route>
-            <Route path="/application-guide" element={<ApplicationGuide />} />
-            <Route path="/application" element={<AppShell />}>
-              {appFeatureRoutes()}
-            </Route>
-            {legacyFeatureRedirects}
-            <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
-            <Route
-              path="/:accountCode/open/staff-register"
-              element={<PublicOpenForm kind="staff" />}
-            />
-            <Route path="/:accountCode" element={<AccountPortal />}>
-              {appFeatureRoutes()}
-            </Route>
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <ApplicationDemoSync />
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<MarketingHome />} />
+              <Route path="/home" element={<Navigate to="/" replace />} />
+              <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/application-overview" element={<MainMenu />} />
+              <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
+              <Route path="/create-account" element={<CreateAccount />} />
+              <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />
+              <Route path="/service-packages" element={<ServicePackages />} />
+              <Route path="/platform" element={withPlatformAuth(<PlatformUsersLayout />)}>
+                <Route path="user-management" element={<UserManagement />} />
+                <Route path="create-user" element={<CreateUser />} />
+                <Route path="whatsapp" element={<WhatsAppMessaging />} />
+                <Route path="payment" element={<PlatformPayment />} />
+              </Route>
+              <Route path="/application-guide" element={<ApplicationGuide />} />
+              <Route path="/application" element={<AppShell />}>
+                {appFeatureRoutes()}
+              </Route>
+              {legacyFeatureRedirects}
+              <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
+              <Route
+                path="/:accountCode/open/staff-register"
+                element={<PublicOpenForm kind="staff" />}
+              />
+              <Route path="/:accountCode" element={<AccountPortal />}>
+                {appFeatureRoutes()}
+              </Route>
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </ThemeProvider>
     </LanguageProvider>
   </StrictMode>,
 );

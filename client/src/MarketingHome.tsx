@@ -3,12 +3,15 @@ import { useT } from './i18n';
 import { MarketingFeatureIcon } from './MarketingFeatureIcon';
 import { MarketingLayout } from './MarketingLayout';
 import { MARKETING_FEATURES } from './marketingFeatures';
+import { useTheme } from './theme';
 
 export function MarketingHome() {
   const t = useT();
   const navigate = useNavigate();
+  const { setTheme } = useTheme();
 
   function openExpandedApplication() {
+    setTheme('dark');
     try {
       sessionStorage.setItem('swimIT.applicationPreviewFullscreen', '1');
     } catch {
