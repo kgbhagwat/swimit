@@ -192,6 +192,92 @@ export async function notifyLoginCredentials(params: {
   }
 }
 
+/** Send signup mobile verification OTP on WhatsApp. */
+export async function notifySignupOtp(params: {
+  mobile: string;
+  code: string;
+}): Promise<NotifyCredentialsResult> {
+  const code = String(params.code ?? '').trim();
+  const body = [
+    'SwimIT mobile verification',
+    '',
+    `Your OTP is: ${code}`,
+    '',
+    'This code expires in 10 minutes.',
+    'If you did not request this, ignore this message.',
+  ].join('\n');
+
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    await logOutbound({
+      toMobile: params.mobile,
+      kind: 'signup_otp',
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        toMobile: params.mobile,
+        kind: 'signup_otp_session',
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch (sessionErr) {
+      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
+      await logOutbound({
+        toMobile: params.mobile,
+        kind: 'signup_otp_session',
+        body: 'hello_world',
+        status: 'failed',
+        error: sessionMessage,
+      });
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    if (result.skipped) {
+      await logOutbound({
+        toMobile: params.mobile,
+        kind: 'signup_otp',
+        body,
+        status: 'skipped',
+      });
+      return { ok: true, skipped: true };
+    }
+
+    await logOutbound({
+      toMobile: params.mobile,
+      kind: 'signup_otp',
+      body,
+      status: 'sent',
+    });
+    return {
+      ok: true,
+      skipped: false,
+      to: result.to,
+      messageId: result.messageId,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      toMobile: params.mobile,
+      kind: 'signup_otp',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return {
+      ok: false,
+      error: formatWhatsAppUserError(message, params.mobile),
+    };
+  }
+}
+
 export async function notifyRegistrationConfirmation(params: {
   mobile: string;
   fullName: string;

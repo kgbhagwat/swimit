@@ -31,6 +31,43 @@ function createTransport() {
   });
 }
 
+/** Send a signup verification OTP by email when SMTP is configured. */
+export async function sendOtpEmail(params: {
+  to: string;
+  code: string;
+}): Promise<SendEmailResult> {
+  const to = String(params.to ?? '').trim();
+  const code = String(params.code ?? '').trim();
+  if (!to) return { ok: false, error: 'Email address is empty' };
+  if (!/^\d{6}$/.test(code)) return { ok: false, error: 'Invalid OTP code' };
+  if (!smtpConfigured()) {
+    return { ok: true, skipped: true };
+  }
+
+  const from = String(process.env.SMTP_FROM ?? '').trim();
+  const subject = 'SwimIT verification code';
+  const text = [
+    'Your SwimIT email verification code is:',
+    '',
+    code,
+    '',
+    'This code expires in 10 minutes.',
+    'If you did not request this, you can ignore this email.',
+  ].join('\n');
+
+  try {
+    const info = await createTransport().sendMail({
+      from,
+      to,
+      subject,
+      text,
+    });
+    return { ok: true, skipped: false, messageId: info.messageId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to send email' };
+  }
+}
+
 /** Send a temporary login password by email when SMTP is configured. */
 export async function sendTempPasswordEmail(params: {
   to: string;

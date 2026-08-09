@@ -1,7 +1,15 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState, type ReactNode } from 'react';
 import { useT } from './i18n';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { emailHint, isValidEmail, isValidMobile, mobileHint, MOBILE_INVALID_MSG } from './formValidation';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  emailHint,
+  isValidEmail,
+  isValidMobile,
+  mobileHint,
+  MOBILE_INVALID_MSG,
+  sanitizeMobileInput,
+} from './formValidation';
+import { MarketingLayout } from './MarketingLayout';
 import { MobileField } from './MobileField';
 import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
@@ -34,6 +42,28 @@ type CodeCheck = {
   status: 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
   message: string;
 };
+
+type SignupOtpState = {
+  sent: boolean;
+  verified: boolean;
+  code: string;
+  sending: boolean;
+  verifying: boolean;
+  message: string;
+  error: string;
+  devCode: string;
+};
+
+const emptyOtpState = (): SignupOtpState => ({
+  sent: false,
+  verified: false,
+  code: '',
+  sending: false,
+  verifying: false,
+  message: '',
+  error: '',
+  devCode: '',
+});
 
 type CreatedCredentials = {
   accountName: string;
@@ -112,12 +142,37 @@ function defaultPackageId(packages: ServicePackageOption[]) {
   return String((trial ?? list[0])?.id ?? '');
 }
 
+function GetStartedShell({
+  title,
+  lead,
+  children,
+}: {
+  title: string;
+  lead?: string;
+  children: ReactNode;
+}) {
+  const t = useT();
+  return (
+    <MarketingLayout>
+      <div className="get-started-page">
+        <header className="get-started-hero">
+          <p className="marketing-eyebrow">{t('Get Started')}</p>
+          <h1>{title}</h1>
+          {lead ? <p className="get-started-hero-lead">{lead}</p> : null}
+        </header>
+        {children}
+      </div>
+    </MarketingLayout>
+  );
+}
+
 export function CreateAccount() {
   const t = useT();
   const { id: editIdParam } = useParams();
   const editId = Number(editIdParam);
   const isEdit = Number.isFinite(editId) && editId > 0;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const canManageAccounts = Boolean(getPlatformSession());
   const [form, setForm] = useState<AccountForm>(emptyForm);
   const [packages, setPackages] = useState<ServicePackageOption[]>([]);
@@ -135,6 +190,8 @@ export function CreateAccount() {
   const [originalCode, setOriginalCode] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [emailOtp, setEmailOtp] = useState<SignupOtpState>(emptyOtpState);
+  const [mobileOtp, setMobileOtp] = useState<SignupOtpState>(emptyOtpState);
 
   useEffect(() => {
     void (async () => {
@@ -152,8 +209,20 @@ export function CreateAccount() {
         }));
         setPackages(options);
         if (!isEdit) {
+          const fromQuery = Number(searchParams.get('package'));
+          const queryPackage =
+            Number.isFinite(fromQuery) && fromQuery > 0
+              ? options.find((p) => p.id === fromQuery && p.isActive)
+              : undefined;
           setForm((prev) =>
-            prev.servicePackageId ? prev : { ...prev, servicePackageId: defaultPackageId(options) },
+            prev.servicePackageId
+              ? prev
+              : {
+                  ...prev,
+                  servicePackageId: queryPackage
+                    ? String(queryPackage.id)
+                    : defaultPackageId(options),
+                },
           );
         }
       } catch {
@@ -302,7 +371,94 @@ export function CreateAccount() {
       setForm((prev) => ({ ...prev, accountCode: value as string }));
       return;
     }
+    if (key === 'email') {
+      setEmailOtp(emptyOtpState());
+    }
+    if (key === 'mobile') {
+      setMobileOtp(emptyOtpState());
+    }
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function sendChannelOtp(channel: 'email' | 'mobile') {
+    const setOtp = channel === 'email' ? setEmailOtp : setMobileOtp;
+    setOtp((prev) => ({
+      ...prev,
+      sending: true,
+      error: '',
+      message: '',
+      verified: false,
+      code: '',
+      devCode: '',
+    }));
+    try {
+      if (channel === 'email') {
+        if (!isValidEmail(form.email)) {
+          throw new Error(emailHint(form.email) || 'Enter a valid email address');
+        }
+      } else if (!isValidMobile(form.mobile)) {
+        throw new Error(mobileHint(form.mobile) || MOBILE_INVALID_MSG);
+      }
+
+      const res = await fetch('/api/saas-accounts/send-signup-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          channel === 'email'
+            ? { channel, email: form.email.trim() }
+            : { channel, mobile: form.mobile.trim() },
+        ),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to send OTP');
+      setOtp((prev) => ({
+        ...prev,
+        sending: false,
+        sent: true,
+        message: String(body.message ?? 'OTP sent'),
+        devCode: body.devCode ? String(body.devCode) : '',
+      }));
+    } catch (err) {
+      setOtp((prev) => ({
+        ...prev,
+        sending: false,
+        sent: false,
+        error: err instanceof Error ? err.message : 'Failed to send OTP',
+      }));
+    }
+  }
+
+  async function verifyChannelOtp(channel: 'email' | 'mobile') {
+    const otp = channel === 'email' ? emailOtp : mobileOtp;
+    const setOtp = channel === 'email' ? setEmailOtp : setMobileOtp;
+    setOtp((prev) => ({ ...prev, verifying: true, error: '', message: '' }));
+    try {
+      const res = await fetch('/api/saas-accounts/verify-signup-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          channel === 'email'
+            ? { channel, email: form.email.trim(), code: otp.code.trim() }
+            : { channel, mobile: form.mobile.trim(), code: otp.code.trim() },
+        ),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to verify OTP');
+      setOtp((prev) => ({
+        ...prev,
+        verifying: false,
+        verified: true,
+        message: 'Verified',
+        error: '',
+      }));
+    } catch (err) {
+      setOtp((prev) => ({
+        ...prev,
+        verifying: false,
+        verified: false,
+        error: err instanceof Error ? err.message : 'Failed to verify OTP',
+      }));
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -348,6 +504,14 @@ export function CreateAccount() {
     }
     if (!isValidEmail(form.email)) {
       setError(emailHint(form.email) || 'Enter a valid email address');
+      return;
+    }
+    if (!isEdit && !emailOtp.verified) {
+      setError('Please verify your email with the OTP sent to your inbox');
+      return;
+    }
+    if (!isEdit && !mobileOtp.verified) {
+      setError('Please verify your mobile with the OTP sent on WhatsApp');
       return;
     }
 
@@ -464,22 +628,12 @@ export function CreateAccount() {
 
     const showPayment = !isTrialPackage(created.packageName);
 
-    return (
-      <PlatformShell>
-        <PlatformPage
-          title="Account created"
-          actions={
-            canManageAccounts ? (
-              <Link className="menu-link" to="/accounts">
-                {t('← Accounts')}
-              </Link>
-            ) : undefined
-          }
-        >
-        <p className="lede">{t('Account details for the pool operator.')}</p>
+    const createdBody = (
+      <>
+        <p className="lede get-started-lede">{t('Account details for the pool operator.')}</p>
         {warning ? <p className="error">{t(warning)}</p> : null}
 
-        <section className="pass-form-card account-credentials-card">
+        <section className="pass-form-card account-credentials-card get-started-card">
           <p className={created.whatsappOk ? 'success' : 'error'}>{created.deliveryNote}</p>
 
           <dl className="account-credentials-list">
@@ -538,7 +692,7 @@ export function CreateAccount() {
         </section>
 
         {showPayment ? (
-          <section className="pass-form-card account-created-payment-card">
+          <section className="pass-form-card account-created-payment-card get-started-card">
             <h2>{t('Payment')}</h2>
             <p className="muted" style={{ marginTop: 0 }}>
               {t('This is a paid package. Share the SwimIT payment details below with the pool operator.')}
@@ -584,43 +738,65 @@ export function CreateAccount() {
           </section>
         ) : null}
 
-          <div className="submit-wrap" style={{ marginTop: '1rem' }}>
+          <div className="submit-wrap get-started-actions" style={{ marginTop: '1rem' }}>
             {mailto ? (
-              <a className="ghost-btn" href={mailto}>
+              <a className="marketing-btn marketing-btn--outline" href={mailto}>
                 {t('Email details')}
               </a>
             ) : null}
             {canManageAccounts ? (
-              <Link className="submit" to="/accounts">
+              <Link className="marketing-btn marketing-btn--primary" to="/accounts">
                 {t('Go to Accounts')}
               </Link>
             ) : (
-              <Link className="submit" to="/">
+              <Link className="marketing-btn marketing-btn--primary" to="/">
                 {t('Back to Home')}
               </Link>
             )}
           </div>
-      </PlatformPage>
-      </PlatformShell>
+      </>
+    );
+
+    if (isEdit || canManageAccounts) {
+      return (
+        <PlatformShell>
+          <PlatformPage
+            title="Account created"
+            actions={
+              canManageAccounts ? (
+                <Link className="menu-link" to="/accounts">
+                  {t('← Accounts')}
+                </Link>
+              ) : undefined
+            }
+          >
+            {createdBody}
+          </PlatformPage>
+        </PlatformShell>
+      );
+    }
+
+    return (
+      <GetStartedShell
+        title={t('You are all set')}
+        lead={t('Your SwimIT account is ready. Keep these details for the pool operator.')}
+      >
+        {createdBody}
+      </GetStartedShell>
     );
   }
 
-  return (
-    <PlatformShell>
-      <PlatformPage
-        title={isEdit ? 'Edit Account' : 'Create Account'}
-        actions={
-          canManageAccounts ? (
-            <Link className="menu-link" to="/accounts">
-              {t('← Accounts')}
-            </Link>
-          ) : undefined
-        }
-      >
+  const formBody = (
+    <>
       {loadingAccount ? <p className="muted">{t('Loading account…')}</p> : null}
 
       {!loadingAccount ? (
-      <form className="pass-form-card registration-form create-account-form" onSubmit={onSubmit}>
+      <form
+        className={`pass-form-card registration-form create-account-form${
+          isEdit ? '' : ' get-started-form'
+        }`}
+        onSubmit={onSubmit}
+      >
         <div className="create-account-top-row">
           <label className="field field-beside create-account-package-field">
             <span className="label">
@@ -721,6 +897,92 @@ export function CreateAccount() {
             />
           </label>
 
+          <label className="field field-beside">
+            <span className="label">{t('City')}</span>
+            <input
+              className="create-account-city-input"
+              value={form.city}
+              onChange={(e) => setField('city', e.target.value)}
+              placeholder={t('City')}
+            />
+          </label>
+        </div>
+
+        {!isEdit ? (
+          <div className="field field-beside signup-verify-field">
+            <span className="label">
+              {t('Mobile')} <span className="req">*</span>
+            </span>
+            <div className="signup-otp-inline">
+              <input
+                className="create-account-mobile-input"
+                value={form.mobile}
+                onChange={(e) => setField('mobile', sanitizeMobileInput(e.target.value))}
+                placeholder={t('10-digit number')}
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={10}
+                required
+                aria-invalid={Boolean(mobileHint(form.mobile))}
+              />
+              <button
+                type="button"
+                className="ghost-btn signup-otp-send"
+                disabled={mobileOtp.sending || mobileOtp.verified || !isValidMobile(form.mobile)}
+                onClick={() => void sendChannelOtp('mobile')}
+              >
+                {mobileOtp.sending
+                  ? t('Sending…')
+                  : mobileOtp.verified
+                    ? t('WhatsApp verified')
+                    : t('Send WhatsApp OTP')}
+              </button>
+              <input
+                className="signup-otp-input"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder={t('OTP')}
+                value={mobileOtp.code}
+                disabled={mobileOtp.verified || !mobileOtp.sent}
+                onChange={(e) =>
+                  setMobileOtp((prev) => ({
+                    ...prev,
+                    code: e.target.value.replace(/\D/g, '').slice(0, 6),
+                    error: '',
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={
+                  mobileOtp.verifying ||
+                  mobileOtp.verified ||
+                  !mobileOtp.sent ||
+                  mobileOtp.code.length !== 6
+                }
+                onClick={() => void verifyChannelOtp('mobile')}
+              >
+                {mobileOtp.verifying ? t('Verifying…') : t('Verify')}
+              </button>
+            </div>
+            {mobileHint(form.mobile) ? (
+              <span className="field-error">{mobileHint(form.mobile)}</span>
+            ) : null}
+            {mobileOtp.devCode ? (
+              <p className="signup-otp-hint">
+                {t('Test code')}: {mobileOtp.devCode}
+              </p>
+            ) : null}
+            {mobileOtp.message && !mobileOtp.error ? (
+              <p className={`signup-otp-hint ${mobileOtp.verified ? 'is-verified' : ''}`}>
+                {t(mobileOtp.message)}
+              </p>
+            ) : null}
+            {mobileOtp.error ? <p className="field-error">{mobileOtp.error}</p> : null}
+          </div>
+        ) : (
           <MobileField
             label={t('Mobile')}
             value={form.mobile}
@@ -730,9 +992,82 @@ export function CreateAccount() {
             inputClassName="create-account-mobile-input"
             placeholder={t('10-digit number')}
           />
-        </div>
+        )}
 
-        <div className="grid-2">
+        {!isEdit ? (
+          <div className="field field-beside signup-verify-field">
+            <span className="label">
+              {t('Email')} <span className="req">*</span>
+            </span>
+            <div className="signup-otp-inline">
+              <input
+                className="signup-email-input"
+                type="email"
+                value={form.email}
+                onChange={(e) => setField('email', e.target.value)}
+                placeholder="name@example.com"
+                autoComplete="email"
+                aria-invalid={Boolean(emailHint(form.email))}
+                required
+              />
+              <button
+                type="button"
+                className="ghost-btn signup-otp-send"
+                disabled={emailOtp.sending || emailOtp.verified || !isValidEmail(form.email)}
+                onClick={() => void sendChannelOtp('email')}
+              >
+                {emailOtp.sending
+                  ? t('Sending…')
+                  : emailOtp.verified
+                    ? t('Email verified')
+                    : t('Send email OTP')}
+              </button>
+              <input
+                className="signup-otp-input"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder={t('OTP')}
+                value={emailOtp.code}
+                disabled={emailOtp.verified || !emailOtp.sent}
+                onChange={(e) =>
+                  setEmailOtp((prev) => ({
+                    ...prev,
+                    code: e.target.value.replace(/\D/g, '').slice(0, 6),
+                    error: '',
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={
+                  emailOtp.verifying ||
+                  emailOtp.verified ||
+                  !emailOtp.sent ||
+                  emailOtp.code.length !== 6
+                }
+                onClick={() => void verifyChannelOtp('email')}
+              >
+                {emailOtp.verifying ? t('Verifying…') : t('Verify')}
+              </button>
+            </div>
+            {emailHint(form.email) ? (
+              <span className="field-error">{emailHint(form.email)}</span>
+            ) : null}
+            {emailOtp.devCode ? (
+              <p className="signup-otp-hint">
+                {t('Test code')}: {emailOtp.devCode}
+              </p>
+            ) : null}
+            {emailOtp.message && !emailOtp.error ? (
+              <p className={`signup-otp-hint ${emailOtp.verified ? 'is-verified' : ''}`}>
+                {t(emailOtp.message)}
+              </p>
+            ) : null}
+            {emailOtp.error ? <p className="field-error">{emailOtp.error}</p> : null}
+          </div>
+        ) : (
           <label className="field field-beside">
             <span className="label">
               {t('Email')} <span className="req">*</span>
@@ -750,17 +1085,7 @@ export function CreateAccount() {
               <span className="field-error">{emailHint(form.email)}</span>
             ) : null}
           </label>
-
-          <label className="field field-beside">
-            <span className="label">{t('City')}</span>
-            <input
-              className="create-account-city-input"
-              value={form.city}
-              onChange={(e) => setField('city', e.target.value)}
-              placeholder={t('City')}
-            />
-          </label>
-        </div>
+        )}
 
         {isEdit ? (
           <label className="field field-beside">
@@ -806,12 +1131,13 @@ export function CreateAccount() {
             ) : null}
             <button
               type="submit"
-              className="submit"
+              className={isEdit ? 'submit' : 'marketing-btn marketing-btn--primary marketing-btn--lg'}
               disabled={
                 saving ||
                 codeCheck.status === 'taken' ||
                 codeCheck.status === 'checking' ||
-                (!isEdit && !acceptedTerms)
+                (!isEdit && !acceptedTerms) ||
+                (!isEdit && (!emailOtp.verified || !mobileOtp.verified))
               }
             >
               {saving
@@ -820,7 +1146,7 @@ export function CreateAccount() {
                   : t('Creating…')
                 : isEdit
                   ? t('Save changes')
-                  : t('Create account')}
+                  : t('Get Started')}
             </button>
           </div>
         </div>
@@ -836,7 +1162,40 @@ export function CreateAccount() {
         onAccept={() => setAcceptedTerms(true)}
         variant="account"
       />
-      </PlatformPage>
-    </PlatformShell>
+    </>
+  );
+
+  if (isEdit) {
+    return (
+      <PlatformShell>
+        <PlatformPage
+          title="Edit Account"
+          actions={
+            canManageAccounts ? (
+              <Link className="menu-link" to="/accounts">
+                {t('← Accounts')}
+              </Link>
+            ) : undefined
+          }
+        >
+          {formBody}
+        </PlatformPage>
+      </PlatformShell>
+    );
+  }
+
+  return (
+    <GetStartedShell
+      title={t('Create your SwimIT account')}
+      lead={t(
+        'Tell us about your pool and choose a plan. You will receive login details on WhatsApp after signup.',
+      )}
+    >
+      {formBody}
+      <p className="get-started-pricing-link">
+        {t('Not sure which plan?')}{' '}
+        <Link to="/service-packages">{t('Compare pricing')}</Link>
+      </p>
+    </GetStartedShell>
   );
 }

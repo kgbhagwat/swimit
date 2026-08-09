@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useOutlet, useSearchParams } from 'react-router-dom';
 import {
   ACCESS_PAGES,
   ALL_PAGE_KEYS,
@@ -413,6 +413,7 @@ export function AppShell({
   const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const routeOutlet = useOutlet();
   const featurePath = featurePathFromLocation(location.pathname);
   /** Section overview (Setup / Operations / …) — not account root or Dashboard. */
@@ -592,6 +593,25 @@ export function AppShell({
       return false;
     }
   });
+  const [inIframe, setInIframe] = useState(false);
+
+  useEffect(() => {
+    setInIframe(window.self !== window.top);
+  }, []);
+
+  useEffect(() => {
+    if (tenantAccount) return;
+    if (searchParams.get('expand') !== '1') return;
+    setAppFullscreen(true);
+    try {
+      sessionStorage.setItem('swimIT.applicationPreviewFullscreen', '1');
+    } catch {
+      /* ignore */
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('expand');
+    setSearchParams(next, { replace: true });
+  }, [tenantAccount, searchParams, setSearchParams]);
 
   function isMobileMenu() {
     return typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches;
@@ -789,8 +809,8 @@ export function AppShell({
     );
   }
 
-  /* Full-screen application preview — stays while browsing all app pages. */
-  if (appFullscreen) {
+  /* Full-screen / iframe application preview — stays while browsing all app pages. */
+  if (appFullscreen || inIframe) {
     return (
       <div
         className={`platform-shell platform-shell--app-fullscreen${
@@ -798,7 +818,7 @@ export function AppShell({
         }`}
       >
         {poolMenu}
-        {appSizeToggle}
+        {inIframe ? null : appSizeToggle}
         <PassPopupOverlay />
       </div>
     );

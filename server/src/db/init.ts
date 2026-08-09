@@ -422,6 +422,20 @@ ALTER TABLE saas_package_renewals ADD COLUMN IF NOT EXISTS transaction_id TEXT N
 CREATE INDEX IF NOT EXISTS idx_saas_package_renewals_verified
   ON saas_package_renewals (status, verified_at DESC);
 
+CREATE TABLE IF NOT EXISTS signup_otps (
+  id SERIAL PRIMARY KEY,
+  channel TEXT NOT NULL CHECK (channel IN ('email', 'mobile')),
+  destination TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  verified_at TIMESTAMPTZ,
+  attempts INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_signup_otps_dest
+  ON signup_otps (channel, destination, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS pass_payment_intents (
   id SERIAL PRIMARY KEY,
   saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,

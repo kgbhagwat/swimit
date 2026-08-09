@@ -1,7 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useT } from './i18n';
-import { PlatformShell } from './PlatformShell';
-import { PlatformPage } from './PlatformPage';
+import { MarketingLayout } from './MarketingLayout';
 import { getPlatformSession } from './platformSession';
 
 type ServicePackage = {
@@ -81,7 +81,6 @@ function packageHasFeature(modules: string, feature: PackageFeature, packageName
   if (feature.level === 'core') return true;
   const level = String(modules ?? '').toLowerCase().trim();
   if (level === 'full') return true;
-  // Professional & Enterprise are full-module plans even if an older DB row still says core.
   const name = String(packageName ?? '').toLowerCase().trim();
   return name === 'professional' || name === 'enterprise';
 }
@@ -99,6 +98,15 @@ function FeatureTick({ on }: { on: boolean }) {
   );
 }
 
+function isPopularPlan(item: ServicePackage, list: ServicePackage[]) {
+  const name = item.packageName.toLowerCase().trim();
+  if (name === 'professional') return true;
+  if (list.some((p) => p.packageName.toLowerCase().trim() === 'professional')) return false;
+  const paid = list.filter((p) => p.price > 0);
+  if (paid.length === 0) return false;
+  return item.id === paid[Math.floor((paid.length - 1) / 2)]?.id;
+}
+
 export function ServicePackages() {
   const t = useT();
   const session = getPlatformSession();
@@ -114,6 +122,16 @@ export function ServicePackages() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const visiblePackages = useMemo(
+    () => (canManagePackages ? packages : packages.filter((p) => p.isActive)),
+    [packages, canManagePackages],
+  );
+
+  const pricingPackages = useMemo(
+    () => packages.filter((p) => p.isActive),
+    [packages],
+  );
 
   async function load() {
     setLoading(true);
@@ -264,264 +282,133 @@ export function ServicePackages() {
   }
 
   return (
-    <PlatformShell>
-      <PlatformPage
-        title="Service packages"
-        className="service-packages-page"
-        actions={
-          canManagePackages ? (
-            <button type="button" className="submit" onClick={startCreate}>
-              {t('Create package')}
-            </button>
-          ) : undefined
-        }
-      >
-        {error ? <p className="error">{t(error)}</p> : null}
-        {success ? <p className="success">{t(success)}</p> : null}
+    <MarketingLayout>
+      <div className="pricing-page">
+        <header className="pricing-hero">
+          <p className="marketing-eyebrow">{t('Pricing')}</p>
+          <h1>{t('Simple plans for every pool')}</h1>
+          <p className="pricing-hero-lead">
+            {t(
+              'Choose a SwimIT plan that fits your pool size and operations. Start free, upgrade anytime.',
+            )}
+          </p>
+        </header>
 
-        {canManagePackages && showForm ? (
-          <form className="pass-form-card service-packages-form" onSubmit={onSubmit}>
-            <h2>{editingId ? t('Edit package') : t('New package')}</h2>
+        {error ? <p className="error pricing-status">{t(error)}</p> : null}
+        {success ? <p className="success pricing-status">{t(success)}</p> : null}
 
-            <label className="field">
-              <span className="label">
-                {t('Package name')} <span className="req">*</span>
-              </span>
-              <input
-                value={form.packageName}
-                onChange={(e) => setField('packageName', e.target.value)}
-                placeholder={t('e.g. Trial, Starter, Professional')}
-                required
-              />
-            </label>
+        {loading ? (
+          <p className="muted pricing-status">{t('Loading…')}</p>
+        ) : pricingPackages.length === 0 ? (
+          <p className="pass-empty pricing-status">{t('No service packages yet.')}</p>
+        ) : (
+          <section className="pricing-cards" aria-label={t('Pricing')}>
+            {pricingPackages.map((item) => {
+              const popular = isPopularPlan(item, pricingPackages);
+              const hasDiscount =
+                item.discountedRate != null && item.discountedRate > 0;
+              const displayPrice = hasDiscount ? item.discountedRate! : item.price;
+              const highlights = [
+                item.maxActiveSwimmers == null
+                  ? t('Unlimited swimmers')
+                  : `${item.maxActiveSwimmers} ${t('active swimmers')}`,
+                `${item.maxUsers} ${t('users')}`,
+                item.trialDays > 0
+                  ? `${item.trialDays}-${t('day trial')}`
+                  : item.modules === 'full'
+                    ? t('Full modules')
+                    : t('Core modules'),
+              ];
+              if (item.supportLevel === 'onboarding') {
+                highlights.push(t('Onboarding support'));
+              } else if (item.supportLevel === 'whatsapp' && item.modules === 'full') {
+                // Skip WhatsApp on Trial/Starter (core); keep it on full plans like Enterprise.
+                highlights.push('WhatsApp');
+              }
 
-            <label className="field">
-              <span className="label">{t('Description')}</span>
-              <textarea
-                value={form.description}
-                onChange={(e) => setField('description', e.target.value)}
-                placeholder={t('Short summary of what this plan includes')}
-                rows={3}
-              />
-            </label>
-
-            <div className="form-grid-2">
-              <label className="field">
-                <span className="label">
-                  {t('Price (₹)')} <span className="req">*</span>
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.price}
-                  onChange={(e) => setField('price', e.target.value)}
-                  placeholder="0"
-                  required
-                />
-              </label>
-
-              <label className="field">
-                <span className="label">{t('Discounted rate (₹)')}</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.discountedRate}
-                  onChange={(e) => setField('discountedRate', e.target.value)}
-                  placeholder={t('Blank = no discount')}
-                />
-              </label>
-
-              <label className="field">
-                <span className="label">
-                  {t('Billing period')} <span className="req">*</span>
-                </span>
-                <select
-                  value={form.billingPeriod}
-                  onChange={(e) => setField('billingPeriod', e.target.value)}
+              return (
+                <article
+                  key={item.id}
+                  className={`pricing-card${popular ? ' is-popular' : ''}`}
                 >
-                  <option value="Month">{t('Month')}</option>
-                  <option value="Year">{t('Year')}</option>
-                </select>
-              </label>
+                  {popular ? <span className="pricing-card-badge">{t('Most popular')}</span> : null}
+                  <h2 className="pricing-card-name">{item.packageName}</h2>
+                  <p className="pricing-card-desc">
+                    {item.description || t('SwimIT service package for pool operations.')}
+                  </p>
+                  <div className="pricing-card-price">
+                    {item.price === 0 && !hasDiscount ? (
+                      <span className="pricing-card-amount">{t('Free')}</span>
+                    ) : (
+                      <>
+                        {hasDiscount ? (
+                          <span className="pricing-card-was">{formatMoney(item.price)}</span>
+                        ) : null}
+                        <span className="pricing-card-amount">{formatMoney(displayPrice)}</span>
+                        <span className="pricing-card-period">/ {t(item.billingPeriod)}</span>
+                      </>
+                    )}
+                  </div>
+                  <ul className="pricing-card-points">
+                    {highlights.map((line) => (
+                      <li key={line}>
+                        <span className="pricing-card-check" aria-hidden>
+                          ✓
+                        </span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    to={`/create-account?package=${item.id}`}
+                    className={`marketing-btn pricing-card-cta${
+                      popular ? ' marketing-btn--primary' : ' marketing-btn--outline'
+                    }`}
+                  >
+                    {t('Get Started')}
+                  </Link>
+                </article>
+              );
+            })}
+          </section>
+        )}
 
-              <label className="field">
-                <span className="label">Max active swimmers</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.maxActiveSwimmers}
-                  onChange={(e) => setField('maxActiveSwimmers', e.target.value)}
-                  placeholder={t('Blank = unlimited')}
-                />
-              </label>
-
-              <label className="field">
-                <span className="label">{t('Max users')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.maxUsers}
-                  onChange={(e) => setField('maxUsers', e.target.value)}
-                />
-              </label>
-
-              <label className="field">
-                <span className="label">{t('Trial days')}</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.trialDays}
-                  onChange={(e) => setField('trialDays', e.target.value)}
-                  placeholder={t('0 = paid plan')}
-                />
-              </label>
-
-              <label className="field">
-                <span className="label">{t('Modules')}</span>
-                <select value={form.modules} onChange={(e) => setField('modules', e.target.value)}>
-                  <option value="core">{t('Core (ops)')}</option>
-                  <option value="full">{t('Full (ops + finance)')}</option>
-                </select>
-              </label>
-
-              <label className="field">
-                <span className="label">{t('Support')}</span>
-                <select
-                  value={form.supportLevel}
-                  onChange={(e) => setField('supportLevel', e.target.value)}
-                >
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="priority">{t('Priority')}</option>
-                  <option value="onboarding">{t('Onboarding')}</option>
-                </select>
-              </label>
-
-              <label className="field">
-                <span className="label">{t('Max pools')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.maxPools}
-                  onChange={(e) => setField('maxPools', e.target.value)}
-                />
-              </label>
-            </div>
-
-            <label className="field">
-              <span className="label">{t('Features (optional override)')}</span>
-              <textarea
-                value={form.features}
-                onChange={(e) => setField('features', e.target.value)}
-                placeholder={t('Leave blank to auto-fill from swimmers / modules / support')}
-                rows={2}
-              />
-            </label>
-
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => setField('isActive', e.target.checked)}
-              />
-              <span>{t('Active (available for new accounts)')}</span>
-            </label>
-
-            <div className="submit-wrap">
-              <button type="button" className="ghost-btn" onClick={resetForm}>
-                {t('Cancel')}
-              </button>
-              <button type="submit" className="submit" disabled={saving}>
-                {saving ? t('Saving…') : editingId ? t('Update package') : t('Create package')}
-              </button>
-            </div>
-          </form>
-        ) : null}
-
-        <section className="pass-table-card service-packages-card">
-          {loading ? (
-            <p className="muted">{t('Loading…')}</p>
-          ) : packages.length === 0 ? (
-            <p className="pass-empty">
-              {canManagePackages ? (
-                <>
-                  {t('No service packages yet.')}{' '}
-                  <button type="button" className="terms-link" onClick={startCreate}>
-                    {t('Create the first SwimIT plan')}
-                  </button>
-                  .
-                </>
-              ) : (
-                t('No service packages yet.')
-              )}
+        {!loading && pricingPackages.length > 0 ? (
+          <section className="pricing-compare" aria-labelledby="pricing-compare-heading">
+            <h2 id="pricing-compare-heading">{t('Compare plans')}</h2>
+            <p className="pricing-compare-lead">
+              {t('See what is included in each SwimIT package.')}
             </p>
-          ) : (
-            <div className="batch-saved-table-wrap package-compare-wrap">
-              <table className="batch-saved-table package-compare-table">
+            <div className="pricing-compare-wrap">
+              <table className="pricing-compare-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="package-compare-label-col">
-                      {t('Field')}
-                    </th>
-                    {packages.map((item) => (
-                      <th key={item.id} scope="col" className="package-compare-col">
-                        <strong className="batch-saved-name">{item.packageName}</strong>
-                        {item.trialDays > 0 ? (
-                          <div className="muted package-compare-sub">
-                            {item.trialDays}-{t('day entry trial')}
-                          </div>
-                        ) : null}
+                    <th scope="col">{t('Features')}</th>
+                    {pricingPackages.map((item) => (
+                      <th key={item.id} scope="col">
+                        {item.packageName}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <th scope="row">{t('Description')}</th>
-                    {packages.map((item) => (
-                      <td key={item.id}>{item.description || '—'}</td>
-                    ))}
-                  </tr>
-                  <tr>
                     <th scope="row">{t('Price')}</th>
-                    {packages.map((item) => (
+                    {pricingPackages.map((item) => (
                       <td key={item.id}>
-                        <strong>
-                          {item.price === 0
-                            ? t('Free')
-                            : `${formatMoney(item.price)} / ${item.billingPeriod}`}
-                        </strong>
+                        {item.price === 0
+                          ? t('Free')
+                          : `${formatMoney(
+                              item.discountedRate != null && item.discountedRate > 0
+                                ? item.discountedRate
+                                : item.price,
+                            )} / ${t(item.billingPeriod)}`}
                       </td>
-                    ))}
-                  </tr>
-                  {packages.some(
-                    (item) => item.discountedRate != null && item.discountedRate > 0,
-                  ) ? (
-                    <tr>
-                      <th scope="row">{t('Discounted rate')}</th>
-                      {packages.map((item) => (
-                        <td key={item.id}>
-                          {item.discountedRate != null && item.discountedRate > 0 ? (
-                            <strong>
-                              {formatMoney(item.discountedRate)} / {item.billingPeriod}
-                            </strong>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ) : null}
-                  <tr>
-                    <th scope="row">{t('Billing')}</th>
-                    {packages.map((item) => (
-                      <td key={item.id}>{item.billingPeriod}</td>
                     ))}
                   </tr>
                   <tr>
                     <th scope="row">{t('Max active swimmers')}</th>
-                    {packages.map((item) => (
+                    {pricingPackages.map((item) => (
                       <td key={item.id}>
                         {item.maxActiveSwimmers == null ? t('Unlimited') : item.maxActiveSwimmers}
                       </td>
@@ -529,31 +416,14 @@ export function ServicePackages() {
                   </tr>
                   <tr>
                     <th scope="row">{t('Max users')}</th>
-                    {packages.map((item) => (
+                    {pricingPackages.map((item) => (
                       <td key={item.id}>{item.maxUsers}</td>
                     ))}
                   </tr>
-                  <tr>
-                    <th scope="row">{t('Trial days')}</th>
-                    {packages.map((item) => (
-                      <td key={item.id}>{item.trialDays > 0 ? item.trialDays : '—'}</td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th scope="row">{t('Max pools')}</th>
-                    {packages.map((item) => (
-                      <td key={item.id}>{item.maxPools}</td>
-                    ))}
-                  </tr>
-                  <tr className="package-feature-section">
-                    <th scope="row" colSpan={packages.length + 1}>
-                      {t('Core features')}
-                    </th>
-                  </tr>
-                  {PACKAGE_FEATURES.filter((f) => f.level === 'core').map((feature) => (
-                    <tr key={feature.label} className="package-feature-row">
+                  {PACKAGE_FEATURES.map((feature) => (
+                    <tr key={feature.label}>
                       <th scope="row">{t(feature.label)}</th>
-                      {packages.map((item) => (
+                      {pricingPackages.map((item) => (
                         <td key={item.id}>
                           <FeatureTick
                             on={packageHasFeature(item.modules, feature, item.packageName)}
@@ -562,49 +432,224 @@ export function ServicePackages() {
                       ))}
                     </tr>
                   ))}
-                  <tr className="package-feature-section">
-                    <th scope="row" colSpan={packages.length + 1}>
-                      {t('Full features')}
-                    </th>
-                  </tr>
-                  {PACKAGE_FEATURES.filter((f) => f.level === 'full').map((feature) => (
-                    <tr key={feature.label} className="package-feature-row">
-                      <th scope="row">{t(feature.label)}</th>
-                      {packages.map((item) => (
-                        <td key={item.id}>
-                          <FeatureTick
-                            on={packageHasFeature(item.modules, feature, item.packageName)}
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                  {canManagePackages ? (
-                    <tr>
-                      <th scope="row">{t('Actions')}</th>
-                      {packages.map((item) => (
-                        <td key={item.id}>
-                          <button type="button" className="menu-link" onClick={() => startEdit(item)}>
-                            {t('Edit')}
-                          </button>
-                          {' · '}
-                          <button
-                            type="button"
-                            className="remove-link"
-                            onClick={() => void removePackage(item.id)}
-                          >
-                            {t('Delete')}
-                          </button>
-                        </td>
-                      ))}
-                    </tr>
-                  ) : null}
                 </tbody>
               </table>
             </div>
-          )}
+          </section>
+        ) : null}
+
+        <section className="pricing-footer-cta">
+          <h2>{t('Ready to run your pool better?')}</h2>
+          <p>{t('Create your SwimIT account and start with the plan that fits you.')}</p>
+          <Link to="/create-account" className="marketing-btn marketing-btn--primary marketing-btn--lg">
+            {t('Get Started')}
+          </Link>
         </section>
-      </PlatformPage>
-    </PlatformShell>
+
+        {canManagePackages ? (
+          <section className="pricing-admin" aria-label={t('Service Packages')}>
+            <div className="pricing-admin-head">
+              <div>
+                <h2>{t('Manage packages')}</h2>
+                <p>{t('Platform tools for creating and editing SwimIT plans.')}</p>
+              </div>
+              <button type="button" className="marketing-btn marketing-btn--primary" onClick={startCreate}>
+                {t('Create package')}
+              </button>
+            </div>
+
+            {showForm ? (
+              <form className="pricing-admin-form" onSubmit={onSubmit}>
+                <h3>{editingId ? t('Edit package') : t('New package')}</h3>
+
+                <label className="field">
+                  <span className="label">
+                    {t('Package name')} <span className="req">*</span>
+                  </span>
+                  <input
+                    value={form.packageName}
+                    onChange={(e) => setField('packageName', e.target.value)}
+                    placeholder={t('e.g. Trial, Starter, Professional')}
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span className="label">{t('Description')}</span>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setField('description', e.target.value)}
+                    placeholder={t('Short summary of what this plan includes')}
+                    rows={3}
+                  />
+                </label>
+
+                <div className="form-grid-2">
+                  <label className="field">
+                    <span className="label">
+                      {t('Price (₹)')} <span className="req">*</span>
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.price}
+                      onChange={(e) => setField('price', e.target.value)}
+                      placeholder="0"
+                      required
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Discounted rate (₹)')}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.discountedRate}
+                      onChange={(e) => setField('discountedRate', e.target.value)}
+                      placeholder={t('Blank = no discount')}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">
+                      {t('Billing period')} <span className="req">*</span>
+                    </span>
+                    <select
+                      value={form.billingPeriod}
+                      onChange={(e) => setField('billingPeriod', e.target.value)}
+                    >
+                      <option value="Month">{t('Month')}</option>
+                      <option value="Year">{t('Year')}</option>
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Max active swimmers')}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.maxActiveSwimmers}
+                      onChange={(e) => setField('maxActiveSwimmers', e.target.value)}
+                      placeholder={t('Blank = unlimited')}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Max users')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.maxUsers}
+                      onChange={(e) => setField('maxUsers', e.target.value)}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Trial days')}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.trialDays}
+                      onChange={(e) => setField('trialDays', e.target.value)}
+                      placeholder={t('0 = paid plan')}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Modules')}</span>
+                    <select value={form.modules} onChange={(e) => setField('modules', e.target.value)}>
+                      <option value="core">{t('Core (ops)')}</option>
+                      <option value="full">{t('Full (ops + finance)')}</option>
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Support')}</span>
+                    <select
+                      value={form.supportLevel}
+                      onChange={(e) => setField('supportLevel', e.target.value)}
+                    >
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="priority">{t('Priority')}</option>
+                      <option value="onboarding">{t('Onboarding')}</option>
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Max pools')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.maxPools}
+                      onChange={(e) => setField('maxPools', e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <label className="field">
+                  <span className="label">{t('Features (optional override)')}</span>
+                  <textarea
+                    value={form.features}
+                    onChange={(e) => setField('features', e.target.value)}
+                    placeholder={t('Leave blank to auto-fill from swimmers / modules / support')}
+                    rows={2}
+                  />
+                </label>
+
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(e) => setField('isActive', e.target.checked)}
+                  />
+                  <span>{t('Active (available for new accounts)')}</span>
+                </label>
+
+                <div className="submit-wrap">
+                  <button type="button" className="ghost-btn" onClick={resetForm}>
+                    {t('Cancel')}
+                  </button>
+                  <button type="submit" className="submit" disabled={saving}>
+                    {saving ? t('Saving…') : editingId ? t('Update package') : t('Create package')}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {visiblePackages.length > 0 ? (
+              <div className="pricing-admin-list">
+                {visiblePackages.map((item) => (
+                  <div key={item.id} className="pricing-admin-row">
+                    <div>
+                      <strong>{item.packageName}</strong>
+                      <span className="muted">
+                        {item.isActive ? t('Active') : t('Inactive')} ·{' '}
+                        {item.price === 0
+                          ? t('Free')
+                          : `${formatMoney(item.price)} / ${t(item.billingPeriod)}`}
+                      </span>
+                    </div>
+                    <div className="pricing-admin-row-actions">
+                      <button type="button" className="menu-link" onClick={() => startEdit(item)}>
+                        {t('Edit')}
+                      </button>
+                      <button
+                        type="button"
+                        className="remove-link"
+                        onClick={() => void removePackage(item.id)}
+                      >
+                        {t('Delete')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
+    </MarketingLayout>
   );
 }

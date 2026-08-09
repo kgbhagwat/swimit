@@ -67,6 +67,12 @@ const ServicePackages = lazy(() =>
 const ApplicationGuide = lazy(() =>
   import('./ApplicationGuide').then((m) => ({ default: m.ApplicationGuide })),
 );
+const MarketingHome = lazy(() =>
+  import('./MarketingHome').then((m) => ({ default: m.MarketingHome })),
+);
+const FeaturesPage = lazy(() =>
+  import('./FeaturesPage').then((m) => ({ default: m.FeaturesPage })),
+);
 const AccountPortal = lazy(() =>
   import('./AccountPortal').then((m) => ({ default: m.AccountPortal })),
 );
@@ -174,7 +180,10 @@ createRoot(document.getElementById('root')!).render(
         <ApplicationDemoSync />
         <Suspense fallback={<RouteFallback />}>
           <Routes>
-            <Route path="/" element={<MainMenu />} />
+            <Route path="/" element={<MarketingHome />} />
+            <Route path="/home" element={<Navigate to="/" replace />} />
+            <Route path="/features" element={<FeaturesPage />} />
+            <Route path="/application-overview" element={<MainMenu />} />
             <Route path="/accounts" element={withPlatformAuth(<Accounts />)} />
             <Route path="/create-account" element={<CreateAccount />} />
             <Route path="/create-account/:id" element={withPlatformAuth(<CreateAccount />)} />

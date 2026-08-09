@@ -5,6 +5,13 @@ import { pageKeysForModules } from '../menuAccess.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { isEmailDeliveryConfigured, sendTempPasswordEmail } from '../email.js';
 import { hashPassword, generateTempPassword, verifyPassword } from '../password.js';
+import {
+  assertSignupContactsVerified,
+  normalizeSignupDestination,
+  sendSignupOtp,
+  verifySignupOtp,
+  type SignupOtpChannel,
+} from '../signupOtp.js';
 import { getWhatsAppConfig } from '../whatsapp/config.js';
 import { notifyLoginCredentials, notifyPackageRenewalPayment } from '../whatsapp/notify.js';
 import {
@@ -337,6 +344,77 @@ saasAccountsRouter.delete('/:id', async (req, res) => {
   }
 });
 
+saasAccountsRouter.post('/send-signup-otp', async (req, res) => {
+  try {
+    const channel = String((req.body as { channel?: string })?.channel ?? '').trim() as SignupOtpChannel;
+    if (channel !== 'email' && channel !== 'mobile') {
+      res.status(400).json({ error: 'channel must be email or mobile' });
+      return;
+    }
+    const raw =
+      channel === 'email'
+        ? String((req.body as { email?: string })?.email ?? '')
+        : String((req.body as { mobile?: string })?.mobile ?? '');
+    const normalized = normalizeSignupDestination(channel, raw);
+    if ('error' in normalized) {
+      res.status(400).json({ error: normalized.error });
+      return;
+    }
+
+    const result = await sendSignupOtp({
+      channel,
+      destination: normalized.destination,
+    });
+    if (!result.ok) {
+      res.status(500).json({ error: result.error });
+      return;
+    }
+    res.json({
+      ok: true,
+      skipped: result.skipped,
+      message: result.message,
+      ...(result.devCode ? { devCode: result.devCode } : {}),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to send OTP' });
+  }
+});
+
+saasAccountsRouter.post('/verify-signup-otp', async (req, res) => {
+  try {
+    const channel = String((req.body as { channel?: string })?.channel ?? '').trim() as SignupOtpChannel;
+    if (channel !== 'email' && channel !== 'mobile') {
+      res.status(400).json({ error: 'channel must be email or mobile' });
+      return;
+    }
+    const raw =
+      channel === 'email'
+        ? String((req.body as { email?: string })?.email ?? '')
+        : String((req.body as { mobile?: string })?.mobile ?? '');
+    const code = String((req.body as { code?: string })?.code ?? '');
+    const normalized = normalizeSignupDestination(channel, raw);
+    if ('error' in normalized) {
+      res.status(400).json({ error: normalized.error });
+      return;
+    }
+
+    const result = await verifySignupOtp({
+      channel,
+      destination: normalized.destination,
+      code,
+    });
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json({ ok: true, alreadyVerified: result.alreadyVerified === true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to verify OTP' });
+  }
+});
+
 saasAccountsRouter.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -353,6 +431,12 @@ saasAccountsRouter.post('/', async (req, res) => {
 
     const mobile = sanitizeMobile(body.mobile);
     const email = normalizeEmail(body.email);
+
+    const otpGate = await assertSignupContactsVerified(email, mobile);
+    if (!otpGate.ok) {
+      res.status(400).json({ error: otpGate.error });
+      return;
+    }
     const accountCode = normalizeAccountCode(body.accountCode);
     let packageId =
       body.servicePackageId === undefined ||

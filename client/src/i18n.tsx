@@ -18,6 +18,8 @@ const mr: Record<string, string> = {
   'Pool management': 'पूल व्यवस्थापन',
   'Application preview': 'अप्लिकेशन पूर्वावलोकन',
   'View Application': 'अप्लिकेशन पहा',
+  'Open application full screen': 'अप्लिकेशन पूर्ण स्क्रीन उघडा',
+  'Exit full screen': 'पूर्ण स्क्रीन बंद करा',
   'Hide menu': 'मेनू लपवा',
   'Show menu': 'मेनू दाखवा',
   'Close menu': 'मेनू बंद करा',
@@ -46,6 +48,69 @@ const mr: Record<string, string> = {
   'Loading…': 'लोड होत आहे…',
   'Not found': 'सापडले नाही',
   Home: 'मुख्यपृष्ठ',
+  Pricing: 'किंमत',
+  'Simple plans for every pool': 'प्रत्येक पूलसाठी सोप्या योजना',
+  'Choose a SwimIT plan that fits your pool size and operations. Start free, upgrade anytime.':
+    'तुमच्या पूलच्या आकार आणि कामकाजानुसार SwimIT योजना निवडा. मोफत सुरू करा, हवे तेव्हा अपग्रेड करा.',
+  'Most popular': 'सर्वाधिक लोकप्रिय',
+  'Unlimited swimmers': 'अमर्यादित पोहणारे',
+  users: 'युजर्स',
+  'day trial': 'दिवसांची ट्रायल',
+  'Full modules': 'पूर्ण मॉड्यूल्स',
+  'Core modules': 'कोर मॉड्यूल्स',
+  'Priority support': 'प्राधान्य सपोर्ट',
+  'Onboarding support': 'ऑनबोर्डिंग सपोर्ट',
+  'SwimIT service package for pool operations.': 'पूल ऑपरेशन्ससाठी SwimIT सेवा पॅकेज.',
+  'Compare plans': 'योजनांची तुलना करा',
+  'See what is included in each SwimIT package.':
+    'प्रत्येक SwimIT पॅकेजमध्ये काय समाविष्ट आहे ते पहा.',
+  'Ready to run your pool better?': 'तुमचा पूल अधिक चांगल्या प्रकारे चालवायचा आहे?',
+  'Create your SwimIT account and start with the plan that fits you.':
+    'तुमचे SwimIT खाते तयार करा आणि तुमच्यासाठी योग्य योजनेने सुरुवात करा.',
+  'Manage packages': 'पॅकेजेस व्यवस्थापित करा',
+  'Platform tools for creating and editing SwimIT plans.':
+    'SwimIT योजना तयार आणि संपादित करण्यासाठी प्लॅटफॉर्म टूल्स.',
+  'Get Started': 'सुरुवात करा',
+  'Create your SwimIT account': 'तुमचे SwimIT खाते तयार करा',
+  'Tell us about your pool and choose a plan. You will receive login details on WhatsApp after signup.':
+    'तुमच्या पूलबद्दल सांगा आणि योजना निवडा. नोंदणीनंतर WhatsApp वर लॉगिन तपशील मिळतील.',
+  'Not sure which plan?': 'कोणती योजना निवडावी याची खात्री नाही?',
+  'Compare pricing': 'किंमतींची तुलना करा',
+  'You are all set': 'तुम्ही तयार आहात',
+  'Your SwimIT account is ready. Keep these details for the pool operator.':
+    'तुमचे SwimIT खाते तयार आहे. पूल ऑपरेटरसाठी हे तपशील जपून ठेवा.',
+  'Explore Features': 'वैशिष्ट्ये पहा',
+  'View all features': 'सर्व वैशिष्ट्ये पहा',
+  'Why SwimIT': 'SwimIT का?',
+  'Easy to Use': 'वापरण्यास सोपे',
+  'Secure & Reliable': 'सुरक्षित आणि विश्वासार्ह',
+  'Data Driven': 'डेटा आधारित',
+  'Smart Pool Management,': 'स्मार्ट पूल व्यवस्थापन,',
+  'Simplified.': 'सोपे.',
+  'SwimIT is an all-in-one platform to manage your swimming pool operations, members, schedules and more — effortlessly.':
+    'SwimIT हे तुमचे स्विमिंग पूल ऑपरेशन्स, सदस्य, वेळापत्रक आणि आणखी बरेच काही सहजपणे व्यवस्थापित करण्यासाठी एक ऑल-इन-वन प्लॅटफॉर्म आहे.',
+  'Everything You Need To Run Your Pool Better':
+    'तुमचा पूल चांगल्या प्रकारे चालवण्यासाठी आवश्यक असलेले सर्व काही',
+  'Explore the SwimIT toolkit for members, schedules, payments, attendance, messaging, and day-to-day pool operations.':
+    'सदस्य, वेळापत्रक, पेमेंट, हजेरी, मेसेजिंग आणि रोजच्या पूल ऑपरेशन्ससाठी SwimIT टूलकिट पाहा.',
+  'Members Management': 'सदस्य व्यवस्थापन',
+  'Schedule Management': 'वेळापत्रक व्यवस्थापन',
+  'Water Quality Monitoring': 'पाण्याची गुणवत्ता निरीक्षण',
+  'Reports & Analytics': 'अहवाल आणि विश्लेषण',
+  'Automated Alerts': 'स्वयंचलित सूचना',
+  'System Integration': 'सिस्टम एकत्रीकरण',
+  'Manage member details, plans, renewals and attendance seamlessly.':
+    'सदस्य तपशील, प्लॅन, नूतनीकरण आणि हजेरी सहजपणे व्यवस्थापित करा.',
+  'Create, manage and update schedules in real-time.':
+    'वेळापत्रक रिअल-टाइममध्ये तयार करा, व्यवस्थापित करा आणि अपडेट करा.',
+  'Track and maintain water quality with automated alerts and reports.':
+    'स्वयंचलित सूचना आणि अहवालांसह पाण्याची गुणवत्ता ट्रॅक करा आणि राखा.',
+  'Get actionable insights with detailed reports and analytics.':
+    'तपशीलवार अहवाल आणि विश्लेषणाने उपयुक्त माहिती मिळवा.',
+  'Receive instant alerts for critical tasks and important updates.':
+    'महत्त्वाच्या कामांसाठी आणि अपडेटसाठी त्वरित सूचना मिळवा.',
+  'Integrate with devices and tools for a truly connected system.':
+    'खऱ्या कनेक्टेड सिस्टमसाठी डिव्हाइसेस आणि टूल्सशी जोडा.',
   Accounts: 'खाती',
   'Service Packages': 'सेवा पॅकेजेस',
   'Service packages': 'सेवा पॅकेजेस',
@@ -209,6 +274,7 @@ const mr: Record<string, string> = {
   Edit: 'संपादन',
   Delete: 'हटवा',
   Cancel: 'रद्द करा',
+  Close: 'बंद करा',
   Download: 'डाउनलोड',
   Search: 'शोधा',
   Filter: 'फिल्टर',
