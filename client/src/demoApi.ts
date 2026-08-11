@@ -650,6 +650,60 @@ export async function handleDemoApiRequest(
   if (pathname.startsWith('/api/water-quality')) {
     return handleWaterQuality(method, pathname, searchParams, body, store);
   }
+  if (pathname === '/api/activity-log' || pathname === '/api/activity-log/platform') {
+    if (method === 'GET') {
+      const now = Date.now();
+      const sampleRows = [
+        {
+          id: 3,
+          actorUserId: 1,
+          actorUserName: 'admin',
+          action: 'update',
+          entityType: 'swimmer',
+          entityId: '12',
+          entityLabel: 'Sample Swimmer',
+          summary: 'Updated swimmer (batch / active / pass)',
+          details: { batch: 'Morning 1', isActive: true },
+          createdAt: new Date(now - 15 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 2,
+          actorUserId: 1,
+          actorUserName: 'admin',
+          action: 'delete',
+          entityType: 'pool_expense',
+          entityId: '4',
+          entityLabel: 'Chlorine refill',
+          summary: 'Deleted pool expense',
+          details: { amount: 450, mode: 'Cash' },
+          createdAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 1,
+          actorUserId: 1,
+          actorUserName: 'admin',
+          action: 'create',
+          entityType: 'water_quality',
+          entityId: '1',
+          entityLabel: new Date().toISOString().slice(0, 10),
+          summary: 'Created water quality record',
+          details: { phLevel: 7.4, freeChlorine: 1.5 },
+          createdAt: new Date(now - 26 * 60 * 60 * 1000).toISOString(),
+        },
+      ];
+      if (pathname === '/api/activity-log/platform') {
+        return jsonResponse({
+          account: {
+            id: Number(searchParams.get('targetAccountId') || 1),
+            accountCode: 'demo01',
+            accountName: 'Demo Pool',
+          },
+          rows: sampleRows,
+        });
+      }
+      return jsonResponse(sampleRows);
+    }
+  }
   if (pathname.startsWith('/api/users')) return handleUsers(method, pathname, body, store);
   if (pathname.startsWith('/api/registrations')) {
     return handleRegistrations(method, pathname, body, store);

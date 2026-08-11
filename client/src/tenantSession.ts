@@ -67,6 +67,27 @@ function tenantIdForRequest(url: string): number | null {
   return getActiveSaasAccountId();
 }
 
+/** Signed-in account user id for activity log (who performed the change). */
+export function getActiveUserId(): number | null {
+  if (typeof window === 'undefined') return null;
+  const code = getActiveAccountCode();
+  if (code) {
+    try {
+      const raw = sessionStorage.getItem(`swimIT.accountSession.${code}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { id?: number };
+        const id = Number(parsed.id);
+        if (Number.isFinite(id) && id > 0) return id;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  const platform = getPlatformSession();
+  if (platform?.userId) return platform.userId;
+  return null;
+}
+
 /** Patch window.fetch for Application demo mock + tenant header. */
 export function installTenantFetch() {
   const original = window.fetch.bind(window);
@@ -92,6 +113,10 @@ export function installTenantFetch() {
 
     const headers = new Headers(init?.headers);
     headers.set('X-Saas-Account-Id', String(accountId));
+    const userId = getActiveUserId();
+    if (userId != null) {
+      headers.set('X-User-Id', String(userId));
+    }
     return original(input, { ...init, headers });
   };
 }

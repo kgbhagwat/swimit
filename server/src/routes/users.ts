@@ -1,13 +1,20 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { clipMenuAccessToPackage, sanitizeMenuAccess } from '../menuAccess.js';
+import { pageKeysForPackage } from '../packageFeatures.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
-import { generateTempPassword, hashPassword } from '../password.js';
+import { loginGeoFromRow, parseLoginGeoPolicy } from '../geo.js';
+import { generateTempPassword, hashPassword, passwordPolicyError } from '../password.js';
 import { tenantId } from '../middleware/tenant.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
 
+const USER_SELECT = `id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
+              saas_account_id, created_at, login_geo_mode, login_radius_km`;
+
 function mapUser(row: Record<string, unknown>) {
+  const geo = loginGeoFromRow(row);
   return {
     id: Number(row.id),
     userName: String(row.user_name ?? ''),
@@ -20,7 +27,16 @@ function mapUser(row: Record<string, unknown>) {
     isAccountAdmin: row.is_account_admin === true,
     saasAccountId: row.saas_account_id == null ? null : Number(row.saas_account_id),
     createdAt: row.created_at,
+    loginRadiusKm: geo?.radiusKm ?? null,
   };
+}
+
+async function isPlatformAccount(accountId: number) {
+  const { rows } = await pool.query<{ account_code: string | null }>(
+    `SELECT account_code FROM saas_accounts WHERE id = $1 LIMIT 1`,
+    [accountId],
+  );
+  return String(rows[0]?.account_code ?? '').toLowerCase() === 'swimit';
 }
 
 function isValidEmail(value: string) {
@@ -35,18 +51,23 @@ function loginOriginFromRequest(req: { get: (name: string) => string | undefined
 }
 
 async function packageMenuKeysForAccount(accountId: number) {
-  const { rows } = await pool.query<{ modules: string | null; package_name: string | null }>(
-    `SELECT p.modules, p.package_name
+  const { rows } = await pool.query<{
+    modules: string | null;
+    package_name: string | null;
+    feature_keys: string[] | null;
+  }>(
+    `SELECT p.modules, p.package_name, p.feature_keys
      FROM saas_accounts a
      LEFT JOIN service_packages p ON p.id = a.service_package_id
      WHERE a.id = $1
      LIMIT 1`,
     [accountId],
   );
-  return {
+  return pageKeysForPackage({
     modules: rows[0]?.modules ?? 'core',
     packageName: rows[0]?.package_name ?? '',
-  };
+    featureKeys: rows[0]?.feature_keys,
+  });
 }
 
 export const usersRouter = Router();
@@ -55,8 +76,7 @@ usersRouter.get('/', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const { rows } = await pool.query(
-      `SELECT id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
-              saas_account_id, created_at
+      `SELECT ${USER_SELECT}
        FROM app_users
        WHERE saas_account_id = $1
        ORDER BY created_at DESC, id DESC`,
@@ -78,8 +98,7 @@ usersRouter.get('/:id', async (req, res) => {
       return;
     }
     const { rows } = await pool.query(
-      `SELECT id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
-              saas_account_id, created_at
+      `SELECT ${USER_SELECT}
        FROM app_users
        WHERE id = $1 AND saas_account_id = $2`,
       [id, accountId],
@@ -103,18 +122,28 @@ usersRouter.post('/', async (req, res) => {
       mobile?: string;
       email?: string;
       menuAccess?: unknown;
+      loginRadiusKm?: unknown;
     };
 
     const userName = String(body.userName ?? '').trim();
     const mobile = sanitizeMobile(body.mobile);
     const email = String(body.email ?? '').trim().toLowerCase();
-    const pkg = await packageMenuKeysForAccount(accountId);
+    const packageKeys = await packageMenuKeysForAccount(accountId);
     const menuAccess = clipMenuAccessToPackage(
       sanitizeMenuAccess(body.menuAccess),
-      pkg.modules,
-      pkg.packageName,
+      packageKeys,
     );
     const password = generateTempPassword(8);
+    const platformAccount = await isPlatformAccount(accountId);
+    let loginRadiusKm: number | null = null;
+    if (!platformAccount) {
+      const geoParsed = parseLoginGeoPolicy({ loginRadiusKm: body.loginRadiusKm });
+      if (!geoParsed.ok) {
+        res.status(400).json({ error: geoParsed.error });
+        return;
+      }
+      loginRadiusKm = geoParsed.policy.radiusKm;
+    }
 
     if (!userName) {
       res.status(400).json({ error: 'User Name is required' });
@@ -153,11 +182,20 @@ usersRouter.post('/', async (req, res) => {
     const passwordHash = await hashPassword(password);
     const { rows } = await pool.query(
       `INSERT INTO app_users
-       (saas_account_id, user_name, mobile, email, password_hash, menu_access, must_change_password)
-       VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-       RETURNING id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
-                 saas_account_id, created_at`,
-      [accountId, userName, mobile, email, passwordHash, menuAccess],
+       (saas_account_id, user_name, mobile, email, password_hash, menu_access, must_change_password,
+        login_geo_mode, login_radius_km)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
+       RETURNING ${USER_SELECT}`,
+      [
+        accountId,
+        userName,
+        mobile,
+        email,
+        passwordHash,
+        menuAccess,
+        loginRadiusKm == null ? 'pool_only' : 'radius',
+        loginRadiusKm,
+      ],
     );
 
     const account = await pool.query(
@@ -192,8 +230,22 @@ usersRouter.post('/', async (req, res) => {
       deliveryNote += ` WhatsApp send failed: ${whatsapp.error}`;
     }
 
+    const created = mapUser(rows[0]);
+    await recordAudit(req, {
+      action: 'create',
+      entityType: 'app_user',
+      entityId: created.id,
+      entityLabel: created.userName,
+      summary: 'Created app user',
+      details: {
+        userName: created.userName,
+        mobile: created.mobile,
+        menuAccess: created.menuAccess,
+        loginRadiusKm: created.loginRadiusKm,
+      },
+    });
     res.status(201).json({
-      ...mapUser(rows[0]),
+      ...created,
       temporaryPassword: password,
       warnings,
       deliveryNote,
@@ -226,9 +278,12 @@ usersRouter.patch('/:id/password', async (req, res) => {
     let password = String(body.password ?? '').trim();
     if (!password) {
       password = generateTempPassword(8);
-    } else if (password.length < 6) {
-      res.status(400).json({ error: 'Password must be at least 6 characters' });
-      return;
+    } else {
+      const policyError = passwordPolicyError(password);
+      if (policyError) {
+        res.status(400).json({ error: policyError });
+        return;
+      }
     }
 
     const passwordHash = await hashPassword(password);
@@ -237,8 +292,7 @@ usersRouter.patch('/:id/password', async (req, res) => {
        SET password_hash = $1,
            must_change_password = TRUE
        WHERE id = $2 AND saas_account_id = $3
-       RETURNING id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
-                 saas_account_id, created_at`,
+       RETURNING ${USER_SELECT}`,
       [passwordHash, id, accountId],
     );
     if (!rows[0]) {
@@ -283,9 +337,18 @@ usersRouter.patch('/:id/password', async (req, res) => {
       }
     }
 
+    const user = mapUser(rows[0]);
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'app_user',
+      entityId: user.id,
+      entityLabel: user.userName,
+      summary: 'Reset app user password',
+      details: { userName: user.userName },
+    });
     res.json({
       ok: true,
-      user: mapUser(rows[0]),
+      user,
       temporaryPassword: password,
       deliveryNote,
       whatsappOk,
@@ -306,26 +369,61 @@ usersRouter.patch('/:id/access', async (req, res) => {
       return;
     }
 
-    const pkg = await packageMenuKeysForAccount(accountId);
+    const body = req.body as {
+      menuAccess?: unknown;
+      loginRadiusKm?: unknown;
+    };
+    const packageKeys = await packageMenuKeysForAccount(accountId);
     const menuAccess = clipMenuAccessToPackage(
-      sanitizeMenuAccess((req.body as { menuAccess?: unknown }).menuAccess),
-      pkg.modules,
-      pkg.packageName,
+      sanitizeMenuAccess(body.menuAccess),
+      packageKeys,
     );
+    const platformAccount = await isPlatformAccount(accountId);
+    const updateGeo = !platformAccount && body.loginRadiusKm !== undefined;
+    let geoRadius: number | null = null;
+    if (updateGeo) {
+      const geoParsed = parseLoginGeoPolicy({ loginRadiusKm: body.loginRadiusKm });
+      if (!geoParsed.ok) {
+        res.status(400).json({ error: geoParsed.error });
+        return;
+      }
+      geoRadius = geoParsed.policy.radiusKm;
+    }
     const { rows } = await pool.query(
-      `UPDATE app_users
-       SET menu_access = $1
-       WHERE id = $2 AND saas_account_id = $3
-       RETURNING id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
-                 saas_account_id, created_at`,
-      [menuAccess, id, accountId],
+      updateGeo
+        ? `UPDATE app_users
+           SET menu_access = $1,
+               login_geo_mode = 'radius',
+               login_radius_km = $2
+           WHERE id = $3 AND saas_account_id = $4
+           RETURNING ${USER_SELECT}`
+        : `UPDATE app_users
+           SET menu_access = $1
+           WHERE id = $2 AND saas_account_id = $3
+           RETURNING ${USER_SELECT}`,
+      updateGeo
+        ? [menuAccess, geoRadius, id, accountId]
+        : [menuAccess, id, accountId],
     );
     if (!rows[0]) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    res.json(mapUser(rows[0]));
+    const updated = mapUser(rows[0]);
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'app_user',
+      entityId: updated.id,
+      entityLabel: updated.userName,
+      summary: 'Updated app user menu access',
+      details: {
+        userName: updated.userName,
+        menuAccess: updated.menuAccess,
+        loginRadiusKm: updated.loginRadiusKm,
+      },
+    });
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save menu access' });
@@ -342,7 +440,7 @@ usersRouter.delete('/:id', async (req, res) => {
     }
 
     const existing = await pool.query(
-      `SELECT id, is_account_admin FROM app_users
+      `SELECT id, user_name, is_account_admin FROM app_users
        WHERE id = $1 AND saas_account_id = $2`,
       [id, accountId],
     );
@@ -359,6 +457,14 @@ usersRouter.delete('/:id', async (req, res) => {
       id,
       accountId,
     ]);
+    await recordAudit(req, {
+      action: 'delete',
+      entityType: 'app_user',
+      entityId: id,
+      entityLabel: String(existing.rows[0].user_name ?? ''),
+      summary: 'Deleted app user',
+      details: { userName: existing.rows[0].user_name },
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

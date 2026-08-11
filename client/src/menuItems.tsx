@@ -358,6 +358,22 @@ export const MENU_ITEMS: MenuItem[] = [
       </IconWrap>
     ),
   },
+  {
+    section: 'Setup',
+    to: '/activity-log',
+    label: 'Activity Log',
+    does: 'Shows who created, edited, or deleted records in this account, with date and time.',
+    helps:
+      'Gives admins a clear trail of changes so mistakes and unauthorised edits can be traced.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M5 4.5h14v15H5z" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
+        </svg>
+      </IconWrap>
+    ),
+  },
 ];
 
 export function MenuTiles({

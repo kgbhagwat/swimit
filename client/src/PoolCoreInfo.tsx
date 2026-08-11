@@ -20,6 +20,8 @@ import { useObjectUrl } from './useObjectUrl';
 type PoolCoreInfoData = {
   poolName: string;
   poolAddress: string;
+  googleMapsUrl: string;
+  locationSet: boolean;
   poolLogoPath: string | null;
   swimmerTerms: string;
   staffTerms: string;
@@ -133,28 +135,30 @@ function ImageField({
           </button>
         ) : null}
         {editable && hint ? <span className="pool-core-upload-hint">{hint}</span> : null}
+        {display ? (
+          <div className="pool-core-image-preview-row">
+            <div className="preview-wrap">
+              <img src={display} alt={label} className="preview pool-core-preview" />
+            </div>
+            {editable ? (
+              <button
+                type="button"
+                className="preview-delete-btn pool-core-preview-delete"
+                aria-label={`${t('Delete')} ${label}`}
+                title={t('Delete image')}
+                onClick={onClear}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M4 7h16" />
+                  <path d="M9 7V5h6v2" />
+                  <path d="M7 7l1 13h8l1-13" />
+                  <path d="M10 11v6M14 11v6" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      {display ? (
-        <div className={`preview-wrap${editable ? ' preview-wrap--deletable' : ''}`}>
-          <img src={display} alt={label} className="preview pool-core-preview" />
-          {editable ? (
-            <button
-              type="button"
-              className="preview-delete-btn"
-              aria-label={`${t('Delete')} ${label}`}
-              title={t('Delete image')}
-              onClick={onClear}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="M4 7h16" />
-                <path d="M9 7V5h6v2" />
-                <path d="M7 7l1 13h8l1-13" />
-                <path d="M10 11v6M14 11v6" />
-              </svg>
-            </button>
-          ) : null}
-        </div>
-      ) : null}
       {editable && file ? (
         <p className="file-name">
           {file.name} ({Math.ceil(file.size / 1024)} KB)
@@ -255,6 +259,8 @@ export function PoolCoreInfo() {
   const [form, setForm] = useState<PoolCoreInfoData>(() => ({
     poolName: '',
     poolAddress: '',
+    googleMapsUrl: '',
+    locationSet: false,
     poolLogoPath: null,
     swimmerTerms: defaultSwimmerTerms('en'),
     staffTerms: defaultCoachTerms('en'),
@@ -288,6 +294,8 @@ export function PoolCoreInfo() {
       const next: PoolCoreInfoData = {
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
+        googleMapsUrl: String(body.googleMapsUrl ?? ''),
+        locationSet: Boolean(body.locationSet),
         poolLogoPath: body.poolLogoPath ?? null,
         // Empty / built-in default → language text so the account can edit them.
         swimmerTerms: resolveSwimmerTerms(String(body.swimmerTerms ?? ''), lang),
@@ -368,6 +376,7 @@ export function PoolCoreInfo() {
       const data = new FormData();
       data.append('poolName', form.poolName.trim());
       data.append('poolAddress', form.poolAddress.trim());
+      data.append('googleMapsUrl', form.googleMapsUrl.trim());
       data.append('swimmerTerms', form.swimmerTerms);
       data.append('staffTerms', form.staffTerms);
       data.append('upiDetails', form.upiDetails.trim());
@@ -384,6 +393,8 @@ export function PoolCoreInfo() {
       setForm({
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
+        googleMapsUrl: String(body.googleMapsUrl ?? ''),
+        locationSet: Boolean(body.locationSet),
         poolLogoPath: body.poolLogoPath ?? null,
         swimmerTerms: resolveSwimmerTerms(String(body.swimmerTerms ?? ''), lang),
         staffTerms: resolveCoachTerms(String(body.staffTerms ?? ''), lang),
@@ -428,6 +439,8 @@ export function PoolCoreInfo() {
                     ...prev,
                     poolName: '',
                     poolAddress: '',
+                    googleMapsUrl: '',
+                    locationSet: false,
                     swimmerTerms: '',
                     staffTerms: '',
                     paymentAcceptCash: false,
@@ -466,7 +479,9 @@ export function PoolCoreInfo() {
       }
     >
       <p className="lede batch-list-lede">
-        {t('Pool name, address, terms, payment options, and branding images.')}
+        {t(
+          'Pool name, address, map location (for remote login checks), terms, payment options, and branding images.',
+        )}
       </p>
       {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
       {error && !editing ? <p className="error">{t(error)}</p> : null}
@@ -490,17 +505,22 @@ export function PoolCoreInfo() {
 
           <div className="form-grid-2">
             <div className="pool-core-view-row">
-              <span className="label">{t('Terms & Conditions for swimmer')}</span>
-              <div className="pool-core-view-text">
-                <TermsBlocks text={form.swimmerTerms.trim() || defaultSwimmerTerms(lang)} />
-              </div>
-            </div>
-
-            <div className="pool-core-view-row">
-              <span className="label">{t('Terms & Conditions for staff')}</span>
-              <div className="pool-core-view-text">
-                <TermsBlocks text={form.staffTerms.trim() || defaultCoachTerms(lang)} />
-              </div>
+              <span className="label">{t('Google location of swimming pool')}</span>
+              <p className="pool-core-view-value pool-core-view-multiline">
+                {form.googleMapsUrl.trim() ? (
+                  <a
+                    href={form.googleMapsUrl.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {form.googleMapsUrl.trim()}
+                  </a>
+                ) : form.locationSet ? (
+                  t('Location saved')
+                ) : (
+                  '—'
+                )}
+              </p>
             </div>
           </div>
 
@@ -547,6 +567,24 @@ export function PoolCoreInfo() {
               )}
             </div>
           </div>
+
+          <hr className="pool-core-section-divider" />
+
+          <div className="form-grid-2">
+            <div className="pool-core-view-row">
+              <span className="label">{t('Terms & Conditions for swimmer')}</span>
+              <div className="pool-core-view-text">
+                <TermsBlocks text={form.swimmerTerms.trim() || defaultSwimmerTerms(lang)} />
+              </div>
+            </div>
+
+            <div className="pool-core-view-row">
+              <span className="label">{t('Terms & Conditions for staff')}</span>
+              <div className="pool-core-view-text">
+                <TermsBlocks text={form.staffTerms.trim() || defaultCoachTerms(lang)} />
+              </div>
+            </div>
+          </div>
         </section>
       ) : null}
 
@@ -557,7 +595,7 @@ export function PoolCoreInfo() {
           onSubmit={onSubmit}
         >
           <div className="form-grid-2">
-            <label className="field">
+            <label className="field field-beside">
               <span className="label">
                 {t('Pool Name')} <span className="req">*</span>
               </span>
@@ -569,7 +607,7 @@ export function PoolCoreInfo() {
               />
             </label>
 
-            <label className="field">
+            <label className="field field-beside">
               <span className="label">
                 {t('Pool Address')} <span className="req">*</span>
               </span>
@@ -583,41 +621,20 @@ export function PoolCoreInfo() {
             </label>
           </div>
 
-          <div className="form-grid-2">
-            <div className="pool-core-terms-edit">
-              <TermsDocumentField
-                label={t('Terms & Conditions for swimmer')}
-                value={form.swimmerTerms}
-                onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
-                placeholder={t('Type or Upload .doc or .txt file.')}
-                rows={8}
-                editable
-                richHeadings
-              />
-              <p className="hint pool-core-terms-hint">
-                {t(
-                  'Default swimmer terms are shown. Edit and save to customize them for your pool.',
-                )}
-              </p>
-            </div>
-
-            <div className="pool-core-terms-edit">
-              <TermsDocumentField
-                label={t('Terms & Conditions for staff')}
-                value={form.staffTerms}
-                onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
-                placeholder={t('Type or Upload .doc or .txt file.')}
-                rows={8}
-                editable
-                richHeadings
-              />
-              <p className="hint pool-core-terms-hint">
-                {t(
-                  'Default coach terms are shown. Edit and save to customize them for your pool.',
-                )}
-              </p>
-            </div>
-          </div>
+          <label className="field field-beside pool-core-maps-field">
+            <span className="label">{t('Google location of swimming pool')}</span>
+            <input
+              value={form.googleMapsUrl}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, googleMapsUrl: e.target.value }))
+              }
+              placeholder={t(
+                'Open your pool in Google Maps, tap Share, copy the link, and paste it here.',
+              )}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </label>
 
           <div className="form-grid-2 pool-core-payment-options-row">
             <div
@@ -663,23 +680,22 @@ export function PoolCoreInfo() {
                   {t('UPI ID')}
                   {form.paymentAcceptOnline ? <span className="req"> *</span> : null}
                 </span>
-                <div className="upi-id-input-wrap">
-                  <input
-                    value={form.upiDetails}
-                    onChange={(e) => setForm((prev) => ({ ...prev, upiDetails: e.target.value }))}
-                    placeholder="name@upi"
-                    inputMode="email"
-                    autoComplete="off"
-                    required={form.paymentAcceptOnline}
-                    aria-invalid={Boolean(upiHint(form.upiDetails))}
-                    aria-label={t('UPI ID')}
-                  />
-                  <span className="upi-id-note">{t('UPI ID should not contain mobile no.')}</span>
-                  {upiHint(form.upiDetails) ? (
-                    <span className="field-error">{t(upiHint(form.upiDetails))}</span>
-                  ) : null}
-                </div>
+                <input
+                  value={form.upiDetails}
+                  onChange={(e) => setForm((prev) => ({ ...prev, upiDetails: e.target.value }))}
+                  placeholder="name@upi"
+                  inputMode="email"
+                  autoComplete="off"
+                  required={form.paymentAcceptOnline}
+                  aria-invalid={Boolean(upiHint(form.upiDetails))}
+                  aria-label={t('UPI ID')}
+                />
               </div>
+              {upiHint(form.upiDetails) ? (
+                <span className="field-error">{t(upiHint(form.upiDetails))}</span>
+              ) : (
+                <span className="upi-id-note">{t('UPI ID should not contain mobile no.')}</span>
+              )}
             </div>
           </div>
 
@@ -718,6 +734,44 @@ export function PoolCoreInfo() {
                 setClearQr(true);
               }}
             />
+          </div>
+
+          <hr className="pool-core-section-divider" />
+
+          <div className="form-grid-2">
+            <div className="pool-core-terms-edit">
+              <TermsDocumentField
+                label={t('Terms & Conditions for swimmer')}
+                value={form.swimmerTerms}
+                onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
+                placeholder={t('Type or Upload .doc or .txt file.')}
+                rows={8}
+                editable
+                richHeadings
+              />
+              <p className="hint pool-core-terms-hint">
+                {t(
+                  'Default swimmer terms are shown. Edit and save to customize them for your pool.',
+                )}
+              </p>
+            </div>
+
+            <div className="pool-core-terms-edit">
+              <TermsDocumentField
+                label={t('Terms & Conditions for staff')}
+                value={form.staffTerms}
+                onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
+                placeholder={t('Type or Upload .doc or .txt file.')}
+                rows={8}
+                editable
+                richHeadings
+              />
+              <p className="hint pool-core-terms-hint">
+                {t(
+                  'Default coach terms are shown. Edit and save to customize them for your pool.',
+                )}
+              </p>
+            </div>
           </div>
 
           {error ? <p className="error">{t(error)}</p> : null}

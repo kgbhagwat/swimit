@@ -3,7 +3,9 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
+import { parseGoogleMapsLocation } from '../googleMapsLocation.js';
 import { tenantId } from '../middleware/tenant.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,9 +44,22 @@ function truthyFlag(value: unknown, fallback = false) {
 }
 
 function mapRow(row: Record<string, unknown>) {
+  const lat =
+    row.latitude === null || row.latitude === undefined || row.latitude === ''
+      ? null
+      : Number(row.latitude);
+  const lng =
+    row.longitude === null || row.longitude === undefined || row.longitude === ''
+      ? null
+      : Number(row.longitude);
+  const hasCoords = Number.isFinite(lat as number) && Number.isFinite(lng as number);
   return {
     poolName: String(row.pool_name ?? ''),
     poolAddress: String(row.pool_address ?? ''),
+    googleMapsUrl: String(row.google_maps_url ?? ''),
+    locationSet: hasCoords,
+    latitude: hasCoords ? lat : null,
+    longitude: hasCoords ? lng : null,
     poolLogoPath: row.pool_logo_path ? String(row.pool_logo_path) : null,
     swimmerTerms: String(row.swimmer_terms ?? ''),
     staffTerms: String(row.staff_terms ?? ''),
@@ -104,6 +119,38 @@ poolCoreInfoRouter.put(
       const paymentAcceptCash = truthyFlag(body.paymentAcceptCash, true);
       const paymentAcceptOnline = truthyFlag(body.paymentAcceptOnline, true);
 
+      const googleMapsUrlRaw =
+        body.googleMapsUrl === undefined ? undefined : String(body.googleMapsUrl ?? '').trim();
+      let nextLatitude: number | null =
+        current.latitude == null ? null : Number(current.latitude);
+      let nextLongitude: number | null =
+        current.longitude == null ? null : Number(current.longitude);
+      let nextGoogleMapsUrl = String(current.google_maps_url ?? '');
+      if (googleMapsUrlRaw !== undefined) {
+        if (!googleMapsUrlRaw) {
+          nextLatitude = null;
+          nextLongitude = null;
+          nextGoogleMapsUrl = '';
+        } else {
+          const parsed = await parseGoogleMapsLocation(googleMapsUrlRaw);
+          if (!parsed.ok) {
+            res.status(400).json({ error: parsed.error });
+            return;
+          }
+          nextLatitude = parsed.value.latitude;
+          nextLongitude = parsed.value.longitude;
+          nextGoogleMapsUrl = parsed.value.googleMapsUrl;
+        }
+      }
+      if (
+        (nextLatitude == null) !== (nextLongitude == null) ||
+        (nextLatitude != null && !Number.isFinite(nextLatitude)) ||
+        (nextLongitude != null && !Number.isFinite(nextLongitude))
+      ) {
+        nextLatitude = null;
+        nextLongitude = null;
+      }
+
       if (!poolName) {
         res.status(400).json({ error: 'Pool name is required' });
         return;
@@ -157,20 +204,26 @@ poolCoreInfoRouter.put(
         `UPDATE pool_core_info SET
            pool_name = $1,
            pool_address = $2,
-           pool_logo_path = $3,
-           swimmer_terms = $4,
-           staff_terms = $5,
-           payment_accept_cash = $6,
-           payment_accept_online = $7,
-           payment_qr_path = $8,
-           upi_details = $9,
+           latitude = $3,
+           longitude = $4,
+           google_maps_url = $5,
+           pool_logo_path = $6,
+           swimmer_terms = $7,
+           staff_terms = $8,
+           payment_accept_cash = $9,
+           payment_accept_online = $10,
+           payment_qr_path = $11,
+           upi_details = $12,
            setup_completed = TRUE,
            updated_at = NOW()
-         WHERE saas_account_id = $10
+         WHERE saas_account_id = $13
          RETURNING *`,
         [
           poolName,
           poolAddress,
+          nextLatitude,
+          nextLongitude,
+          nextGoogleMapsUrl,
           poolLogoPath,
           swimmerTerms,
           staffTerms,
@@ -182,7 +235,24 @@ poolCoreInfoRouter.put(
         ],
       );
 
-      res.json(mapRow(rows[0]));
+      const saved = mapRow(rows[0]);
+      await recordAudit(req, {
+        action: 'update',
+        entityType: 'pool_core_info',
+        entityId: accountId,
+        entityLabel: saved.poolName || 'Core info',
+        summary: 'Updated pool core info',
+        details: {
+          poolName: saved.poolName,
+          poolAddress: saved.poolAddress,
+          googleMapsUrl: saved.googleMapsUrl,
+          locationSet: saved.locationSet,
+          paymentAcceptCash: saved.paymentAcceptCash,
+          paymentAcceptOnline: saved.paymentAcceptOnline,
+          upiDetails: saved.upiDetails,
+        },
+      });
+      res.json(saved);
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to save pool core info' });

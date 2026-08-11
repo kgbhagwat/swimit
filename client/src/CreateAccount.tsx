@@ -793,7 +793,7 @@ export function CreateAccount() {
       {!loadingAccount ? (
       <form
         className={`pass-form-card registration-form create-account-form${
-          isEdit ? '' : ' get-started-form'
+          isEdit || canManageAccounts ? '' : ' get-started-form'
         }`}
         onSubmit={onSubmit}
       >
@@ -1119,7 +1119,7 @@ export function CreateAccount() {
             </label>
           )}
           <div className="submit-wrap">
-            {isEdit ? (
+            {isEdit || canManageAccounts ? (
               <button
                 type="button"
                 className="ghost-btn"
@@ -1131,7 +1131,11 @@ export function CreateAccount() {
             ) : null}
             <button
               type="submit"
-              className={isEdit ? 'submit' : 'marketing-btn marketing-btn--primary marketing-btn--lg'}
+              className={
+                isEdit || canManageAccounts
+                  ? 'submit'
+                  : 'marketing-btn marketing-btn--primary marketing-btn--lg'
+              }
               disabled={
                 saving ||
                 codeCheck.status === 'taken' ||
@@ -1146,7 +1150,9 @@ export function CreateAccount() {
                   : t('Creating…')
                 : isEdit
                   ? t('Save changes')
-                  : t('Get Started')}
+                  : canManageAccounts
+                    ? t('Create Account')
+                    : t('Get Started')}
             </button>
           </div>
         </div>
@@ -1165,17 +1171,15 @@ export function CreateAccount() {
     </>
   );
 
-  if (isEdit) {
+  if (isEdit || canManageAccounts) {
     return (
       <PlatformShell>
         <PlatformPage
-          title="Edit Account"
+          title={isEdit ? 'Edit Account' : 'Create Account'}
           actions={
-            canManageAccounts ? (
-              <Link className="menu-link" to="/accounts">
-                {t('← Accounts')}
-              </Link>
-            ) : undefined
+            <Link className="menu-link" to="/accounts">
+              {t('← Accounts')}
+            </Link>
           }
         >
           {formBody}

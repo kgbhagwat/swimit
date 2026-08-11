@@ -13,12 +13,14 @@ type FormState = {
   userName: string;
   mobile: string;
   email: string;
+  loginRadiusKm: string;
 };
 
 const emptyForm: FormState = {
   userName: '',
   mobile: '',
   email: '',
+  loginRadiusKm: '',
 };
 
 type CreateUserFormProps = {
@@ -30,11 +32,14 @@ type CreateUserFormProps = {
     menuAccess: string[];
     createdAt: string;
     isAccountAdmin?: boolean;
+    loginRadiusKm?: number | null;
   }) => void;
 };
 
 export function CreateUserForm({ onCreated }: CreateUserFormProps) {
   const t = useT();
+  const { pathname } = useLocation();
+  const platformMode = isPlatformUsersPath(pathname);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -63,6 +68,13 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
       setError('Enter a valid email address');
       return;
     }
+    if (!platformMode) {
+      const km = Number(form.loginRadiusKm);
+      if (!Number.isFinite(km) || km < 1 || km > 500) {
+        setError('Enter allowed login distance between 1 and 500 km');
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -73,6 +85,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
           userName: form.userName.trim(),
           mobile: form.mobile.trim(),
           email: form.email.trim(),
+          ...(platformMode ? {} : { loginRadiusKm: Number(form.loginRadiusKm) }),
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -93,6 +106,10 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
         menuAccess: Array.isArray(body.menuAccess) ? body.menuAccess.map(String) : [],
         createdAt: String(body.createdAt ?? new Date().toISOString()),
         isAccountAdmin: Boolean(body.isAccountAdmin),
+        loginRadiusKm:
+          body.loginRadiusKm == null || body.loginRadiusKm === ''
+            ? null
+            : Number(body.loginRadiusKm),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user');
@@ -159,6 +176,26 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
             ) : null}
           </label>
 
+          {!platformMode ? (
+            <label className="field field-beside create-user-login-distance">
+              <span className="label">
+                {t('Allowed login distance (km)')} <span className="req">*</span>
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                step={1}
+                className="create-user-login-radius-input"
+                value={form.loginRadiusKm}
+                onChange={(e) => setField('loginRadiusKm', e.target.value)}
+                placeholder={t('e.g. 5')}
+                inputMode="numeric"
+                required
+              />
+            </label>
+          ) : null}
+
           <div className="create-user-row-actions">
             <button
               type="button"
@@ -176,6 +213,13 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
             </button>
           </div>
         </div>
+        {!platformMode ? (
+          <p className="hint create-user-login-geo-hint">
+            {t(
+              'How far from the pool this user may sign in without admin approval. Farther logins need approval.',
+            )}
+          </p>
+        ) : null}
       </div>
 
       {error || success ? (

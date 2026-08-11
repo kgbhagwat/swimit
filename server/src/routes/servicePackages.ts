@@ -1,5 +1,11 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
+import {
+  defaultFeatureKeysForModules,
+  PACKAGE_FEATURE_DEFS,
+  pageKeysForPackage,
+  sanitizeFeatureKeys,
+} from '../packageFeatures.js';
 
 type PackageBody = {
   packageName?: string;
@@ -14,6 +20,7 @@ type PackageBody = {
   modules?: string;
   supportLevel?: string;
   features?: string;
+  featureKeys?: unknown;
   isActive?: boolean;
 };
 
@@ -23,8 +30,12 @@ const SUPPORT_LEVELS = ['whatsapp', 'priority', 'onboarding'] as const;
 
 const PACKAGE_SELECT = `SELECT id, package_name, description, price, discounted_rate, billing_period,
               max_pools, max_users, max_active_swimmers, trial_days, modules, support_level,
-              features, is_active, created_at
+              features, feature_keys, is_active, created_at
        FROM service_packages`;
+
+const PACKAGE_RETURNING = `id, package_name, description, price, discounted_rate, billing_period, max_pools,
+                 max_users, max_active_swimmers, trial_days, modules, support_level, features,
+                 feature_keys, is_active, created_at`;
 
 function parseDiscountedRate(value: unknown) {
   if (value === undefined || value === null || value === '') return null;
@@ -47,9 +58,12 @@ function mapRow(row: Record<string, unknown>) {
     discountedRaw != null && Number.isFinite(discountedRaw) && discountedRaw > 0
       ? discountedRaw
       : null;
+  const modules = String(row.modules ?? 'core');
+  const packageName = String(row.package_name ?? '');
+  const featureKeys = sanitizeFeatureKeys(row.feature_keys);
   return {
     id: Number(row.id),
-    packageName: String(row.package_name ?? ''),
+    packageName,
     description: String(row.description ?? ''),
     price: Number(row.price ?? 0),
     discountedRate,
@@ -58,9 +72,13 @@ function mapRow(row: Record<string, unknown>) {
     maxUsers: Number(row.max_users ?? 5),
     maxActiveSwimmers: Number.isFinite(maxActiveSwimmers as number) ? maxActiveSwimmers : null,
     trialDays: Number(row.trial_days ?? 0),
-    modules: String(row.modules ?? 'core'),
+    modules,
     supportLevel: String(row.support_level ?? 'whatsapp'),
     features: String(row.features ?? ''),
+    featureKeys:
+      featureKeys.length > 0
+        ? featureKeys
+        : defaultFeatureKeysForModules(modules, packageName),
     isActive: row.is_active !== false,
     createdAt: row.created_at,
   };
@@ -83,6 +101,12 @@ function buildFeatures(body: PackageBody, maxActiveSwimmers: number | null, tria
   const parts = [`swimmers:${swimmers}`, `modules:${modules}`, `support:${support}`];
   if (trialDays > 0) parts.push(`trial_days:${trialDays}`);
   return parts.join('; ');
+}
+
+function resolveFeatureKeys(body: PackageBody, modules: string, packageName: string) {
+  const selected = sanitizeFeatureKeys(body.featureKeys);
+  if (selected.length > 0) return selected;
+  return defaultFeatureKeysForModules(modules, packageName);
 }
 
 function validate(body: PackageBody) {
@@ -112,17 +136,28 @@ function validate(body: PackageBody) {
   if (!(SUPPORT_LEVELS as readonly string[]).includes(support)) {
     return 'Support must be whatsapp, priority, or onboarding';
   }
+  if (body.featureKeys !== undefined && !Array.isArray(body.featureKeys)) {
+    return 'Feature list must be an array of feature keys';
+  }
   return null;
 }
 
 function packageValues(body: PackageBody) {
   const maxActiveSwimmers = parseOptionalSwimmerLimit(body.maxActiveSwimmers) ?? null;
   const trialDays = Number(body.trialDays ?? 0);
-  const modules = String(body.modules ?? 'core').trim() || 'core';
+  const packageName = body.packageName!.trim();
+  let modules = String(body.modules ?? 'core').trim() || 'core';
   const supportLevel = String(body.supportLevel ?? 'whatsapp').trim() || 'whatsapp';
   const discountedRate = parseDiscountedRate(body.discountedRate) ?? null;
+  const featureKeys = resolveFeatureKeys(body, modules, packageName);
+  // Keep modules aligned with selected features for pricing highlights.
+  const hasFullFeature = featureKeys.some((id) =>
+    PACKAGE_FEATURE_DEFS.some((f) => f.id === id && f.level === 'full'),
+  );
+  if (hasFullFeature) modules = 'full';
+  else if (sanitizeFeatureKeys(body.featureKeys).length > 0) modules = 'core';
   return [
-    body.packageName!.trim(),
+    packageName,
     String(body.description ?? '').trim(),
     Number(body.price),
     discountedRate,
@@ -133,9 +168,23 @@ function packageValues(body: PackageBody) {
     trialDays,
     modules,
     supportLevel,
-    buildFeatures(body, maxActiveSwimmers, trialDays),
+    buildFeatures({ ...body, modules }, maxActiveSwimmers, trialDays),
+    featureKeys,
     body.isActive !== false,
   ];
+}
+
+async function syncAccountAdminsForPackage(packageId: number, featureKeys: string[], modules: string, packageName: string) {
+  const packageMenuKeys = pageKeysForPackage({ modules, packageName, featureKeys });
+  await pool.query(
+    `UPDATE app_users u
+     SET menu_access = $1
+     FROM saas_accounts a
+     WHERE a.id = u.saas_account_id
+       AND a.service_package_id = $2
+       AND COALESCE(u.is_account_admin, FALSE) = TRUE`,
+    [packageMenuKeys, packageId],
+  );
 }
 
 export const servicePackagesRouter = Router();
@@ -168,11 +217,9 @@ servicePackagesRouter.post('/', async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO service_packages
        (package_name, description, price, discounted_rate, billing_period, max_pools, max_users,
-        max_active_swimmers, trial_days, modules, support_level, features, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING id, package_name, description, price, discounted_rate, billing_period, max_pools,
-                 max_users, max_active_swimmers, trial_days, modules, support_level, features,
-                 is_active, created_at`,
+        max_active_swimmers, trial_days, modules, support_level, features, feature_keys, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::text[], $14)
+       RETURNING ${PACKAGE_RETURNING}`,
       packageValues(body),
     );
     res.status(201).json(mapRow(rows[0]));
@@ -216,18 +263,24 @@ servicePackagesRouter.put('/:id', async (req, res) => {
            modules = $10,
            support_level = $11,
            features = $12,
-           is_active = $13
-       WHERE id = $14
-       RETURNING id, package_name, description, price, discounted_rate, billing_period, max_pools,
-                 max_users, max_active_swimmers, trial_days, modules, support_level, features,
-                 is_active, created_at`,
+           feature_keys = $13::text[],
+           is_active = $14
+       WHERE id = $15
+       RETURNING ${PACKAGE_RETURNING}`,
       [...values, id],
     );
     if (rows.length === 0) {
       res.status(404).json({ error: 'Service package not found' });
       return;
     }
-    res.json(mapRow(rows[0]));
+    const mapped = mapRow(rows[0]);
+    await syncAccountAdminsForPackage(
+      id,
+      mapped.featureKeys,
+      mapped.modules,
+      mapped.packageName,
+    );
+    res.json(mapped);
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : '';

@@ -1,0 +1,1272 @@
+Total: 404
+
+--- 1 | Tuesday, Aug 4, 2026, 3:39 PM (UTC+5:30) ---
+This the same swimit project, I just changed folder location. Please continue with same project
+
+--- 2 | Tuesday, Aug 4, 2026, 3:40 PM (UTC+5:30) ---
+Please commit and send to git
+
+--- 3 | Tuesday, Aug 4, 2026, 3:42 PM (UTC+5:30) ---
+please provide command to deploy on staging server from new folder location.
+
+--- 4 | Tuesday, Aug 4, 2026, 3:43 PM (UTC+5:30) ---
+earlier I was using "C:\Program Files\Git\bin\bash.exe" scripts/deploy-staging-from-pc.sh ./LightsailDefaultKey-ap-south-1.pem   from command prompt.
+
+--- 5 | Tuesday, Aug 4, 2026, 3:44 PM (UTC+5:30) ---
+C:\Users\sneha>"C:\Program Files\Git\bin\bash.exe" scripts/deploy-staging-from-pc.sh ./LightsailDefaultKey-ap-south-1.pem
+/usr/bin/bash: scripts/deploy-staging-from-pc.sh: No such file or directory
+
+C:\Users\sneha>
+
+--- 6 | Tuesday, Aug 4, 2026, 5:16 PM (UTC+5:30) ---
+for current month application should show attendance till today only.
+
+--- 7 | Tuesday, Aug 4, 2026, 5:20 PM (UTC+5:30) ---
+It will show all dates of the month, but attendance only till today.
+
+--- 8 | Tuesday, Aug 4, 2026, 5:24 PM (UTC+5:30) ---
+swimmer month will show month as per his pass issue date. Each swimmer having his own date heading. from pass month start till pass month end date. In that his attendance till today shown in it.
+
+--- 9 | Tuesday, Aug 4, 2026, 5:30 PM (UTC+5:30) ---
+here as well provide edit button to see form & edit batches, if required. Also toggle switch to activate or deactivate. only active coach available for swummer allocation.
+
+--- 10 | Tuesday, Aug 4, 2026, 5:33 PM (UTC+5:30) ---
+put both action icon next to each other. show red colour for iactive coach
+
+--- 11 | Tuesday, Aug 4, 2026, 5:56 PM (UTC+5:30) ---
+shift action heading where icon starts, after edit button , please show coach form in editable format. Here in non account view applicatiopn mode also show same for sample coach.
+
+--- 12 | Tuesday, Aug 4, 2026, 6:03 PM (UTC+5:30) ---
+show all batches, so that editor can add, remove some batches
+
+--- 13 | Tuesday, Aug 4, 2026, 6:06 PM (UTC+5:30) ---
+this line not required
+
+--- 14 | Tuesday, Aug 4, 2026, 6:07 PM (UTC+5:30) ---
+line not required
+
+--- 15 | Tuesday, Aug 4, 2026, 6:08 PM (UTC+5:30) ---
+line not required
+
+--- 16 | Tuesday, Aug 4, 2026, 6:09 PM (UTC+5:30) ---
+download button at right top corner
+
+--- 17 | Tuesday, Aug 4, 2026, 6:12 PM (UTC+5:30) ---
+download button at right top corner
+
+--- 18 | Tuesday, Aug 4, 2026, 6:13 PM (UTC+5:30) ---
+these all should be on right top corner
+
+--- 19 | Tuesday, Aug 4, 2026, 6:16 PM (UTC+5:30) ---
+header alignment not matching with column data.
+
+--- 20 | Tuesday, Aug 4, 2026, 6:19 PM (UTC+5:30) ---
+not required
+
+--- 21 | Tuesday, Aug 4, 2026, 6:21 PM (UTC+5:30) ---
+make it more transactions. after clicking this show date selection option with get button.
+
+--- 22 | Tuesday, Aug 4, 2026, 6:23 PM (UTC+5:30) ---
+date selection should be above this line. Date selection should be placed in one row.
+
+--- 23 | Tuesday, Aug 4, 2026, 6:25 PM (UTC+5:30) ---
+From, to, just before selection box.
+
+--- 24 | Tuesday, Aug 4, 2026, 6:26 PM (UTC+5:30) ---
+get should be in blue, 3D form and center aligned to the row height
+
+--- 25 | Tuesday, Aug 4, 2026, 6:30 PM (UTC+5:30) ---
+it should be here only
+
+--- 26 | Tuesday, Aug 4, 2026, 6:32 PM (UTC+5:30) ---
+show row, column borders.
+
+--- 27 | Tuesday, Aug 4, 2026, 6:33 PM (UTC+5:30) ---
+header should be bit darker
+
+--- 28 | Tuesday, Aug 4, 2026, 6:34 PM (UTC+5:30) ---
+show filter selection for the header
+
+--- 29 | Tuesday, Aug 4, 2026, 6:37 PM (UTC+5:30) ---
+header fileter should be like attached sample screenshot
+
+--- 30 | Tuesday, Aug 4, 2026, 6:40 PM (UTC+5:30) ---
+no need to show in bold font
+
+--- 31 | Tuesday, Aug 4, 2026, 6:42 PM (UTC+5:30) ---
+instead of this show up-down arrow in row of clear
+
+--- 32 | Tuesday, Aug 4, 2026, 6:45 PM (UTC+5:30) ---
+Same header filter pattern for swimmer list , staff list
+
+--- 33 | Tuesday, Aug 4, 2026, 6:45 PM (UTC+5:30) ---
+Same header filter pattern for swimmer list , staff list
+
+--- 34 | Tuesday, Aug 4, 2026, 6:49 PM (UTC+5:30) ---
+don't make filter pan transparent
+
+--- 35 | Tuesday, Aug 4, 2026, 6:51 PM (UTC+5:30) ---
+Action icon starts where heading starts
+
+--- 36 | Tuesday, Aug 4, 2026, 6:53 PM (UTC+5:30) ---
+just put header filter for swummer only
+
+--- 37 | Tuesday, Aug 4, 2026, 6:55 PM (UTC+5:30) ---
+swimmer column shoule be in different colur
+
+--- 38 | Tuesday, Aug 4, 2026, 6:56 PM (UTC+5:30) ---
+line not required
+
+--- 39 | Tuesday, Aug 4, 2026, 6:59 PM (UTC+5:30) ---
+show row/column borders
+
+--- 40 | Tuesday, Aug 4, 2026, 7:03 PM (UTC+5:30) ---
+please commit chenges uptill now and update on git
+
+--- 41 | Wednesday, Aug 5, 2026, 6:43 PM (UTC+5:30) ---
+please arrange these  2 in 2 column format
+
+--- 42 | Wednesday, Aug 5, 2026, 6:45 PM (UTC+5:30) ---
+arrange these in 3 column format
+
+--- 43 | Wednesday, Aug 5, 2026, 6:47 PM (UTC+5:30) ---
+arrange filling block next to header
+
+--- 44 | Wednesday, Aug 5, 2026, 6:50 PM (UTC+5:30) ---
+arrange medical information in 2 column format. doctor details in second column.
+
+--- 45 | Wednesday, Aug 5, 2026, 6:52 PM (UTC+5:30) ---
+here also entry box next to header\
+
+--- 46 | Wednesday, Aug 5, 2026, 6:53 PM (UTC+5:30) ---
+optimise size of block like, mobile no, date, blood group
+
+--- 47 | Wednesday, Aug 5, 2026, 6:55 PM (UTC+5:30) ---
+relation as well. don't wrap header now
+
+--- 48 | Wednesday, Aug 5, 2026, 6:56 PM (UTC+5:30) ---
+selection box next to question
+
+--- 49 | Wednesday, Aug 5, 2026, 6:57 PM (UTC+5:30) ---
+Name, address entry box next to header
+
+--- 50 | Wednesday, Aug 5, 2026, 6:58 PM (UTC+5:30) ---
+Aplly background font, uploading method, similar to core info page
+
+--- 51 | Wednesday, Aug 5, 2026, 7:01 PM (UTC+5:30) ---
+identity document selctionand upload next to header
+
+--- 52 | Wednesday, Aug 5, 2026, 7:04 PM (UTC+5:30) ---
+not required, just upload button next to document selection. size instruction should be within upload pop up
+
+--- 53 | Wednesday, Aug 5, 2026, 7:07 PM (UTC+5:30) ---
+arrange start point of entry/selection box.
+
+--- 54 | Wednesday, Aug 5, 2026, 7:11 PM (UTC+5:30) ---
+add a send QR Button, here, that will send a open form link and QR to requester user, so anyone can registar with this without login.
+
+--- 55 | Wednesday, Aug 5, 2026, 7:15 PM (UTC+5:30) ---
+Nowuse similar background, design as like registration form to staff registration
+
+--- 56 | Wednesday, Aug 5, 2026, 7:20 PM (UTC+5:30) ---
+put at right hand top corner without box
+
+--- 57 | Wednesday, Aug 5, 2026, 7:22 PM (UTC+5:30) ---
+add after header in same row
+
+--- 58 | Wednesday, Aug 5, 2026, 7:23 PM (UTC+5:30) ---
+add next to header
+
+--- 59 | Wednesday, Aug 5, 2026, 7:25 PM (UTC+5:30) ---
+certificate upload next to it
+
+--- 60 | Wednesday, Aug 5, 2026, 7:27 PM (UTC+5:30) ---
+just make it -Certificate
+
+--- 61 | Wednesday, Aug 5, 2026, 7:28 PM (UTC+5:30) ---
+make it Achievements and certificates
+
+--- 62 | Wednesday, Aug 5, 2026, 7:29 PM (UTC+5:30) ---
+make this box till midle and upload buton next to it.
+
+--- 63 | Wednesday, Aug 5, 2026, 7:31 PM (UTC+5:30) ---
+Keep only 1 button making heading Certificates. Insoide pop mention about max size of certificate and add facllity to upload multiple certificate.
+
+--- 64 | Wednesday, Aug 5, 2026, 7:39 PM (UTC+5:30) ---
+same background, fodn & design like registration for
+
+--- 65 | Wednesday, Aug 5, 2026, 7:42 PM (UTC+5:30) ---
+remove
+
+--- 66 | Wednesday, Aug 5, 2026, 7:44 PM (UTC+5:30) ---
+box should be next to heading and isze should be optimised. some looks very small
+
+--- 67 | Wednesday, Aug 5, 2026, 7:44 PM (UTC+5:30) ---
+box should be next to heading and isze should be optimised. some looks very small
+
+--- 68 | Wednesday, Aug 5, 2026, 7:47 PM (UTC+5:30) ---
+remove this gaps
+
+--- 69 | Wednesday, Aug 5, 2026, 7:49 PM (UTC+5:30) ---
+shift selection box next to header and optiomise box size
+
+--- 70 | Wednesday, Aug 5, 2026, 7:51 PM (UTC+5:30) ---
+optimise for 6 alphanumeric code
+
+--- 71 | Wednesday, Aug 5, 2026, 7:53 PM (UTC+5:30) ---
+optimise for 10 digit mobile no and validate it as well
+
+--- 72 | Wednesday, Aug 5, 2026, 7:54 PM (UTC+5:30) ---
+reduce the size of city box as well
+
+--- 73 | Wednesday, Aug 5, 2026, 7:55 PM (UTC+5:30) ---
+please make start point same
+
+--- 74 | Wednesday, Aug 5, 2026, 7:57 PM (UTC+5:30) ---
+revert back change
+
+--- 75 | Wednesday, Aug 5, 2026, 7:59 PM (UTC+5:30) ---
+please format background, font of service package like batches page
+
+--- 76 | Thursday, Aug 6, 2026, 12:12 PM (UTC+5:30) ---
+use same background, font pattern like batches to this page
+
+--- 77 | Thursday, Aug 6, 2026, 12:14 PM (UTC+5:30) ---
+as this is SAAS platform admin access, background colour should light orage.
+
+--- 78 | Thursday, Aug 6, 2026, 12:15 PM (UTC+5:30) ---
+why is it having 2 boxes
+
+--- 79 | Thursday, Aug 6, 2026, 12:16 PM (UTC+5:30) ---
+information table should be without any colour
+
+--- 80 | Thursday, Aug 6, 2026, 12:17 PM (UTC+5:30) ---
+but bax in which table is there should have orange colour
+
+--- 81 | Thursday, Aug 6, 2026, 12:19 PM (UTC+5:30) ---
+please put all entry boxes next to heading, also optimise entry box size
+
+--- 82 | Thursday, Aug 6, 2026, 12:21 PM (UTC+5:30) ---
+this should be second row
+
+--- 83 | Thursday, Aug 6, 2026, 12:22 PM (UTC+5:30) ---
+add create user and clear button in same row
+
+--- 84 | Thursday, Aug 6, 2026, 12:23 PM (UTC+5:30) ---
+mobile field box should for 10 digit nos., so optimise it and add validation of mobile no.
+
+--- 85 | Thursday, Aug 6, 2026, 12:24 PM (UTC+5:30) ---
+increase size of user name box
+
+--- 86 | Thursday, Aug 6, 2026, 12:25 PM (UTC+5:30) ---
+please format background, fond etc like accounts page
+
+--- 87 | Thursday, Aug 6, 2026, 12:29 PM (UTC+5:30) ---
+change background of this page as well
+
+--- 88 | Thursday, Aug 6, 2026, 12:30 PM (UTC+5:30) ---
+Package name and description should be in 2 column format with entry box next to heading and rest all should be in 4 column format with entry box next to heading
+
+--- 89 | Thursday, Aug 6, 2026, 12:33 PM (UTC+5:30) ---
+create a button on right hand top corner " New Package" after that only this should open.
+
+--- 90 | Thursday, Aug 6, 2026, 12:34 PM (UTC+5:30) ---
+please try with changing background to saffron  from light organge.
+
+--- 91 | Thursday, Aug 6, 2026, 12:37 PM (UTC+5:30) ---
+can you try FFA87D
+
+--- 92 | Thursday, Aug 6, 2026, 12:38 PM (UTC+5:30) ---
+here also add same background
+
+--- 93 | Thursday, Aug 6, 2026, 12:41 PM (UTC+5:30) ---
+here also apply same background
+
+--- 94 | Thursday, Aug 6, 2026, 12:48 PM (UTC+5:30) ---
+please change FFA87D  to FFB68F
+
+--- 95 | Thursday, Aug 6, 2026, 12:49 PM (UTC+5:30) ---
+show upi id next to heading
+
+--- 96 | Thursday, Aug 6, 2026, 12:50 PM (UTC+5:30) ---
+put dashbetween that
+
+--- 97 | Thursday, Aug 6, 2026, 12:51 PM (UTC+5:30) ---
+reduce this box size
+
+--- 98 | Thursday, Aug 6, 2026, 12:52 PM (UTC+5:30) ---
+PLease arrange QR code and Edit button at horizontal center of box
+
+--- 99 | Thursday, Aug 6, 2026, 12:54 PM (UTC+5:30) ---
+edit buton doesn't looks like set at horizantal center
+
+--- 100 | Thursday, Aug 6, 2026, 12:58 PM (UTC+5:30) ---
+put here that "upi id should not contains mobile no." in red colour
+
+--- 101 | Thursday, Aug 6, 2026, 1:00 PM (UTC+5:30) ---
+put this below upi id entry box. also add validation that it should not contain 10 numeric digits.
+
+--- 102 | Thursday, Aug 6, 2026, 1:02 PM (UTC+5:30) ---
+this page in SAAS platform should follow background colour as per create account
+
+--- 103 | Thursday, Aug 6, 2026, 4:32 PM (UTC+5:30) ---
+here this line not required
+
+--- 104 | Thursday, Aug 6, 2026, 4:34 PM (UTC+5:30) ---
+add here swimming pool code, so that we can send broad cast to any specific swimming pool.
+
+--- 105 | Thursday, Aug 6, 2026, 4:37 PM (UTC+5:30) ---
+it should show current active swimming account code for selection.
+
+--- 106 | Thursday, Aug 6, 2026, 4:39 PM (UTC+5:30) ---
+Why fonttype is different?
+
+--- 107 | Thursday, Aug 6, 2026, 4:39 PM (UTC+5:30) ---
+this is also next ot heading
+
+--- 108 | Thursday, Aug 6, 2026, 4:40 PM (UTC+5:30) ---
+align start point
+
+--- 109 | Thursday, Aug 6, 2026, 4:42 PM (UTC+5:30) ---
+Add 2 more audience Active account Admins & Active account users, after selection of this, swimming pool code is not required.
+
+--- 110 | Thursday, Aug 6, 2026, 4:45 PM (UTC+5:30) ---
+while scrolling up, menubar should not go up.
+
+--- 111 | Thursday, Aug 6, 2026, 4:47 PM (UTC+5:30) ---
+user management page within application should have background similar to batches
+
+--- 112 | Thursday, Aug 6, 2026, 4:56 PM (UTC+5:30) ---
+make it "I confirmed amount and upi id of successful payment"
+
+--- 113 | Thursday, Aug 6, 2026, 5:07 PM (UTC+5:30) ---
+create a dashboard for account.
+It should give clear picture about the swimming pool. It should show,
+Active user, Todays present swimmer, expiring swimmer count
+Payment details, todays cash and online payment, total payment
+New admission count- per batch/per coach/pass type.
+Even overall Active swimmers count, per batch/per coach/pass type
+
+--- 114 | Thursday, Aug 6, 2026, 5:07 PM (UTC+5:30) ---
+create a dashboard for account.
+It should give clear picture about the swimming pool. It should show,
+Active user, Todays present swimmer, expiring swimmer count
+Payment details, todays cash and online payment, total payment
+New admission count- per batch/per coach/pass type.
+Even overall Active swimmers count, per batch/per coach/pass type
+
+--- 115 | Thursday, Aug 6, 2026, 5:14 PM (UTC+5:30) ---
+it should be at top.
+
+--- 116 | Thursday, Aug 6, 2026, 5:15 PM (UTC+5:30) ---
+merge this in one box
+
+--- 117 | Thursday, Aug 6, 2026, 5:16 PM (UTC+5:30) ---
+all nos should be at bottom with center aligned\
+
+--- 118 | Thursday, Aug 6, 2026, 5:17 PM (UTC+5:30) ---
+shift no below
+
+--- 119 | Thursday, Aug 6, 2026, 5:18 PM (UTC+5:30) ---
+revert back this change
+
+--- 120 | Thursday, Aug 6, 2026, 5:21 PM (UTC+5:30) ---
+please interchange it.
+
+--- 121 | Thursday, Aug 6, 2026, 5:21 PM (UTC+5:30) ---
+not required
+
+--- 122 | Thursday, Aug 6, 2026, 5:22 PM (UTC+5:30) ---
+add a date selector at top right corner
+
+--- 123 | Thursday, Aug 6, 2026, 5:24 PM (UTC+5:30) ---
+It should help to see dashboard of that day
+
+--- 124 | Thursday, Aug 6, 2026, 5:27 PM (UTC+5:30) ---
+shift new admission details, above overall active swimmers details box
+
+--- 125 | Thursday, Aug 6, 2026, 5:27 PM (UTC+5:30) ---
+keep it one row only
+
+--- 126 | Thursday, Aug 6, 2026, 5:29 PM (UTC+5:30) ---
+these lines not required
+
+--- 127 | Thursday, Aug 6, 2026, 5:30 PM (UTC+5:30) ---
+Apply background colour as per batches
+
+--- 128 | Thursday, Aug 6, 2026, 5:31 PM (UTC+5:30) ---
+apply different colour for these placard
+
+--- 129 | Thursday, Aug 6, 2026, 5:32 PM (UTC+5:30) ---
+watermark on this as sample
+
+--- 130 | Thursday, Aug 6, 2026, 5:35 PM (UTC+5:30) ---
+on mobile, keep menubar same as laptop, just hide it, after clicking 3 line, it should come and after selecting menu/submenu, it should disappear
+
+--- 131 | Thursday, Aug 6, 2026, 5:39 PM (UTC+5:30) ---
+in mobile screen, wrap today at glance in 2 row.
+
+--- 132 | Thursday, Aug 6, 2026, 5:41 PM (UTC+5:30) ---
+per batch, per coach, per pass is not getting differentiated in mobile. make some changes colour of that
+
+--- 133 | Thursday, Aug 6, 2026, 5:44 PM (UTC+5:30) ---
+not showing all
+
+--- 134 | Thursday, Aug 6, 2026, 5:47 PM (UTC+5:30) ---
+after saving it should show tick
+
+--- 135 | Thursday, Aug 6, 2026, 5:51 PM (UTC+5:30) ---
+after saving turn this into edit
+
+--- 136 | Thursday, Aug 6, 2026, 5:57 PM (UTC+5:30) ---
+on mobile it should see full width
+
+--- 137 | Thursday, Aug 6, 2026, 5:59 PM (UTC+5:30) ---
+going out of mobile screen
+
+--- 138 | Thursday, Aug 6, 2026, 6:02 PM (UTC+5:30) ---
+still same for mobile screen
+
+--- 139 | Thursday, Aug 6, 2026, 6:10 PM (UTC+5:30) ---
+here also for mobile going out of screen. please check for all pages.
+
+--- 140 | Thursday, Aug 6, 2026, 6:26 PM (UTC+5:30) ---
+on mobile, please show this in 3 coulmn format.
+
+--- 141 | Thursday, Aug 6, 2026, 6:27 PM (UTC+5:30) ---
+Swimmer name should be headre, all other information in 3 column format
+
+--- 142 | Thursday, Aug 6, 2026, 6:27 PM (UTC+5:30) ---
+ad row column border
+
+--- 143 | Thursday, Aug 6, 2026, 6:30 PM (UTC+5:30) ---
+on mobile, show in column format
+
+--- 144 | Thursday, Aug 6, 2026, 6:30 PM (UTC+5:30) ---
+on mobile, show in column format
+
+--- 145 | Thursday, Aug 6, 2026, 6:35 PM (UTC+5:30) ---
+not showing selection drop down
+
+--- 146 | Thursday, Aug 6, 2026, 6:37 PM (UTC+5:30) ---
+on mobile, please show in column format
+
+--- 147 | Thursday, Aug 6, 2026, 6:39 PM (UTC+5:30) ---
+make alternate entry with different colour
+
+--- 148 | Thursday, Aug 6, 2026, 6:40 PM (UTC+5:30) ---
+on mobile, amount touching or going out of box
+
+--- 149 | Thursday, Aug 6, 2026, 6:41 PM (UTC+5:30) ---
+while showing debit, show total debit
+
+--- 150 | Thursday, Aug 6, 2026, 6:43 PM (UTC+5:30) ---
+on mobile, please show 3 column format
+
+--- 151 | Thursday, Aug 6, 2026, 6:45 PM (UTC+5:30) ---
+this also wrap in 2 row
+
+--- 152 | Thursday, Aug 6, 2026, 6:52 PM (UTC+5:30) ---
+on mobile, it is not scrolling to right to see all packages
+
+--- 153 | Thursday, Aug 6, 2026, 7:01 PM (UTC+5:30) ---
+give option to change language from english to marathi
+
+--- 154 | Thursday, Aug 6, 2026, 7:07 PM (UTC+5:30) ---
+don't use that much hard marathi, here use अॅप्लिकेशन
+
+--- 155 | Thursday, Aug 6, 2026, 7:08 PM (UTC+5:30) ---
+this round not required
+
+--- 156 | Thursday, Aug 6, 2026, 7:10 PM (UTC+5:30) ---
+make it like this
+
+--- 157 | Thursday, Aug 6, 2026, 7:11 PM (UTC+5:30) ---
+why that circle is coming
+
+--- 158 | Thursday, Aug 6, 2026, 7:12 PM (UTC+5:30) ---
+translate everything in marathi
+
+--- 159 | Thursday, Aug 6, 2026, 7:15 PM (UTC+5:30) ---
+this circle not required. Please check the font you are using for marathi, that is creating this circle
+
+--- 160 | Thursday, Aug 6, 2026, 7:16 PM (UTC+5:30) ---
+Then not required
+
+--- 161 | Thursday, Aug 6, 2026, 7:21 PM (UTC+5:30) ---
+make it "It helps digitize the day-to-day work of a pool. You can create batches, pass types, and a holiday calendar as per pool requirements. Register swimmers and coaches/staff with standard registration form.
+After selecting batch and coach, payments can be taken in cash or online. This creates a digital pass for the swimmer, which is sent to their mobile. Which can be scanned daily for attendance. So attendance stays up to date automatically.
+It helps to maintain pool expenses in one place. It calculates coach payments as well.  This helps to check pool profitability anytime with the balan…
+
+--- 162 | Thursday, Aug 6, 2026, 7:23 PM (UTC+5:30) ---
+here required येते.
+
+--- 163 | Thursday, Aug 6, 2026, 7:24 PM (UTC+5:30) ---
+translate all pages to marathi, when marathi selected
+
+--- 164 | Thursday, Aug 6, 2026, 7:42 PM (UTC+5:30) ---
+now help to connect with whatsapp gateway to send whatsapp message as designed in application
+
+--- 165 | Thursday, Aug 6, 2026, 7:52 PM (UTC+5:30) ---
+please commit changes done uptill now and push to to git. after that we  will push it to staging server and then do whatsapp setup on staging
+
+--- 166 | Thursday, Aug 6, 2026, 7:56 PM (UTC+5:30) ---
+now help manage whatsapp setup on staging server, so that we can send whatsapp message to any mobile, not limited to test mobile.
+
+--- 167 | Thursday, Aug 6, 2026, 7:59 PM (UTC+5:30) ---
+Add phone number — use a number not already on WhatsApp (personal/Business app) - then do we need to purchase new sim?
+
+--- 168 | Thursday, Aug 6, 2026, 8:03 PM (UTC+5:30) ---
+Swimit is SAAS application, we may have different pools as client. there could be possibility that some customers are customers for one/many swimming pool client with us. Customer should be able to differentiat which swimming pool is sending message to him? How to manage this?
+
+--- 169 | Friday, Aug 7, 2026, 8:51 AM (UTC+5:30) ---
+please create a image which will show /symbolise swimit SAAS platform.
+
+--- 170 | Friday, Aug 7, 2026, 8:54 AM (UTC+5:30) ---
+on login page, please show that image on left hand side.
+
+--- 171 | Friday, Aug 7, 2026, 8:56 AM (UTC+5:30) ---
+make image background sky blue
+
+--- 172 | Friday, Aug 7, 2026, 8:59 AM (UTC+5:30) ---
+remove this line, optimise entry box size
+
+--- 173 | Friday, Aug 7, 2026, 9:00 AM (UTC+5:30) ---
+Put entry box next to heading
+
+--- 174 | Friday, Aug 7, 2026, 9:01 AM (UTC+5:30) ---
+code is just 6 digit , so make make entry box half
+
+--- 175 | Friday, Aug 7, 2026, 9:02 AM (UTC+5:30) ---
+remove this name from image and put above login .
+
+--- 176 | Friday, Aug 7, 2026, 9:04 AM (UTC+5:30) ---
+please create a image which will show /symbolise swimit functonality without putting name in it..
+
+--- 177 | Friday, Aug 7, 2026, 9:04 AM (UTC+5:30) ---
+please create a image which will show /symbolise swimit functonality without putting name in it..
+
+--- 178 | Friday, Aug 7, 2026, 9:09 AM (UTC+5:30) ---
+use this image
+
+--- 179 | Friday, Aug 7, 2026, 9:10 AM (UTC+5:30) ---
+put this image on application review above workflow.
+
+--- 180 | Friday, Aug 7, 2026, 9:11 AM (UTC+5:30) ---
+put it at start of application overview
+
+--- 181 | Friday, Aug 7, 2026, 9:14 AM (UTC+5:30) ---
+use this image on login page
+
+--- 182 | Friday, Aug 7, 2026, 9:15 AM (UTC+5:30) ---
+make it swimming pool management system
+
+--- 183 | Friday, Aug 7, 2026, 9:17 AM (UTC+5:30) ---
+put this above login
+
+--- 184 | Friday, Aug 7, 2026, 9:18 AM (UTC+5:30) ---
+center align it
+
+--- 185 | Friday, Aug 7, 2026, 9:18 AM (UTC+5:30) ---
+reduce this image size
+
+--- 186 | Friday, Aug 7, 2026, 9:19 AM (UTC+5:30) ---
+not that small, increase by 25%
+
+--- 187 | Friday, Aug 7, 2026, 9:19 AM (UTC+5:30) ---
+more 25%
+
+--- 188 | Friday, Aug 7, 2026, 9:20 AM (UTC+5:30) ---
+not required
+
+--- 189 | Friday, Aug 7, 2026, 9:22 AM (UTC+5:30) ---
+Please add a forgot passord option, that will ask email and mobile, if that matched, then send random password on mobile and email.
+
+--- 190 | Friday, Aug 7, 2026, 9:28 AM (UTC+5:30) ---
+please replave login page image with this
+
+--- 191 | Friday, Aug 7, 2026, 9:31 AM (UTC+5:30) ---
+put these 2 buttons in one row
+
+--- 192 | Friday, Aug 7, 2026, 9:38 AM (UTC+5:30) ---
+Please add this logo at this corner as well
+
+--- 193 | Friday, Aug 7, 2026, 9:39 AM (UTC+5:30) ---
+please reduce size of application overview image by 25%
+
+--- 194 | Friday, Aug 7, 2026, 9:44 AM (UTC+5:30) ---
+please replace this saffron background colour with CA8AFF
+
+--- 195 | Friday, Aug 7, 2026, 9:46 AM (UTC+5:30) ---
+replace it with DFB8FF
+
+--- 196 | Friday, Aug 7, 2026, 9:49 AM (UTC+5:30) ---
+make account login page also same like platform login page, just remove account code.
+
+--- 197 | Friday, Aug 7, 2026, 9:52 AM (UTC+5:30) ---
+cancel button missing here
+
+--- 198 | Friday, Aug 7, 2026, 10:32 AM (UTC+5:30) ---
+create a logo for a "KGIT", whose tagline is "Expect Kilo ........... get Giga from our IT solution"
+
+--- 199 | Friday, Aug 7, 2026, 10:50 AM (UTC+5:30) ---
+put this image on application overview page
+
+--- 200 | Friday, Aug 7, 2026, 10:54 AM (UTC+5:30) ---
+now replace with this
+
+--- 201 | Friday, Aug 7, 2026, 10:55 AM (UTC+5:30) ---
+make this workflow more attractive
+
+--- 202 | Friday, Aug 7, 2026, 10:58 AM (UTC+5:30) ---
+not happy with this
+
+--- 203 | Friday, Aug 7, 2026, 10:59 AM (UTC+5:30) ---
+Closer to the old look
+
+--- 204 | Friday, Aug 7, 2026, 11:10 AM (UTC+5:30) ---
+add this in place of workflow in home page.
+
+--- 205 | Friday, Aug 7, 2026, 11:19 AM (UTC+5:30) ---
+@c:\Users\sneha\Downloads\SwimIT_Workflow_Editable.pptx Please apply this in place of workflow
+
+--- 206 | Friday, Aug 7, 2026, 11:20 AM (UTC+5:30) ---
+remove this
+
+--- 207 | Friday, Aug 7, 2026, 11:22 AM (UTC+5:30) ---
+Please show background colour as like create account page
+
+--- 208 | Friday, Aug 7, 2026, 11:24 AM (UTC+5:30) ---
+show logo in account page as well
+
+--- 209 | Friday, Aug 7, 2026, 11:56 AM (UTC+5:30) ---
+why are we getting this error?
+
+--- 210 | Friday, Aug 7, 2026, 12:18 PM (UTC+5:30) ---
+Put below given as terms and condition for swimmer in marathi, also translate same in english for english - सभासदत्त्वाचे नियम व अटी
+१) एकदा घेतलेले सभासदत्व कोणत्याही कारणास्तव रद्द करता येणार नाही. त्यातील पूर्ण किंवा काही भागातील पैसे परत मिळणार नाहीत, ह्याची नोंद घ्यावी. तसेच सभासदत्व परस्पर दुसऱ्या व्यक्तीच्या नावे करता येणार नाही.
+२) सदस्यात्वासाठीचा अर्ज स्विकारण्याचा अथवा नाकारण्याचा अधिकार व्यवस्थापनाला राहील व तो निर्णय अंतिम असेल.
+३) क्लबच्या आवारात सदस्यांनी व त्यांच्याबरोबरच्या लोकांनी स्वतःच्या जबाबदारीवर प्रवेश करावा.
+४) सभासदाचे सभासदत्व पास दिल्याच्या तारखेपासून सुरू होईल, असा…
+
+--- 211 | Friday, Aug 7, 2026, 12:22 PM (UTC+5:30) ---
+account user can change and modify these terms and condition, but by default they are there.
+
+--- 212 | Friday, Aug 7, 2026, 12:24 PM (UTC+5:30) ---
+सभासदत्त्वाचे नियम व अटी
+ remove this line and also remove line spacing between each tearms
+
+--- 213 | Friday, Aug 7, 2026, 12:27 PM (UTC+5:30) ---
+make it 16
+
+--- 214 | Friday, Aug 7, 2026, 12:29 PM (UTC+5:30) ---
+after changing language to english, please change here as well
+
+--- 215 | Friday, Aug 7, 2026, 12:30 PM (UTC+5:30) ---
+please reduce font size to match with that page
+
+--- 216 | Friday, Aug 7, 2026, 12:33 PM (UTC+5:30) ---
+make this as logo
+
+--- 217 | Friday, Aug 7, 2026, 12:47 PM (UTC+5:30) ---
+please add these as default terms and conditions for coach with proper numbering. - •  Punctuality & Attendance – I will report on time for all assigned batches and maintain accurate attendance. 
+•  Training Responsibility – I will conduct swimming sessions professionally and according to the assigned batch, timing, and training requirements. 
+•  Swimmer Safety – I will give the highest priority to swimmer safety and immediately report any accident, injury, or unsafe situation to management. 
+•  Professional Conduct – I will behave respectfully and professionally with swimmers, parents, coache…
+
+--- 218 | Friday, Aug 7, 2026, 12:49 PM (UTC+5:30) ---
+highlight each terms heading in bold font
+
+--- 219 | Friday, Aug 7, 2026, 12:51 PM (UTC+5:30) ---
+still showing normal only
+
+--- 220 | Friday, Aug 7, 2026, 12:54 PM (UTC+5:30) ---
+why box colour got changed?
+
+--- 221 | Friday, Aug 7, 2026, 1:05 PM (UTC+5:30) ---
+please add a acceptance of terms and conditions before creating account.
+
+--- 222 | Friday, Aug 7, 2026, 1:05 PM (UTC+5:30) ---
+please add a acceptance of terms and conditions before creating account.
+
+--- 223 | Friday, Aug 7, 2026, 1:08 PM (UTC+5:30) ---
+@d:\KG IT Solution\swimit\SwimIT saas terms and conditions.docx  Please add these as terms and conditions.
+
+--- 224 | Friday, Aug 7, 2026, 1:11 PM (UTC+5:30) ---
+change this button to accept
+
+--- 225 | Friday, Aug 7, 2026, 1:12 PM (UTC+5:30) ---
+remove
+
+--- 226 | Friday, Aug 7, 2026, 1:13 PM (UTC+5:30) ---
+align start point of entry box for both columns
+
+--- 227 | Friday, Aug 7, 2026, 1:15 PM (UTC+5:30) ---
+shift first column bit closer to heading
+
+--- 228 | Friday, Aug 7, 2026, 1:16 PM (UTC+5:30) ---
+please shift 2nd column heading bit away from first column entry box and closer to their entry box
+
+--- 229 | Friday, Aug 7, 2026, 1:18 PM (UTC+5:30) ---
+Terms & Conditions and Rules & Regulations please make it "Terms & Conditions"everywhere
+
+--- 230 | Friday, Aug 7, 2026, 1:18 PM (UTC+5:30) ---
+increase space here
+
+--- 231 | Friday, Aug 7, 2026, 1:20 PM (UTC+5:30) ---
+don't allow to create account without accepting terms and conditions
+
+--- 232 | Friday, Aug 7, 2026, 1:21 PM (UTC+5:30) ---
+not able to recognize, which one selected.
+
+--- 233 | Friday, Aug 7, 2026, 4:15 PM (UTC+5:30) ---
+Please align start point
+
+--- 234 | Friday, Aug 7, 2026, 4:27 PM (UTC+5:30) ---
+align start of box
+
+--- 235 | Friday, Aug 7, 2026, 4:29 PM (UTC+5:30) ---
+align is single row, by putting entry box next to heading
+
+--- 236 | Friday, Aug 7, 2026, 4:31 PM (UTC+5:30) ---
+increase size of coach selection box
+
+--- 237 | Friday, Aug 7, 2026, 4:32 PM (UTC+5:30) ---
+increase coach selection box by 50%
+
+--- 238 | Friday, Aug 7, 2026, 4:33 PM (UTC+5:30) ---
+why is it still showing of same width
+
+--- 239 | Friday, Aug 7, 2026, 4:34 PM (UTC+5:30) ---
+align in single row, remove this line
+
+--- 240 | Friday, Aug 7, 2026, 4:36 PM (UTC+5:30) ---
+not showing drop down list for selection
+
+--- 241 | Friday, Aug 7, 2026, 4:38 PM (UTC+5:30) ---
+drop down list going beyond table
+
+--- 242 | Friday, Aug 7, 2026, 4:40 PM (UTC+5:30) ---
+reduce coach selection box size by 50%
+
+--- 243 | Friday, Aug 7, 2026, 4:42 PM (UTC+5:30) ---
+why month gone beyond coach selection box
+
+--- 244 | Friday, Aug 7, 2026, 4:45 PM (UTC+5:30) ---
+should not select future date here
+
+--- 245 | Friday, Aug 7, 2026, 4:52 PM (UTC+5:30) ---
+y'day or day before y'day we had modified both registration form. how do we lost it? please check in history. It should be there in hostory.
+
+--- 246 | Friday, Aug 7, 2026, 4:58 PM (UTC+5:30) ---
+It is still not showing fully as per modification, document, photo, certificate upload still showing old fashion.
+
+--- 247 | Friday, Aug 7, 2026, 5:04 PM (UTC+5:30) ---
+even name, address,  emergency contact, medical information setup was not as per adjustment made.
+
+--- 248 | Friday, Aug 7, 2026, 5:04 PM (UTC+5:30) ---
+even name, address,  emergency contact, medical information setup was not as per adjustment made.
+
+--- 249 | Friday, Aug 7, 2026, 5:08 PM (UTC+5:30) ---
+alignment of entry box in both registration form is messed up. please check final changes that day
+
+--- 250 | Friday, Aug 7, 2026, 5:17 PM (UTC+5:30) ---
+these boxes shifted near to respective heading
+
+--- 251 | Friday, Aug 7, 2026, 5:20 PM (UTC+5:30) ---
+but align them for same start point
+
+--- 252 | Friday, Aug 7, 2026, 5:22 PM (UTC+5:30) ---
+i want it to be aligned start point, but not far from heading, why this much gap is there.
+
+--- 253 | Friday, Aug 7, 2026, 5:24 PM (UTC+5:30) ---
+it should be top aligned
+
+--- 254 | Friday, Aug 7, 2026, 5:25 PM (UTC+5:30) ---
+heading going beyond box
+
+--- 255 | Friday, Aug 7, 2026, 5:27 PM (UTC+5:30) ---
+still same
+
+--- 256 | Friday, Aug 7, 2026, 5:29 PM (UTC+5:30) ---
+going out of box, please reduce fond of all inbox selections
+
+--- 257 | Friday, Aug 7, 2026, 5:30 PM (UTC+5:30) ---
+arrange this in one row
+
+--- 258 | Friday, Aug 7, 2026, 5:33 PM (UTC+5:30) ---
+commit all changes and push to git
+
+--- 259 | Friday, Aug 7, 2026, 5:38 PM (UTC+5:30) ---
+> client@1.0.0 build
+> tsc --noEmit && vite build
+
+src/StaffRegistration.tsx:357:12 - error TS6133: 'setCertPhoto' is declared but its value is never read.
+
+357   function setCertPhoto(index: number, file: File | null) {
+               ~~~~~~~~~~~~
+
+Found 1 error in src/StaffRegistration.tsx:357
+
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path D:\projects\swimIT\client
+npm error workspace client@1.0.0
+npm error location D:\projects\swimIT\client
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsc --noEmit && vite build
+
+D:\p…
+
+--- 260 | Friday, Aug 7, 2026, 5:40 PM (UTC+5:30) ---
+what i need to do now?
+
+--- 261 | Friday, Aug 7, 2026, 5:41 PM (UTC+5:30) ---
+please commit and push to git
+
+--- 262 | Friday, Aug 7, 2026, 5:45 PM (UTC+5:30) ---
+view apllication or account application always should go to Dashboard initially.
+
+--- 263 | Friday, Aug 7, 2026, 5:48 PM (UTC+5:30) ---
+now not going to any other menu locked on dashboard
+
+--- 264 | Friday, Aug 7, 2026, 5:50 PM (UTC+5:30) ---
+if we go dashboard, why setup treeis open and it is showing like selected
+
+--- 265 | Friday, Aug 7, 2026, 5:54 PM (UTC+5:30) ---
+after clicking setup, why is it not showing setup page, just opening setup submenu tree, but showing dashboard only, what is wrong?
+
+--- 266 | Friday, Aug 7, 2026, 5:56 PM (UTC+5:30) ---
+please commit all changes and send to git
+
+--- 267 | Friday, Aug 7, 2026, 8:29 PM (UTC+5:30) ---
+now I have separate sim available, let me help to setup whatsapp connection for staging server
+
+--- 268 | Friday, Aug 7, 2026, 8:32 PM (UTC+5:30) ---
+please guide step by step for Add the SIM in Meta (WhatsApp Business)
+
+--- 269 | Friday, Aug 7, 2026, 8:34 PM (UTC+5:30) ---
+where is all tools
+
+--- 270 | Friday, Aug 7, 2026, 8:36 PM (UTC+5:30) ---
+is this correct account?
+
+--- 271 | Friday, Aug 7, 2026, 8:39 PM (UTC+5:30) ---
+but here it is showing full access
+
+--- 272 | Friday, Aug 7, 2026, 8:40 PM (UTC+5:30) ---
+but I want to send & receive whatsapp message from any nos.
+
+--- 273 | Saturday, Aug 8, 2026, 8:00 AM (UTC+5:30) ---
+can we convert this application in mobile app, so that user don't need to type url in browser while using on mobile.
+
+--- 274 | Saturday, Aug 8, 2026, 8:05 AM (UTC+5:30) ---
+how PWA works for user?
+
+--- 275 | Saturday, Aug 8, 2026, 8:14 AM (UTC+5:30) ---
+does mobile shows unknown source warning for pwa installation?
+
+--- 276 | Saturday, Aug 8, 2026, 10:09 AM (UTC+5:30) ---
+want to create a support channel between account admin and platform user. account admin should be able to raise  a complaint/suggestion, which will be visible to platform user. both should be able to chat on this regarding that. it will be not visible to other accounts.
+
+--- 277 | Saturday, Aug 8, 2026, 10:09 AM (UTC+5:30) ---
+want to create a support channel between account admin and platform user. account admin should be able to raise  a complaint/suggestion, which will be visible to platform user. both should be able to chat on this regarding that. it will be not visible to other accounts.
+
+--- 278 | Saturday, Aug 8, 2026, 10:19 AM (UTC+5:30) ---
+error showing
+
+--- 279 | Saturday, Aug 8, 2026, 10:22 AM (UTC+5:30) ---
+remove package info from here, it is already inside profiel
+
+--- 280 | Saturday, Aug 8, 2026, 10:23 AM (UTC+5:30) ---
+please put icon of sign out
+
+--- 281 | Saturday, Aug 8, 2026, 10:25 AM (UTC+5:30) ---
+please put here Icon to raise support ticket. if there is any response to support ticket or message from platform regarding package, it should be shown as notification count on it
+
+--- 282 | Saturday, Aug 8, 2026, 10:27 AM (UTC+5:30) ---
+please use a bell icon
+
+--- 283 | Saturday, Aug 8, 2026, 10:28 AM (UTC+5:30) ---
+noting happening
+
+--- 284 | Saturday, Aug 8, 2026, 10:29 AM (UTC+5:30) ---
+please use Icon like this
+
+--- 285 | Saturday, Aug 8, 2026, 10:32 AM (UTC+5:30) ---
+bell should open chatting service, so that account admin chat with platform user. On platform similar bell icon will be on account page, in front of that account, so both should chat thro that. there is option to start new chat.
+
+--- 286 | Saturday, Aug 8, 2026, 10:35 AM (UTC+5:30) ---
+now support page is not required at all
+
+--- 287 | Saturday, Aug 8, 2026, 10:37 AM (UTC+5:30) ---
+not required thsi
+
+--- 288 | Saturday, Aug 8, 2026, 10:39 AM (UTC+5:30) ---
+it should be look like whatsapp chat.
+
+--- 289 | Saturday, Aug 8, 2026, 10:43 AM (UTC+5:30) ---
+it should at right side, with message typing option at bottom , lso option to attach picture, document
+
+--- 290 | Saturday, Aug 8, 2026, 10:46 AM (UTC+5:30) ---
+this is not required, it is simple chatting channel with platform to inform complaint get support. no new ticket option required
+
+--- 291 | Saturday, Aug 8, 2026, 10:48 AM (UTC+5:30) ---
+strt it below top ribbon bar
+
+--- 292 | Saturday, Aug 8, 2026, 10:55 AM (UTC+5:30) ---
+7 days before package expiry, please send a message on chat to admin to renew package. after renew massage, ask about same package or change package, if selected change package, show all packages, if he selcted package. show amount of package + GST, please any pending broadcast messaging charges of previous month @.25 INR per message.
+
+--- 293 | Saturday, Aug 8, 2026, 10:55 AM (UTC+5:30) ---
+7 days before package expiry, please send a message on chat to admin to renew package. after renew massage, ask about same package or change package, if selected change package, show all packages, if he selcted package. show amount of package + GST, please any pending broadcast messaging charges of previous month @.25 INR per message.
+
+--- 294 | Saturday, Aug 8, 2026, 10:59 AM (UTC+5:30) ---
+signout should be like this
+
+--- 295 | Saturday, Aug 8, 2026, 11:02 AM (UTC+5:30) ---
+swimit platform send renew to start renew request, but it never got as expected
+
+--- 296 | Saturday, Aug 8, 2026, 11:05 AM (UTC+5:30) ---
+instead of that can we create payment request QR for that amount, so user don't need to enter amount ?
+
+--- 297 | Saturday, Aug 8, 2026, 11:08 AM (UTC+5:30) ---
+make it "After paying, send the screenshot with visible <upi id>on WhatsApp as before.
+
+--- 298 | Saturday, Aug 8, 2026, 11:09 AM (UTC+5:30) ---
+On service packages page, show packages with right top corner button to create package
+
+--- 299 | Saturday, Aug 8, 2026, 11:11 AM (UTC+5:30) ---
+add a row discounted rate, it is applicable/visible only when some amount is there.
+
+--- 300 | Saturday, Aug 8, 2026, 11:15 AM (UTC+5:30) ---
+not visible
+
+--- 301 | Saturday, Aug 8, 2026, 11:17 AM (UTC+5:30) ---
+not required
+
+--- 302 | Saturday, Aug 8, 2026, 11:17 AM (UTC+5:30) ---
+not required
+
+--- 303 | Saturday, Aug 8, 2026, 11:18 AM (UTC+5:30) ---
+make bold
+
+--- 304 | Saturday, Aug 8, 2026, 11:38 AM (UTC+5:30) ---
+for pass payment as well, please show QR code of account of final payment amount, so that swimmer doesn't need to enter it again.
+
+--- 305 | Saturday, Aug 8, 2026, 11:41 AM (UTC+5:30) ---
+is it possible that after clicking on QR code user will get option to select UPI payment app selection option, so that user can select that and go directly to authenticate payment
+
+--- 306 | Saturday, Aug 8, 2026, 11:44 AM (UTC+5:30) ---
+why getting this?
+
+--- 307 | Saturday, Aug 8, 2026, 11:53 AM (UTC+5:30) ---
+Please commit and update chnages to git
+
+--- 308 | Saturday, Aug 8, 2026, 11:55 AM (UTC+5:30) ---
+Waiting a few seconds for HTTPS…
+{"status":"ok"}
+Running /api/version: {"status":"ok","commit":"b425626b01ad11e7971ef12dc10dc4e6af09fee1","builtAt":"2026-08-08T06:24:21Z"}
+Confirm running commit equals: b425626b01ad11e7971ef12dc10dc4e6af09fee1
+Open https://staging.swimit.co.in
+Login: code swimit / user superadmin / password superadmin
+==> version
+{"status":"ok","commit":"b425626b01ad11e7971ef12dc10dc4e6af09fee1","builtAt":"2026-08-08T06:24:21Z"}
+==> Done. Confirm /api/version commit matches the Expected commit above.
+==> Open https://staging.swimit.co.in
+
+D:\projects\swimIT>
+
+--- 309 | Saturday, Aug 8, 2026, 11:56 AM (UTC+5:30) ---
+why is it showing counter for account admin renew releted selection chat.
+
+--- 310 | Saturday, Aug 8, 2026, 11:59 AM (UTC+5:30) ---
+if we have 100 of customer, do you expect to clear clear their renew related chats. it should get clear that counter, it will appear, if account typed something and want to discuss
+
+--- 311 | Saturday, Aug 8, 2026, 12:02 PM (UTC+5:30) ---
+also add a button at platform end, to clear chat.
+
+--- 312 | Saturday, Aug 8, 2026, 12:04 PM (UTC+5:30) ---
+commit an dupload changes to git
+
+--- 313 | Saturday, Aug 8, 2026, 12:06 PM (UTC+5:30) ---
+after login, why account is not going to dashboard page by default.
+
+--- 314 | Saturday, Aug 8, 2026, 12:09 PM (UTC+5:30) ---
+commit chnages to git
+
+--- 315 | Sunday, Aug 9, 2026, 11:15 AM (UTC+5:30) ---
+please chaneg menubar colour to 02204D
+
+--- 316 | Sunday, Aug 9, 2026, 11:17 AM (UTC+5:30) ---
+for selected menu, please change coplour to 004EBD
+
+--- 317 | Sunday, Aug 9, 2026, 11:20 AM (UTC+5:30) ---
+please change background colour for view application and account application for all pages to F2F8FE
+
+--- 318 | Sunday, Aug 9, 2026, 11:22 AM (UTC+5:30) ---
+please change it to E5F2FD
+
+--- 319 | Sunday, Aug 9, 2026, 11:23 AM (UTC+5:30) ---
+Please change background of box only not of main page
+
+--- 320 | Sunday, Aug 9, 2026, 11:23 AM (UTC+5:30) ---
+Please change background of box only not of main page
+
+--- 321 | Sunday, Aug 9, 2026, 11:25 AM (UTC+5:30) ---
+use same colour as menubar for top bar
+
+--- 322 | Sunday, Aug 9, 2026, 11:29 AM (UTC+5:30) ---
+change this button colour to 21C4E0
+
+--- 323 | Sunday, Aug 9, 2026, 11:30 AM (UTC+5:30) ---
+change this as well of same colour
+
+--- 324 | Sunday, Aug 9, 2026, 11:31 AM (UTC+5:30) ---
+use same colour for all download buttons
+
+--- 325 | Sunday, Aug 9, 2026, 11:33 AM (UTC+5:30) ---
+no, use gren colour of swimmer's  list download button for all download buttons
+
+--- 326 | Sunday, Aug 9, 2026, 11:36 AM (UTC+5:30) ---
+user colour of pool expenses save boton colour for all butons on all pages, except download buttons
+
+--- 327 | Sunday, Aug 9, 2026, 11:42 AM (UTC+5:30) ---
+change this background to E5F2FD
+
+--- 328 | Sunday, Aug 9, 2026, 11:44 AM (UTC+5:30) ---
+for service package as well change background to E5F2FD
+
+--- 329 | Sunday, Aug 9, 2026, 11:44 AM (UTC+5:30) ---
+and even for Home page
+
+--- 330 | Sunday, Aug 9, 2026, 12:07 PM (UTC+5:30) ---
+create another home page like this without disturbing current. Get started should  link to create account, pricinig should be link to service packages. Creat a features list page to link with features
+
+--- 331 | Sunday, Aug 9, 2026, 12:20 PM (UTC+5:30) ---
+replace with this logo
+
+--- 332 | Sunday, Aug 9, 2026, 12:22 PM (UTC+5:30) ---
+match logo background with page background
+
+--- 333 | Sunday, Aug 9, 2026, 12:23 PM (UTC+5:30) ---
+not required
+
+--- 334 | Sunday, Aug 9, 2026, 12:24 PM (UTC+5:30) ---
+reduce this height by 30 %
+
+--- 335 | Sunday, Aug 9, 2026, 12:25 PM (UTC+5:30) ---
+please add similar image
+
+--- 336 | Sunday, Aug 9, 2026, 12:29 PM (UTC+5:30) ---
+increase image portion starting from this point
+
+--- 337 | Sunday, Aug 9, 2026, 12:31 PM (UTC+5:30) ---
+please reduce heignt by 30% , if required add water next to his head
+
+--- 338 | Sunday, Aug 9, 2026, 12:35 PM (UTC+5:30) ---
+still showing full page height, please reduce height by 30 %
+
+--- 339 | Sunday, Aug 9, 2026, 12:37 PM (UTC+5:30) ---
+top ribbon background should be more faint near to white.
+
+--- 340 | Sunday, Aug 9, 2026, 12:38 PM (UTC+5:30) ---
+logo background should match to that
+
+--- 341 | Sunday, Aug 9, 2026, 12:40 PM (UTC+5:30) ---
+remove this from features
+
+--- 342 | Sunday, Aug 9, 2026, 12:41 PM (UTC+5:30) ---
+reduce font size here
+
+--- 343 | Sunday, Aug 9, 2026, 12:44 PM (UTC+5:30) ---
+features icon should be like sample given second screenshot
+
+--- 344 | Sunday, Aug 9, 2026, 12:46 PM (UTC+5:30) ---
+replace this home page by newly created home page
+
+--- 345 | Sunday, Aug 9, 2026, 12:47 PM (UTC+5:30) ---
+replace this with view application
+
+--- 346 | Sunday, Aug 9, 2026, 12:48 PM (UTC+5:30) ---
+after clicking this show expandable application view
+
+--- 347 | Sunday, Aug 9, 2026, 12:51 PM (UTC+5:30) ---
+increase height of this image ribbon by 20%
+
+--- 348 | Sunday, Aug 9, 2026, 12:52 PM (UTC+5:30) ---
+inside font colour should be similar to button colour
+
+--- 349 | Sunday, Aug 9, 2026, 12:53 PM (UTC+5:30) ---
+view application should take to new page of expanded application
+
+--- 350 | Sunday, Aug 9, 2026, 2:20 PM (UTC+5:30) ---
+please design service package page as pricing page, which suits to our new home page
+
+--- 351 | Sunday, Aug 9, 2026, 2:24 PM (UTC+5:30) ---
+arrange these 5 in one row
+
+--- 352 | Sunday, Aug 9, 2026, 2:26 PM (UTC+5:30) ---
+not there
+
+--- 353 | Sunday, Aug 9, 2026, 2:27 PM (UTC+5:30) ---
+remove this
+
+--- 354 | Sunday, Aug 9, 2026, 2:30 PM (UTC+5:30) ---
+features page boxes background and borders should be like this
+
+--- 355 | Sunday, Aug 9, 2026, 2:31 PM (UTC+5:30) ---
+box border should also like that selected box border
+
+--- 356 | Sunday, Aug 9, 2026, 2:33 PM (UTC+5:30) ---
+design create account page as get started page, which suits our current home page design
+
+--- 357 | Sunday, Aug 9, 2026, 2:35 PM (UTC+5:30) ---
+going out of box or touching it.
+
+--- 358 | Sunday, Aug 9, 2026, 2:37 PM (UTC+5:30) ---
+add a feature to verify email by OTP on email  and mobile by OTP on whatsapp.
+
+--- 359 | Sunday, Aug 9, 2026, 2:37 PM (UTC+5:30) ---
+add a feature to verify email by OTP on email  and mobile by OTP on whatsapp.
+
+--- 360 | Sunday, Aug 9, 2026, 2:42 PM (UTC+5:30) ---
+move City in place of mobile and add mobile and it's verification in one row
+
+--- 361 | Sunday, Aug 9, 2026, 2:43 PM (UTC+5:30) ---
+please align start point of both otp entry box
+
+--- 362 | Sunday, Aug 9, 2026, 2:44 PM (UTC+5:30) ---
+just make it OTP
+
+--- 363 | Sunday, Aug 9, 2026, 2:47 PM (UTC+5:30) ---
+in mobile screen, please show launguage , login and get started at top right corner and home features & pricing just above image
+
+--- 364 | Sunday, Aug 9, 2026, 2:49 PM (UTC+5:30) ---
+on mobile screen, package boxes arrange 2,1,2 per row
+
+--- 365 | Sunday, Aug 9, 2026, 2:51 PM (UTC+5:30) ---
+on mobile scree, please show Mobile & Email, before entry box
+
+--- 366 | Sunday, Aug 9, 2026, 2:54 PM (UTC+5:30) ---
+please put Mobile heading and next to it mobile entry box
+
+--- 367 | Sunday, Aug 9, 2026, 2:56 PM (UTC+5:30) ---
+Mobile entry box should align with start point of all above entry boxes
+
+--- 368 | Sunday, Aug 9, 2026, 2:57 PM (UTC+5:30) ---
+Correct, now send otp, otp verify also arrange within that mobile entry box size
+
+--- 369 | Sunday, Aug 9, 2026, 2:59 PM (UTC+5:30) ---
+accept sentence should start from left side
+
+--- 370 | Sunday, Aug 9, 2026, 3:00 PM (UTC+5:30) ---
+revert this change
+
+--- 371 | Sunday, Aug 9, 2026, 3:00 PM (UTC+5:30) ---
+commit and send these changes to git
+
+--- 372 | Sunday, Aug 9, 2026, 8:05 PM (UTC+5:30) ---
+create a page called Water Quality under operations similar to pool expenses, after that we will change columns name and add some.
+
+--- 373 | Sunday, Aug 9, 2026, 8:11 PM (UTC+5:30) ---
+after date create 5 columns pH Level, Free Chlorine, Total Alkalinity, Calcium Hardness, Tester Name & Then Save button, remove rest all columns
+
+--- 374 | Sunday, Aug 9, 2026, 8:14 PM (UTC+5:30) ---
+This is the range of these 4 parameter. please unit in that box. After save  if any of this is out of range show that box in red and show pass/fail after save button  - pH Level: 7.2 – 7.6
+
+- Free Chlorine: 1 – 3 ppm
+
+- Total Alkalinity: 80 – 120 ppm
+
+- Calcium Hardness: 200 – 400 ppm
+
+--- 375 | Sunday, Aug 9, 2026, 8:17 PM (UTC+5:30) ---
+show some sample on non account view application mode.
+
+--- 376 | Sunday, Aug 9, 2026, 8:19 PM (UTC+5:30) ---
+don't allow to enter future date reading.
+
+--- 377 | Sunday, Aug 9, 2026, 8:19 PM (UTC+5:30) ---
+but in sample you are shoding future dates
+
+--- 378 | Sunday, Aug 9, 2026, 8:21 PM (UTC+5:30) ---
+don't show range in entry box, that will encourage user to enter within that range.
+
+--- 379 | Sunday, Aug 9, 2026, 8:22 PM (UTC+5:30) ---
+Please add water quality related feature in feature list, which we removed today morning
+
+--- 380 | Sunday, Aug 9, 2026, 8:24 PM (UTC+5:30) ---
+now after minimise of view application go to home page.
+
+--- 381 | Sunday, Aug 9, 2026, 8:37 PM (UTC+5:30) ---
+please don't change designpattern, show all in one row
+
+--- 382 | Sunday, Aug 9, 2026, 8:39 PM (UTC+5:30) ---
+spread them full page width
+
+--- 383 | Sunday, Aug 9, 2026, 8:40 PM (UTC+5:30) ---
+remove these
+
+--- 384 | Sunday, Aug 9, 2026, 8:43 PM (UTC+5:30) ---
+add 4 water quality parameters graph below active swimmers in one row
+
+--- 385 | Sunday, Aug 9, 2026, 8:46 PM (UTC+5:30) ---
+please show trend line graph
+
+--- 386 | Sunday, Aug 9, 2026, 8:47 PM (UTC+5:30) ---
+start Y axis with 0
+
+--- 387 | Sunday, Aug 9, 2026, 8:49 PM (UTC+5:30) ---
+show reading before pass/fail
+
+--- 388 | Sunday, Aug 9, 2026, 8:50 PM (UTC+5:30) ---
+remove new admissions today section
+
+--- 389 | Sunday, Aug 9, 2026, 8:53 PM (UTC+5:30) ---
+commit and push to git
+
+--- 390 | Sunday, Aug 9, 2026, 8:53 PM (UTC+5:30) ---
+commit and push to git
+
+--- 391 | Sunday, Aug 9, 2026, 9:08 PM (UTC+5:30) ---
+can you please rework application pages, which suits to our application Home page
+
+--- 392 | Sunday, Aug 9, 2026, 9:14 PM (UTC+5:30) ---
+please create a icon to change theme from light to dark and vice versa
+
+--- 393 | Sunday, Aug 9, 2026, 9:18 PM (UTC+5:30) ---
+in dark these it should toggle font colour as well
+
+--- 394 | Sunday, Aug 9, 2026, 9:19 PM (UTC+5:30) ---
+but not flipped colour of entry box, so text is not visible
+
+--- 395 | Sunday, Aug 9, 2026, 9:21 PM (UTC+5:30) ---
+This need to be for all entry, selection boxes and Logo as well
+
+--- 396 | Sunday, Aug 9, 2026, 9:24 PM (UTC+5:30) ---
+still colour not flipped for many boxes
+
+--- 397 | Sunday, Aug 9, 2026, 9:28 PM (UTC+5:30) ---
+few more still pending
+
+--- 398 | Sunday, Aug 9, 2026, 9:31 PM (UTC+5:30) ---
+few more
+
+--- 399 | Sunday, Aug 9, 2026, 9:33 PM (UTC+5:30) ---
+logo background is not matching with background colour in dark mode
+
+--- 400 | Sunday, Aug 9, 2026, 9:38 PM (UTC+5:30) ---
+here as well
+
+--- 401 | Sunday, Aug 9, 2026, 9:39 PM (UTC+5:30) ---
+view application should be in dark mode initially.
+
+--- 402 | Sunday, Aug 9, 2026, 9:41 PM (UTC+5:30) ---
+and home page always in light mode , user can switch to dark if want.
+
+--- 403 | Sunday, Aug 9, 2026, 9:42 PM (UTC+5:30) ---
+please commit and push to git
+
+--- 404 | Tuesday, Aug 11, 2026, 4:51 PM (UTC+5:30) ---
+please create a list of instructions given to create this application uptill now.
+

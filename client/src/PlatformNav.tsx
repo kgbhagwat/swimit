@@ -7,6 +7,7 @@ import {
   type PlatformSession,
 } from './platformSession';
 import { hasPlatformAccess, type PlatformAccessPageKey } from './platformAccess';
+import { passwordPolicyError } from './passwordPolicy';
 import { PlatformLoginModal, type PlatformLoginFormState } from './PlatformLoginModal';
 import { ThemeToggle, useTheme } from './theme';
 import { setActiveTenant } from './tenantSession';
@@ -270,6 +271,7 @@ function PlatformProfileMenu({
 }: {
   session: PlatformSession;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -318,8 +320,9 @@ function PlatformProfileMenu({
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters');
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      setError(policyError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -430,11 +433,14 @@ function PlatformProfileMenu({
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoComplete="new-password"
-                    minLength={6}
+                    minLength={8}
                     required
                   />
                   <PasswordEyeButton visible={showNew} onToggle={() => setShowNew((v) => !v)} />
                 </div>
+                <span className="muted field-hint">
+                  {t('Password must be at least 8 characters with at least 1 letter and 1 number')}
+                </span>
               </label>
               <label className="field">
                 <span className="label">Confirm new password</span>
@@ -444,7 +450,7 @@ function PlatformProfileMenu({
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     autoComplete="new-password"
-                    minLength={6}
+                    minLength={8}
                     required
                   />
                   <PasswordEyeButton

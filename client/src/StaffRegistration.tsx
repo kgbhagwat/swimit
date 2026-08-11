@@ -46,6 +46,7 @@ type FormState = {
   doctorName: string;
   doctorNo: string;
   identityDocument: string;
+  identityNumber: string;
   teachStrokes: string[];
   suitableBatchIds: string[];
   achievements: string;
@@ -75,6 +76,7 @@ const initialForm: FormState = {
   doctorName: '',
   doctorNo: '',
   identityDocument: '',
+  identityNumber: '',
   teachStrokes: [],
   suitableBatchIds: [],
   achievements: '',
@@ -187,6 +189,7 @@ export function StaffRegistration() {
         doctorName: sample.doctorName,
         doctorNo: sample.doctorNo,
         identityDocument: sample.identityDocument,
+        identityNumber: sample.identityNumber ?? '',
         teachStrokes: [...sample.teachStrokes],
         suitableBatchIds: [...sample.suitableBatchIds],
         achievements: sample.achievements,
@@ -236,6 +239,7 @@ export function StaffRegistration() {
           doctorName: data.doctorName ?? '',
           doctorNo: data.doctorNo ?? '',
           identityDocument: data.identityDocument ?? '',
+          identityNumber: data.identityNumber ?? '',
           teachStrokes: Array.isArray(data.teachStrokes) ? data.teachStrokes : [],
           suitableBatchIds: Array.isArray(data.suitableBatchIds)
             ? data.suitableBatchIds.map(String)
@@ -401,6 +405,9 @@ export function StaffRegistration() {
     }
 
     if (!form.identityDocument) fields.add('identityDocument');
+    if (form.identityNumber.trim().replace(/\s+/g, '').length < 4) {
+      fields.add('identityNumber');
+    }
     if (!isSampleEdit) {
       if (!identityPhoto && !existingPhotos.identity) fields.add('identityPhoto');
       if (!staffPhoto && !existingPhotos.staff) fields.add('staffPhoto');
@@ -876,10 +883,10 @@ export function StaffRegistration() {
 
         <section className="registration-section">
           <h2>{t("Identity & photo")}</h2>
-          <div className="grid-2 registration-identity-row">
-            <div
+          <div className="registration-identity-row">
+            <label
               className={`field field-beside registration-identity-doc${
-                isInvalid('identityPhoto') ? ' field-box-invalid' : ''
+                isInvalid('identityDocument') ? ' field-box-invalid' : ''
               }`}
             >
               <Label required>{t("Identity document")}</Label>
@@ -897,30 +904,49 @@ export function StaffRegistration() {
                 <option value="Driving Licence">{t("Driving licence")}</option>
                 <option value="School ID">{t("School / college ID")}</option>
               </select>
-              <RegistrationPhotoField
-                label={t("Photo of identity proof")}
-                hint={t("Max 200 KB — upload or take a photo of your identity proof")}
+            </label>
+            <label
+              className={`field field-beside registration-identity-number${
+                isInvalid('identityNumber') ? ' field-box-invalid' : ''
+              }`}
+            >
+              <Label required>{t('Identity number')}</Label>
+              <input
+                className="field-control-sm"
+                value={form.identityNumber}
+                onChange={(e) => setField('identityNumber', e.target.value)}
+                placeholder={t('Enter document number')}
+                autoComplete="off"
                 required
-                hideLabel
-                file={identityPhoto}
-                preview={identityPreview}
-                existingUrl={existingPhotos.identity}
-                takeLabel={t("Take photo")}
-                uploadLabel={t("Upload")}
-                invalid={isInvalid('identityPhoto')}
-                onClearExisting={() =>
-                  setExistingPhotos((prev) => ({ ...prev, identity: null }))
-                }
-                onPick={(file) => {
-                  clearInvalid('identityPhoto');
-                  setIdentityPhoto(file);
-                }}
+                aria-invalid={isInvalid('identityNumber')}
               />
-            </div>
+            </label>
+            <RegistrationPhotoField
+              label={t("Photo of identity proof")}
+              hint={t("Max 200 KB — upload or take a photo of your identity proof")}
+              required
+              hideLabel
+              protectFromCapture
+              identityNumberToMask={form.identityNumber}
+              file={identityPhoto}
+              preview={identityPreview}
+              existingUrl={existingPhotos.identity}
+              takeLabel={t("Take photo")}
+              uploadLabel={t("Upload")}
+              invalid={isInvalid('identityPhoto')}
+              onClearExisting={() =>
+                setExistingPhotos((prev) => ({ ...prev, identity: null }))
+              }
+              onPick={(file) => {
+                clearInvalid('identityPhoto');
+                setIdentityPhoto(file);
+              }}
+            />
             <RegistrationPhotoField
               label={t("Photo")}
               hint={t("Max 200 KB — recent passport-size photo for identification")}
               required
+              protectFromCapture
               file={staffPhoto}
               preview={staffPreview}
               existingUrl={existingPhotos.staff}

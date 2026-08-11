@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { maskIdentityNumber } from './identityNumber';
+import { MaskedIdentityProofImage } from './MaskedIdentityProofImage';
+import { SensitiveSurface } from './sensitiveScreen';
 
 export type SwimmerProfile = {
   id: number;
@@ -21,6 +24,8 @@ export type SwimmerProfile = {
   doctorName: string;
   doctorNo: string;
   identityDocument: string;
+  identityNumber?: string;
+  identityNumberMasked?: string;
   identityPhotoUrl: string | null;
   photoUrl: string | null;
 };
@@ -173,28 +178,47 @@ export function SwimmerProfileReview({
             <span className="swimmer-review-label">Identity document</span>
             <span>{displayProfileValue(profile.identityDocument)}</span>
           </div>
-          <div className="swimmer-review-photos">
-            <figure className="swimmer-review-photo">
-              {profile.identityPhotoUrl ? (
-                <img
-                  className="swimmer-review-photo-doc"
-                  src={profile.identityPhotoUrl}
-                  alt={`${profile.fullName} identity proof`}
-                />
-              ) : (
-                <div className="swimmer-review-photo-empty">No identity photo</div>
+          <div className="swimmer-review-identity-type">
+            <span className="swimmer-review-label">Identity number</span>
+            <span>
+              {displayProfileValue(
+                profile.identityNumberMasked ||
+                  maskIdentityNumber(profile.identityNumber),
               )}
-              <figcaption>Identity proof photo</figcaption>
-            </figure>
-            <figure className="swimmer-review-photo">
-              {profile.photoUrl ? (
-                <img src={profile.photoUrl} alt={`${profile.fullName} photo`} />
-              ) : (
-                <div className="swimmer-review-photo-empty">No swimmer photo</div>
-              )}
-              <figcaption>Swimmer photo</figcaption>
-            </figure>
+            </span>
           </div>
+          <SensitiveSurface
+            className="swimmer-review-photos-sensitive"
+            label="SwimIT · ID / Photo"
+          >
+            <div className="swimmer-review-photos">
+              <figure className="swimmer-review-photo">
+                {profile.identityPhotoUrl ? (
+                  <MaskedIdentityProofImage
+                    className="swimmer-review-photo-doc"
+                    src={profile.identityPhotoUrl}
+                    identityNumber={profile.identityNumber}
+                    alt={`${profile.fullName} identity proof`}
+                  />
+                ) : (
+                  <div className="swimmer-review-photo-empty">No identity photo</div>
+                )}
+                <figcaption>Identity proof photo</figcaption>
+              </figure>
+              <figure className="swimmer-review-photo">
+                {profile.photoUrl ? (
+                  <img
+                    src={profile.photoUrl}
+                    alt={`${profile.fullName} photo`}
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="swimmer-review-photo-empty">No swimmer photo</div>
+                )}
+                <figcaption>Swimmer photo</figcaption>
+              </figure>
+            </div>
+          </SensitiveSurface>
           {footer}
         </>
       )}

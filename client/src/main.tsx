@@ -35,6 +35,9 @@ const PoolExpenses = lazy(() =>
 const WaterQuality = lazy(() =>
   import('./WaterQuality').then((m) => ({ default: m.WaterQuality })),
 );
+const ActivityLog = lazy(() =>
+  import('./ActivityLog').then((m) => ({ default: m.ActivityLog })),
+);
 const PassPayment = lazy(() => import('./PassPayment').then((m) => ({ default: m.PassPayment })));
 const PassTypePage = lazy(() =>
   import('./PassTypePage').then((m) => ({ default: m.PassTypePage })),
@@ -89,6 +92,9 @@ const PlatformPayment = lazy(() =>
 const PublicOpenForm = lazy(() =>
   import('./PublicOpenForm').then((m) => ({ default: m.PublicOpenForm })),
 );
+const RemoteAccessPage = lazy(() =>
+  import('./RemoteAccessPage').then((m) => ({ default: m.RemoteAccessPage })),
+);
 
 function withPlatformAuth(element: ReactElement) {
   return <RequirePlatformSession>{element}</RequirePlatformSession>;
@@ -136,6 +142,7 @@ function appFeatureRoutes() {
       <Route path="whatsapp" element={<WhatsAppMessaging />} />
       <Route path="pool-expenses" element={<PoolExpenses />} />
       <Route path="water-quality" element={<WaterQuality />} />
+      <Route path="activity-log" element={<ActivityLog />} />
       <Route path="pass-scanner" element={<PassScanner />} />
       <Route path="coach-payment" element={<CoachPayment />} />
       <Route path="attendance-sheet" element={<AttendanceSheet />} />
@@ -168,6 +175,7 @@ const legacyFeatureRedirects = (
     <Route path="/whatsapp" element={<RedirectToApplication />} />
     <Route path="/pool-expenses" element={<RedirectToApplication />} />
     <Route path="/water-quality" element={<RedirectToApplication />} />
+    <Route path="/activity-log" element={<RedirectToApplication />} />
     <Route path="/pass-scanner" element={<RedirectToApplication />} />
     <Route path="/coach-payment" element={<RedirectToApplication />} />
     <Route path="/attendance-sheet" element={<RedirectToApplication />} />
@@ -202,6 +210,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="payment" element={<PlatformPayment />} />
               </Route>
               <Route path="/application-guide" element={<ApplicationGuide />} />
+              <Route path="/remote-access" element={<RemoteAccessPage />} />
               <Route path="/application" element={<AppShell />}>
                 {appFeatureRoutes()}
               </Route>

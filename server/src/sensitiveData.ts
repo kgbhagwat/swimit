@@ -116,6 +116,34 @@ export function revealIdentityDocument(stored: unknown): string {
   }
 }
 
+export function sealIdentityNumber(value: string): string {
+  return encryptString(String(value ?? '').trim());
+}
+
+export function revealIdentityNumber(stored: unknown): string {
+  try {
+    return decryptString(stored);
+  } catch (err) {
+    console.warn('[pii] identity number decrypt failed', err);
+    return '';
+  }
+}
+
+/** Mask identity number for ID cards — only last 4 characters visible. */
+export function maskIdentityNumber(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const chars = raw.replace(/\s+/g, '');
+  if (chars.length <= 4) return chars;
+  const last4 = chars.slice(-4);
+  const hidden = chars.slice(0, -4).replace(/[A-Za-z0-9]/g, 'X');
+  // Keep a readable Aadhaar-style grouping when long enough.
+  if (chars.length >= 12 && /^\d+$/.test(chars)) {
+    return `XXXX XXXX ${last4}`;
+  }
+  return `${hidden}${last4}`;
+}
+
 export function isSealedUploadPath(filename: string) {
   return String(filename ?? '').endsWith('.enc');
 }

@@ -24,7 +24,8 @@ export type MenuPageKey =
   | 'payment-details'
   | 'pool-core-info'
   | 'holiday-management'
-  | 'whatsapp';
+  | 'whatsapp'
+  | 'activity-log';
 
 export type MenuPageDef = {
   key: MenuPageKey;
@@ -47,6 +48,7 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'pass-types', section: 'Setup', to: '/pass-types', label: 'Pass Type' },
   { key: 'holiday-management', section: 'Setup', to: '/holiday-management', label: 'Holidays' },
   { key: 'create-user', section: 'Setup', to: '/user-management', label: 'User Management' },
+  { key: 'activity-log', section: 'Setup', to: '/activity-log', label: 'Activity Log' },
   { key: 'pass-payment', section: 'Operations', to: '/pass-payment', label: 'Pass Payment' },
   { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp' },
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },
@@ -89,6 +91,7 @@ export const FULL_ONLY_PAGE_KEYS: MenuPageKey[] = [
   'holiday-management',
   'whatsapp',
   'create-user',
+  'activity-log',
   'payment-details',
 ];
 

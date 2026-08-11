@@ -1,7 +1,9 @@
 import { useId, useRef, useState } from 'react';
 import { compressImageToLimit } from './compressImage';
 import { useT } from './i18n';
+import { maskIdentityProofImage } from './maskIdentityProofImage';
 import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
+import { SensitiveSurface, useSensitiveScreen } from './sensitiveScreen';
 import { useObjectUrl, useObjectUrls } from './useObjectUrl';
 
 function FieldLabel({ children, required }: { children: string; required?: boolean }) {
@@ -32,6 +34,13 @@ type RegistrationPhotoFieldProps = {
   invalid?: boolean;
   /** Hide the field label (e.g. identity proof beside document dropdown). */
   hideLabel?: boolean;
+  /** Block save/print/screenshot affordances while this photo is on screen. */
+  protectFromCapture?: boolean;
+  /**
+   * When set (identity proof uploads), mask this number on the image so only
+   * the last 4 characters remain visible before the file is accepted.
+   */
+  identityNumberToMask?: string;
 };
 
 /** Upload trigger + modal (Take photo / Upload → OK), matching Core Info. */
@@ -48,6 +57,8 @@ export function RegistrationPhotoField({
   onClearExisting,
   invalid,
   hideLabel = false,
+  protectFromCapture = false,
+  identityNumberToMask,
 }: RegistrationPhotoFieldProps) {
   const t = useT();
   const resolvedTake = takeLabel ?? t('Take photo');
@@ -57,13 +68,17 @@ export function RegistrationPhotoField({
   const [open, setOpen] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [compressing, setCompressing] = useState(false);
+  const [masking, setMasking] = useState(false);
   const draftPreview = useObjectUrl(draftFile);
   const display = preview || existingUrl || null;
   const modalTitleId = useId();
+  // Modal draft preview also counts as photo-on-screen.
+  useSensitiveScreen(protectFromCapture && open);
 
   function closeModal(discardDraft: boolean) {
     if (discardDraft) setDraftFile(null);
     setCompressing(false);
+    setMasking(false);
     setOpen(false);
     if (cameraRef.current) cameraRef.current.value = '';
     if (fileRef.current) fileRef.current.value = '';
@@ -88,8 +103,32 @@ export function RegistrationPhotoField({
     }
   }
 
-  function confirmDraft() {
-    if (!draftFile) return;
+  async function confirmDraft() {
+    if (!draftFile || masking || compressing) return;
+    const idNumber = String(identityNumberToMask ?? '').trim();
+    const mustMask = identityNumberToMask !== undefined;
+    if (mustMask && idNumber.replace(/[\s\-_/]/g, '').length < 4) {
+      alert(t('Enter the identity number first (at least 4 characters), then upload the proof photo.'));
+      return;
+    }
+    if (mustMask) {
+      setMasking(true);
+      try {
+        const masked = await maskIdentityProofImage(draftFile, idNumber);
+        const ready = await compressImageToLimit(masked);
+        onPick(ready);
+        closeModal(true);
+      } catch (err) {
+        alert(
+          err instanceof Error
+            ? err.message
+            : t('Unable to mask identity number on the proof photo'),
+        );
+      } finally {
+        setMasking(false);
+      }
+      return;
+    }
     onPick(draftFile);
     closeModal(true);
   }
@@ -119,23 +158,34 @@ export function RegistrationPhotoField({
         </button>
       </div>
       {display ? (
-        <div className="preview-wrap preview-wrap--deletable">
-          <img src={display} alt={label} className="preview pool-core-preview" />
-          <button
-            type="button"
-            className="preview-delete-btn"
-            aria-label={`${t('Delete')} ${label}`}
-            title={t('Delete image')}
-            onClick={clearImage}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M4 7h16" />
-              <path d="M9 7V5h6v2" />
-              <path d="M7 7l1 13h8l1-13" />
-              <path d="M10 11v6M14 11v6" />
-            </svg>
-          </button>
-        </div>
+        <SensitiveSurface
+          className="photo-field-sensitive"
+          label="SwimIT · Confidential"
+          enabled={protectFromCapture}
+        >
+          <div className="preview-wrap preview-wrap--deletable">
+            <img
+              src={display}
+              alt={label}
+              className="preview pool-core-preview"
+              draggable={protectFromCapture ? false : undefined}
+            />
+            <button
+              type="button"
+              className="preview-delete-btn"
+              aria-label={`${t('Delete')} ${label}`}
+              title={t('Delete image')}
+              onClick={clearImage}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M4 7h16" />
+                <path d="M9 7V5h6v2" />
+                <path d="M7 7l1 13h8l1-13" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          </div>
+        </SensitiveSurface>
       ) : null}
       {file ? (
         <p className="file-name">
@@ -197,9 +247,13 @@ export function RegistrationPhotoField({
                 onChange={(e) => void handleDraftFile(e.target.files?.[0] ?? null)}
               />
               {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
+              {masking ? (
+                <p className="hint">{t('Masking identity number on proof…')}</p>
+              ) : null}
               {draftPreview ? (
                 <div className="preview-wrap pool-core-image-modal-preview">
                   <img
+                    draggable={protectFromCapture ? false : undefined}
                     src={draftPreview}
                     alt={`${label} ${t('preview')}`}
                     className="preview pool-core-preview"
@@ -211,18 +265,28 @@ export function RegistrationPhotoField({
                   {draftFile.name} ({Math.ceil(draftFile.size / 1024)} KB)
                 </p>
               ) : null}
+              {identityNumberToMask !== undefined ? (
+                <p className="hint">
+                  {t('On OK, the identity number on this photo is masked — only the last 4 digits stay visible.')}
+                </p>
+              ) : null}
             </div>
             <div className="modal-footer accounts-delete-modal-footer">
-              <button type="button" className="ghost-btn" onClick={() => closeModal(true)}>
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={masking}
+                onClick={() => closeModal(true)}
+              >
                 {t('Cancel')}
               </button>
               <button
                 type="button"
                 className="submit"
-                disabled={!draftFile || compressing}
-                onClick={confirmDraft}
+                disabled={!draftFile || compressing || masking}
+                onClick={() => void confirmDraft()}
               >
-                {t('OK')}
+                {masking ? t('Masking…') : t('OK')}
               </button>
             </div>
           </div>

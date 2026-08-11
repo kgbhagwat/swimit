@@ -1,10 +1,16 @@
 import { Router } from 'express';
+import { recordPlatformAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
-import { pageKeysForModules } from '../menuAccess.js';
+import { pageKeysForPackage, sanitizeFeatureKeys } from '../packageFeatures.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { isEmailDeliveryConfigured, sendTempPasswordEmail } from '../email.js';
-import { hashPassword, generateTempPassword, verifyPassword } from '../password.js';
+import {
+  hashPassword,
+  generateTempPassword,
+  passwordPolicyError,
+  verifyPassword,
+} from '../password.js';
 import {
   assertSignupContactsVerified,
   normalizeSignupDestination,
@@ -19,6 +25,8 @@ import {
   renewFromDate,
   addMonthsDateOnly,
 } from '../paymentAmount.js';
+import { consumeCaptcha } from '../captcha.js';
+import { enforceLoginLocation } from '../remoteLogin.js';
 
 function isValidEmailAddress(value: string) {
   const email = value.trim();
@@ -71,6 +79,7 @@ function mapRow(row: Record<string, unknown>) {
     servicePackageId: row.service_package_id == null ? null : Number(row.service_package_id),
     packageName: String(row.package_name ?? ''),
     modules: String(row.modules ?? 'core') || 'core',
+    featureKeys: sanitizeFeatureKeys(row.feature_keys),
     status: String(row.status ?? 'Active'),
     notes: String(row.notes ?? ''),
     createdAt: row.created_at,
@@ -198,6 +207,7 @@ const ACCOUNT_SELECT = `SELECT a.id, a.account_name, a.contact_name, a.mobile, a
               a.pool_address, a.account_code, a.service_package_id, a.status, a.notes, a.created_at,
               p.package_name,
               COALESCE(NULLIF(TRIM(p.modules), ''), 'core') AS modules,
+              COALESCE(p.feature_keys, '{}') AS feature_keys,
               COALESCE(
                 a.subscription_expires_at,
                 CASE
@@ -325,10 +335,19 @@ saasAccountsRouter.delete('/:id', async (req, res) => {
     }
 
     await pool.query(`DELETE FROM saas_accounts WHERE id = $1`, [id]);
+    const accountName = String(existing.rows[0].account_name ?? '');
+    await recordPlatformAudit(req, {
+      action: 'delete',
+      entityType: 'saas_account',
+      entityId: id,
+      entityLabel: accountName,
+      summary: `Deleted account ${code || id}`,
+      details: { accountCode: code, accountName },
+    });
     res.json({
       ok: true,
       id,
-      accountName: String(existing.rows[0].account_name ?? ''),
+      accountName,
       accountCode: code,
     });
   } catch (err) {
@@ -458,10 +477,11 @@ saasAccountsRouter.post('/', async (req, res) => {
       billing_period?: string;
       modules?: string;
       package_name?: string;
+      feature_keys?: string[] | null;
     } | null = null;
     if (packageId != null) {
       const pkg = await client.query(
-        `SELECT id, trial_days, billing_period, modules, package_name FROM service_packages WHERE id = $1`,
+        `SELECT id, trial_days, billing_period, modules, package_name, feature_keys FROM service_packages WHERE id = $1`,
         [packageId],
       );
       if (pkg.rowCount === 0) {
@@ -473,13 +493,15 @@ saasAccountsRouter.post('/', async (req, res) => {
         billing_period?: string;
         modules?: string;
         package_name?: string;
+        feature_keys?: string[] | null;
       };
     }
 
-    const packageMenuKeys = pageKeysForModules(
-      packageMeta?.modules,
-      packageMeta?.package_name,
-    );
+    const packageMenuKeys = pageKeysForPackage({
+      modules: packageMeta?.modules,
+      packageName: packageMeta?.package_name,
+      featureKeys: packageMeta?.feature_keys,
+    });
 
     const existing = await client.query(
       `SELECT id FROM saas_accounts WHERE LOWER(account_code) = $1 LIMIT 1`,
@@ -569,19 +591,22 @@ saasAccountsRouter.post('/', async (req, res) => {
 
     let packageName = '';
     let packageModules = 'core';
+    let packageFeatureKeys: string[] = [];
     if (created.service_package_id != null) {
       const pkg = await pool.query(
-        `SELECT package_name, modules FROM service_packages WHERE id = $1`,
+        `SELECT package_name, modules, feature_keys FROM service_packages WHERE id = $1`,
         [created.service_package_id],
       );
       packageName = String(pkg.rows[0]?.package_name ?? '');
       packageModules = String(pkg.rows[0]?.modules ?? 'core') || 'core';
+      packageFeatureKeys = sanitizeFeatureKeys(pkg.rows[0]?.feature_keys);
     }
 
     const account = mapRow({
       ...created,
       package_name: packageName,
       modules: packageModules,
+      feature_keys: packageFeatureKeys,
     });
     const loginOrigin = String(req.get('origin') || process.env.CORS_ORIGIN || 'http://localhost:5173').replace(
       /\/$/,
@@ -616,6 +641,21 @@ saasAccountsRouter.post('/', async (req, res) => {
       deliveryNote = `Account created, but WhatsApp message failed: ${whatsappError}. Use Resend credentials after fixing WhatsApp.`;
       console.warn('[whatsapp] credentials notify failed', whatsappError);
     }
+
+    await recordPlatformAudit(req, {
+      action: 'create',
+      entityType: 'saas_account',
+      entityId: account.id,
+      entityLabel: account.accountName,
+      summary: `Created account ${account.accountCode}`,
+      details: {
+        accountCode: account.accountCode,
+        packageName,
+        status: account.status,
+        contactName: account.contactName,
+        mobile: account.mobile,
+      },
+    });
 
     res.status(201).json({
       ...account,
@@ -698,7 +738,11 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
           account.mobile,
           account.email,
           passwordHash,
-          pageKeysForModules(account.modules, account.packageName),
+          pageKeysForPackage({
+            modules: account.modules,
+            packageName: account.packageName,
+            featureKeys: account.featureKeys,
+          }),
           id,
         ],
       );
@@ -905,17 +949,23 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
     const updated = rows[0];
     let packageName = '';
     let packageModules = 'core';
+    let packageFeatureKeys: string[] = [];
     if (updated.service_package_id != null) {
       const pkg = await pool.query(
-        `SELECT package_name, modules FROM service_packages WHERE id = $1`,
+        `SELECT package_name, modules, feature_keys FROM service_packages WHERE id = $1`,
         [updated.service_package_id],
       );
       packageName = String(pkg.rows[0]?.package_name ?? '');
       packageModules = String(pkg.rows[0]?.modules ?? 'core') || 'core';
+      packageFeatureKeys = sanitizeFeatureKeys(pkg.rows[0]?.feature_keys);
     }
 
     // Keep account-admin menu_access aligned with the selected package.
-    const packageMenuKeys = pageKeysForModules(packageModules, packageName);
+    const packageMenuKeys = pageKeysForPackage({
+      modules: packageModules,
+      packageName,
+      featureKeys: packageFeatureKeys,
+    });
     await pool.query(
       `UPDATE app_users
        SET menu_access = $1
@@ -923,8 +973,27 @@ saasAccountsRouter.patch('/:id', async (req, res) => {
       [packageMenuKeys, id],
     );
 
+    const mapped = mapRow({
+      ...updated,
+      package_name: packageName,
+      modules: packageModules,
+      feature_keys: packageFeatureKeys,
+    });
+    await recordPlatformAudit(req, {
+      action: 'update',
+      entityType: 'saas_account',
+      entityId: mapped.id,
+      entityLabel: mapped.accountName,
+      summary: `Updated account ${mapped.accountCode}`,
+      details: {
+        accountCode: mapped.accountCode,
+        packageName,
+        status: mapped.status,
+        subscriptionExpiresAt: mapped.subscriptionExpiresAt,
+      },
+    });
     res.json({
-      ...mapRow({ ...updated, package_name: packageName, modules: packageModules }),
+      ...mapped,
       warnings,
     });
   } catch (err) {
@@ -945,11 +1014,23 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
       res.status(400).json({ error: 'Invalid account code' });
       return;
     }
-    const body = req.body as { userName?: string; password?: string };
+    const body = req.body as {
+      userName?: string;
+      password?: string;
+      captchaId?: string;
+      captchaAnswer?: string;
+      latitude?: number | string | null;
+      longitude?: number | string | null;
+      accuracyM?: number | string | null;
+    };
     const userName = String(body.userName ?? '').trim() || 'admin';
     const password = String(body.password ?? '');
     if (!password) {
       res.status(400).json({ error: 'Password is required' });
+      return;
+    }
+    if (!consumeCaptcha(String(body.captchaId ?? ''), String(body.captchaAnswer ?? ''))) {
+      res.status(400).json({ error: 'Invalid or expired captcha' });
       return;
     }
 
@@ -971,7 +1052,7 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
 
     const accountId = Number(accountRows[0].id);
     const { rows: userRows } = await pool.query(
-      `SELECT id, user_name, mobile, password_hash, menu_access, must_change_password,
+      `SELECT id, user_name, mobile, email, password_hash, menu_access, must_change_password,
               is_account_admin, saas_account_id, created_at
        FROM app_users
        WHERE saas_account_id = $1 AND LOWER(user_name) = LOWER($2)
@@ -986,6 +1067,29 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
     const valid = await verifyPassword(password, String(userRows[0].password_hash));
     if (!valid) {
       res.status(401).json({ error: 'Invalid user name or password' });
+      return;
+    }
+
+    const locationGate = await enforceLoginLocation({
+      req,
+      accountId,
+      accountCode: String(accountRows[0].account_code),
+      accountName: String(accountRows[0].account_name),
+      user: {
+        id: Number(userRows[0].id),
+        user_name: String(userRows[0].user_name),
+        mobile: String(userRows[0].mobile ?? ''),
+        email: userRows[0].email == null ? null : String(userRows[0].email),
+        is_account_admin: userRows[0].is_account_admin === true,
+      },
+      location: {
+        latitude: body.latitude,
+        longitude: body.longitude,
+        accuracyM: body.accuracyM,
+      },
+    });
+    if (!locationGate.ok) {
+      res.status(locationGate.statusCode).json(locationGate.body);
       return;
     }
 
@@ -1006,6 +1110,8 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
           ? userRows[0].menu_access.map(String)
           : [],
       },
+      locationStatus: locationGate.locationStatus,
+      distanceKm: locationGate.distanceKm,
     });
   } catch (err) {
     console.error(err);
@@ -1173,8 +1279,9 @@ saasAccountsRouter.post('/by-code/:code/change-password', async (req, res) => {
       res.status(400).json({ error: 'Invalid user' });
       return;
     }
-    if (newPassword.length < 6) {
-      res.status(400).json({ error: 'New password must be at least 6 characters' });
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      res.status(400).json({ error: policyError });
       return;
     }
 

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 
@@ -117,7 +118,16 @@ passTypesRouter.post('/', async (req, res) => {
         exceedingAllowed,
       ],
     );
-    res.status(201).json(mapRow(rows[0]));
+    const created = mapRow(rows[0]);
+    await recordAudit(req, {
+      action: 'create',
+      entityType: 'pass_type',
+      entityId: created.id,
+      entityLabel: created.passName,
+      summary: 'Created pass type',
+      details: created,
+    });
+    res.status(201).json(created);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create pass type' });
@@ -171,7 +181,16 @@ passTypesRouter.put('/:id', async (req, res) => {
       res.status(404).json({ error: 'Pass type not found' });
       return;
     }
-    res.json(mapRow(rows[0]));
+    const updated = mapRow(rows[0]);
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'pass_type',
+      entityId: updated.id,
+      entityLabel: updated.passName,
+      summary: 'Updated pass type',
+      details: updated,
+    });
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update pass type' });
@@ -182,14 +201,29 @@ passTypesRouter.delete('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
-    const result = await pool.query(
-      `DELETE FROM pass_types WHERE id = $1 AND saas_account_id = $2`,
+    const existing = await pool.query(
+      `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
+              max_swimmers_per_coach, exceeding_limit_allowed
+       FROM pass_types WHERE id = $1 AND saas_account_id = $2`,
       [id, accountId],
     );
-    if (result.rowCount === 0) {
+    if (!existing.rows[0]) {
       res.status(404).json({ error: 'Pass type not found' });
       return;
     }
+    await pool.query(`DELETE FROM pass_types WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    const deleted = mapRow(existing.rows[0]);
+    await recordAudit(req, {
+      action: 'delete',
+      entityType: 'pass_type',
+      entityId: deleted.id,
+      entityLabel: deleted.passName,
+      summary: 'Deleted pass type',
+      details: deleted,
+    });
     res.status(204).send();
   } catch (err) {
     console.error(err);

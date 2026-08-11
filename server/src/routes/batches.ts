@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 
@@ -224,16 +225,29 @@ batchesRouter.put('/', async (req, res) => {
     );
 
     const savedSchedules = settingsResult.rows.map(mapSchedule);
+    const slotsOut = slotsResult.rows.map((row) => ({
+      id: String(row.id),
+      name: row.name,
+      type: row.type,
+      startTime: formatTimeValue(row.start_time),
+      endTime: formatTimeValue(row.end_time),
+    }));
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'batches',
+      entityId: accountId,
+      entityLabel: 'Batch schedule',
+      summary: `Updated batches (${savedSchedules.length} schedules, ${slotsOut.length} slots)`,
+      details: {
+        scheduleCount: savedSchedules.length,
+        slotCount: slotsOut.length,
+        slots: slotsOut.map((s) => s.name),
+      },
+    });
     res.json({
       schedules: savedSchedules,
       settings: savedSchedules[0],
-      slots: slotsResult.rows.map((row) => ({
-        id: String(row.id),
-        name: row.name,
-        type: row.type,
-        startTime: formatTimeValue(row.start_time),
-        endTime: formatTimeValue(row.end_time),
-      })),
+      slots: slotsOut,
     });
   } catch (err) {
     await pool.query('ROLLBACK');

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 
@@ -114,11 +115,18 @@ holidaysRouter.put('/weekly', async (req, res) => {
       [weekly, accountId],
     );
 
-    res.json({
-      weeklyHolidays: Array.isArray(rows[0].weekly_holidays)
-        ? rows[0].weekly_holidays.map(String)
-        : [],
+    const weeklyHolidays = Array.isArray(rows[0].weekly_holidays)
+      ? rows[0].weekly_holidays.map(String)
+      : [];
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'holiday',
+      entityId: 'weekly',
+      entityLabel: 'Weekly holidays',
+      summary: 'Updated weekly holidays',
+      details: { weeklyHolidays },
     });
+    res.json({ weeklyHolidays });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save weekly holidays' });
@@ -218,8 +226,17 @@ holidaysRouter.post('/', async (req, res) => {
       extendedPassHolders = updated.rowCount ?? 0;
     }
 
+    const created = mapHoliday(rows[0]);
+    await recordAudit(req, {
+      action: 'create',
+      entityType: 'holiday',
+      entityId: created.id,
+      entityLabel: created.name,
+      summary: 'Created holiday',
+      details: { ...created, extendedPassHolders },
+    });
     res.status(201).json({
-      ...mapHoliday(rows[0]),
+      ...created,
       extendedPassHolders,
     });
   } catch (err) {
@@ -236,14 +253,27 @@ holidaysRouter.delete('/:id', async (req, res) => {
       res.status(400).json({ error: 'Invalid holiday id' });
       return;
     }
-    const result = await pool.query(
-      `DELETE FROM holidays WHERE id = $1 AND saas_account_id = $2`,
-      [id, accountId],
-    );
-    if (result.rowCount === 0) {
+    const existing = await pool.query(`SELECT * FROM holidays WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    if (!existing.rows[0]) {
       res.status(404).json({ error: 'Holiday not found' });
       return;
     }
+    await pool.query(`DELETE FROM holidays WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    const deleted = mapHoliday(existing.rows[0]);
+    await recordAudit(req, {
+      action: 'delete',
+      entityType: 'holiday',
+      entityId: deleted.id,
+      entityLabel: deleted.name,
+      summary: 'Deleted holiday',
+      details: deleted,
+    });
     res.status(204).send();
   } catch (err) {
     console.error(err);

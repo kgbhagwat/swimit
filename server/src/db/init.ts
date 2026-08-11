@@ -1,5 +1,6 @@
 import { pool } from './pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
+import { defaultFeatureKeysForModules } from '../packageFeatures.js';
 
 const sql = `
 CREATE TABLE IF NOT EXISTS registrations (
@@ -39,7 +40,9 @@ ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_relation TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_mobile TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ;
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS identity_number TEXT NOT NULL DEFAULT '';
 ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
+ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS identity_number TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS staff_registrations (
   id SERIAL PRIMARY KEY,
@@ -279,6 +282,7 @@ ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS trial_days INT NOT NULL DE
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS modules TEXT NOT NULL DEFAULT 'core';
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS support_level TEXT NOT NULL DEFAULT 'whatsapp';
 ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS discounted_rate NUMERIC(12, 2);
+ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS feature_keys TEXT[] NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS saas_accounts (
   id SERIAL PRIMARY KEY,
@@ -303,6 +307,27 @@ ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS subscription_expires_at DATE;
 CREATE UNIQUE INDEX IF NOT EXISTS saas_accounts_account_code_uidx
   ON saas_accounts (account_code)
   WHERE account_code IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  credential_id TEXT NOT NULL,
+  public_key BYTEA NOT NULL,
+  counter BIGINT NOT NULL DEFAULT 0,
+  transports TEXT[] NOT NULL DEFAULT '{}',
+  device_label TEXT NOT NULL DEFAULT 'This device',
+  device_type TEXT NOT NULL DEFAULT 'singleDevice',
+  backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  UNIQUE (credential_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user
+  ON webauthn_credentials (user_id);
+CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_account
+  ON webauthn_credentials (saas_account_id);
 
 CREATE TABLE IF NOT EXISTS whatsapp_outbound (
   id SERIAL PRIMARY KEY,
@@ -405,6 +430,28 @@ CREATE INDEX IF NOT EXISTS idx_account_notifications_account
 CREATE INDEX IF NOT EXISTS idx_account_notifications_unread
   ON account_notifications (saas_account_id, created_at DESC)
   WHERE read_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS account_audit_logs (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  actor_user_id INT REFERENCES app_users(id) ON DELETE SET NULL,
+  actor_user_name TEXT NOT NULL DEFAULT 'Unknown',
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  entity_label TEXT,
+  summary TEXT NOT NULL DEFAULT '',
+  details JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (action IN ('create', 'update', 'delete', 'activate', 'deactivate', 'login', 'approve', 'deny'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_audit_logs_account
+  ON account_audit_logs (saas_account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_account_audit_logs_entity
+  ON account_audit_logs (saas_account_id, entity_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_account_audit_logs_actor
+  ON account_audit_logs (saas_account_id, actor_user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS support_renew_sessions (
   saas_account_id INT PRIMARY KEY REFERENCES saas_accounts(id) ON DELETE CASCADE,
@@ -579,6 +626,77 @@ CREATE INDEX IF NOT EXISTS whatsapp_outbound_account_kind_idx
 CREATE INDEX IF NOT EXISTS app_users_saas_admin_idx
   ON app_users (saas_account_id)
   WHERE COALESCE(is_account_admin, FALSE) = TRUE;
+
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+/** Google Maps share link used to set pool coordinates (admin-friendly). */
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS google_maps_url TEXT NOT NULL DEFAULT '';
+/** Admin-chosen near-pool login distance (km) for users set to “swimming pool only”. */
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS login_near_km INT;
+
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS remote_access_until TIMESTAMPTZ;
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_geo_mode TEXT NOT NULL DEFAULT 'pool_only';
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_radius_km INT;
+
+DO $$
+BEGIN
+  IF to_regclass('public.app_users') IS NULL THEN
+    RETURN;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'app_users_login_geo_mode_check'
+  ) THEN
+    ALTER TABLE app_users
+      ADD CONSTRAINT app_users_login_geo_mode_check
+      CHECK (login_geo_mode IN ('pool_only', 'radius'));
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS remote_login_requests (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  accuracy_m DOUBLE PRECISION,
+  distance_km DOUBLE PRECISION,
+  pool_latitude DOUBLE PRECISION,
+  pool_longitude DOUBLE PRECISION,
+  status TEXT NOT NULL DEFAULT 'pending',
+  status_token TEXT NOT NULL UNIQUE,
+  approval_token TEXT NOT NULL UNIQUE,
+  decided_by_user_id INT REFERENCES app_users(id) ON DELETE SET NULL,
+  decided_at TIMESTAMPTZ,
+  remote_access_until TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (status IN ('pending', 'approved', 'denied', 'expired'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_remote_login_requests_account
+  ON remote_login_requests (saas_account_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_remote_login_requests_user
+  ON remote_login_requests (user_id, status, created_at DESC);
+
+DO $$
+DECLARE
+  cname text;
+BEGIN
+  IF to_regclass('public.account_audit_logs') IS NULL THEN
+    RETURN;
+  END IF;
+  FOR cname IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'account_audit_logs'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%action%'
+  LOOP
+    EXECUTE format('ALTER TABLE account_audit_logs DROP CONSTRAINT %I', cname);
+  END LOOP;
+  ALTER TABLE account_audit_logs
+    ADD CONSTRAINT account_audit_logs_action_check
+    CHECK (action IN ('create', 'update', 'delete', 'activate', 'deactivate', 'login', 'approve', 'deny'));
+END $$;
 `;
 
 async function assignOrphanRowsToAccount(accountId: number) {
@@ -751,6 +869,27 @@ async function ensureDefaultServicePackages() {
   const syncedN = synced.rowCount ?? 0;
   if (syncedN > 0) {
     console.log(`Updated ${syncedN} package(s) to full modules (Professional/Enterprise)`);
+  }
+
+  // Backfill empty feature_keys from modules (platform-editable checklist).
+  const pkgs = await pool.query<{
+    id: number;
+    modules: string | null;
+    package_name: string | null;
+    feature_keys: string[] | null;
+  }>(`SELECT id, modules, package_name, feature_keys FROM service_packages`);
+  let featureBackfill = 0;
+  for (const row of pkgs.rows) {
+    if (Array.isArray(row.feature_keys) && row.feature_keys.length > 0) continue;
+    const keys = defaultFeatureKeysForModules(row.modules, row.package_name);
+    await pool.query(`UPDATE service_packages SET feature_keys = $1::text[] WHERE id = $2`, [
+      keys,
+      row.id,
+    ]);
+    featureBackfill += 1;
+  }
+  if (featureBackfill > 0) {
+    console.log(`Backfilled feature_keys on ${featureBackfill} service package(s)`);
   }
 }
 

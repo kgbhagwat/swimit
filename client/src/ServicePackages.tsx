@@ -2,6 +2,13 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useT } from './i18n';
 import { MarketingLayout } from './MarketingLayout';
+import {
+  defaultFeatureKeysForModules,
+  PACKAGE_FEATURE_DEFS,
+  resolvedFeatureKeys,
+} from './packageFeatures';
+import { PlatformPage } from './PlatformPage';
+import { PlatformShell } from './PlatformShell';
 import { getPlatformSession } from './platformSession';
 
 type ServicePackage = {
@@ -18,6 +25,7 @@ type ServicePackage = {
   modules: string;
   supportLevel: string;
   features: string;
+  featureKeys?: string[];
   isActive: boolean;
 };
 
@@ -34,6 +42,7 @@ type PackageForm = {
   modules: string;
   supportLevel: string;
   features: string;
+  featureKeys: string[];
   isActive: boolean;
 };
 
@@ -50,6 +59,7 @@ const emptyForm: PackageForm = {
   modules: 'core',
   supportLevel: 'whatsapp',
   features: '',
+  featureKeys: defaultFeatureKeysForModules('core'),
   isActive: true,
 };
 
@@ -57,33 +67,16 @@ function formatMoney(value: number) {
   return `₹${value.toLocaleString('en-IN')}`;
 }
 
-type PackageFeature = {
-  label: string;
-  level: 'core' | 'full';
-};
-
-const PACKAGE_FEATURES: PackageFeature[] = [
-  { label: 'Registration & staff forms', level: 'core' },
-  { label: 'Batches & pass types', level: 'core' },
-  { label: 'Pass payment & scanner', level: 'core' },
-  { label: "Swimmer list & attendance", level: 'core' },
-  { label: 'Pool core info', level: 'core' },
-  { label: 'Coach payment', level: 'full' },
-  { label: 'Pool expenses', level: 'full' },
-  { label: 'Water quality', level: 'full' },
-  { label: 'Balance sheet', level: 'full' },
-  { label: 'Payment details', level: 'full' },
-  { label: 'Holiday management', level: 'full' },
-  { label: 'User management & access', level: 'full' },
-  { label: 'WhatsApp Broadcast messaging', level: 'full' },
-];
-
-function packageHasFeature(modules: string, feature: PackageFeature, packageName?: string) {
-  if (feature.level === 'core') return true;
-  const level = String(modules ?? '').toLowerCase().trim();
-  if (level === 'full') return true;
-  const name = String(packageName ?? '').toLowerCase().trim();
-  return name === 'professional' || name === 'enterprise';
+function packageIncludesFeature(item: {
+  modules: string;
+  packageName?: string;
+  featureKeys?: string[];
+}, featureId: string) {
+  return resolvedFeatureKeys({
+    modules: item.modules,
+    packageName: item.packageName,
+    featureKeys: item.featureKeys,
+  }).includes(featureId);
 }
 
 function FeatureTick({ on }: { on: boolean }) {
@@ -161,8 +154,30 @@ export function ServicePackages() {
 
   function startCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      featureKeys: defaultFeatureKeysForModules('core'),
+    });
     setShowForm(true);
+    setError('');
+    setSuccess('');
+  }
+
+  function toggleFeature(featureId: string) {
+    setForm((prev) => {
+      const on = prev.featureKeys.includes(featureId);
+      const featureKeys = on
+        ? prev.featureKeys.filter((id) => id !== featureId)
+        : [...prev.featureKeys, featureId];
+      const hasFull = PACKAGE_FEATURE_DEFS.some(
+        (f) => f.level === 'full' && featureKeys.includes(f.id),
+      );
+      return {
+        ...prev,
+        featureKeys,
+        modules: hasFull ? 'full' : 'core',
+      };
+    });
     setError('');
     setSuccess('');
   }
@@ -185,6 +200,11 @@ export function ServicePackages() {
       modules: item.modules || 'core',
       supportLevel: item.supportLevel || 'whatsapp',
       features: item.features,
+      featureKeys: resolvedFeatureKeys({
+        modules: item.modules || 'core',
+        packageName: item.packageName,
+        featureKeys: item.featureKeys,
+      }),
       isActive: item.isActive,
     });
     setShowForm(true);
@@ -242,6 +262,7 @@ export function ServicePackages() {
         modules: form.modules,
         supportLevel: form.supportLevel,
         features: form.features.trim(),
+        featureKeys: form.featureKeys,
         isActive: form.isActive,
       };
       const res = await fetch(
@@ -282,9 +303,9 @@ export function ServicePackages() {
     }
   }
 
-  return (
-    <MarketingLayout>
-      <div className="pricing-page">
+  const pageBody = (
+      <div className={`pricing-page${canManagePackages ? ' pricing-page--platform' : ''}`}>
+        {canManagePackages ? null : (
         <header className="pricing-hero">
           <p className="marketing-eyebrow">{t('Pricing')}</p>
           <h1>{t('Simple plans for every pool')}</h1>
@@ -294,9 +315,259 @@ export function ServicePackages() {
             )}
           </p>
         </header>
+        )}
 
         {error ? <p className="error pricing-status">{t(error)}</p> : null}
         {success ? <p className="success pricing-status">{t(success)}</p> : null}
+
+        {canManagePackages ? (
+          <section className="pricing-admin" aria-label={t('Service Packages')}>
+            <div className="pricing-admin-head">
+              <div>
+                <h2>{t('Manage packages')}</h2>
+                <p>{t('Platform tools for creating and editing SwimIT plans.')}</p>
+              </div>
+            </div>
+
+            {showForm ? (
+              <form className="pricing-admin-form" onSubmit={onSubmit}>
+                <h3>{editingId ? t('Edit package') : t('New package')}</h3>
+
+                <label className="field">
+                  <span className="label">
+                    {t('Package name')} <span className="req">*</span>
+                  </span>
+                  <input
+                    value={form.packageName}
+                    onChange={(e) => setField('packageName', e.target.value)}
+                    placeholder={t('e.g. Trial, Starter, Professional')}
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span className="label">{t('Description')}</span>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setField('description', e.target.value)}
+                    placeholder={t('Short summary of what this plan includes')}
+                    rows={3}
+                  />
+                </label>
+
+                <div className="form-grid-2">
+                  <label className="field">
+                    <span className="label">
+                      {t('Price (₹)')} <span className="req">*</span>
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.price}
+                      onChange={(e) => setField('price', e.target.value)}
+                      placeholder="0"
+                      required
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Discounted rate (₹)')}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.discountedRate}
+                      onChange={(e) => setField('discountedRate', e.target.value)}
+                      placeholder={t('Blank = no discount')}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">
+                      {t('Billing period')} <span className="req">*</span>
+                    </span>
+                    <select
+                      value={form.billingPeriod}
+                      onChange={(e) => setField('billingPeriod', e.target.value)}
+                    >
+                      <option value="Month">{t('Month')}</option>
+                      <option value="Year">{t('Year')}</option>
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Max active swimmers')}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.maxActiveSwimmers}
+                      onChange={(e) => setField('maxActiveSwimmers', e.target.value)}
+                      placeholder={t('Blank = unlimited')}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Max users')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.maxUsers}
+                      onChange={(e) => setField('maxUsers', e.target.value)}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Trial days')}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.trialDays}
+                      onChange={(e) => setField('trialDays', e.target.value)}
+                      placeholder={t('0 = paid plan')}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Modules')}</span>
+                    <select
+                      value={form.modules}
+                      onChange={(e) => {
+                        const modules = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          modules,
+                          featureKeys: defaultFeatureKeysForModules(modules, prev.packageName),
+                        }));
+                        setError('');
+                        setSuccess('');
+                      }}
+                    >
+                      <option value="core">{t('Core (ops)')}</option>
+                      <option value="full">{t('Full (ops + finance)')}</option>
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Support')}</span>
+                    <select
+                      value={form.supportLevel}
+                      onChange={(e) => setField('supportLevel', e.target.value)}
+                    >
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="priority">{t('Priority')}</option>
+                      <option value="onboarding">{t('Onboarding')}</option>
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="label">{t('Max pools')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.maxPools}
+                      onChange={(e) => setField('maxPools', e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <div className="pricing-admin-features">
+                  <div className="pricing-admin-features-head">
+                    <span className="label">{t('Feature list')}</span>
+                    <span className="muted">
+                      {t('Toggle features included in this package. Modules preset updates the defaults.')}
+                    </span>
+                  </div>
+                  <ul className="pricing-admin-feature-list">
+                    {PACKAGE_FEATURE_DEFS.map((feature) => {
+                      const included = form.featureKeys.includes(feature.id);
+                      return (
+                        <li key={feature.id}>
+                          <label
+                            className={
+                              included
+                                ? 'pricing-admin-feature is-on'
+                                : 'pricing-admin-feature is-off'
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={included}
+                              onChange={() => toggleFeature(feature.id)}
+                              aria-label={t(feature.label)}
+                            />
+                            <span>{t(feature.label)}</span>
+                            <em className="muted">
+                              {feature.level === 'core' ? t('Core') : t('Full')}
+                            </em>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                <label className="field">
+                  <span className="label">{t('Features (optional override)')}</span>
+                  <textarea
+                    value={form.features}
+                    onChange={(e) => setField('features', e.target.value)}
+                    placeholder={t('Leave blank to auto-fill from swimmers / modules / support')}
+                    rows={2}
+                  />
+                </label>
+
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(e) => setField('isActive', e.target.checked)}
+                  />
+                  <span>{t('Active (available for new accounts)')}</span>
+                </label>
+
+                <div className="submit-wrap">
+                  <button type="button" className="ghost-btn" onClick={resetForm}>
+                    {t('Cancel')}
+                  </button>
+                  <button type="submit" className="submit" disabled={saving}>
+                    {saving ? t('Saving…') : editingId ? t('Update package') : t('Create package')}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {visiblePackages.length > 0 ? (
+              <div className="pricing-admin-list">
+                {visiblePackages.map((item) => (
+                  <div key={item.id} className="pricing-admin-row">
+                    <div>
+                      <strong>{item.packageName}</strong>
+                      <span className="muted">
+                        {item.isActive ? t('Active') : t('Inactive')} ·{' '}
+                        {item.price === 0
+                          ? t('Free')
+                          : `${formatMoney(item.price)} / ${t(item.billingPeriod)}`}
+                      </span>
+                    </div>
+                    <div className="pricing-admin-row-actions">
+                      <button type="button" className="menu-link" onClick={() => startEdit(item)}>
+                        {t('Edit')}
+                      </button>
+                      <button
+                        type="button"
+                        className="remove-link"
+                        onClick={() => void removePackage(item.id)}
+                      >
+                        {t('Delete')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         {loading ? (
           <p className="muted pricing-status">{t('Loading…')}</p>
@@ -421,14 +692,12 @@ export function ServicePackages() {
                       <td key={item.id}>{item.maxUsers}</td>
                     ))}
                   </tr>
-                  {PACKAGE_FEATURES.map((feature) => (
-                    <tr key={feature.label}>
+                  {PACKAGE_FEATURE_DEFS.map((feature) => (
+                    <tr key={feature.id}>
                       <th scope="row">{t(feature.label)}</th>
                       {pricingPackages.map((item) => (
                         <td key={item.id}>
-                          <FeatureTick
-                            on={packageHasFeature(item.modules, feature, item.packageName)}
-                          />
+                          <FeatureTick on={packageIncludesFeature(item, feature.id)} />
                         </td>
                       ))}
                     </tr>
@@ -439,6 +708,7 @@ export function ServicePackages() {
           </section>
         ) : null}
 
+        {canManagePackages ? null : (
         <section className="pricing-footer-cta">
           <h2>{t('Ready to run your pool better?')}</h2>
           <p>{t('Create your SwimIT account and start with the plan that fits you.')}</p>
@@ -446,211 +716,26 @@ export function ServicePackages() {
             {t('Get Started')}
           </Link>
         </section>
-
-        {canManagePackages ? (
-          <section className="pricing-admin" aria-label={t('Service Packages')}>
-            <div className="pricing-admin-head">
-              <div>
-                <h2>{t('Manage packages')}</h2>
-                <p>{t('Platform tools for creating and editing SwimIT plans.')}</p>
-              </div>
-              <button type="button" className="marketing-btn marketing-btn--primary" onClick={startCreate}>
-                {t('Create package')}
-              </button>
-            </div>
-
-            {showForm ? (
-              <form className="pricing-admin-form" onSubmit={onSubmit}>
-                <h3>{editingId ? t('Edit package') : t('New package')}</h3>
-
-                <label className="field">
-                  <span className="label">
-                    {t('Package name')} <span className="req">*</span>
-                  </span>
-                  <input
-                    value={form.packageName}
-                    onChange={(e) => setField('packageName', e.target.value)}
-                    placeholder={t('e.g. Trial, Starter, Professional')}
-                    required
-                  />
-                </label>
-
-                <label className="field">
-                  <span className="label">{t('Description')}</span>
-                  <textarea
-                    value={form.description}
-                    onChange={(e) => setField('description', e.target.value)}
-                    placeholder={t('Short summary of what this plan includes')}
-                    rows={3}
-                  />
-                </label>
-
-                <div className="form-grid-2">
-                  <label className="field">
-                    <span className="label">
-                      {t('Price (₹)')} <span className="req">*</span>
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={form.price}
-                      onChange={(e) => setField('price', e.target.value)}
-                      placeholder="0"
-                      required
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="label">{t('Discounted rate (₹)')}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={form.discountedRate}
-                      onChange={(e) => setField('discountedRate', e.target.value)}
-                      placeholder={t('Blank = no discount')}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="label">
-                      {t('Billing period')} <span className="req">*</span>
-                    </span>
-                    <select
-                      value={form.billingPeriod}
-                      onChange={(e) => setField('billingPeriod', e.target.value)}
-                    >
-                      <option value="Month">{t('Month')}</option>
-                      <option value="Year">{t('Year')}</option>
-                    </select>
-                  </label>
-
-                  <label className="field">
-                    <span className="label">{t('Max active swimmers')}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={form.maxActiveSwimmers}
-                      onChange={(e) => setField('maxActiveSwimmers', e.target.value)}
-                      placeholder={t('Blank = unlimited')}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="label">{t('Max users')}</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={form.maxUsers}
-                      onChange={(e) => setField('maxUsers', e.target.value)}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="label">{t('Trial days')}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={form.trialDays}
-                      onChange={(e) => setField('trialDays', e.target.value)}
-                      placeholder={t('0 = paid plan')}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="label">{t('Modules')}</span>
-                    <select value={form.modules} onChange={(e) => setField('modules', e.target.value)}>
-                      <option value="core">{t('Core (ops)')}</option>
-                      <option value="full">{t('Full (ops + finance)')}</option>
-                    </select>
-                  </label>
-
-                  <label className="field">
-                    <span className="label">{t('Support')}</span>
-                    <select
-                      value={form.supportLevel}
-                      onChange={(e) => setField('supportLevel', e.target.value)}
-                    >
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="priority">{t('Priority')}</option>
-                      <option value="onboarding">{t('Onboarding')}</option>
-                    </select>
-                  </label>
-
-                  <label className="field">
-                    <span className="label">{t('Max pools')}</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={form.maxPools}
-                      onChange={(e) => setField('maxPools', e.target.value)}
-                    />
-                  </label>
-                </div>
-
-                <label className="field">
-                  <span className="label">{t('Features (optional override)')}</span>
-                  <textarea
-                    value={form.features}
-                    onChange={(e) => setField('features', e.target.value)}
-                    placeholder={t('Leave blank to auto-fill from swimmers / modules / support')}
-                    rows={2}
-                  />
-                </label>
-
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(e) => setField('isActive', e.target.checked)}
-                  />
-                  <span>{t('Active (available for new accounts)')}</span>
-                </label>
-
-                <div className="submit-wrap">
-                  <button type="button" className="ghost-btn" onClick={resetForm}>
-                    {t('Cancel')}
-                  </button>
-                  <button type="submit" className="submit" disabled={saving}>
-                    {saving ? t('Saving…') : editingId ? t('Update package') : t('Create package')}
-                  </button>
-                </div>
-              </form>
-            ) : null}
-
-            {visiblePackages.length > 0 ? (
-              <div className="pricing-admin-list">
-                {visiblePackages.map((item) => (
-                  <div key={item.id} className="pricing-admin-row">
-                    <div>
-                      <strong>{item.packageName}</strong>
-                      <span className="muted">
-                        {item.isActive ? t('Active') : t('Inactive')} ·{' '}
-                        {item.price === 0
-                          ? t('Free')
-                          : `${formatMoney(item.price)} / ${t(item.billingPeriod)}`}
-                      </span>
-                    </div>
-                    <div className="pricing-admin-row-actions">
-                      <button type="button" className="menu-link" onClick={() => startEdit(item)}>
-                        {t('Edit')}
-                      </button>
-                      <button
-                        type="button"
-                        className="remove-link"
-                        onClick={() => void removePackage(item.id)}
-                      >
-                        {t('Delete')}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </section>
-        ) : null}
+        )}
       </div>
-    </MarketingLayout>
   );
+
+  if (canManagePackages) {
+    return (
+      <PlatformShell>
+        <PlatformPage
+          title="Service Packages"
+          actions={
+            <button type="button" className="submit" onClick={startCreate}>
+              {t('Create package')}
+            </button>
+          }
+        >
+          {pageBody}
+        </PlatformPage>
+      </PlatformShell>
+    );
+  }
+
+  return <MarketingLayout>{pageBody}</MarketingLayout>;
 }

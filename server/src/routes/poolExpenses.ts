@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 
@@ -113,7 +114,16 @@ poolExpensesRouter.post('/', async (req, res) => {
         parseHasBill(body.hasBill),
       ],
     );
-    res.status(201).json(mapRow(rows[0]));
+    const created = mapRow(rows[0]);
+    await recordAudit(req, {
+      action: 'create',
+      entityType: 'pool_expense',
+      entityId: created.id,
+      entityLabel: created.description,
+      summary: 'Created pool expense',
+      details: created,
+    });
+    res.status(201).json(created);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save expense' });
@@ -154,7 +164,16 @@ poolExpensesRouter.put('/:id', async (req, res) => {
       res.status(404).json({ error: 'Expense not found' });
       return;
     }
-    res.json(mapRow(rows[0]));
+    const updated = mapRow(rows[0]);
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'pool_expense',
+      entityId: updated.id,
+      entityLabel: updated.description,
+      summary: 'Updated pool expense',
+      details: updated,
+    });
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update expense' });
@@ -165,14 +184,28 @@ poolExpensesRouter.delete('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
-    const result = await pool.query(
-      `DELETE FROM pool_expenses WHERE id = $1 AND saas_account_id = $2`,
+    const existing = await pool.query(
+      `SELECT id, expense_date, description, amount, mode, has_bill
+       FROM pool_expenses WHERE id = $1 AND saas_account_id = $2`,
       [id, accountId],
     );
-    if (result.rowCount === 0) {
+    if (!existing.rows[0]) {
       res.status(404).json({ error: 'Expense not found' });
       return;
     }
+    await pool.query(`DELETE FROM pool_expenses WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    const deleted = mapRow(existing.rows[0]);
+    await recordAudit(req, {
+      action: 'delete',
+      entityType: 'pool_expense',
+      entityId: deleted.id,
+      entityLabel: deleted.description,
+      summary: 'Deleted pool expense',
+      details: deleted,
+    });
     res.status(204).send();
   } catch (err) {
     console.error(err);

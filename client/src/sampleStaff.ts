@@ -27,6 +27,7 @@ export type SampleStaffDetail = {
   doctorName: string;
   doctorNo: string;
   identityDocument: string;
+  identityNumber: string;
   teachStrokes: string[];
   suitableBatchIds: string[];
   achievements: string;
@@ -121,6 +122,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     doctorName: '',
     doctorNo: '',
     identityDocument: 'AADHAAR-SAMPLE-1',
+    identityNumber: '123456781234',
     teachStrokes: ['Free Style', 'Back Stroke'],
     suitableBatchIds: ['sample-morning-a'],
     achievements: 'State-level freestyle finalist',
@@ -150,6 +152,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     doctorName: '',
     doctorNo: '',
     identityDocument: 'AADHAAR-SAMPLE-2',
+    identityNumber: '123456781234',
     teachStrokes: ['Breast Stroke', 'Butterfly'],
     suitableBatchIds: ['sample-evening-b'],
     achievements: '',
@@ -179,6 +182,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     doctorName: '',
     doctorNo: '',
     identityDocument: 'AADHAAR-SAMPLE-3',
+    identityNumber: '123456781234',
     teachStrokes: ['Free Style'],
     suitableBatchIds: ['sample-morning-a', 'sample-evening-b'],
     achievements: '',
@@ -208,6 +212,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     doctorName: '',
     doctorNo: '',
     identityDocument: 'AADHAAR-SAMPLE-11',
+    identityNumber: '123456781234',
     teachStrokes: [],
     suitableBatchIds: [],
     achievements: '',
@@ -237,6 +242,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     doctorName: '',
     doctorNo: '',
     identityDocument: 'AADHAAR-SAMPLE-12',
+    identityNumber: '123456781234',
     teachStrokes: [],
     suitableBatchIds: [],
     achievements: '',
@@ -266,6 +272,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     doctorName: '',
     doctorNo: '',
     identityDocument: 'AADHAAR-SAMPLE-21',
+    identityNumber: '123456781234',
     teachStrokes: [],
     suitableBatchIds: [],
     achievements: '',

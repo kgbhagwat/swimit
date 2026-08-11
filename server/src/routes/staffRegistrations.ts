@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
@@ -11,9 +12,12 @@ import {
   guessImageContentType,
   normalizeBirthdate,
   openSealedUploadFile,
+  maskIdentityNumber,
   revealIdentityDocument,
+  revealIdentityNumber,
   sealBirthdate,
   sealIdentityDocument,
+  sealIdentityNumber,
   sealUploadFile,
 } from '../sensitiveData.js';
 
@@ -99,6 +103,8 @@ function mapStaffDetail(row: Record<string, unknown>, accountId?: number) {
     doctorName: row.doctor_name ?? '',
     doctorNo: row.doctor_no ?? '',
     identityDocument: revealIdentityDocument(row.identity_document),
+    identityNumber: revealIdentityNumber(row.identity_number),
+    identityNumberMasked: maskIdentityNumber(revealIdentityNumber(row.identity_number)),
     identityPhotoUrl: row.identity_photo_path
       ? `/api/staff-registrations/${id}/identity-photo${accountQs}`
       : null,
@@ -242,6 +248,18 @@ staffRegistrationsRouter.patch('/:id/status', async (req, res) => {
       res.status(404).json({ error: 'Staff registration not found' });
       return;
     }
+    const nameRes = await pool.query(
+      `SELECT full_name FROM staff_registrations WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    await recordAudit(req, {
+      action: isActive ? 'activate' : 'deactivate',
+      entityType: 'staff',
+      entityId: rows[0].id,
+      entityLabel: String(nameRes.rows[0]?.full_name ?? ''),
+      summary: isActive ? 'Activated staff' : 'Deactivated staff',
+      details: { isActive: rows[0].is_active },
+    });
     res.json({ id: rows[0].id, isActive: rows[0].is_active });
   } catch (err) {
     console.error(err);
@@ -277,9 +295,17 @@ staffRegistrationsRouter.patch('/:id/approve', async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE staff_registrations SET is_approved = $1
        WHERE id = $2 AND saas_account_id = $3
-       RETURNING id, is_approved`,
+       RETURNING id, is_approved, full_name`,
       [isApproved, id, accountId],
     );
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'staff',
+      entityId: rows[0].id,
+      entityLabel: String(rows[0].full_name ?? ''),
+      summary: isApproved ? 'Approved coach for payment' : 'Removed coach payment approval',
+      details: { isApproved: rows[0].is_approved === true },
+    });
     res.json({ id: rows[0].id, isApproved: rows[0].is_approved === true });
   } catch (err) {
     console.error(err);
@@ -291,14 +317,25 @@ staffRegistrationsRouter.delete('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
-    const result = await pool.query(
-      `DELETE FROM staff_registrations WHERE id = $1 AND saas_account_id = $2`,
+    const existing = await pool.query(
+      `SELECT id, full_name FROM staff_registrations WHERE id = $1 AND saas_account_id = $2`,
       [id, accountId],
     );
-    if (result.rowCount === 0) {
+    if (!existing.rows[0]) {
       res.status(404).json({ error: 'Staff registration not found' });
       return;
     }
+    await pool.query(`DELETE FROM staff_registrations WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    await recordAudit(req, {
+      action: 'delete',
+      entityType: 'staff',
+      entityId: existing.rows[0].id,
+      entityLabel: String(existing.rows[0].full_name ?? ''),
+      summary: 'Deleted staff registration',
+    });
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -347,6 +384,7 @@ staffRegistrationsRouter.put(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -354,6 +392,11 @@ staffRegistrationsRouter.put(
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      const identityNumber = String(body.identityNumber ?? '').trim();
+      if (identityNumber.replace(/\s+/g, '').length < 4) {
+        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+        return;
       }
 
       if (!['Coach', 'Lifeguard', 'Other'].includes(body.registrationFor)) {
@@ -521,23 +564,24 @@ staffRegistrationsRouter.put(
           doctor_name = $15,
           doctor_no = $16,
           identity_document = $17,
-          identity_photo_path = $18,
-          staff_photo_path = $19,
-          teach_strokes = $20,
-          suitable_batch_ids = $21,
-          achievements = $22,
-          has_lifeguard_cert = $23,
-          lifeguard_expiry = $24,
-          lifeguard_photo_path = $25,
-          certificate_details = $26,
-          certificate_photo_1 = $27,
-          certificate_photo_2 = $28,
-          certificate_photo_3 = $29,
-          is_active = $30,
-          post_name = $31,
-          salary = $32,
-          is_adult = $33
-        WHERE id = $34 AND saas_account_id = $35
+          identity_number = $18,
+          identity_photo_path = $19,
+          staff_photo_path = $20,
+          teach_strokes = $21,
+          suitable_batch_ids = $22,
+          achievements = $23,
+          has_lifeguard_cert = $24,
+          lifeguard_expiry = $25,
+          lifeguard_photo_path = $26,
+          certificate_details = $27,
+          certificate_photo_1 = $28,
+          certificate_photo_2 = $29,
+          certificate_photo_3 = $30,
+          is_active = $31,
+          post_name = $32,
+          salary = $33,
+          is_adult = $34
+        WHERE id = $35 AND saas_account_id = $36
         RETURNING *`,
         [
           body.registrationFor,
@@ -557,6 +601,7 @@ staffRegistrationsRouter.put(
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
           sealIdentityDocument(body.identityDocument),
+          sealIdentityNumber(identityNumber),
           identityPhotoPath,
           staffPhotoPath,
           isCoach ? teachStrokes : null,
@@ -587,7 +632,16 @@ staffRegistrationsRouter.put(
         ],
       );
 
-      res.json(mapStaffDetail(rows[0], accountId));
+      const saved = mapStaffDetail(rows[0], accountId);
+      await recordAudit(req, {
+        action: 'update',
+        entityType: 'staff',
+        entityId: Number(saved.id),
+        entityLabel: String(saved.fullName ?? ''),
+        summary: 'Updated staff registration',
+        details: { registrationFor: saved.registrationFor, isActive: saved.isActive },
+      });
+      res.json(saved);
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'Update failed';
@@ -636,6 +690,7 @@ staffRegistrationsRouter.post(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -643,6 +698,11 @@ staffRegistrationsRouter.post(
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      const identityNumber = String(body.identityNumber ?? '').trim();
+      if (identityNumber.replace(/\s+/g, '').length < 4) {
+        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+        return;
       }
 
       if (!['Coach', 'Lifeguard', 'Other'].includes(body.registrationFor)) {
@@ -774,11 +834,11 @@ staffRegistrationsRouter.post(
           saas_account_id, registration_for, full_name, full_address, whatsapp_mobile, other_mobile, email, birthdate,
           sex, blood_group, emergency_name, emergency_relation, emergency_mobile,
           has_health_issue, health_issue_details, doctor_name, doctor_no, identity_document,
-          identity_photo_path, staff_photo_path, teach_strokes, suitable_batch_ids, achievements,
+          identity_number, identity_photo_path, staff_photo_path, teach_strokes, suitable_batch_ids, achievements,
           has_lifeguard_cert, lifeguard_expiry, lifeguard_photo_path, certificate_details,
           certificate_photo_1, certificate_photo_2, certificate_photo_3, accepted_terms, is_adult
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,TRUE,$31
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,TRUE,$32
         )
         RETURNING id, registration_for, full_name, email, created_at`,
         [
@@ -800,6 +860,7 @@ staffRegistrationsRouter.post(
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
           sealIdentityDocument(body.identityDocument),
+          sealIdentityNumber(identityNumber),
           sealedIdentityPhoto,
           staffPhoto.filename,
           isCoach ? teachStrokes : null,
@@ -818,6 +879,14 @@ staffRegistrationsRouter.post(
         ],
       );
 
+      await recordAudit(req, {
+        action: 'create',
+        entityType: 'staff',
+        entityId: rows[0].id,
+        entityLabel: String(rows[0].full_name ?? ''),
+        summary: 'Created staff registration',
+        details: { registrationFor: rows[0].registration_for },
+      });
       res.status(201).json(rows[0]);
     } catch (err) {
       console.error(err);

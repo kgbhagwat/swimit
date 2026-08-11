@@ -1155,6 +1155,89 @@ export async function notifyAccountAdminBatchOverLimit(params: {
   }
 }
 
+export async function notifyRemoteLoginAlert(params: {
+  mobile: string;
+  adminName: string;
+  accountName: string;
+  accountCode: string;
+  userName: string;
+  distanceLabel: string;
+  whenLabel: string;
+  approveUrl: string;
+  denyUrl: string;
+  saasAccountId: number;
+}): Promise<NotifyCredentialsResult> {
+  const body = [
+    `Hello ${params.adminName || 'Admin'},`,
+    '',
+    `Remote login request for ${params.accountName}.`,
+    '',
+    `User: ${params.userName}`,
+    `Account code: ${params.accountCode}`,
+    `Distance: ${params.distanceLabel}`,
+    `Time: ${params.whenLabel}`,
+    '',
+    `Approve (24h remote access): ${params.approveUrl}`,
+    `Deny: ${params.denyUrl}`,
+  ].join('\n');
+
+  if (!getWhatsAppConfig().enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'remote_login_alert',
+      body,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    try {
+      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'remote_login_alert_session',
+        body: 'hello_world',
+        status: 'sent',
+      });
+    } catch {
+      // Continue — free text may still work if a session is open.
+    }
+
+    const result = await sendWhatsAppText(params.mobile, body);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'remote_login_alert',
+      body,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+
+    return result.skipped
+      ? { ok: true, skipped: true }
+      : {
+          ok: true,
+          skipped: false,
+          to: result.to,
+          messageId: result.messageId,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'remote_login_alert',
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
+}
+
 export async function notifyPackageCapacityWarning(params: {
   saasAccountId: number;
   mobile: string;

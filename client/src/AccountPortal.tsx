@@ -3,9 +3,25 @@ import { Link, Navigate, useNavigate, useOutlet, useParams } from 'react-router-
 import { AppShell } from './AppShell';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { useT } from './i18n';
+import { LoginCaptchaField, useLoginCaptcha } from './LoginCaptcha';
+import {
+  captureLoginLocation,
+  parseRemoteAccessRequired,
+  RemoteAccessRequiredError,
+  type RemoteAccessPending,
+} from './loginLocation';
 import { MobileField } from './MobileField';
+import { passwordPolicyError } from './passwordPolicy';
 import { isSaasManagementCode, setPlatformSession } from './platformSession';
 import { setActiveTenant } from './tenantSession';
+import {
+  canUseBiometricLogin,
+  enrollBiometricLogin,
+  isMobileLikeDevice,
+  loginWithBiometric,
+  readBiometricPref,
+  type BiometricDevicePref,
+} from './webauthn';
 
 type AccountInfo = {
   id: number;
@@ -14,6 +30,7 @@ type AccountInfo = {
   status: string;
   packageName?: string;
   modules?: string;
+  featureKeys?: string[];
 };
 
 type SessionUser = {
@@ -101,10 +118,15 @@ export function AccountPortal() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loginMode, setLoginMode] = useState<'login' | 'forgot'>('login');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'biometric'>('password');
   const [loginUserName, setLoginUserName] = useState('admin');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricPref, setBiometricPref] = useState<BiometricDevicePref | null>(null);
+  const [biometricOfferUser, setBiometricOfferUser] = useState<SessionUser | null>(null);
+  const [biometricBusy, setBiometricBusy] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMobile, setForgotMobile] = useState('');
   const [resetting, setResetting] = useState(false);
@@ -117,6 +139,28 @@ export function AccountPortal() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [remotePending, setRemotePending] = useState<RemoteAccessPending | null>(null);
+  const captcha = useLoginCaptcha(
+    !sessionUser && !remotePending && loginMode === 'login' && loginMethod === 'password',
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const supported = await canUseBiometricLogin();
+      if (cancelled) return;
+      setBiometricSupported(supported);
+      const pref = ACCOUNT_CODE_RE.test(code) ? readBiometricPref(code) : null;
+      setBiometricPref(pref);
+      if (supported && pref?.enabled) {
+        setLoginMethod('biometric');
+        if (pref.userName) setLoginUserName(pref.userName);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
 
   useEffect(() => {
     if (!ACCOUNT_CODE_RE.test(code)) {
@@ -141,6 +185,9 @@ export function AccountPortal() {
           status: String(body.status ?? 'Active'),
           packageName: String(body.packageName ?? '').trim(),
           modules: String(body.modules ?? 'core').trim() || 'core',
+          featureKeys: Array.isArray(body.featureKeys)
+            ? body.featureKeys.map(String).filter(Boolean)
+            : undefined,
         };
         if (info.status === 'Suspended') {
           setError('This account is suspended.');
@@ -208,22 +255,152 @@ export function AccountPortal() {
     void hydrateMenuAccess();
   }, [account, sessionUser, code]);
 
+  function finishAuthenticatedSession(user: SessionUser, opts?: { offerBiometric?: boolean }) {
+    writeSession(code, user);
+    setSessionUser(user);
+    setLoginPassword('');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    const offerSkipped =
+      typeof sessionStorage !== 'undefined' &&
+      sessionStorage.getItem(`swimIT.webauthnOfferSkipped.${code}`) === '1';
+    const shouldOffer =
+      Boolean(opts?.offerBiometric) &&
+      !user.mustChangePassword &&
+      biometricSupported &&
+      isMobileLikeDevice() &&
+      !readBiometricPref(code)?.enabled &&
+      !offerSkipped;
+
+    if (shouldOffer) {
+      setBiometricOfferUser(user);
+      return;
+    }
+
+    enterAppAfterLogin(user);
+  }
+
+  function enterAppAfterLogin(user: SessionUser) {
+    setBiometricOfferUser(null);
+    if (isSaasManagementCode(code)) {
+      setActiveTenant(null);
+      if (account) {
+        setPlatformSession({
+          accountCode: account.accountCode || code,
+          accountId: account.id,
+          accountName: account.accountName,
+          userId: user.id,
+          userName: user.userName,
+          menuAccess: user.menuAccess ?? [],
+          isAccountAdmin: Boolean(user.isAccountAdmin),
+        });
+      }
+      return;
+    }
+    if (account && !user.mustChangePassword) {
+      setActiveTenant({ id: account.id, accountCode: account.accountCode || code });
+      navigate(`/${code}/dashboard`, { replace: true });
+    }
+  }
+
+  useEffect(() => {
+    if (!remotePending) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const params = new URLSearchParams({
+          requestId: String(remotePending.requestId),
+          statusToken: remotePending.statusToken,
+        });
+        const res = await fetch(`/api/remote-login/status?${params.toString()}`);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || cancelled) return;
+        const status = String(body.status ?? '');
+        if (status === 'approved') {
+          setRemotePending(null);
+          setSuccess(
+            t('Remote access approved. Sign in again to continue.'),
+          );
+          void captcha.refresh();
+        } else if (status === 'denied') {
+          setRemotePending(null);
+          setError(t('Remote access was denied by an admin.'));
+          void captcha.refresh();
+        }
+      } catch {
+        // keep waiting
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [remotePending, t, captcha.refresh]);
+
   async function onLogin(e: FormEvent) {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setRemotePending(null);
     setLoggingIn(true);
     try {
+      if (loginMethod === 'biometric') {
+        const pref = biometricPref ?? readBiometricPref(code);
+        const result = await loginWithBiometric({
+          accountCode: code,
+          userName: loginUserName.trim() || pref?.userName || undefined,
+          credentialId: pref?.credentialId,
+        });
+        const user: SessionUser = {
+          id: result.user.id,
+          userName: result.user.userName,
+          mobile: result.user.mobile,
+          mustChangePassword: result.user.mustChangePassword,
+          isAccountAdmin: result.user.isAccountAdmin,
+          menuAccess: result.user.menuAccess,
+        };
+        setBiometricPref({
+          credentialId: result.credentialId,
+          userName: user.userName,
+          enabled: true,
+        });
+        finishAuthenticatedSession(user);
+        return;
+      }
+
+      if (!captcha.value) {
+        throw new Error(t('Enter the captcha code'));
+      }
+      const geo = await captureLoginLocation();
       const res = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userName: loginUserName.trim() || 'admin',
           password: loginPassword,
+          captchaId: captcha.value.captchaId,
+          captchaAnswer: captcha.value.captchaAnswer,
+          latitude: geo?.latitude ?? null,
+          longitude: geo?.longitude ?? null,
+          accuracyM: geo?.accuracyM ?? null,
         }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Login failed');
+      if (!res.ok) {
+        const pending = parseRemoteAccessRequired(body as Record<string, unknown>);
+        if (pending) {
+          setRemotePending(pending);
+          void captcha.refresh();
+          return;
+        }
+        throw new Error(body.error ?? 'Login failed');
+      }
       const user: SessionUser = {
         id: Number(body.user.id),
         userName: String(body.user.userName),
@@ -234,36 +411,46 @@ export function AccountPortal() {
           ? body.user.menuAccess.map(String)
           : [],
       };
-      writeSession(code, user);
-      setSessionUser(user);
-      if (isSaasManagementCode(code)) {
-        setActiveTenant(null);
-        if (account) {
-          setPlatformSession({
-            accountCode: account.accountCode || code,
-            accountId: account.id,
-            accountName: account.accountName,
-            userId: user.id,
-            userName: user.userName,
-            menuAccess: user.menuAccess ?? [],
-            isAccountAdmin: Boolean(user.isAccountAdmin),
-          });
-        }
-      } else if (account && !user.mustChangePassword) {
-        setActiveTenant({ id: account.id, accountCode: account.accountCode || code });
-        navigate(`/${code}/dashboard`, { replace: true });
-      }
-      setLoginPassword('');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setPasswordError('');
-      setPasswordSuccess('');
+      finishAuthenticatedSession(user, { offerBiometric: true });
     } catch (err) {
+      if (err instanceof RemoteAccessRequiredError) {
+        setRemotePending(err.pending);
+        if (loginMethod === 'password') void captcha.refresh();
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Login failed');
+      if (loginMethod === 'password') void captcha.refresh();
     } finally {
       setLoggingIn(false);
     }
+  }
+
+  async function onEnableBiometricOffer() {
+    if (!biometricOfferUser) return;
+    setBiometricBusy(true);
+    setError('');
+    try {
+      const pref = await enrollBiometricLogin({
+        accountCode: code,
+        userId: biometricOfferUser.id,
+      });
+      setBiometricPref(pref);
+      enterAppAfterLogin(biometricOfferUser);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enable biometric login');
+    } finally {
+      setBiometricBusy(false);
+    }
+  }
+
+  function onSkipBiometricOffer() {
+    if (!biometricOfferUser) return;
+    try {
+      sessionStorage.setItem(`swimIT.webauthnOfferSkipped.${code}`, '1');
+    } catch {
+      // ignore
+    }
+    enterAppAfterLogin(biometricOfferUser);
   }
 
   async function onForgotSubmit(e: FormEvent) {
@@ -306,8 +493,9 @@ export function AccountPortal() {
     setPasswordError('');
     setPasswordSuccess('');
     if (!sessionUser) return;
-    if (newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters');
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      setPasswordError(policyError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -338,29 +526,12 @@ export function AccountPortal() {
           ? body.user.menuAccess.map(String)
           : sessionUser.menuAccess,
       };
-      writeSession(code, user);
-      setSessionUser(user);
-      if (isSaasManagementCode(code)) {
-        setActiveTenant(null);
-        if (account) {
-          setPlatformSession({
-            accountCode: account.accountCode || code,
-            accountId: account.id,
-            accountName: account.accountName,
-            userId: user.id,
-            userName: user.userName,
-            menuAccess: user.menuAccess ?? [],
-            isAccountAdmin: Boolean(user.isAccountAdmin),
-          });
-        }
-        setPasswordSuccess('Password updated. Opening SaaS management…');
-      } else if (account) {
-        setActiveTenant({ id: account.id, accountCode: account.accountCode || code });
-        setPasswordSuccess('Password updated. Opening your account…');
-      }
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      finishAuthenticatedSession(user, { offerBiometric: true });
+      setPasswordSuccess(
+        isSaasManagementCode(code)
+          ? 'Password updated. Opening SaaS management…'
+          : 'Password updated.',
+      );
     } catch (err) {
       setPasswordError(err instanceof Error ? err.message : 'Failed to change password');
     } finally {
@@ -385,7 +556,8 @@ export function AccountPortal() {
     isSaasManagementCode(code) &&
     account &&
     sessionUser &&
-    !sessionUser.mustChangePassword
+    !sessionUser.mustChangePassword &&
+    !biometricOfferUser
   ) {
     return <Navigate to="/" replace />;
   }
@@ -419,7 +591,69 @@ export function AccountPortal() {
 
   if (!account) return null;
 
+  if (biometricOfferUser) {
+    return (
+      <div className="account-login-shell">
+        <div
+          className="modal-panel platform-login-panel account-login-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('Biometric login')}
+        >
+          <div className="platform-login-layout">
+            <aside className="platform-login-brand" aria-hidden="true">
+              <img
+                src="/swimit-login.png"
+                alt=""
+                className="platform-login-brand-image"
+              />
+            </aside>
+            <div className="platform-login-content">
+              <div className="platform-login-branding">
+                <img
+                  src="/swimit-logo.png"
+                  alt="SwimIT — Swimming Pool Management System"
+                  className="platform-login-logo"
+                />
+                <p className="platform-login-account-name">{account.accountName}</p>
+              </div>
+              <div className="platform-login-form biometric-offer">
+                <h2 className="biometric-offer-title">{t('Use biometric login?')}</h2>
+                <p className="muted biometric-offer-copy">
+                  {t(
+                    'On this phone you can sign in next time with Face ID or fingerprint instead of typing your password.',
+                  )}
+                </p>
+                {error ? <p className="error">{error}</p> : null}
+                <div className="platform-login-actions platform-login-actions-inline">
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    disabled={biometricBusy}
+                    onClick={onSkipBiometricOffer}
+                  >
+                    {t('Not now')}
+                  </button>
+                  <button
+                    type="button"
+                    className="submit"
+                    disabled={biometricBusy}
+                    onClick={() => void onEnableBiometricOffer()}
+                  >
+                    {biometricBusy ? t('Setting up…') : t('Enable biometric')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!sessionUser) {
+    const showBiometricChoice = biometricSupported;
+    const biometricReady = Boolean(biometricPref?.enabled && biometricPref.credentialId);
     return (
       <div className="account-login-shell">
         <div
@@ -445,8 +679,82 @@ export function AccountPortal() {
                 />
                 <p className="platform-login-account-name">{account.accountName}</p>
               </div>
-              {loginMode === 'login' ? (
+              {loginMode === 'login' && remotePending ? (
+                <div className="platform-login-form remote-login-pending">
+                  <h2 className="biometric-offer-title">{t('Waiting for admin approval')}</h2>
+                  <p className="muted">
+                    {remotePending.distanceKm == null
+                      ? t(
+                          'Your location could not be verified near the pool. An admin was notified by email and WhatsApp.',
+                        )
+                      : t(
+                          'You are about {distance} km from the pool (limit {limit} km). An admin was notified by email and WhatsApp.',
+                        )
+                          .replace(
+                            '{distance}',
+                            String(remotePending.distanceKm.toFixed(1)),
+                          )
+                          .replace('{limit}', String(remotePending.thresholdKm))}
+                  </p>
+                  <p className="muted">{t('This page updates automatically when they approve or deny.')}</p>
+                  <div className="platform-login-actions">
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => {
+                        setRemotePending(null);
+                        setError('');
+                        void captcha.refresh();
+                      }}
+                    >
+                      {t('Back to login')}
+                    </button>
+                  </div>
+                </div>
+              ) : loginMode === 'login' ? (
                 <form className="platform-login-form" onSubmit={onLogin}>
+                  {showBiometricChoice ? (
+                    <div
+                      className="login-method-toggle"
+                      role="group"
+                      aria-label={t('Login method')}
+                    >
+                      <button
+                        type="button"
+                        className={
+                          loginMethod === 'password'
+                            ? 'login-method-btn is-active'
+                            : 'login-method-btn'
+                        }
+                        onClick={() => {
+                          setLoginMethod('password');
+                          setError('');
+                        }}
+                      >
+                        {t('Password')}
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          loginMethod === 'biometric'
+                            ? 'login-method-btn is-active'
+                            : 'login-method-btn'
+                        }
+                        onClick={() => {
+                          setLoginMethod('biometric');
+                          setError('');
+                        }}
+                        disabled={!biometricReady}
+                        title={
+                          biometricReady
+                            ? t('Sign in with Face ID or fingerprint')
+                            : t('Enable biometric after password login on this phone')
+                        }
+                      >
+                        {t('Biometric')}
+                      </button>
+                    </div>
+                  ) : null}
                   <label className="field">
                     <span className="label">
                       {t('User name')} <span className="req">*</span>
@@ -458,38 +766,58 @@ export function AccountPortal() {
                       required
                     />
                   </label>
-                  <label className="field">
-                    <span className="label">
-                      {t('Password')} <span className="req">*</span>
-                    </span>
-                    <div className="password-input-wrap">
-                      <input
-                        type={showLoginPassword ? 'text' : 'password'}
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        autoComplete="current-password"
-                        required
+                  {loginMethod === 'password' ? (
+                    <label className="field">
+                      <span className="label">
+                        {t('Password')} <span className="req">*</span>
+                      </span>
+                      <div className="password-input-wrap">
+                        <input
+                          type={showLoginPassword ? 'text' : 'password'}
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          autoComplete="current-password"
+                          required
+                        />
+                        <PasswordEyeButton
+                          visible={showLoginPassword}
+                          onToggle={() => setShowLoginPassword((prev) => !prev)}
+                        />
+                      </div>
+                    </label>
+                  ) : (
+                    <p className="muted biometric-login-hint">
+                      {t('Tap Sign in, then confirm with Face ID or fingerprint on this phone.')}
+                    </p>
+                  )}
+                  {loginMethod === 'password' ? (
+                    <>
+                      <LoginCaptchaField
+                        challenge={captcha.challenge}
+                        answer={captcha.answer}
+                        onAnswerChange={captcha.setAnswer}
+                        onRefresh={() => void captcha.refresh()}
+                        loading={captcha.loading}
+                        loadError={captcha.loadError}
+                        disabled={loggingIn}
                       />
-                      <PasswordEyeButton
-                        visible={showLoginPassword}
-                        onToggle={() => setShowLoginPassword((prev) => !prev)}
-                      />
-                    </div>
-                  </label>
-                  <div className="platform-login-forgot-row">
-                    <button
-                      type="button"
-                      className="platform-login-forgot-link"
-                      onClick={() => {
-                        setError('');
-                        setSuccess('');
-                        setLoginMode('forgot');
-                      }}
-                    >
-                      {t('Forgot password?')}
-                    </button>
-                  </div>
+                      <div className="platform-login-forgot-row">
+                        <button
+                          type="button"
+                          className="platform-login-forgot-link"
+                          onClick={() => {
+                            setError('');
+                            setSuccess('');
+                            setLoginMode('forgot');
+                          }}
+                        >
+                          {t('Forgot password?')}
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                   {error ? <p className="error">{error}</p> : null}
+                  {success ? <p className="platform-login-success">{success}</p> : null}
                   <div className="platform-login-actions">
                     <button
                       type="button"
@@ -500,7 +828,11 @@ export function AccountPortal() {
                       {t('Cancel')}
                     </button>
                     <button type="submit" className="submit" disabled={loggingIn}>
-                      {loggingIn ? t('Signing in…') : t('Sign in')}
+                      {loggingIn
+                        ? t('Signing in…')
+                        : loginMethod === 'biometric'
+                          ? t('Sign in with biometrics')
+                          : t('Sign in')}
                     </button>
                   </div>
                 </form>
@@ -599,13 +931,16 @@ export function AccountPortal() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={8}
                 />
                 <PasswordEyeButton
                   visible={showNewPassword}
                   onToggle={() => setShowNewPassword((prev) => !prev)}
                 />
               </div>
+              <span className="muted field-hint">
+                {t('Password must be at least 8 characters with at least 1 letter and 1 number')}
+              </span>
             </label>
             <label className="field">
               <span className="label">Confirm new password</span>
@@ -616,7 +951,7 @@ export function AccountPortal() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={8}
                 />
                 <PasswordEyeButton
                   visible={showConfirmPassword}

@@ -19,11 +19,16 @@ import { holidaysRouter } from './routes/holidays.js';
 import { usersRouter } from './routes/users.js';
 import { servicePackagesRouter } from './routes/servicePackages.js';
 import { saasAccountsRouter } from './routes/saasAccounts.js';
+import { webauthnRouter } from './routes/webauthn.js';
 import { whatsappRouter } from './routes/whatsapp.js';
 import { platformPaymentRouter } from './routes/platformPayment.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { supportRouter } from './routes/support.js';
+import { auditLogRouter } from './routes/auditLog.js';
+import { captchaRouter } from './routes/captcha.js';
+import { remoteLoginRouter } from './routes/remoteLogin.js';
 import { requireTenant } from './middleware/tenant.js';
+import { ensureSchema } from './ensureSchema.js';
 import { startSubscriptionExpiryReminders } from './subscriptionReminders.js';
 import { startSubscriptionChatExpiryReminders } from './subscriptionChatReminders.js';
 import { startPassExpiryReminders } from './passExpiryReminders.js';
@@ -74,8 +79,12 @@ app.use('/api/dashboard', requireTenant, dashboardRouter);
 app.use('/api/pool-core-info', requireTenant, poolCoreInfoRouter);
 app.use('/api/holidays', requireTenant, holidaysRouter);
 app.use('/api/users', requireTenant, usersRouter);
+app.use('/api/activity-log', requireTenant, auditLogRouter);
 app.use('/api/service-packages', servicePackagesRouter);
+app.use('/api/captcha', captchaRouter);
+app.use('/api/remote-login', remoteLoginRouter);
 app.use('/api/saas-accounts', saasAccountsRouter);
+app.use('/api/saas-accounts', webauthnRouter);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/platform-payment', platformPaymentRouter);
 app.use('/api/support', supportRouter);
@@ -120,12 +129,18 @@ if (hasClientBuild) {
   });
 }
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running at http://0.0.0.0:${port}`);
-  if (hasClientBuild) {
-    console.log(`Serving client from ${clientDist}`);
-  }
-  startSubscriptionExpiryReminders();
-  startSubscriptionChatExpiryReminders();
-  startPassExpiryReminders();
-});
+void ensureSchema()
+  .catch((err) => {
+    console.error('[schema] Failed to ensure login/geo columns', err);
+  })
+  .finally(() => {
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running at http://0.0.0.0:${port}`);
+      if (hasClientBuild) {
+        console.log(`Serving client from ${clientDist}`);
+      }
+      startSubscriptionExpiryReminders();
+      startSubscriptionChatExpiryReminders();
+      startPassExpiryReminders();
+    });
+  });

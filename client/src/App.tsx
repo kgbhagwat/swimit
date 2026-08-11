@@ -31,6 +31,7 @@ type FormState = {
   doctorName: string;
   doctorNo: string;
   identityDocument: string;
+  identityNumber: string;
   acceptedTerms: boolean;
 };
 
@@ -54,6 +55,7 @@ const initialForm: FormState = {
   doctorName: '',
   doctorNo: '',
   identityDocument: '',
+  identityNumber: '',
   acceptedTerms: false,
 };
 
@@ -141,6 +143,7 @@ export function App() {
           doctorName: data.doctorName ?? '',
           doctorNo: data.doctorNo ?? '',
           identityDocument: data.identityDocument ?? '',
+          identityNumber: data.identityNumber ?? '',
           acceptedTerms: true,
         });
         setExistingIdentityUrl(data.identityPhotoUrl ?? null);
@@ -191,6 +194,7 @@ export function App() {
       healthIssueDetails: t("Disease / health issue"),
       doctorNo: t("Doctor no."),
       identityDocument: t("Identity document"),
+      identityNumber: t('Identity number'),
       identityPhoto: t("Photo of identity proof"),
       swimmerPhoto: t("Swimmer photo"),
       acceptedTerms: t("Terms & Conditions"),
@@ -303,6 +307,9 @@ export function App() {
     }
 
     if (!form.identityDocument) fields.add('identityDocument');
+    if (form.identityNumber.trim().replace(/\s+/g, '').length < 4) {
+      fields.add('identityNumber');
+    }
     if (isEdit) {
       if (!identityPhoto && !existingIdentityUrl) fields.add('identityPhoto');
       if (!swimmerPhoto && !existingSwimmerUrl) fields.add('swimmerPhoto');
@@ -727,10 +734,10 @@ export function App() {
 
         <section className="registration-section">
           <h2>{t("Identity & photos")}</h2>
-          <div className="grid-2 registration-identity-row">
-            <div
+          <div className="registration-identity-row">
+            <label
               className={`field field-beside registration-identity-doc${
-                isInvalid('identityPhoto') ? ' field-box-invalid' : ''
+                isInvalid('identityDocument') ? ' field-box-invalid' : ''
               }`}
             >
               <Label required>{t("Identity document")}</Label>
@@ -748,34 +755,53 @@ export function App() {
                 <option value="Driving Licence">{t("Driving licence")}</option>
                 <option value="School ID">{t("School / college ID")}</option>
               </select>
-              <RegistrationPhotoField
-                label={t("Photo of identity proof")}
-                hint={t("Max 200 KB — upload or take a photo of your identity proof")}
+            </label>
+            <label
+              className={`field field-beside registration-identity-number${
+                isInvalid('identityNumber') ? ' field-box-invalid' : ''
+              }`}
+            >
+              <Label required>{t('Identity number')}</Label>
+              <input
+                className="field-control-sm"
+                value={form.identityNumber}
+                onChange={(e) => setField('identityNumber', e.target.value)}
+                placeholder={t('Enter document number')}
+                autoComplete="off"
                 required
-                hideLabel
-                file={identityPhoto}
-                preview={identityPreview}
-                existingUrl={existingIdentityUrl}
-                takeLabel={t("Take photo")}
-                uploadLabel={t("Upload")}
-                invalid={isInvalid('identityPhoto')}
-                onClearExisting={() => setExistingIdentityUrl(null)}
-                onPick={(file) => {
-                  setInvalidFields((prev) => {
-                    if (!prev.has('identityPhoto')) return prev;
-                    const next = new Set(prev);
-                    next.delete('identityPhoto');
-                    setErrorCount(next.size);
-                    return next;
-                  });
-                  setIdentityPhoto(file);
-                }}
+                aria-invalid={isInvalid('identityNumber')}
               />
-            </div>
+            </label>
+            <RegistrationPhotoField
+              label={t("Photo of identity proof")}
+              hint={t("Max 200 KB — upload or take a photo of your identity proof")}
+              required
+              hideLabel
+              protectFromCapture
+              identityNumberToMask={form.identityNumber}
+              file={identityPhoto}
+              preview={identityPreview}
+              existingUrl={existingIdentityUrl}
+              takeLabel={t("Take photo")}
+              uploadLabel={t("Upload")}
+              invalid={isInvalid('identityPhoto')}
+              onClearExisting={() => setExistingIdentityUrl(null)}
+              onPick={(file) => {
+                setInvalidFields((prev) => {
+                  if (!prev.has('identityPhoto')) return prev;
+                  const next = new Set(prev);
+                  next.delete('identityPhoto');
+                  setErrorCount(next.size);
+                  return next;
+                });
+                setIdentityPhoto(file);
+              }}
+            />
             <RegistrationPhotoField
               label={t("Swimmer photo")}
               hint={t("Max 200 KB — recent passport-size photo of the swimmer")}
               required
+              protectFromCapture
               file={swimmerPhoto}
               preview={swimmerPreview}
               existingUrl={existingSwimmerUrl}

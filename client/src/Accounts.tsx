@@ -6,6 +6,10 @@ import { PlatformShell } from './PlatformShell';
 import { hasPlatformAccess } from './platformAccess';
 import { getPlatformSession } from './platformSession';
 import {
+  PlatformActivityLogPanel,
+  type ActivityLogTarget,
+} from './ActivityLog';
+import {
   SUPPORT_INBOX_CHANGED,
   SupportBellIcon,
   SupportChatPanel,
@@ -106,6 +110,15 @@ function ResetPasswordIcon() {
   );
 }
 
+function ActivityLogIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M5 4.5h14v15H5z" />
+      <path d="M8 8h8M8 12h8M8 16h5" />
+    </svg>
+  );
+}
+
 function SaveIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -141,6 +154,7 @@ export function Accounts() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [info, setInfo] = useState('');
   const [chatTarget, setChatTarget] = useState<SupportChatTarget | null>(null);
+  const [logTarget, setLogTarget] = useState<ActivityLogTarget | null>(null);
   const [unreadByAccountId, setUnreadByAccountId] = useState<Record<string, number>>({});
 
   const loadUnread = useCallback(async () => {
@@ -209,7 +223,18 @@ export function Accounts() {
 
   function openAccountChat(item: Account) {
     if (!item.accountCode || String(item.accountCode).toLowerCase() === 'swimit') return;
+    setLogTarget(null);
     setChatTarget({
+      id: item.id,
+      accountCode: String(item.accountCode),
+      accountName: item.accountName,
+    });
+  }
+
+  function openAccountActivityLog(item: Account) {
+    if (!item.accountCode) return;
+    setChatTarget(null);
+    setLogTarget({
       id: item.id,
       accountCode: String(item.accountCode),
       accountName: item.accountName,
@@ -238,6 +263,21 @@ export function Accounts() {
             {unread > 99 ? '99+' : unread}
           </span>
         ) : null}
+      </button>
+    );
+  }
+
+  function renderAccountActivityLogBtn(item: Account) {
+    if (!canManage || !session?.userId || !item.accountCode) return null;
+    return (
+      <button
+        type="button"
+        className="accounts-chat-bell"
+        onClick={() => openAccountActivityLog(item)}
+        aria-label={`${t('Activity Log')} ${item.accountName}`}
+        title={t('Activity Log')}
+      >
+        <ActivityLogIcon />
       </button>
     );
   }
@@ -445,6 +485,7 @@ export function Accounts() {
                           <td className="accounts-col-account">
                             <div className="accounts-name-with-chat">
                               {renderAccountChatBell(item)}
+                              {renderAccountActivityLogBtn(item)}
                               <div>
                                 <strong className="batch-saved-name">{item.accountName}</strong>
                                 {item.poolAddress ? (
@@ -655,6 +696,7 @@ export function Accounts() {
                         <div className="accounts-block-field" data-label={t('Account')}>
                           <div className="accounts-name-with-chat">
                             {renderAccountChatBell(item)}
+                            {renderAccountActivityLogBtn(item)}
                             <div>
                               <strong className="batch-saved-name">{item.accountName}</strong>
                               {item.poolAddress ? (
@@ -950,6 +992,14 @@ export function Accounts() {
           mode="platform"
           authorUserId={session.userId}
           targetAccount={chatTarget}
+        />
+      ) : null}
+
+      {session?.userId && logTarget ? (
+        <PlatformActivityLogPanel
+          open
+          onClose={() => setLogTarget(null)}
+          targetAccount={logTarget}
         />
       ) : null}
     </PlatformShell>

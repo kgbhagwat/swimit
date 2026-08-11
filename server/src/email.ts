@@ -68,6 +68,55 @@ export async function sendOtpEmail(params: {
   }
 }
 
+/** Alert an admin that a user is trying to sign in far from the pool. */
+export async function sendRemoteLoginAlertEmail(params: {
+  to: string;
+  adminName: string;
+  accountName: string;
+  accountCode: string;
+  userName: string;
+  distanceLabel: string;
+  whenLabel: string;
+  approveUrl: string;
+  denyUrl: string;
+}): Promise<SendEmailResult> {
+  const to = String(params.to ?? '').trim();
+  if (!to) return { ok: false, error: 'Email address is empty' };
+  if (!smtpConfigured()) {
+    return { ok: true, skipped: true };
+  }
+
+  const from = String(process.env.SMTP_FROM ?? '').trim();
+  const subject = `SwimIT remote login request — ${params.accountName}`;
+  const text = [
+    `Hello ${params.adminName || 'Admin'},`,
+    '',
+    `A user is signing in far from the pool and needs remote access approval.`,
+    '',
+    `Account: ${params.accountName} (${params.accountCode})`,
+    `User: ${params.userName}`,
+    `Distance: ${params.distanceLabel}`,
+    `Time: ${params.whenLabel}`,
+    '',
+    `Approve remote access (24 hours): ${params.approveUrl}`,
+    `Deny: ${params.denyUrl}`,
+    '',
+    'If you did not expect this, deny the request.',
+  ].join('\n');
+
+  try {
+    const info = await createTransport().sendMail({
+      from,
+      to,
+      subject,
+      text,
+    });
+    return { ok: true, skipped: false, messageId: info.messageId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to send email' };
+  }
+}
+
 /** Send a temporary login password by email when SMTP is configured. */
 export async function sendTempPasswordEmail(params: {
   to: string;

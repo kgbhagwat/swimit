@@ -36,6 +36,62 @@ const mr: Record<string, string> = {
   'Signing in…': 'साइन इन होत आहे…',
   'Sign in': 'साइन इन',
   Password: 'पासवर्ड',
+  'Password must be at least 8 characters with at least 1 letter and 1 number':
+    'पासवर्ड किमान ८ अक्षरे असावा, ज्यात किमान १ अक्षर आणि १ अंक असावा',
+  'Waiting for admin approval': 'प्रशासक मंजुरीची प्रतीक्षा',
+  'Your location could not be verified near the pool. An admin was notified by email and WhatsApp.':
+    'पूलजवळ स्थान पडताळता आले नाही. प्रशासकाला ईमेल आणि WhatsApp ने कळविले आहे.',
+  'You are about {distance} km from the pool (limit {limit} km). An admin was notified by email and WhatsApp.':
+    'तुम्ही पूलपासून सुमारे {distance} किमी दूर आहात (मर्यादा {limit} किमी). प्रशासकाला ईमेल आणि WhatsApp ने कळविले आहे.',
+  'This page updates automatically when they approve or deny.':
+    'ते मंजूर किंवा नाकारतील तेव्हा हे पृष्ठ आपोआप अपडेट होते.',
+  'Remote access approved. Sign in again to continue.':
+    'रिमोट प्रवेश मंजूर. सुरू ठेवण्यासाठी पुन्हा साइन इन करा.',
+  'Remote access was denied by an admin.': 'प्रशासकाने रिमोट प्रवेश नाकारला.',
+  'Remote login approval': 'रिमोट लॉगिन मंजुरी',
+  'This remote access link is invalid or incomplete.':
+    'ही रिमोट प्रवेश लिंक अवैध किंवा अपूर्ण आहे.',
+  'Failed to update remote access': 'रिमोट प्रवेश अपडेट करता आला नाही',
+  'This remote access request was already decided.':
+    'ही रिमोट प्रवेश विनंती आधीच ठरवली गेली आहे.',
+  'Remote access approved. The user can sign in for the next 24 hours.':
+    'रिमोट प्रवेश मंजूर. वापरकर्ता पुढील २४ तास साइन इन करू शकतो.',
+  'Remote access denied. The user cannot sign in from this location.':
+    'रिमोट प्रवेश नाकारला. वापरकर्ता या ठिकाणाहून साइन इन करू शकत नाही.',
+  'Updating…': 'अपडेट होत आहे…',
+  'Approve remote': 'रिमोट मंजूर करा',
+  Approve: 'मंजूर',
+  'Remote login': 'रिमोट लॉगिन',
+  'Login location': 'लॉगिन स्थान',
+  'Swimming pool only (use Core Info distance)':
+    'फक्त जलतरण तलाव (Core Info मधील अंतर)',
+  'Up to': 'पर्यंत',
+  'km from swimming pool': 'किमी जलतरण तलावापासून',
+  'Allowed distance in km': 'अनुमत अंतर (किमी)',
+  'Allowed login distance (km)': 'अनुमत लॉगिन अंतर (किमी)',
+  'Set the pool distance in Core Info, or choose a custom distance for this user. Farther logins need admin approval.':
+    'Core Info मध्ये पूल अंतर सेट करा, किंवा या वापरकर्त्यासाठी सानुकूल अंतर निवडा. त्याहून दूरच्या लॉगिनसाठी प्रशासक मंजुरी लागते.',
+  'Enter allowed login distance between 1 and 500 km':
+    'अनुमत लॉगिन अंतर १ ते ५०० किमी दरम्यान टाका',
+  'Google location of swimming pool': 'जलतरण तलावाचे Google स्थान',
+  'Paste Google Maps link (Share → Copy link)':
+    'Google Maps लिंक पेस्ट करा (Share → Copy link)',
+  'Location saved': 'स्थान जतन झाले',
+  'e.g. 5': 'उदा. ५',
+  'Open your pool in Google Maps, tap Share, copy the link, and paste it here.':
+    'Google Maps मध्ये तुमचा पूल उघडा, Share टॅप करा, लिंक कॉपी करून येथे पेस्ट करा.',
+  'How far from the pool this user may sign in without admin approval. Farther logins need approval.':
+    'प्रशासक मंजुरीशिवाय हा वापरकर्ता पूलपासून किती दूरून साइन इन करू शकतो. त्याहून दूरच्या लॉगिनसाठी मंजुरी लागते.',
+  'Pool name, address, map location (for remote login checks), terms, payment options, and branding images.':
+    'पूल नाव, पत्ता, नकाशा स्थान (रिमोट लॉगिन तपासणीसाठी), अटी, पेमेंट पर्याय आणि ब्रँडिंग प्रतिमा.',
+  Captcha: 'कॅप्चा',
+  'Captcha code': 'कॅप्चा कोड',
+  'Enter captcha': 'कॅप्चा टाका',
+  'Enter the captcha code': 'कॅप्चा कोड टाका',
+  'Refresh captcha': 'कॅप्चा रीफ्रेश करा',
+  'Invalid or expired captcha': 'अवैध किंवा कालबाह्य कॅप्चा',
+  'Failed to load captcha': 'कॅप्चा लोड करता आला नाही',
+
   'Enter a valid 6-character account code': 'वैध ६ अक्षरी खाते कोड टाका',
   'A new temporary password was sent to your mobile and email.':
     'नवीन तात्पुरता पासवर्ड तुमच्या मोबाईल आणि ईमेलवर पाठवला आहे.',
@@ -120,6 +176,7 @@ const mr: Record<string, string> = {
   'Integrate with devices and tools for a truly connected system.':
     'खऱ्या कनेक्टेड सिस्टमसाठी डिव्हाइसेस आणि टूल्सशी जोडा.',
   Accounts: 'खाती',
+  Logout: 'लॉगआउट',
   'Service Packages': 'सेवा पॅकेजेस',
   'Service packages': 'सेवा पॅकेजेस',
   'Application overview': 'अप्लिकेशन आढावा',
@@ -180,6 +237,26 @@ const mr: Record<string, string> = {
   'Pass Type': 'पास प्रकार',
   Holidays: 'सुट्ट्या',
   'User Management': 'वापरकर्ता व्यवस्थापन',
+  'Activity Log': 'क्रियाकलाप नोंद',
+  'Track who created, edited, or deleted records in this account.':
+    'या खात्यात कोणी नोंदी तयार केल्या, संपादित केल्या किंवा हटवल्या ते वेळेसह पाहा.',
+  'Platform view of create, edit, and delete activity for this account.':
+    'या खात्यातील तयार/संपादन/हटव क्रियाकलापाचे प्लॅटफॉर्म दृश्य.',
+  'All actions': 'सर्व क्रिया',
+  Activate: 'सक्रिय',
+  Deactivate: 'निष्क्रिय',
+  'All records': 'सर्व नोंदी',
+  'Record type': 'नोंदीचा प्रकार',
+  'User, summary, or record…': 'वापरकर्ता, सारांश किंवा नोंद…',
+  'No activity recorded for this period.': 'या कालावधीसाठी कोणतीही क्रियाकलाप नोंद नाही.',
+  Time: 'वेळ',
+  User: 'वापरकर्ता',
+  Record: 'नोंद',
+  Unknown: 'अज्ञात',
+  'Shows who created, edited, or deleted records in this account, with date and time.':
+    'या खात्यात कोणी नोंदी तयार केल्या, संपादित केल्या किंवा हटवल्या ते तारीख व वेळेसह दाखवते.',
+  'Gives admins a clear trail of changes so mistakes and unauthorised edits can be traced.':
+    'चुका आणि अनधिकृत संपादने शोधता यावीत म्हणून प्रशासकांना बदलांचा स्पष्ट मागोवा देते.',
   'Pass Payment': 'पास पेमेंट',
   'Pass Scanner': 'पास स्कॅनर',
   'Coach Payment': 'प्रशिक्षक पेमेंट',
@@ -1143,6 +1220,13 @@ const mr: Record<string, string> = {
   "Weekly holiday": "साप्ताहिक सुट्टी",
   "Weekly holidays saved.": "साप्ताहिक सुट्ट्या जतन झाल्या.",
   "WhatsApp Broadcast messaging": "WhatsApp ब्रॉडकास्ट मेसेजिंग",
+  "Activity log": "क्रियाकलाप नोंद",
+  "Feature list": "वैशिष्ट्य यादी",
+  "Full modules include all features below.": "फुल मॉड्यूल्समध्ये खालील सर्व वैशिष्ट्ये समाविष्ट आहेत.",
+  "Core modules include basic ops features only.":
+    "कोर मॉड्यूल्समध्ये फक्त मूलभूत ऑपरेशन वैशिष्ट्ये समाविष्ट आहेत.",
+  Core: 'कोर',
+  Full: 'फुल',
   "WhatsApp message sent to your mobile. Pay the amount below and send the payment screenshot on WhatsApp.": "तुमच्या मोबाईलवर WhatsApp संदेश पाठवला. खालील रक्कम भरा आणि पेमेंट स्क्रीनशॉट WhatsApp वर पाठवा.",
   "WhatsApp mobile": "WhatsApp मोबाईल",
   "WhatsApp mobile no.": "WhatsApp मोबाइल क्र.",

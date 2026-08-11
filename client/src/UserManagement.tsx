@@ -8,10 +8,10 @@ import {
   MENU_SECTIONS,
   editAccessKey,
   INFORMATION_EDITABLE_PAGE_KEYS,
-  pageKeysForModules,
   type MenuPageKey,
   pagesBySection,
 } from './menuCatalog';
+import { pageKeysForPackage } from './packageFeatures';
 import {
   PLATFORM_ACCESS_PAGES,
   PLATFORM_ACCESS_SECTIONS,
@@ -31,6 +31,7 @@ type AppUser = {
   menuAccess: string[];
   createdAt: string;
   isAccountAdmin?: boolean;
+  loginRadiusKm?: number | null;
 };
 
 type AccessKey = MenuPageKey | PlatformAccessPageKey;
@@ -107,12 +108,22 @@ function UserRow({
   const [accessDraft, setAccessDraft] = useState(() =>
     toAccessSet(user.menuAccess, allowedPages),
   );
+  const [loginRadiusKm, setLoginRadiusKm] = useState(
+    user.loginRadiusKm != null ? String(user.loginRadiusKm) : '',
+  );
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
 
   useEffect(() => {
     setAccessDraft(toAccessSet(user.menuAccess, allowedPages));
-  }, [user.id, user.menuAccess.join('|'), platformMode, packagePageKeys?.size]);
+    setLoginRadiusKm(user.loginRadiusKm != null ? String(user.loginRadiusKm) : '');
+  }, [
+    user.id,
+    user.menuAccess.join('|'),
+    user.loginRadiusKm,
+    platformMode,
+    packagePageKeys?.size,
+  ]);
 
   const accessSections = platformMode
     ? PLATFORM_ACCESS_SECTIONS.filter((section) => platformPagesBySection(section).length > 0)
@@ -184,12 +195,22 @@ function UserRow({
   }
 
   async function onSaveAccess() {
+    if (!platformMode) {
+      const km = Number(loginRadiusKm);
+      if (!Number.isFinite(km) || km < 1 || km > 500) {
+        onMessage('error', 'Enter allowed login distance between 1 and 500 km');
+        return;
+      }
+    }
     setSavingAccess(true);
     try {
       const res = await fetch(`/api/users/${user.id}/access`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ menuAccess: [...accessDraft] }),
+        body: JSON.stringify({
+          menuAccess: [...accessDraft],
+          ...(platformMode ? {} : { loginRadiusKm: Number(loginRadiusKm) }),
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to save access');
@@ -216,6 +237,26 @@ function UserRow({
         <p>
           <strong>{t('Created')}</strong> {formatCreatedAt(String(user.createdAt ?? ''))}
         </p>
+        {!platformMode ? (
+          <label className="user-login-geo">
+            <strong>
+              {t('Allowed login distance (km)')} <span className="req">*</span>
+            </strong>
+            <span className="user-login-geo-radius">
+              <input
+                type="number"
+                min={1}
+                max={500}
+                step={1}
+                value={loginRadiusKm}
+                disabled={readOnly}
+                onChange={(e) => setLoginRadiusKm(e.target.value)}
+                aria-label={t('Allowed login distance (km)')}
+              />
+              <span>{t('km from swimming pool')}</span>
+            </span>
+          </label>
+        ) : null}
         {!user.isAccountAdmin ? (
           <button
             type="button"
@@ -426,7 +467,7 @@ export function UserManagement() {
     }
     const code = getActiveAccountCode();
     if (!code) {
-      setPackagePageKeys(new Set(pageKeysForModules('core')));
+      setPackagePageKeys(new Set(pageKeysForPackage({ modules: 'core' })));
       return;
     }
     let cancelled = false;
@@ -436,15 +477,16 @@ export function UserManagement() {
         if (!res.ok || cancelled) return;
         setPackagePageKeys(
           new Set(
-            pageKeysForModules(
-              String(body.modules ?? 'core'),
-              String(body.packageName ?? ''),
-            ),
+            pageKeysForPackage({
+              modules: String(body.modules ?? 'core'),
+              packageName: String(body.packageName ?? ''),
+              featureKeys: body.featureKeys,
+            }),
           ),
         );
       })
       .catch(() => {
-        if (!cancelled) setPackagePageKeys(new Set(pageKeysForModules('core')));
+        if (!cancelled) setPackagePageKeys(new Set(pageKeysForPackage({ modules: 'core' })));
       });
     return () => {
       cancelled = true;

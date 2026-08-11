@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
@@ -18,9 +19,12 @@ import {
   guessImageContentType,
   normalizeBirthdate,
   openSealedUploadFile,
+  maskIdentityNumber,
   revealIdentityDocument,
+  revealIdentityNumber,
   sealBirthdate,
   sealIdentityDocument,
+  sealIdentityNumber,
   sealUploadFile,
 } from '../sensitiveData.js';
 
@@ -342,7 +346,7 @@ registrationsRouter.get('/:id', async (req, res) => {
       `SELECT r.id, r.full_name, r.full_address, r.whatsapp_mobile, r.other_mobile, r.email,
               r.birthdate, r.sex, r.blood_group,
               r.is_active, r.pass_type, r.batch, r.coach, r.pass_valid_until,
-              r.swimmer_photo_path, r.identity_document, r.identity_photo_path,
+              r.swimmer_photo_path, r.identity_document, r.identity_number, r.identity_photo_path,
               r.has_health_issue, r.health_issue_details, r.doctor_name, r.doctor_no,
               r.emergency_name, r.emergency_relation, r.emergency_mobile,
               r.parent_name, r.parent_relation, r.parent_mobile,
@@ -380,6 +384,8 @@ registrationsRouter.get('/:id', async (req, res) => {
       passValidUntil,
       photoUrl: row.swimmer_photo_path ? `/uploads/${row.swimmer_photo_path}` : null,
       identityDocument: revealIdentityDocument(row.identity_document),
+      identityNumber: revealIdentityNumber(row.identity_number),
+      identityNumberMasked: maskIdentityNumber(revealIdentityNumber(row.identity_number)),
       identityPhotoUrl: row.identity_photo_path
         ? `/api/registrations/${row.id}/identity-photo?accountId=${accountId}`
         : null,
@@ -611,6 +617,20 @@ registrationsRouter.patch('/:id', async (req, res) => {
         console.warn('[whatsapp] package capacity notify failed', err),
       );
 
+      await recordAudit(req, {
+        action: 'update',
+        entityType: 'swimmer',
+        entityId: updated.id,
+        entityLabel: String(updated.full_name ?? ''),
+        summary: 'Recorded pass payment / renewed pass',
+        details: {
+          passType: body.passType,
+          passValidUntil: body.passValidUntil,
+          paymentMode,
+          batch: updated.batch,
+          coach: updated.coach,
+        },
+      });
       res.json({ ...updated, whatsapp });
       return;
     }
@@ -621,6 +641,26 @@ registrationsRouter.patch('/:id', async (req, res) => {
       );
     }
 
+    const action =
+      body.isActive === false ? 'deactivate' : body.isActive === true ? 'activate' : 'update';
+    await recordAudit(req, {
+      action,
+      entityType: 'swimmer',
+      entityId: updated.id,
+      entityLabel: String(updated.full_name ?? ''),
+      summary:
+        action === 'activate'
+          ? 'Activated swimmer'
+          : action === 'deactivate'
+            ? 'Deactivated swimmer'
+            : 'Updated swimmer',
+      details: {
+        batch: updated.batch,
+        isActive: updated.is_active,
+        passType: updated.pass_type,
+        coach: updated.coach,
+      },
+    });
     res.json(updated);
   } catch (err) {
     console.error('[registrations] PATCH /:id failed', err);
@@ -748,6 +788,7 @@ registrationsRouter.put(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -755,6 +796,11 @@ registrationsRouter.put(
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      const identityNumber = String(body.identityNumber ?? '').trim();
+      if (identityNumber.replace(/\s+/g, '').length < 4) {
+        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+        return;
       }
 
       const identityPhoto = files?.identityPhoto?.[0];
@@ -872,13 +918,14 @@ registrationsRouter.put(
           doctor_name = $14,
           doctor_no = $15,
           identity_document = $16,
-          identity_photo_path = $17,
-          swimmer_photo_path = $18,
-          parent_name = $19,
-          parent_relation = $20,
-          parent_mobile = $21,
-          is_adult = $22
-         WHERE id = $23 AND saas_account_id = $24
+          identity_number = $17,
+          identity_photo_path = $18,
+          swimmer_photo_path = $19,
+          parent_name = $20,
+          parent_relation = $21,
+          parent_mobile = $22,
+          is_adult = $23
+         WHERE id = $24 AND saas_account_id = $25
          RETURNING id, full_name, email`,
         [
           body.fullName.trim(),
@@ -897,6 +944,7 @@ registrationsRouter.put(
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
           sealIdentityDocument(body.identityDocument),
+          sealIdentityNumber(identityNumber),
           identityPhotoPath,
           swimmerPhotoPath,
           needsParent ? body.parentName.trim() : null,
@@ -908,6 +956,14 @@ registrationsRouter.put(
         ],
       );
 
+      await recordAudit(req, {
+        action: 'update',
+        entityType: 'swimmer',
+        entityId: rows[0].id,
+        entityLabel: String(rows[0].full_name ?? ''),
+        summary: 'Updated swimmer registration',
+        details: { email: rows[0].email },
+      });
       res.json(rows[0]);
     } catch (err) {
       console.error(err);
@@ -1135,6 +1191,7 @@ registrationsRouter.post(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -1142,6 +1199,11 @@ registrationsRouter.post(
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      const identityNumber = String(body.identityNumber ?? '').trim();
+      if (identityNumber.replace(/\s+/g, '').length < 4) {
+        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+        return;
       }
 
       if (body.acceptedTerms !== 'true') {
@@ -1239,10 +1301,10 @@ registrationsRouter.post(
           saas_account_id, full_name, full_address, whatsapp_mobile, other_mobile, email, birthdate,
           sex, blood_group, emergency_name, emergency_relation, emergency_mobile,
           has_health_issue, health_issue_details, doctor_name, doctor_no, identity_document,
-          identity_photo_path, swimmer_photo_path, accepted_terms, is_active,
+          identity_number, identity_photo_path, swimmer_photo_path, accepted_terms, is_active,
           parent_name, parent_relation, parent_mobile, is_adult
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,TRUE,FALSE,$20,$21,$22,$23
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,TRUE,FALSE,$21,$22,$23,$24
         )
         RETURNING id, full_name, email, created_at`,
         [
@@ -1263,6 +1325,7 @@ registrationsRouter.post(
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorNo?.trim() || null : null,
           sealIdentityDocument(body.identityDocument),
+          sealIdentityNumber(identityNumber),
           sealedIdentityPhoto,
           swimmerPhoto.filename,
           needsParent ? body.parentName.trim() : null,
@@ -1272,6 +1335,14 @@ registrationsRouter.post(
         ],
       );
 
+      await recordAudit(req, {
+        action: 'create',
+        entityType: 'swimmer',
+        entityId: rows[0].id,
+        entityLabel: String(rows[0].full_name ?? ''),
+        summary: 'Created swimmer registration',
+        details: { email: rows[0].email },
+      });
       res.status(201).json(rows[0]);
 
       void notifyRegistrationConfirmation({

@@ -6,10 +6,8 @@ import {
   featurePathFromLocation,
   isMenuSection,
   MENU_SECTIONS,
-  pageKeysForModules,
   pagesBySection,
   readStoredMenuSection,
-  resolvePackageModules,
   sectionForPath,
   storeMenuSection,
   type MenuPageKey,
@@ -17,13 +15,23 @@ import {
 } from './menuCatalog';
 import { LanguageSwitcher, useT } from './i18n';
 import { MENU_ITEMS, MenuTiles, type MenuItem } from './menuItems';
+import { pageKeysForPackage } from './packageFeatures';
 import { PassPopupOverlay } from './PassPopupOverlay';
+import { passwordPolicyError } from './passwordPolicy';
 import { PlatformNav } from './PlatformNav';
 import { PlatformPage } from './PlatformPage';
 import { SupportInboxButton } from './SupportInboxButton';
 import { ThemeToggle, useTheme } from './theme';
 import { setActiveTenant } from './tenantSession';
 import { isPassPopupWindow } from './swimmerPass';
+import {
+  canUseBiometricLogin,
+  clearBiometricPref,
+  enrollBiometricLogin,
+  readBiometricPref,
+  removeBiometricCredential,
+  writeBiometricPref,
+} from './webauthn';
 
 export type TenantUserInfo = {
   id: number;
@@ -77,7 +85,24 @@ function TenantUserBar({
     paymentQrPath: string | null;
     upiId: string;
   } | null>(null);
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const supported = await canUseBiometricLogin();
+      if (cancelled) return;
+      setBiometricSupported(supported);
+      const pref = readBiometricPref(account.accountCode);
+      setBiometricEnabled(Boolean(supported && pref?.enabled && pref.credentialId));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [account.accountCode, user?.id]);
 
   useEffect(() => {
     if (!user?.isAccountAdmin) {
@@ -156,8 +181,9 @@ function TenantUserBar({
     if (!user) return;
     setError('');
     setSuccess('');
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters');
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      setError(policyError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -290,6 +316,55 @@ function TenantUserBar({
               >
                 Change password
               </button>
+              {biometricSupported && user ? (
+                <button
+                  type="button"
+                  className="tenant-profile-action"
+                  disabled={biometricBusy}
+                  onClick={() => {
+                    void (async () => {
+                      setBiometricBusy(true);
+                      setError('');
+                      setSuccess('');
+                      try {
+                        const pref = readBiometricPref(account.accountCode);
+                        if (biometricEnabled && pref?.credentialId) {
+                          await removeBiometricCredential({
+                            accountCode: account.accountCode,
+                            userId: user.id,
+                            credentialId: pref.credentialId,
+                          });
+                          clearBiometricPref(account.accountCode);
+                          setBiometricEnabled(false);
+                          setSuccess(t('Biometric login turned off on this device'));
+                        } else {
+                          const enrolled = await enrollBiometricLogin({
+                            accountCode: account.accountCode,
+                            userId: user.id,
+                          });
+                          writeBiometricPref(account.accountCode, enrolled);
+                          setBiometricEnabled(true);
+                          setSuccess(t('Biometric login enabled on this device'));
+                        }
+                      } catch (err) {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : t('Failed to update biometric login'),
+                        );
+                      } finally {
+                        setBiometricBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  {biometricBusy
+                    ? t('Please wait…')
+                    : biometricEnabled
+                      ? t('Turn off biometric login')
+                      : t('Enable biometric login')}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="tenant-profile-action"
@@ -328,7 +403,7 @@ function TenantUserBar({
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoComplete="new-password"
-                    minLength={6}
+                    minLength={8}
                     required
                   />
                   <button
@@ -340,6 +415,9 @@ function TenantUserBar({
                     <PasswordEyeIcon visible={showNew} />
                   </button>
                 </div>
+                <span className="muted field-hint">
+                  {t('Password must be at least 8 characters with at least 1 letter and 1 number')}
+                </span>
               </label>
               <label className="field">
                 <span className="label">Confirm new password</span>
@@ -349,7 +427,7 @@ function TenantUserBar({
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     autoComplete="new-password"
-                    minLength={6}
+                    minLength={8}
                     required
                   />
                   <button
@@ -395,6 +473,7 @@ export type AppShellProps = {
     accountCode: string;
     packageName?: string;
     modules?: string;
+    featureKeys?: string[];
   } | null;
   tenantUser?: TenantUserInfo | null;
   onTenantLogout?: () => void;
@@ -448,7 +527,11 @@ export function AppShell({
   const allowedKeys = useMemo<Set<MenuPageKey>>(() => {
     if (!tenantAccount || !tenantUser) return new Set<MenuPageKey>();
     const packageKeys = new Set(
-      pageKeysForModules(tenantAccount.modules, tenantAccount.packageName),
+      pageKeysForPackage({
+        modules: tenantAccount.modules,
+        packageName: tenantAccount.packageName,
+        featureKeys: tenantAccount.featureKeys,
+      }),
     );
     if (tenantUser.isAccountAdmin) return packageKeys;
 
@@ -460,12 +543,6 @@ export function AppShell({
     return next;
   }, [tenantAccount, tenantUser]);
 
-  const packageIsFull = useMemo(
-    () =>
-      resolvePackageModules(tenantAccount?.modules, tenantAccount?.packageName) === 'full',
-    [tenantAccount?.modules, tenantAccount?.packageName],
-  );
-
   const allowedSections = useMemo(() => {
     if (!tenantAccount) return new Set<MenuSection>();
     const set = new Set<MenuSection>();
@@ -473,12 +550,12 @@ export function AppShell({
       const pages = pagesBySection(name);
       if (pages.some((p) => allowedKeys.has(p.key))) set.add(name);
     }
-    // Setup always includes User Management for account admins on full packages.
-    if (tenantUser?.isAccountAdmin && packageIsFull) {
+    // Setup includes User Management for account admins when the package allows it.
+    if (tenantUser?.isAccountAdmin && allowedKeys.has('create-user')) {
       set.add('Setup');
     }
     return set;
-  }, [tenantAccount, tenantUser, allowedKeys, packageIsFull]);
+  }, [tenantAccount, tenantUser, allowedKeys]);
 
   const firstAllowedSection = useMemo(() => {
     return (allowedSections.values().next().value ?? 'Setup') as MenuSection;
@@ -537,13 +614,17 @@ export function AppShell({
         if (item.to === '/dashboard') return false;
         if (item.to === '/user-management') {
           if (!tenantAccount || !tenantUser) return true;
-          return Boolean(tenantUser.isAccountAdmin) && packageIsFull;
+          return Boolean(tenantUser.isAccountAdmin) && allowedKeys.has('create-user');
+        }
+        if (item.to === '/activity-log') {
+          if (!tenantAccount || !tenantUser) return true;
+          return allowedKeys.has('activity-log');
         }
         const page = ACCESS_PAGES.find((p) => p.to === item.to);
         if (!page) return true;
         return tenantAccount && tenantUser ? allowedKeys.has(page.key) : true;
       }),
-    [section, tenantAccount, tenantUser, allowedKeys, packageIsFull],
+    [section, tenantAccount, tenantUser, allowedKeys],
   );
 
   function itemsForSection(name: MenuSection): MenuItem[] {
@@ -553,7 +634,11 @@ export function AppShell({
       if (item.to === '/dashboard') return false;
       if (item.to === '/user-management') {
         if (!tenantAccount || !tenantUser) return true;
-        return Boolean(tenantUser.isAccountAdmin) && packageIsFull;
+        return Boolean(tenantUser.isAccountAdmin) && allowedKeys.has('create-user');
+      }
+      if (item.to === '/activity-log') {
+        if (!tenantAccount || !tenantUser) return true;
+        return allowedKeys.has('activity-log');
       }
       const page = ACCESS_PAGES.find((p) => p.to === item.to);
       if (!page) return true;

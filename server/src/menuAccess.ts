@@ -1,5 +1,6 @@
 export const ACCESS_PAGE_KEYS = [
   'create-user',
+  'activity-log',
   'pool-core-info',
   'batches',
   'pass-types',
@@ -67,6 +68,7 @@ export const FULL_ONLY_PAGE_KEYS: readonly AccessPageKey[] = [
   'holiday-management',
   'whatsapp',
   'create-user',
+  'activity-log',
   'payment-details',
 ];
 
@@ -117,10 +119,9 @@ export function sanitizeMenuAccess(value: unknown): string[] {
 /** Keep only keys allowed by the account's service package. */
 export function clipMenuAccessToPackage(
   keys: string[],
-  modules?: string | null,
-  packageName?: string | null,
+  allowedPageKeys: AccessPageKey[],
 ): string[] {
-  const allowed = new Set(pageKeysForModules(modules, packageName));
+  const allowed = new Set(allowedPageKeys);
   return keys.filter((key) => {
     if (allowed.has(key as AccessPageKey)) return true;
     if (!key.endsWith('-edit')) return false;

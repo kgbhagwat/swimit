@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 
@@ -117,7 +118,16 @@ waterQualityRouter.post('/', async (req, res) => {
         body.testerName!.trim(),
       ],
     );
-    res.status(201).json(mapRow(rows[0]));
+    const created = mapRow(rows[0]);
+    await recordAudit(req, {
+      action: 'create',
+      entityType: 'water_quality',
+      entityId: created.id,
+      entityLabel: created.recordDate,
+      summary: 'Created water quality record',
+      details: created,
+    });
+    res.status(201).json(created);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save water quality record' });
@@ -160,7 +170,16 @@ waterQualityRouter.put('/:id', async (req, res) => {
       res.status(404).json({ error: 'Record not found' });
       return;
     }
-    res.json(mapRow(rows[0]));
+    const updated = mapRow(rows[0]);
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'water_quality',
+      entityId: updated.id,
+      entityLabel: updated.recordDate,
+      summary: 'Updated water quality record',
+      details: updated,
+    });
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update water quality record' });
@@ -171,14 +190,28 @@ waterQualityRouter.delete('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
-    const result = await pool.query(
-      `DELETE FROM water_quality WHERE id = $1 AND saas_account_id = $2`,
+    const existing = await pool.query(
+      `SELECT id, record_date, ph_level, free_chlorine, total_alkalinity, calcium_hardness, tester_name
+       FROM water_quality WHERE id = $1 AND saas_account_id = $2`,
       [id, accountId],
     );
-    if (result.rowCount === 0) {
+    if (!existing.rows[0]) {
       res.status(404).json({ error: 'Record not found' });
       return;
     }
+    await pool.query(`DELETE FROM water_quality WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    const deleted = mapRow(existing.rows[0]);
+    await recordAudit(req, {
+      action: 'delete',
+      entityType: 'water_quality',
+      entityId: deleted.id,
+      entityLabel: deleted.recordDate,
+      summary: 'Deleted water quality record',
+      details: deleted,
+    });
     res.status(204).send();
   } catch (err) {
     console.error(err);

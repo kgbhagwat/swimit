@@ -1,6 +1,6 @@
 import { createAccountNotification } from './accountNotifications.js';
 import { pool } from './db/pool.js';
-import { pageKeysForModules } from './menuAccess.js';
+import { pageKeysForPackage } from './packageFeatures.js';
 import {
   addMonthsDateOnly,
   amountsMatch,
@@ -209,14 +209,18 @@ export async function processPackageRenewalInbound(params: {
       [renewPackageId, newExpires, params.saasAccountId],
     );
 
-    const pkg = await client.query<{ modules: string | null; package_name: string | null }>(
-      `SELECT modules, package_name FROM service_packages WHERE id = $1`,
-      [renewPackageId],
-    );
-    const packageMenuKeys = pageKeysForModules(
-      pkg.rows[0]?.modules,
-      pkg.rows[0]?.package_name,
-    );
+    const pkg = await client.query<{
+      modules: string | null;
+      package_name: string | null;
+      feature_keys: string[] | null;
+    }>(`SELECT modules, package_name, feature_keys FROM service_packages WHERE id = $1`, [
+      renewPackageId,
+    ]);
+    const packageMenuKeys = pageKeysForPackage({
+      modules: pkg.rows[0]?.modules,
+      packageName: pkg.rows[0]?.package_name,
+      featureKeys: pkg.rows[0]?.feature_keys,
+    });
     await client.query(
       `UPDATE app_users
        SET menu_access = $1
