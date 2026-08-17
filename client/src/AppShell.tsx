@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useOutlet, useSearchParams } from 'react-router-dom';
 import {
   ACCESS_PAGES,
@@ -707,6 +707,13 @@ export function AppShell({
     setInIframe(window.self !== window.top);
   }, []);
 
+  useLayoutEffect(() => {
+    document.documentElement.classList.add('app-shell-active');
+    return () => {
+      document.documentElement.classList.remove('app-shell-active');
+    };
+  }, []);
+
   useEffect(() => {
     if (tenantAccount) return;
     if (searchParams.get('expand') !== '1') return;
@@ -721,10 +728,13 @@ export function AppShell({
     setSearchParams(next, { replace: true });
   }, [tenantAccount, searchParams, setSearchParams]);
 
-  /* View Application preview opens in dark mode. */
+  /* View Application preview opens in dark mode; restore light when leaving. */
   useEffect(() => {
     if (tenantAccount) return;
     setTheme('dark');
+    return () => {
+      setTheme('light');
+    };
   }, [tenantAccount, setTheme]);
 
   function isMobileMenu() {
@@ -900,6 +910,7 @@ export function AppShell({
             } catch {
               /* ignore */
             }
+            setTheme('light');
             navigate('/');
             return;
           }

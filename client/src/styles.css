@@ -43,7 +43,10 @@ body,
 
 html:has(.platform-shell),
 body:has(.platform-shell),
-#root:has(.platform-shell) {
+#root:has(.platform-shell),
+html.app-shell-active,
+html.app-shell-active body,
+html.app-shell-active #root {
   height: 100%;
   overflow: hidden;
 }
@@ -92,6 +95,14 @@ a {
   background: #fff;
   border-radius: 18px;
   box-shadow: 0 18px 48px rgba(10, 35, 70, 0.28);
+}
+
+.route-fallback {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: #e5f2fd;
 }
 
 .accounts-page {
@@ -14885,6 +14896,8 @@ body:has(.marketing-site) {
 }
 
 html:has(.marketing-site),
+html:has(.marketing-site) body,
+html:has(.marketing-site) #root,
 body:has(.marketing-site),
 #root:has(.marketing-site) {
   height: auto;

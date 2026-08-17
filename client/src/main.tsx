@@ -7,6 +7,7 @@ import { ThemeProvider } from './theme';
 import { installTenantFetch } from './tenantSession';
 import { ApplicationDemoSync } from './ApplicationDemoSync';
 import { RequirePlatformSession } from './RequirePlatformSession';
+import { MarketingHome } from './MarketingHome';
 
 installTenantFetch();
 
@@ -74,9 +75,6 @@ const ServicePackages = lazy(() =>
 const ApplicationGuide = lazy(() =>
   import('./ApplicationGuide').then((m) => ({ default: m.ApplicationGuide })),
 );
-const MarketingHome = lazy(() =>
-  import('./MarketingHome').then((m) => ({ default: m.MarketingHome })),
-);
 const FeaturesPage = lazy(() =>
   import('./FeaturesPage').then((m) => ({ default: m.FeaturesPage })),
 );
@@ -103,7 +101,7 @@ function withPlatformAuth(element: ReactElement) {
 function RouteFallback() {
   const t = useT();
   return (
-    <div className="page">
+    <div className="route-fallback">
       <p className="muted">{t('Loading…')}</p>
     </div>
   );
