@@ -68,11 +68,18 @@ export async function sendSignupOtp(params: {
 
   if (params.channel === 'email') {
     if (!isEmailDeliveryConfigured()) {
+      if (exposeDevCode()) {
+        return {
+          ok: true as const,
+          skipped: true as const,
+          message: 'Email delivery is not configured. Use the code shown for testing.',
+          devCode: code,
+        };
+      }
       return {
-        ok: true as const,
-        skipped: true as const,
-        message: 'Email delivery is not configured. Use the code shown for testing.',
-        ...(exposeDevCode() ? { devCode: code } : {}),
+        ok: false as const,
+        error:
+          'Email OTP cannot be sent: SMTP is not configured on this server. Add SMTP_HOST and SMTP_FROM, then recreate the app container.',
       };
     }
     const sent = await sendOtpEmail({ to: params.destination, code });
@@ -95,11 +102,17 @@ export async function sendSignupOtp(params: {
 
   const wa = getWhatsAppConfig();
   if (!wa.enabled) {
+    if (exposeDevCode()) {
+      return {
+        ok: true as const,
+        skipped: true as const,
+        message: 'WhatsApp is not configured. Use the code shown for testing.',
+        devCode: code,
+      };
+    }
     return {
-      ok: true as const,
-      skipped: true as const,
-      message: 'WhatsApp is not configured. Use the code shown for testing.',
-      ...(exposeDevCode() ? { devCode: code } : {}),
+      ok: false as const,
+      error: 'WhatsApp OTP cannot be sent: WhatsApp is not configured on this server.',
     };
   }
 

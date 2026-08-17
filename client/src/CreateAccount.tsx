@@ -411,6 +411,9 @@ export function CreateAccount() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to send OTP');
+      if (body.skipped && !body.devCode) {
+        throw new Error(String(body.message ?? 'OTP could not be delivered'));
+      }
       setOtp((prev) => ({
         ...prev,
         sending: false,

@@ -6,7 +6,7 @@ import {
   formatWhatsAppUserError,
   sendWhatsAppImage,
   sendWhatsAppImageByMediaId,
-  sendWhatsAppTemplate,
+  sendWhatsAppTemplateWithBody,
   sendWhatsAppText,
   uploadWhatsAppMedia,
 } from './client.js';
@@ -59,8 +59,6 @@ export type NotifyCredentialsResult =
 
 /**
  * Send login credentials on WhatsApp.
- * Meta test numbers often drop free text until a template opens the chat,
- * so we send hello_world first, then the credentials text.
  */
 export async function notifyLoginCredentials(params: {
   mobile: string;
@@ -102,29 +100,6 @@ export async function notifyLoginCredentials(params: {
   }
 
   try {
-    // Open / refresh the business chat (required on Meta sandbox for free text).
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'login_credentials_session',
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch (sessionErr) {
-      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'login_credentials_session',
-        body: 'hello_world',
-        status: 'failed',
-        error: sessionMessage,
-      });
-      // Continue — text may still work if a session is already open.
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     if (result.skipped) {
       await logOutbound({
@@ -220,23 +195,44 @@ export async function notifySignupOtp(params: {
   }
 
   try {
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        toMobile: params.mobile,
-        kind: 'signup_otp_session',
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch (sessionErr) {
-      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
-      await logOutbound({
-        toMobile: params.mobile,
-        kind: 'signup_otp_session',
-        body: 'hello_world',
-        status: 'failed',
-        error: sessionMessage,
-      });
+    const otpTemplate = String(process.env.WHATSAPP_OTP_TEMPLATE ?? 'swimit_signup_otp').trim();
+    const otpLang = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en_US').trim() || 'en_US';
+    const languages = [...new Set([otpLang, 'en_US', 'en'])];
+    if (otpTemplate) {
+      for (const lang of languages) {
+        try {
+          const templated = await sendWhatsAppTemplateWithBody(
+            params.mobile,
+            otpTemplate,
+            lang,
+            [code],
+          );
+          if (!templated.skipped) {
+            await logOutbound({
+              toMobile: params.mobile,
+              kind: 'signup_otp',
+              body: otpTemplate,
+              status: 'sent',
+            });
+            return {
+              ok: true,
+              skipped: false,
+              to: templated.to,
+              messageId: templated.messageId,
+            };
+          }
+        } catch (templateErr) {
+          const templateMessage =
+            templateErr instanceof Error ? templateErr.message : 'OTP template failed';
+          await logOutbound({
+            toMobile: params.mobile,
+            kind: 'signup_otp_template',
+            body: `${otpTemplate}/${lang}`,
+            status: 'failed',
+            error: templateMessage,
+          });
+        }
+      }
     }
 
     const result = await sendWhatsAppText(params.mobile, body);
@@ -273,7 +269,12 @@ export async function notifySignupOtp(params: {
     });
     return {
       ok: false,
-      error: formatWhatsAppUserError(message, params.mobile),
+      error: formatWhatsAppUserError(
+        `${message}. Create WhatsApp template ${
+          process.env.WHATSAPP_OTP_TEMPLATE || 'swimit_signup_otp'
+        } (Utility, body: Your SwimIT verification code is {{1}}.) so the OTP is delivered without Hello World.`,
+        params.mobile,
+      ),
     };
   }
 }
@@ -355,28 +356,6 @@ export async function notifyPassIssued(params: {
   }
 
   try {
-    // Open / refresh the business chat (needed on Meta sandbox for free-form messages).
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'pass_issued_session',
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch (sessionErr) {
-      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'pass_issued_session',
-        body: 'hello_world',
-        status: 'failed',
-        error: sessionMessage,
-      });
-    }
-
     const { rows } = await pool.query(
       `SELECT r.id, r.full_name, r.pass_type, r.batch, r.coach, r.pass_valid_until,
               r.swimmer_photo_path, pt.duration AS pass_duration,
@@ -612,20 +591,6 @@ export async function notifySubscriptionExpiring(params: {
   }
 
   try {
-    // Open / refresh the business chat.
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'saas_subscription_expiry_5d_session',
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch {
-      // Continue — free text often still works once a session is open.
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -698,12 +663,6 @@ export async function notifyOpenFormQr(params: {
   }
 
   try {
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-    } catch {
-      // Session may already be open.
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     if (result.skipped) {
       await logOutbound({
@@ -850,27 +809,6 @@ export async function notifyPackageRenewalPayment(params: {
   }
 
   try {
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'package_renewal_session',
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch (sessionErr) {
-      const sessionMessage = sessionErr instanceof Error ? sessionErr.message : 'Template failed';
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'package_renewal_session',
-        body: 'hello_world',
-        status: 'failed',
-        error: sessionMessage,
-      });
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -994,12 +932,6 @@ export async function notifyPassPaymentRequest(params: {
   }
 
   try {
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-    } catch {
-      // Session may already be open.
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -1111,19 +1043,6 @@ export async function notifyAccountAdminBatchOverLimit(params: {
   }
 
   try {
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'batch_coach_over_limit_session',
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch {
-      // Continue — free text may still work if a session is open.
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -1194,19 +1113,6 @@ export async function notifyRemoteLoginAlert(params: {
   }
 
   try {
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'remote_login_alert_session',
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch {
-      // Continue — free text may still work if a session is open.
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -1286,19 +1192,6 @@ export async function notifyPackageCapacityWarning(params: {
   }
 
   try {
-    try {
-      await sendWhatsAppTemplate(params.mobile, 'hello_world', 'en_US');
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: `${params.reminderKind}_session`,
-        body: 'hello_world',
-        status: 'sent',
-      });
-    } catch {
-      // Continue — free text may still work with an open session.
-    }
-
     const result = await sendWhatsAppText(params.mobile, body);
     await logOutbound({
       saasAccountId: params.saasAccountId,
