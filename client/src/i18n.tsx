@@ -204,6 +204,8 @@ const mr: Record<string, string> = {
     'खर्च, कोच पेमेंट आणि सोपी बॅलन्स शीट यासाठी फायनान्स टूल्स',
   'Helps to send broadcast message to all active swimmers and All staff members.':
     'सर्व सक्रिय पोहणारे आणि सर्व स्टाफ सदस्य यांना ब्रॉडकास्ट मेसेज पाठवता येतो.',
+  'Pass-expiry reminders and broadcasts are ₹1 per message, billed separately.':
+    'पास-मुदत स्मरण आणि ब्रॉडकास्ट प्रत्येक संदेशाला ₹१, वेगळे बिल.',
   Workflow: 'वर्कफ्लो',
   'SwimIT functionality overview': 'SwimIT कार्यक्षमता आढावा',
   'SwimIT workflow': 'SwimIT वर्कफ्लो',
@@ -1247,6 +1249,27 @@ const mr: Record<string, string> = {
   "Sort descending": "उतरत्या क्रमाने",
   "Checking WhatsApp connection…": "WhatsApp कनेक्शन तपासत आहे…",
   Connected: "कनेक्टेड",
+  "Ready to send messages to swimmers and staff.":
+    "पोहणारे आणि कर्मचाऱ्यांना संदेश पाठवण्यासाठी तयार.",
+  "WhatsApp charges": "WhatsApp शुल्क",
+  "₹1 per message": "प्रत्येक संदेशाला ₹१",
+  "Broadcast messages and pass-expiry reminders are charged separately from your SwimIT subscription, at ₹1 per delivered WhatsApp message. These charges are added to the next renewal invoice.":
+    "ब्रॉडकास्ट आणि पास-मुदत स्मरण SwimIT सबस्क्रिप्शनपासून वेगळे आकारले जातात — प्रत्येक वितरित WhatsApp संदेशाला ₹१. हे शुल्क पुढील नूतनीकरण इनव्हॉइसवर जमा होते.",
+  "Account admin has accepted these WhatsApp message charges.":
+    "खाते एडमिनने हे WhatsApp संदेश शुल्क स्वीकारले आहे.",
+  "Accepted on": "स्वीकार केले",
+  "I am the account admin and I accept ₹1 per WhatsApp message for broadcasts and pass-expiry reminders, billed separately on the next subscription invoice.":
+    "मी खाते एडमिन आहे आणि ब्रॉडकास्ट व पास-मुदत स्मरणांसाठी प्रत्येक WhatsApp संदेशाला ₹१ स्वीकारतो; हे शुल्क पुढील सबस्क्रिप्शन इनव्हॉइसवर वेगळे आकारले जाईल.",
+  "Accept charges": "शुल्क स्वीकारा",
+  "Ask the account admin to accept ₹1 per WhatsApp message before using broadcasts or pass-expiry reminders.":
+    "ब्रॉडकास्ट किंवा पास-मुदत स्मरण वापरण्यापूर्वी खाते एडमिनने प्रत्येक WhatsApp संदेशाला ₹१ स्वीकारणे आवश्यक आहे.",
+  "Send a pass-expiry reminder": "पास-मुदत स्मरण पाठवा",
+  "days before the pass ends.": "दिवस आधी पाठवा.",
+  "Days before pass expiry": "पास संपण्यापूर्वीचे दिवस",
+  "WhatsApp message charges accepted. Broadcasts and pass-expiry reminders are now available.":
+    "WhatsApp संदेश शुल्क स्वीकारले. आता ब्रॉडकास्ट आणि पास-मुदत स्मरण उपलब्ध आहेत.",
+  "Account admin must accept ₹1 per WhatsApp message before sending broadcasts.":
+    "ब्रॉडकास्ट पाठवण्यापूर्वी खाते एडमिनने प्रत्येक WhatsApp संदेशाला ₹१ स्वीकारणे आवश्यक आहे.",
   "Not connected": "कनेक्ट नाही",
   "Set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in server .env, then restart the server.":
     "server .env मध्ये WHATSAPP_TOKEN आणि WHATSAPP_PHONE_NUMBER_ID सेट करा, मग सर्वर रीस्टार्ट करा.",

@@ -7,6 +7,7 @@ import { requireTenant, tenantId } from '../middleware/tenant.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
+import { BROADCAST_RATE_INR } from '../renewBilling.js';
 import { notifyPassExpiring, notifyOpenFormQr, sendBroadcast } from '../whatsapp/notify.js';
 import { processPackageRenewalInbound } from '../packageRenewal.js';
 import { processPassPaymentInbound } from '../passPaymentVerify.js';
@@ -15,6 +16,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadRoot = path.resolve(__dirname, '../../uploads/whatsapp');
 
 export const whatsappRouter = Router();
+
+async function paidWhatsAppAccepted(accountId: number) {
+  const { rows } = await pool.query<{ accepted: boolean }>(
+    `SELECT COALESCE(whatsapp_paid_messages_accepted, FALSE) AS accepted
+     FROM pool_core_info
+     WHERE saas_account_id = $1`,
+    [accountId],
+  );
+  return rows[0]?.accepted === true;
+}
+
+async function requesterIsAccountAdmin(req: { header: (name: string) => string | undefined }, accountId: number) {
+  const id = Number(req.header('x-user-id'));
+  if (!Number.isFinite(id) || id <= 0) return { ok: false as const, userId: null as number | null };
+  const { rows } = await pool.query<{ id: number; is_account_admin: boolean }>(
+    `SELECT id, COALESCE(is_account_admin, FALSE) AS is_account_admin
+     FROM app_users
+     WHERE id = $1 AND saas_account_id = $2`,
+    [id, accountId],
+  );
+  if (!rows[0] || rows[0].is_account_admin !== true) {
+    return { ok: false as const, userId: rows[0] ? Number(rows[0].id) : null };
+  }
+  return { ok: true as const, userId: Number(rows[0].id) };
+}
 
 /** Meta webhook verification */
 whatsappRouter.get('/webhook', (req, res) => {
@@ -569,10 +595,21 @@ whatsappRouter.post('/broadcast', requireTenant, async (req, res) => {
     }
 
     const unique = [...new Set(mobiles.map((m) => toE164(m)).filter(Boolean))];
+    const billedAccountId = crossAccountAudience ? requesterAccountId : accountId;
+    if (!isPlatform || !crossAccountAudience) {
+      const accepted = await paidWhatsAppAccepted(billedAccountId);
+      if (!accepted) {
+        res.status(403).json({
+          error:
+            'Account admin must accept ₹1 per WhatsApp broadcast and pass-expiry message before sending.',
+        });
+        return;
+      }
+    }
     const results = await sendBroadcast({
       mobiles: unique.map((e164) => e164.slice(-10)),
       message,
-      saasAccountId: crossAccountAudience ? requesterAccountId : accountId,
+      saasAccountId: billedAccountId,
     });
     res.json({
       sent: results.filter((r) => r.ok).length,
@@ -602,10 +639,14 @@ whatsappRouter.get('/pass-expiry-notice', requireTenant, async (req, res) => {
     const { rows } = await pool.query<{
       enabled: boolean;
       days: number;
+      charges_accepted: boolean;
+      charges_accepted_at: string | null;
     }>(
       `SELECT
          COALESCE(pass_expiry_notice_enabled, FALSE) AS enabled,
-         GREATEST(1, LEAST(9, COALESCE(pass_expiry_notice_days, 3))) AS days
+         GREATEST(1, LEAST(9, COALESCE(pass_expiry_notice_days, 3))) AS days,
+         COALESCE(whatsapp_paid_messages_accepted, FALSE) AS charges_accepted,
+         whatsapp_paid_messages_accepted_at::text AS charges_accepted_at
        FROM pool_core_info
        WHERE saas_account_id = $1`,
       [accountId],
@@ -613,6 +654,9 @@ whatsappRouter.get('/pass-expiry-notice', requireTenant, async (req, res) => {
     res.json({
       enabled: Boolean(rows[0]?.enabled),
       days: Number(rows[0]?.days ?? 3),
+      chargesAccepted: Boolean(rows[0]?.charges_accepted),
+      chargesAcceptedAt: rows[0]?.charges_accepted_at ?? null,
+      rateInr: BROADCAST_RATE_INR,
     });
   } catch (err) {
     console.error(err);
@@ -623,9 +667,16 @@ whatsappRouter.get('/pass-expiry-notice', requireTenant, async (req, res) => {
 whatsappRouter.put('/pass-expiry-notice', requireTenant, async (req, res) => {
   try {
     const accountId = tenantId(req);
-    const body = req.body as { enabled?: boolean; days?: number };
-    const enabled = Boolean(body.enabled);
+    const body = req.body as { enabled?: boolean; days?: number; acceptCharges?: boolean };
     const days = Math.min(9, Math.max(1, Number(body.days) || 3));
+    let enabled = Boolean(body.enabled);
+    const acceptCharges = body.acceptCharges === true;
+
+    const admin = await requesterIsAccountAdmin(req, accountId);
+    if (!admin.ok) {
+      res.status(403).json({ error: 'Only the account admin can change WhatsApp charge settings.' });
+      return;
+    }
 
     await pool.query(
       `INSERT INTO pool_core_info (saas_account_id)
@@ -634,6 +685,28 @@ whatsappRouter.put('/pass-expiry-notice', requireTenant, async (req, res) => {
        )`,
       [accountId],
     );
+
+    if (acceptCharges) {
+      await pool.query(
+        `UPDATE pool_core_info
+         SET whatsapp_paid_messages_accepted = TRUE,
+             whatsapp_paid_messages_accepted_at = COALESCE(whatsapp_paid_messages_accepted_at, NOW()),
+             whatsapp_paid_messages_accepted_by = COALESCE(whatsapp_paid_messages_accepted_by, $2),
+             updated_at = NOW()
+         WHERE saas_account_id = $1`,
+        [accountId, admin.userId],
+      );
+    }
+
+    const accepted = acceptCharges || (await paidWhatsAppAccepted(accountId));
+    if (enabled && !accepted) {
+      res.status(400).json({
+        error: 'Accept ₹1 per WhatsApp message before turning on pass-expiry reminders.',
+      });
+      return;
+    }
+    if (!accepted) enabled = false;
+
     await pool.query(
       `UPDATE pool_core_info
        SET pass_expiry_notice_enabled = $2,
@@ -642,7 +715,29 @@ whatsappRouter.put('/pass-expiry-notice', requireTenant, async (req, res) => {
        WHERE saas_account_id = $1`,
       [accountId, enabled, days],
     );
-    res.json({ enabled, days });
+
+    const { rows } = await pool.query<{
+      enabled: boolean;
+      days: number;
+      charges_accepted: boolean;
+      charges_accepted_at: string | null;
+    }>(
+      `SELECT
+         COALESCE(pass_expiry_notice_enabled, FALSE) AS enabled,
+         GREATEST(1, LEAST(9, COALESCE(pass_expiry_notice_days, 3))) AS days,
+         COALESCE(whatsapp_paid_messages_accepted, FALSE) AS charges_accepted,
+         whatsapp_paid_messages_accepted_at::text AS charges_accepted_at
+       FROM pool_core_info
+       WHERE saas_account_id = $1`,
+      [accountId],
+    );
+    res.json({
+      enabled: Boolean(rows[0]?.enabled),
+      days: Number(rows[0]?.days ?? days),
+      chargesAccepted: Boolean(rows[0]?.charges_accepted),
+      chargesAcceptedAt: rows[0]?.charges_accepted_at ?? null,
+      rateInr: BROADCAST_RATE_INR,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save pass expiry notice setting' });

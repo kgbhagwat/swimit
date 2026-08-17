@@ -51,6 +51,7 @@ async function sendPassExpiryReminders() {
     FROM pool_core_info
     WHERE saas_account_id IS NOT NULL
       AND COALESCE(pass_expiry_notice_enabled, FALSE) = TRUE
+      AND COALESCE(whatsapp_paid_messages_accepted, FALSE) = TRUE
     `,
   );
 

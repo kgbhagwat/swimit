@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { pool } from './db/pool.js';
 import { renewFromDate } from './paymentAmount.js';
 import {
+  BROADCAST_RATE_INR,
   buildRenewQuote,
   formatInrAmount,
   formatRenewQuoteMessage,
@@ -364,7 +365,7 @@ async function startPaidRenewal(params: {
   const notes = [
     `Chat renew: package ${formatInrAmount(params.quote.packageAmount)}`,
     `GST ${params.quote.gstPercent}% ${formatInrAmount(params.quote.gstAmount)}`,
-    `Broadcast ${params.quote.broadcastCount}×₹0.25 = ${formatInrAmount(params.quote.broadcastAmount)}`,
+    `Broadcast ${params.quote.broadcastCount}×₹${BROADCAST_RATE_INR} = ${formatInrAmount(params.quote.broadcastAmount)}`,
   ].join('; ');
 
   await pool.query(

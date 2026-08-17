@@ -128,7 +128,8 @@ export function ApplicationGuide() {
               <strong>Pass Payment</strong> — activate or renew swimmer passes
             </li>
             <li>
-              <strong>WhatsApp</strong> — broadcast to active swimmers and all staff{' '}
+              <strong>WhatsApp</strong> — broadcast to swimmers/staff and optional pass-expiry reminders
+              (₹1 per message, billed separately after the account admin accepts){' '}
               <em>(Full)</em>
             </li>
             <li>

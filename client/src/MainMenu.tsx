@@ -58,7 +58,10 @@ export function MainMenu() {
               {t('Optional finance tools for expenses, coach payouts, and a simple balance view')}
             </li>
             <li>
-              {t('Helps to send broadcast message to all active swimmers and All staff members.')}
+            {t(
+              'Helps to send broadcast message to all active swimmers and All staff members.',
+            )}{' '}
+            {t('Pass-expiry reminders and broadcasts are ₹1 per message, billed separately.')}
             </li>
           </ul>
 

@@ -8,7 +8,8 @@ export function gstPercent() {
   return Math.min(40, n);
 }
 
-export const BROADCAST_RATE_INR = 0.25;
+/** Per delivered WhatsApp broadcast or pass-expiry reminder (INR). Billed on next renewal. */
+export const BROADCAST_RATE_INR = 1;
 
 export type RenewQuote = {
   packageId: number;
@@ -50,7 +51,7 @@ export async function previousMonthBroadcastStats(saasAccountId: number) {
        TO_CHAR(date_trunc('month', CURRENT_DATE) - INTERVAL '1 month', 'Mon YYYY') AS month_label
      FROM whatsapp_outbound
      WHERE saas_account_id = $1
-       AND kind = 'broadcast'
+       AND kind IN ('broadcast', 'pass_expiry')
        AND status = 'sent'
        AND created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
        AND created_at < date_trunc('month', CURRENT_DATE)`,
@@ -124,7 +125,7 @@ export function formatRenewQuoteMessage(quote: RenewQuote) {
     '',
     `Package: ${formatInr(quote.packageAmount)}`,
     `GST (${quote.gstPercent}%): ${formatInr(quote.gstAmount)}`,
-    `Broadcast messages (${quote.broadcastMonthLabel}): ${quote.broadcastCount} × ₹${BROADCAST_RATE_INR} = ${formatInr(quote.broadcastAmount)}`,
+    `WhatsApp messages (${quote.broadcastMonthLabel}): ${quote.broadcastCount} × ₹${BROADCAST_RATE_INR} = ${formatInr(quote.broadcastAmount)}`,
     '─────────────────',
     `Total payable: ${formatInr(quote.totalAmount)}`,
     '',

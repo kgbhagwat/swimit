@@ -1014,10 +1014,16 @@ h1 {
   cursor: not-allowed;
 }
 
-.whatsapp-per-message-note {
-  color: #d92d20;
-  font-weight: 600;
-  font-size: 0.9rem;
+.whatsapp-broadcast-card .terms {
+  align-items: flex-start;
+  margin: 0.45rem 0 0.65rem;
+  white-space: normal;
+}
+
+.whatsapp-setup-card,
+.pass-form-card.pool-core-form.whatsapp-setup-card {
+  width: min(100%, 42rem);
+  max-width: min(100%, 42rem);
 }
 
 @media (max-width: 800px) {
