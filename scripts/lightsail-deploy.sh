@@ -123,4 +123,4 @@ curl -sS -m 20 "https://${DOMAIN}/api/version" || true
 echo ""
 echo "Confirm running commit equals: ${GIT_COMMIT}"
 echo "Open https://${DOMAIN}"
-echo "Login: code swimit / user superadmin / password superadmin"
+echo "Login: code swimit / user superadmin (default password superadmin only if never changed)"

@@ -1294,7 +1294,6 @@ async function ensureSwimItSuperadmin() {
     console.log(`Created SaaS account code "${code}"`);
   }
 
-  const passwordHash = await hashPassword(password);
   const user = await pool.query<{ id: number }>(
     `SELECT id FROM app_users
      WHERE saas_account_id = $1 AND LOWER(user_name) = LOWER($2)`,
@@ -1303,15 +1302,14 @@ async function ensureSwimItSuperadmin() {
   if (user.rows[0]) {
     await pool.query(
       `UPDATE app_users
-       SET password_hash = $1,
-           must_change_password = FALSE,
-           is_account_admin = TRUE,
-           menu_access = $2
-       WHERE id = $3`,
-      [passwordHash, [...PLATFORM_ACCESS_PAGE_KEYS], Number(user.rows[0].id)],
+       SET is_account_admin = TRUE,
+           menu_access = $1
+       WHERE id = $2`,
+      [[...PLATFORM_ACCESS_PAGE_KEYS], Number(user.rows[0].id)],
     );
-    console.log(`Updated user "${userName}" on account "${code}" (password reset)`);
+    console.log(`Updated user "${userName}" on account "${code}" (password unchanged)`);
   } else {
+    const passwordHash = await hashPassword(password);
     await pool.query(
       `INSERT INTO app_users
        (user_name, mobile, password_hash, menu_access, saas_account_id, must_change_password, is_account_admin)
