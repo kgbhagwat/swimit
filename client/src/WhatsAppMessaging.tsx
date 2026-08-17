@@ -1,13 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
 import { isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { MobileField } from './MobileField';
-import { readTenantSessionAccess } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
-import { getActiveSaasAccountId, setActiveTenant } from './tenantSession';
+import { getActiveSaasAccountId, setActiveTenant, tenantPath } from './tenantSession';
+import { fetchWhatsAppNoticeSettings } from './whatsappCharges';
 
 type PoolAccountOption = {
   accountCode: string;
@@ -59,14 +59,8 @@ export function WhatsAppMessaging() {
   const [info, setInfo] = useState('');
   const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
-  const [expiryEnabled, setExpiryEnabled] = useState(false);
-  const [expiryDays, setExpiryDays] = useState(3);
-  const [chargesAccepted, setChargesAccepted] = useState(false);
-  const [chargesAcceptedAt, setChargesAcceptedAt] = useState<string | null>(null);
-  const [acceptingCharges, setAcceptingCharges] = useState(false);
-  const [consentChecked, setConsentChecked] = useState(false);
+  const [broadcastEnabled, setBroadcastEnabled] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(!showTestSend);
-  const isAccountAdmin = Boolean(readTenantSessionAccess()?.isAccountAdmin);
 
   useEffect(() => {
     void ensureApplicationTenant();
@@ -100,19 +94,6 @@ export function WhatsAppMessaging() {
     };
   }, []);
 
-  function applyNoticeSettings(body: {
-    enabled?: boolean;
-    days?: number;
-    chargesAccepted?: boolean;
-    chargesAcceptedAt?: string | null;
-  }) {
-    setExpiryEnabled(Boolean(body.enabled));
-    setExpiryDays(Math.min(9, Math.max(1, Number(body.days) || 3)));
-    setChargesAccepted(Boolean(body.chargesAccepted));
-    setChargesAcceptedAt(body.chargesAcceptedAt ? String(body.chargesAcceptedAt) : null);
-    if (body.chargesAccepted) setConsentChecked(true);
-  }
-
   useEffect(() => {
     if (showTestSend) {
       setSettingsLoading(false);
@@ -121,20 +102,10 @@ export function WhatsAppMessaging() {
     let cancelled = false;
     void (async () => {
       setSettingsLoading(true);
-      try {
-        const res = await fetch('/api/whatsapp/pass-expiry-notice');
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok || cancelled) return;
-        applyNoticeSettings(body as {
-          enabled?: boolean;
-          days?: number;
-          chargesAccepted?: boolean;
-          chargesAcceptedAt?: string | null;
-        });
-      } catch {
-        /* keep defaults */
-      } finally {
-        if (!cancelled) setSettingsLoading(false);
+      const settings = await fetchWhatsAppNoticeSettings();
+      if (!cancelled) {
+        setBroadcastEnabled(Boolean(settings?.broadcastEnabled));
+        setSettingsLoading(false);
       }
     })();
     return () => {
@@ -222,9 +193,9 @@ export function WhatsAppMessaging() {
     const needsPoolCode =
       showTestSend &&
       (audience === 'active_swimmers' || audience === 'all_staff');
-    if (!showTestSend && !chargesAccepted) {
+    if (!showTestSend && !isApplicationDemo() && !broadcastEnabled) {
       setError(
-        t('Account admin must accept ₹1 per WhatsApp message before sending broadcasts.'),
+        t('Turn on WhatsApp broadcast messages on Pass Type before sending broadcasts.'),
       );
       setSending(false);
       return;
@@ -258,59 +229,6 @@ export function WhatsAppMessaging() {
       setError(err instanceof Error ? err.message : 'Broadcast failed');
     } finally {
       setSending(false);
-    }
-  }
-
-  async function saveNotice(params: { enabled: boolean; days: number; acceptCharges?: boolean }) {
-    const res = await fetch('/api/whatsapp/pass-expiry-notice', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error ?? 'Failed to save WhatsApp settings');
-    applyNoticeSettings(body as {
-      enabled?: boolean;
-      days?: number;
-      chargesAccepted?: boolean;
-      chargesAcceptedAt?: string | null;
-    });
-  }
-
-  async function onAcceptCharges() {
-    if (!isAccountAdmin || !consentChecked || chargesAccepted) return;
-    setError('');
-    setInfo('');
-    setAcceptingCharges(true);
-    try {
-      await saveNotice({ enabled: expiryEnabled, days: expiryDays, acceptCharges: true });
-      setInfo(t('WhatsApp message charges accepted. Broadcasts and pass-expiry reminders are now available.'));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save WhatsApp settings');
-    } finally {
-      setAcceptingCharges(false);
-    }
-  }
-
-  async function onToggleExpiry(enabled: boolean) {
-    if (!chargesAccepted || !isAccountAdmin) return;
-    setError('');
-    try {
-      await saveNotice({ enabled, days: expiryDays });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save WhatsApp settings');
-    }
-  }
-
-  async function onDaysChange(raw: string) {
-    const days = Math.min(9, Math.max(1, Number(raw.replace(/\D/g, '')) || 3));
-    setExpiryDays(days);
-    if (!chargesAccepted || !isAccountAdmin) return;
-    setError('');
-    try {
-      await saveNotice({ enabled: expiryEnabled, days });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save WhatsApp settings');
     }
   }
 
@@ -348,9 +266,13 @@ export function WhatsAppMessaging() {
     }));
   }, [poolOptions, poolsLoading, t]);
 
+  if (!showTestSend && !isApplicationDemo() && !settingsLoading && !broadcastEnabled) {
+    return <Navigate to={tenantPath('/pass-types')} replace />;
+  }
+
   return (
     <PlatformPage
-      title="WhatsApp"
+      title={showTestSend ? 'WhatsApp' : 'WhatsApp Broadcast'}
       className={`whatsapp-page${showTestSend ? ' whatsapp-page--saas' : ''}`}
     >
       <p className="lede batch-list-lede">
@@ -384,87 +306,6 @@ export function WhatsAppMessaging() {
           </span>
         )}
       </div>
-
-      {!showTestSend ? (
-        <section className="pass-form-card pool-core-form whatsapp-broadcast-card whatsapp-setup-card">
-          <h2 className="whatsapp-broadcast-title">
-            {t('WhatsApp charges')}
-            <span className="whatsapp-per-message-note">{t('₹1 per message')}</span>
-          </h2>
-          <p className="muted" style={{ marginTop: 0 }}>
-            {t(
-              'Broadcast messages and pass-expiry reminders are charged separately from your SwimIT subscription, at ₹1 per delivered WhatsApp message. These charges are added to the next renewal invoice.',
-            )}
-          </p>
-          {settingsLoading ? (
-            <p className="muted">{t('Loading…')}</p>
-          ) : chargesAccepted ? (
-            <p className="success">
-              {t('Account admin has accepted these WhatsApp message charges.')}
-              {chargesAcceptedAt
-                ? ` ${t('Accepted on')} ${String(chargesAcceptedAt).slice(0, 10)}.`
-                : ''}
-            </p>
-          ) : isAccountAdmin ? (
-            <>
-              <label className="terms whatsapp-expiry-check">
-                <input
-                  type="checkbox"
-                  checked={consentChecked}
-                  onChange={(e) => setConsentChecked(e.target.checked)}
-                />
-                <span>
-                  {t(
-                    'I am the account admin and I accept ₹1 per WhatsApp message for broadcasts and pass-expiry reminders, billed separately on the next subscription invoice.',
-                  )}
-                </span>
-              </label>
-              <div className="pass-form-actions">
-                <button
-                  type="button"
-                  className="submit"
-                  disabled={!consentChecked || acceptingCharges}
-                  onClick={() => void onAcceptCharges()}
-                >
-                  {acceptingCharges ? t('Saving…') : t('Accept charges')}
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="error">
-              {t('Ask the account admin to accept ₹1 per WhatsApp message before using broadcasts or pass-expiry reminders.')}
-            </p>
-          )}
-
-          <div className="whatsapp-expiry-row">
-            <label className="whatsapp-expiry-check">
-              <input
-                type="checkbox"
-                checked={expiryEnabled}
-                disabled={!chargesAccepted || !isAccountAdmin}
-                onChange={(e) => void onToggleExpiry(e.target.checked)}
-              />
-              {t('Send a pass-expiry reminder')}
-            </label>
-            <span className="whatsapp-expiry-sentence">
-              <input
-                className="whatsapp-expiry-days-input"
-                inputMode="numeric"
-                maxLength={1}
-                value={String(expiryDays)}
-                disabled={!chargesAccepted || !isAccountAdmin}
-                aria-label={t('Days before pass expiry')}
-                onChange={(e) => {
-                  const next = Number(e.target.value.replace(/\D/g, '')) || 1;
-                  setExpiryDays(Math.min(9, Math.max(1, next)));
-                }}
-                onBlur={(e) => void onDaysChange(e.target.value)}
-              />
-              {t('days before the pass ends.')}
-            </span>
-          </div>
-        </section>
-      ) : null}
 
       {error ? <p className="error">{t(error)}</p> : null}
       {info ? <p className="success">{info}</p> : null}
@@ -578,7 +419,7 @@ export function WhatsAppMessaging() {
               disabled={
                 sending ||
                 !message.trim() ||
-                (!showTestSend && !chargesAccepted) ||
+                (!showTestSend && !isApplicationDemo() && !broadcastEnabled) ||
                 (needsPoolCode &&
                   (poolOptions.length === 0 || !/^[a-z0-9]{6}$/.test(poolCode)))
               }

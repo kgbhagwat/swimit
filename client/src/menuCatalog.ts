@@ -50,7 +50,7 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'create-user', section: 'Setup', to: '/user-management', label: 'User Management' },
   { key: 'activity-log', section: 'Setup', to: '/activity-log', label: 'Activity Log' },
   { key: 'pass-payment', section: 'Operations', to: '/pass-payment', label: 'Pass Payment' },
-  { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp' },
+  { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp Broadcast' },
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },
   { key: 'coach-payment', section: 'Operations', to: '/coach-payment', label: 'Coach Payment' },
   { key: 'pool-expenses', section: 'Operations', to: '/pool-expenses', label: 'Pool Expenses' },

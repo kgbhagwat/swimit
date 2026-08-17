@@ -107,7 +107,8 @@ export function ApplicationGuide() {
               <strong>Batches</strong> — define swimming batch timings
             </li>
             <li>
-              <strong>Pass Type</strong> — pass names, duration, charges, coaching fees
+              <strong>Pass Type</strong> — pass names, duration, charges, coaching fees, WhatsApp
+              broadcast opt-in, and pass-expiry reminders
             </li>
             <li>
               <strong>Pool Core Info</strong> — pool name, address, logo, terms, UPI / QR
@@ -128,8 +129,8 @@ export function ApplicationGuide() {
               <strong>Pass Payment</strong> — activate or renew swimmer passes
             </li>
             <li>
-              <strong>WhatsApp</strong> — broadcast to swimmers/staff and optional pass-expiry reminders
-              (₹1 per message, billed separately after the account admin accepts){' '}
+              <strong>WhatsApp Broadcast</strong> — shown after the account admin ticks WhatsApp
+              broadcast message on Pass Type (₹1 per message){' '}
               <em>(Full)</em>
             </li>
             <li>

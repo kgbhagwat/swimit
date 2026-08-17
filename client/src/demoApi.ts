@@ -103,6 +103,76 @@ function handleBatches(method: string, body: Record<string, unknown>, store: Dem
   return jsonResponse({ error: 'Method not allowed' }, 405);
 }
 
+function handleWhatsAppNotice(method: string, body: Record<string, unknown>, store: DemoStore) {
+  const info = store.poolCoreInfo;
+  const current = {
+    enabled: Boolean(info.passExpiryNoticeEnabled),
+    days: Math.min(9, Math.max(1, Number(info.passExpiryNoticeDays) || 3)),
+    chargesAccepted: Boolean(info.whatsappPaidMessagesAccepted),
+    chargesAcceptedAt: info.whatsappPaidMessagesAcceptedAt
+      ? String(info.whatsappPaidMessagesAcceptedAt)
+      : null,
+    broadcastEnabled: Boolean(info.whatsappBroadcastEnabled),
+    rateInr: 1,
+  };
+  if (method === 'GET') return jsonResponse(current);
+  if (method !== 'PUT') return jsonResponse({ error: 'Method not allowed' }, 405);
+
+  const days = Math.min(9, Math.max(1, Number(body.days) || current.days));
+  const enabled = typeof body.enabled === 'boolean' ? body.enabled : current.enabled;
+  const broadcastEnabled =
+    typeof body.broadcastEnabled === 'boolean' ? body.broadcastEnabled : current.broadcastEnabled;
+  const chargesAccepted = current.chargesAccepted || enabled || broadcastEnabled;
+  const chargesAcceptedAt =
+    chargesAccepted && !current.chargesAcceptedAt
+      ? new Date().toISOString()
+      : current.chargesAcceptedAt;
+  store.poolCoreInfo = {
+    ...info,
+    passExpiryNoticeEnabled: enabled,
+    passExpiryNoticeDays: days,
+    whatsappBroadcastEnabled: broadcastEnabled,
+    whatsappPaidMessagesAccepted: chargesAccepted,
+    whatsappPaidMessagesAcceptedAt: chargesAcceptedAt,
+  };
+  const expiryLabel = enabled
+    ? `pass-expiry reminder on (${days} days)`
+    : 'pass-expiry reminder off';
+  const broadcastLabel = broadcastEnabled ? 'broadcast on' : 'broadcast off';
+  const logs = Array.isArray(store.auditLogs) ? store.auditLogs : [];
+  logs.unshift({
+    id: allocDemoId(store),
+    actorUserId: 1,
+    actorUserName: 'preview',
+    action: 'update',
+    entityType: 'whatsapp_settings',
+    entityId: 'whatsapp',
+    entityLabel: 'WhatsApp settings',
+    summary: `Updated WhatsApp settings: ${expiryLabel}, ${broadcastLabel}`,
+    details: {
+      passExpiryReminder: enabled,
+      passExpiryDays: days,
+      broadcast: broadcastEnabled,
+      previous: {
+        passExpiryReminder: current.enabled,
+        passExpiryDays: current.days,
+        broadcast: current.broadcastEnabled,
+      },
+    },
+    createdAt: new Date().toISOString(),
+  });
+  store.auditLogs = logs;
+  writeDemoStore(store);
+  return jsonResponse({
+    enabled,
+    days,
+    chargesAccepted,
+    chargesAcceptedAt,
+    broadcastEnabled,
+    rateInr: 1,
+  });
+}
+
 function handlePassTypes(
   method: string,
   pathname: string,
@@ -631,7 +701,11 @@ export async function handleDemoApiRequest(
   const store = readDemoStore();
   const { pathname, searchParams } = parsed;
 
-  // Live WhatsApp (Meta) — Application uses the real API with the bound tenant
+  // Live WhatsApp (Meta) — Application uses the real API with the bound tenant,
+  // except pass-expiry / broadcast opt-in settings which stay in the preview store.
+  if (pathname === '/api/whatsapp/pass-expiry-notice') {
+    return handleWhatsAppNotice(method, body, store);
+  }
   if (pathname.startsWith('/api/whatsapp')) {
     return null;
   }
@@ -691,6 +765,8 @@ export async function handleDemoApiRequest(
           createdAt: new Date(now - 26 * 60 * 60 * 1000).toISOString(),
         },
       ];
+      const demoLogs = Array.isArray(store.auditLogs) ? store.auditLogs : [];
+      const rows = [...demoLogs, ...sampleRows];
       if (pathname === '/api/activity-log/platform') {
         return jsonResponse({
           account: {
@@ -698,10 +774,10 @@ export async function handleDemoApiRequest(
             accountCode: 'demo01',
             accountName: 'Demo Pool',
           },
-          rows: sampleRows,
+          rows,
         });
       }
-      return jsonResponse(sampleRows);
+      return jsonResponse(rows);
     }
   }
   if (pathname.startsWith('/api/users')) return handleUsers(method, pathname, body, store);

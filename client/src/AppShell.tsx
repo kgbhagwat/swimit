@@ -23,6 +23,7 @@ import { PlatformPage } from './PlatformPage';
 import { SupportInboxButton } from './SupportInboxButton';
 import { ThemeToggle, useTheme } from './theme';
 import { setActiveTenant } from './tenantSession';
+import { fetchWhatsAppNoticeSettings, WHATSAPP_CHARGES_EVENT } from './whatsappCharges';
 import { isPassPopupWindow } from './swimmerPass';
 import {
   canUseBiometricLogin,
@@ -526,6 +527,9 @@ export function AppShell({
   });
   /** Which sidebar accordion is open; null on Dashboard until the user opens one. */
   const [expandedSection, setExpandedSection] = useState<MenuSection | null>(null);
+  const [whatsappBroadcastEnabled, setWhatsappBroadcastEnabled] = useState(
+    () => !tenantAccount,
+  );
 
   function appPath(path: string) {
     return `${homePath}${path}`;
@@ -580,6 +584,29 @@ export function AppShell({
   }, [tenantAccount]);
 
   useEffect(() => {
+    if (!tenantAccount) {
+      setWhatsappBroadcastEnabled(true);
+      return;
+    }
+    let cancelled = false;
+    setWhatsappBroadcastEnabled(false);
+    void fetchWhatsAppNoticeSettings().then((settings) => {
+      if (!cancelled && settings) setWhatsappBroadcastEnabled(settings.broadcastEnabled);
+    });
+    function onChargesChanged(event: Event) {
+      const broadcastEnabled = Boolean(
+        (event as CustomEvent<{ broadcastEnabled?: boolean }>).detail?.broadcastEnabled,
+      );
+      setWhatsappBroadcastEnabled(broadcastEnabled);
+    }
+    window.addEventListener(WHATSAPP_CHARGES_EVENT, onChargesChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WHATSAPP_CHARGES_EVENT, onChargesChanged);
+    };
+  }, [tenantAccount?.id]);
+
+  useEffect(() => {
     if (!tenantAccount) return;
     if (!allowedSections.has(section)) {
       setSection(firstAllowedSection);
@@ -614,43 +641,30 @@ export function AppShell({
     }
   }, [pathSection, dashboardActive, tenantAccount, allowedSections]);
 
+  function includeMenuItem(item: MenuItem, sectionName: MenuSection) {
+    if (item.section !== sectionName) return false;
+    if (item.to === '/dashboard') return false;
+    if (item.to === '/whatsapp' && tenantAccount && !whatsappBroadcastEnabled) return false;
+    if (item.to === '/user-management') {
+      if (!tenantAccount || !tenantUser) return true;
+      return Boolean(tenantUser.isAccountAdmin) && allowedKeys.has('create-user');
+    }
+    if (item.to === '/activity-log') {
+      if (!tenantAccount || !tenantUser) return true;
+      return allowedKeys.has('activity-log');
+    }
+    const page = ACCESS_PAGES.find((p) => p.to === item.to);
+    if (!page) return true;
+    return tenantAccount && tenantUser ? allowedKeys.has(page.key) : true;
+  }
+
   const visibleItems = useMemo(
-    () =>
-      MENU_ITEMS.filter((item) => {
-        if (item.section !== section) return false;
-        if (item.to === '/dashboard') return false;
-        if (item.to === '/user-management') {
-          if (!tenantAccount || !tenantUser) return true;
-          return Boolean(tenantUser.isAccountAdmin) && allowedKeys.has('create-user');
-        }
-        if (item.to === '/activity-log') {
-          if (!tenantAccount || !tenantUser) return true;
-          return allowedKeys.has('activity-log');
-        }
-        const page = ACCESS_PAGES.find((p) => p.to === item.to);
-        if (!page) return true;
-        return tenantAccount && tenantUser ? allowedKeys.has(page.key) : true;
-      }),
-    [section, tenantAccount, tenantUser, allowedKeys],
+    () => MENU_ITEMS.filter((item) => includeMenuItem(item, section)),
+    [section, tenantAccount, tenantUser, allowedKeys, whatsappBroadcastEnabled],
   );
 
   function itemsForSection(name: MenuSection): MenuItem[] {
-    return MENU_ITEMS.filter((item) => {
-      if (item.section !== name) return false;
-      // Dashboard is a top-level sidebar link, not under Information.
-      if (item.to === '/dashboard') return false;
-      if (item.to === '/user-management') {
-        if (!tenantAccount || !tenantUser) return true;
-        return Boolean(tenantUser.isAccountAdmin) && allowedKeys.has('create-user');
-      }
-      if (item.to === '/activity-log') {
-        if (!tenantAccount || !tenantUser) return true;
-        return allowedKeys.has('activity-log');
-      }
-      const page = ACCESS_PAGES.find((p) => p.to === item.to);
-      if (!page) return true;
-      return tenantAccount && tenantUser ? allowedKeys.has(page.key) : true;
-    });
+    return MENU_ITEMS.filter((item) => includeMenuItem(item, name));
   }
 
   const canOpenDashboard =

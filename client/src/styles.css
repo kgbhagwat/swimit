@@ -963,12 +963,24 @@ h1 {
   margin-left: 0;
 }
 
+.whatsapp-setup-actions {
+  margin-top: 0.55rem;
+  justify-content: flex-start;
+}
+
+.whatsapp-option-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.15rem 0 0.35rem;
+}
+
 .whatsapp-expiry-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem 1rem;
-  margin: 0.15rem 0 0.85rem;
+  margin: 0;
 }
 
 .whatsapp-expiry-sentence {
@@ -979,6 +991,10 @@ h1 {
   margin: 0;
   color: #243b66;
   font-weight: 600;
+}
+
+.whatsapp-expiry-sentence--off {
+  opacity: 0.55;
 }
 
 .whatsapp-expiry-check {

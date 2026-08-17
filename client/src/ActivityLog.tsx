@@ -47,6 +47,7 @@ const ENTITY_OPTIONS = [
   { value: 'holiday', label: 'Holiday' },
   { value: 'batches', label: 'Batches' },
   { value: 'pool_core_info', label: 'Core info' },
+  { value: 'whatsapp_settings', label: 'WhatsApp settings' },
   { value: 'app_user', label: 'App user' },
   { value: 'remote_login', label: 'Remote login' },
 ] as const;

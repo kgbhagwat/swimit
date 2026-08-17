@@ -91,7 +91,7 @@ export const MENU_ITEMS: MenuItem[] = [
   {
     section: 'Operations',
     to: '/whatsapp',
-    label: 'WhatsApp',
+    label: 'WhatsApp Broadcast',
     does: 'Sends messages to active swimmers or staff and reviews inbound WhatsApp images.',
     helps:
       'Reaches members quickly for notices, and collects payment screenshots or certificates without email chase-ups.',

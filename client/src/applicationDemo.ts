@@ -56,6 +56,7 @@ export type DemoStore = {
   expenses: Array<Record<string, unknown>>;
   waterQuality: Array<Record<string, unknown>>;
   attendance: Array<Record<string, unknown>>;
+  auditLogs: Array<Record<string, unknown>>;
 };
 
 function emptyStore(): DemoStore {
@@ -87,6 +88,7 @@ function emptyStore(): DemoStore {
     expenses: [],
     waterQuality: [],
     attendance: [],
+    auditLogs: [],
   };
 }
 
@@ -208,7 +210,9 @@ export function readDemoStore(): DemoStore {
       writeDemoStore(fresh);
       return fresh;
     }
-    return JSON.parse(raw) as DemoStore;
+    const parsed = JSON.parse(raw) as DemoStore;
+    if (!Array.isArray(parsed.auditLogs)) parsed.auditLogs = [];
+    return parsed;
   } catch {
     const fresh = emptyStore();
     writeDemoStore(fresh);

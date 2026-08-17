@@ -591,6 +591,13 @@ ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pass_expiry_notice_days INT 
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS whatsapp_paid_messages_accepted BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS whatsapp_paid_messages_accepted_at TIMESTAMPTZ;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS whatsapp_paid_messages_accepted_by INT REFERENCES app_users(id) ON DELETE SET NULL;
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS whatsapp_broadcast_enabled BOOLEAN;
+UPDATE pool_core_info
+   SET whatsapp_broadcast_enabled = COALESCE(whatsapp_paid_messages_accepted, FALSE)
+ WHERE whatsapp_broadcast_enabled IS NULL;
+ALTER TABLE pool_core_info ALTER COLUMN whatsapp_broadcast_enabled SET DEFAULT FALSE;
+UPDATE pool_core_info SET whatsapp_broadcast_enabled = FALSE WHERE whatsapp_broadcast_enabled IS NULL;
+ALTER TABLE pool_core_info ALTER COLUMN whatsapp_broadcast_enabled SET NOT NULL;
 
 ALTER TABLE holiday_settings DROP CONSTRAINT IF EXISTS holiday_settings_id_check;
 ALTER TABLE holiday_settings ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;

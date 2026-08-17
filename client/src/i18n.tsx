@@ -1264,12 +1264,18 @@ const mr: Record<string, string> = {
   "Ask the account admin to accept ₹1 per WhatsApp message before using broadcasts or pass-expiry reminders.":
     "ब्रॉडकास्ट किंवा पास-मुदत स्मरण वापरण्यापूर्वी खाते एडमिनने प्रत्येक WhatsApp संदेशाला ₹१ स्वीकारणे आवश्यक आहे.",
   "Send a pass-expiry reminder": "पास-मुदत स्मरण पाठवा",
+  "WhatsApp broadcast message": "WhatsApp ब्रॉडकास्ट संदेश",
+  "WhatsApp Broadcast": "WhatsApp ब्रॉडकास्ट",
+  "WhatsApp settings": "WhatsApp सेटिंग्ज",
+  "WhatsApp settings saved.": "WhatsApp सेटिंग्ज जतन झाल्या.",
   "days before the pass ends.": "दिवस आधी पाठवा.",
   "Days before pass expiry": "पास संपण्यापूर्वीचे दिवस",
   "WhatsApp message charges accepted. Broadcasts and pass-expiry reminders are now available.":
     "WhatsApp संदेश शुल्क स्वीकारले. आता ब्रॉडकास्ट आणि पास-मुदत स्मरण उपलब्ध आहेत.",
   "Account admin must accept ₹1 per WhatsApp message before sending broadcasts.":
     "ब्रॉडकास्ट पाठवण्यापूर्वी खाते एडमिनने प्रत्येक WhatsApp संदेशाला ₹१ स्वीकारणे आवश्यक आहे.",
+  "Turn on WhatsApp broadcast messages on Pass Type before sending broadcasts.":
+    "ब्रॉडकास्ट पाठवण्यापूर्वी पास प्रकार पानावर WhatsApp ब्रॉडकास्ट संदेश चालू करा.",
   "Not connected": "कनेक्ट नाही",
   "Set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in server .env, then restart the server.":
     "server .env मध्ये WHATSAPP_TOKEN आणि WHATSAPP_PHONE_NUMBER_ID सेट करा, मग सर्वर रीस्टार्ट करा.",
