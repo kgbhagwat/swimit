@@ -905,6 +905,7 @@ export function AccountPortal() {
             className="pass-form-card"
             onSubmit={onChangePassword}
             style={{ boxShadow: 'none', padding: 0 }}
+            autoComplete="off"
           >
             <label className="field">
               <span className="label">Current (temporary) password</span>
@@ -913,7 +914,14 @@ export function AccountPortal() {
                   type={showCurrentPassword ? 'text' : 'password'}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  autoComplete="current-password"
+                  name="swimit-current-password"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  readOnly
+                  onFocus={(e) => {
+                    e.currentTarget.readOnly = false;
+                  }}
                   required
                 />
                 <PasswordEyeButton

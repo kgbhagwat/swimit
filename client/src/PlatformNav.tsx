@@ -408,7 +408,7 @@ function PlatformProfileMenu({
               </button>
             </div>
           ) : (
-            <form className="tenant-password-form" onSubmit={onChangePassword}>
+            <form className="tenant-password-form" onSubmit={onChangePassword} autoComplete="off">
               <label className="field">
                 <span className="label">Current password</span>
                 <div className="password-input-wrap">
@@ -416,7 +416,14 @@ function PlatformProfileMenu({
                     type={showCurrent ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    autoComplete="current-password"
+                    name="swimit-current-password"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    readOnly
+                    onFocus={(e) => {
+                      e.currentTarget.readOnly = false;
+                    }}
                     required
                   />
                   <PasswordEyeButton
