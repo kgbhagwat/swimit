@@ -110,13 +110,12 @@ async function sendPassExpiryReminders() {
         passValidUntil: String(swimmer.passValidUntil ?? '').slice(0, 10),
       });
 
-      const error = 'error' in result ? result.error : undefined;
-      if (result.skipped && error) {
+      if (!result.ok) {
         console.warn('[pass-expiry-reminders] send failed', {
           saasAccountId: account.saasAccountId,
           registrationId: swimmer.id,
           mobile,
-          error,
+          error: result.error,
         });
       }
     }
