@@ -173,12 +173,52 @@ function handleWhatsAppNotice(method: string, body: Record<string, unknown>, sto
   });
 }
 
+function parseVerificationMode(value: unknown): 'ok_not_ok' | 'face' {
+  return String(value ?? '').trim() === 'face' ? 'face' : 'ok_not_ok';
+}
+
 function handlePassTypes(
   method: string,
   pathname: string,
   body: Record<string, unknown>,
   store: DemoStore,
 ) {
+  if (pathname === '/api/pass-types/verification' || pathname.endsWith('/pass-types/verification')) {
+    if (method === 'GET') {
+      return jsonResponse({
+        verificationMode: parseVerificationMode(store.poolCoreInfo.passVerificationMode),
+        configured: Boolean(store.poolCoreInfo.passVerificationConfigured),
+      });
+    }
+    if (method === 'PUT') {
+      const verificationMode = parseVerificationMode(body.verificationMode);
+      store.poolCoreInfo = {
+        ...store.poolCoreInfo,
+        passVerificationMode: verificationMode,
+        passVerificationConfigured: true,
+      };
+      const logs = Array.isArray(store.auditLogs) ? store.auditLogs : [];
+      logs.unshift({
+        id: allocDemoId(store),
+        actorUserId: 1,
+        actorUserName: 'preview',
+        action: 'update',
+        entityType: 'pass_verification',
+        entityId: 'pass_verification',
+        entityLabel: 'Pass verification',
+        summary:
+          verificationMode === 'face'
+            ? 'Set pass verification to face verification required'
+            : 'Set pass verification to OK / Not OK enough',
+        details: { verificationMode },
+        createdAt: new Date().toISOString(),
+      });
+      store.auditLogs = logs;
+      writeDemoStore(store);
+      return jsonResponse({ verificationMode, configured: true });
+    }
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
   const idMatch = pathname.match(/^\/api\/pass-types\/(\d+)$/);
   if (method === 'GET' && !idMatch) {
     return jsonResponse(store.passTypes);
@@ -634,14 +674,18 @@ function handlePassScan(
     );
     if (!swimmer) return jsonResponse({ error: 'Pass not found' }, 404);
     const passValidUntil = String(swimmer.pass_valid_until ?? '');
+    const passTypeName = String(swimmer.pass_type ?? '');
+    const matchingPassType = store.passTypes.find(
+      (pt) => String(pt.passName ?? '').trim().toLowerCase() === passTypeName.trim().toLowerCase(),
+    );
     return jsonResponse({
       id: Number(swimmer.id),
       fullName: String(swimmer.full_name ?? ''),
       contact: String(swimmer.whatsapp_mobile ?? ''),
       email: String(swimmer.email ?? ''),
       isActive: swimmer.is_active !== false,
-      passType: String(swimmer.pass_type ?? ''),
-      duration: String(swimmer.duration ?? ''),
+      passType: passTypeName,
+      duration: String(swimmer.duration ?? matchingPassType?.duration ?? ''),
       batch: String(swimmer.batch ?? ''),
       coach: String(swimmer.coach ?? ''),
       passValidUntil,
@@ -654,6 +698,7 @@ function handlePassScan(
       photoUrl: swimmer.photo_path ? String(swimmer.photo_path) : null,
       alreadyMarkedToday: false,
       qrCode: `SWIMIT:${swimmer.id}`,
+      verificationMode: parseVerificationMode(store.poolCoreInfo.passVerificationMode),
     });
   }
   if (method === 'POST' && pathname === '/api/pass-scan/attendance') {

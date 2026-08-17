@@ -126,12 +126,15 @@ CREATE TABLE IF NOT EXISTS pass_types (
   coach TEXT,
   max_swimmers_per_coach INT,
   exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE,
+  verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS max_swimmers_per_coach INT;
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok';
+UPDATE pass_types SET verification_mode = 'ok_not_ok' WHERE verification_mode IS NULL OR TRIM(verification_mode) = '';
 
 CREATE TABLE IF NOT EXISTS pool_expenses (
   id SERIAL PRIMARY KEY,
@@ -598,6 +601,18 @@ UPDATE pool_core_info
 ALTER TABLE pool_core_info ALTER COLUMN whatsapp_broadcast_enabled SET DEFAULT FALSE;
 UPDATE pool_core_info SET whatsapp_broadcast_enabled = FALSE WHERE whatsapp_broadcast_enabled IS NULL;
 ALTER TABLE pool_core_info ALTER COLUMN whatsapp_broadcast_enabled SET NOT NULL;
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pass_verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok';
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pass_verification_configured BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE pool_core_info pci
+   SET pass_verification_mode = 'face',
+       pass_verification_configured = TRUE
+ WHERE EXISTS (
+   SELECT 1 FROM pass_types pt
+    WHERE pt.saas_account_id = pci.saas_account_id
+      AND pt.verification_mode = 'face'
+ );
+UPDATE pool_core_info SET pass_verification_mode = 'ok_not_ok'
+ WHERE pass_verification_mode IS NULL OR TRIM(pass_verification_mode) = '';
 
 ALTER TABLE holiday_settings DROP CONSTRAINT IF EXISTS holiday_settings_id_check;
 ALTER TABLE holiday_settings ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;

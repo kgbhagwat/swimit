@@ -24,6 +24,7 @@ type ScannedSwimmer = {
   photoUrl: string | null;
   alreadyMarkedToday: boolean;
   qrCode: string;
+  verificationMode?: 'ok_not_ok' | 'face';
 };
 
 type View = 'idle' | 'scanning' | 'preview' | 'done';
@@ -40,6 +41,7 @@ export function PassScanner() {
   const [passNo, setPassNo] = useState('');
   const [lookingUp, setLookingUp] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [faceVerified, setFaceVerified] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handlingRef = useRef(false);
   const scannerElementId = 'pass-qr-reader';
@@ -80,6 +82,7 @@ export function PassScanner() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Lookup failed');
       setSwimmer(body as ScannedSwimmer);
+      setFaceVerified(false);
       setView('preview');
     } catch (err) {
       setSwimmer(null);
@@ -152,6 +155,7 @@ export function PassScanner() {
     setView('idle');
     setSwimmer(null);
     setPassNo('');
+    setFaceVerified(false);
     setError('');
     setInfo('');
     handlingRef.current = false;
@@ -163,11 +167,13 @@ export function PassScanner() {
     };
   }, []);
 
+  const needsFaceCheck = swimmer?.verificationMode === 'face';
   const canMark = Boolean(
     swimmer &&
       swimmer.isActive &&
       swimmer.hasValidPassToday &&
-      !swimmer.alreadyMarkedToday,
+      !swimmer.alreadyMarkedToday &&
+      (!needsFaceCheck || faceVerified),
   );
 
   const attendanceStatus = !swimmer
@@ -257,6 +263,21 @@ export function PassScanner() {
             >
               <strong>{t('Attendance')}:</strong> {attendanceStatus}
             </p>
+            {needsFaceCheck ? (
+              <label className="scanner-face-check">
+                <input
+                  type="checkbox"
+                  checked={faceVerified}
+                  disabled={
+                    !swimmer.isActive ||
+                    !swimmer.hasValidPassToday ||
+                    swimmer.alreadyMarkedToday
+                  }
+                  onChange={(e) => setFaceVerified(e.target.checked)}
+                />
+                <span>{t('Face matches the pass photo')}</span>
+              </label>
+            ) : null}
             <div className="pass-form-actions">
               <button type="button" className="pass-cancel" onClick={onReset}>
                 {t('Cancel')}

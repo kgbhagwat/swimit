@@ -13,7 +13,14 @@ type PassBody = {
   coach?: string;
   maxSwimmersPerCoach?: number | null;
   exceedingLimitAllowed?: boolean;
+  verificationMode?: string;
 };
+
+type VerificationMode = 'ok_not_ok' | 'face';
+
+function parseVerificationMode(value: unknown): VerificationMode {
+  return String(value ?? '').trim() === 'face' ? 'face' : 'ok_not_ok';
+}
 
 function parseMaxSwimmers(value: unknown): number | null | 'invalid' {
   if (value === undefined || value === null || value === '') return null;
@@ -34,6 +41,7 @@ function mapRow(row: {
   coach: string | null;
   max_swimmers_per_coach?: number | null;
   exceeding_limit_allowed?: boolean | null;
+  verification_mode?: string | null;
 }) {
   return {
     id: row.id,
@@ -47,6 +55,7 @@ function mapRow(row: {
     maxSwimmersPerCoach:
       row.max_swimmers_per_coach == null ? null : Number(row.max_swimmers_per_coach),
     exceedingLimitAllowed: row.exceeding_limit_allowed !== false,
+    verificationMode: parseVerificationMode(row.verification_mode),
   };
 }
 
@@ -73,11 +82,86 @@ function validate(body: PassBody) {
 
 export const passTypesRouter = Router();
 
+passTypesRouter.get('/verification', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    await pool.query(
+      `INSERT INTO pool_core_info (saas_account_id)
+       SELECT $1 WHERE NOT EXISTS (
+         SELECT 1 FROM pool_core_info WHERE saas_account_id = $1
+       )`,
+      [accountId],
+    );
+    const { rows } = await pool.query(
+      `SELECT COALESCE(pass_verification_mode, 'ok_not_ok') AS verification_mode,
+              COALESCE(pass_verification_configured, FALSE) AS configured
+       FROM pool_core_info
+       WHERE saas_account_id = $1`,
+      [accountId],
+    );
+    res.json({
+      verificationMode: parseVerificationMode(rows[0]?.verification_mode),
+      configured: Boolean(rows[0]?.configured),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load pass verification' });
+  }
+});
+
+passTypesRouter.put('/verification', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const verificationMode = parseVerificationMode(
+      (req.body as { verificationMode?: string })?.verificationMode,
+    );
+    await pool.query(
+      `INSERT INTO pool_core_info (saas_account_id)
+       SELECT $1 WHERE NOT EXISTS (
+         SELECT 1 FROM pool_core_info WHERE saas_account_id = $1
+       )`,
+      [accountId],
+    );
+    const previous = await pool.query(
+      `SELECT COALESCE(pass_verification_mode, 'ok_not_ok') AS verification_mode
+       FROM pool_core_info
+       WHERE saas_account_id = $1`,
+      [accountId],
+    );
+    await pool.query(
+      `UPDATE pool_core_info
+          SET pass_verification_mode = $2,
+              pass_verification_configured = TRUE,
+              updated_at = NOW()
+        WHERE saas_account_id = $1`,
+      [accountId, verificationMode],
+    );
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'pass_verification',
+      entityId: 'pass_verification',
+      entityLabel: 'Pass verification',
+      summary:
+        verificationMode === 'face'
+          ? 'Set pass verification to face verification required'
+          : 'Set pass verification to OK / Not OK enough',
+      details: {
+        verificationMode,
+        previous: parseVerificationMode(previous.rows[0]?.verification_mode),
+      },
+    });
+    res.json({ verificationMode, configured: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save pass verification' });
+  }
+});
+
 passTypesRouter.get('/', async (req, res) => {
   const accountId = tenantId(req);
   const { rows } = await pool.query(
     `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-            max_swimmers_per_coach, exceeding_limit_allowed
+            max_swimmers_per_coach, exceeding_limit_allowed, verification_mode
      FROM pass_types
      WHERE saas_account_id = $1
      ORDER BY id ASC`,
@@ -98,13 +182,14 @@ passTypesRouter.post('/', async (req, res) => {
 
     const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
+    const verificationMode = parseVerificationMode(body.verificationMode);
     const { rows } = await pool.query(
       `INSERT INTO pass_types
        (saas_account_id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-        max_swimmers_per_coach, exceeding_limit_allowed)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        max_swimmers_per_coach, exceeding_limit_allowed, verification_mode)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-                 max_swimmers_per_coach, exceeding_limit_allowed`,
+                 max_swimmers_per_coach, exceeding_limit_allowed, verification_mode`,
       [
         accountId,
         body.passName!.trim(),
@@ -116,6 +201,7 @@ passTypesRouter.post('/', async (req, res) => {
         body.coach?.trim() || null,
         maxSwimmers === 'invalid' ? null : maxSwimmers,
         exceedingAllowed,
+        verificationMode,
       ],
     );
     const created = mapRow(rows[0]);
@@ -147,6 +233,7 @@ passTypesRouter.put('/:id', async (req, res) => {
 
     const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
+    const verificationMode = parseVerificationMode(body.verificationMode);
     const { rows } = await pool.query(
       `UPDATE pass_types
        SET pass_name = $1,
@@ -158,10 +245,11 @@ passTypesRouter.put('/:id', async (req, res) => {
            coach = $7,
            max_swimmers_per_coach = $8,
            exceeding_limit_allowed = $9,
+           verification_mode = $10,
            updated_at = NOW()
-       WHERE id = $10 AND saas_account_id = $11
+       WHERE id = $11 AND saas_account_id = $12
        RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-                 max_swimmers_per_coach, exceeding_limit_allowed`,
+                 max_swimmers_per_coach, exceeding_limit_allowed, verification_mode`,
       [
         body.passName!.trim(),
         body.forAudience!.trim(),
@@ -172,6 +260,7 @@ passTypesRouter.put('/:id', async (req, res) => {
         body.coach?.trim() || null,
         maxSwimmers === 'invalid' ? null : maxSwimmers,
         exceedingAllowed,
+        verificationMode,
         id,
         accountId,
       ],
@@ -203,7 +292,7 @@ passTypesRouter.delete('/:id', async (req, res) => {
     const id = Number(req.params.id);
     const existing = await pool.query(
       `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-              max_swimmers_per_coach, exceeding_limit_allowed
+              max_swimmers_per_coach, exceeding_limit_allowed, verification_mode
        FROM pass_types WHERE id = $1 AND saas_account_id = $2`,
       [id, accountId],
     );

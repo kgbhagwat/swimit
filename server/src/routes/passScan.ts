@@ -67,11 +67,14 @@ passScanRouter.get('/lookup', async (req, res) => {
       `SELECT r.id, r.full_name, r.whatsapp_mobile, r.email, r.is_active, r.pass_type, r.batch, r.coach,
               r.pass_valid_until, r.swimmer_photo_path, r.birthdate, r.sex, r.blood_group,
               r.emergency_name, r.emergency_mobile,
-              pt.duration AS pass_duration
+              pt.duration AS pass_duration,
+              COALESCE(pci.pass_verification_mode, 'ok_not_ok') AS verification_mode
        FROM registrations r
        LEFT JOIN pass_types pt
          ON LOWER(TRIM(pt.pass_name)) = LOWER(TRIM(COALESCE(r.pass_type, '')))
         AND pt.saas_account_id = r.saas_account_id
+       LEFT JOIN pool_core_info pci
+         ON pci.saas_account_id = r.saas_account_id
        WHERE r.id = $1 AND r.saas_account_id = $2`,
       [id, accountId],
     );
@@ -111,6 +114,7 @@ passScanRouter.get('/lookup', async (req, res) => {
       photoUrl: row.swimmer_photo_path ? `/uploads/${row.swimmer_photo_path}` : null,
       alreadyMarkedToday: Boolean(attendance.rows[0]),
       qrCode: `SWIMIT:${row.id}`,
+      verificationMode: String(row.verification_mode ?? 'ok_not_ok') === 'face' ? 'face' : 'ok_not_ok',
     });
   } catch (err) {
     console.error(err);

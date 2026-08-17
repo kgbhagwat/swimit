@@ -42,6 +42,7 @@ const ENTITY_OPTIONS = [
   { value: 'swimmer', label: 'Swimmer' },
   { value: 'staff', label: 'Staff' },
   { value: 'pass_type', label: 'Pass type' },
+  { value: 'pass_verification', label: 'Pass verification' },
   { value: 'pool_expense', label: 'Pool expense' },
   { value: 'water_quality', label: 'Water quality' },
   { value: 'holiday', label: 'Holiday' },

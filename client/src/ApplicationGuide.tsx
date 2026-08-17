@@ -107,8 +107,9 @@ export function ApplicationGuide() {
               <strong>Batches</strong> — define swimming batch timings
             </li>
             <li>
-              <strong>Pass Type</strong> — pass names, duration, charges, coaching fees, WhatsApp
-              broadcast opt-in, and pass-expiry reminders
+              <strong>Pass Type</strong> — pass names, duration, charges, and coaching fees. A
+              separate Pass verification section chooses OK / Not OK enough or face verification
+              required. WhatsApp broadcast opt-in and pass-expiry reminders are also on this page.
             </li>
             <li>
               <strong>Pool Core Info</strong> — pool name, address, logo, terms, UPI / QR
@@ -134,7 +135,8 @@ export function ApplicationGuide() {
               <em>(Full)</em>
             </li>
             <li>
-              <strong>Pass Scanner</strong> — scan QR / ID and mark attendance
+              <strong>Pass Scanner</strong> — scan QR / ID and mark attendance; if the pass type
+              requires face verification, staff confirm the face matches the pass photo before OK
             </li>
             <li>
               <strong>Coach Payment</strong> — calculate coach dues <em>(Full)</em>
@@ -240,6 +242,8 @@ export function ApplicationGuide() {
             </li>
             <li>
               Staff use <strong>Pass Scanner</strong> — attendance is marked if the pass is valid.
+              For pass types set to face verification, staff must confirm the face matches the
+              pass photo before OK.
             </li>
             <li>
               Review <strong>Attendance Sheet</strong> and, on Full plans,{' '}
