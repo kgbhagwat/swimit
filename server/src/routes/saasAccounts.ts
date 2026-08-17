@@ -624,7 +624,22 @@ saasAccountsRouter.post('/', async (req, res) => {
       saasAccountId: accountId,
     });
 
-    let deliveryNote = 'Account created and WhatsApp message sent for password.';
+    let emailOk = false;
+    let emailError: string | null = null;
+    if (isEmailDeliveryConfigured()) {
+      const emailed = await sendTempPasswordEmail({
+        to: email,
+        accountName: account.accountName,
+        accountCode,
+        loginUrl,
+        userName: adminUserName,
+        temporaryPassword: adminPassword,
+      });
+      emailOk = emailed.ok && !emailed.skipped;
+      if (!emailed.ok) emailError = emailed.error;
+    }
+
+    let deliveryNote = 'Account created successfully. Login details were sent on WhatsApp.';
     let whatsappOk = false;
     let whatsappSkipped = false;
     let whatsappError: string | null = null;
@@ -632,14 +647,22 @@ saasAccountsRouter.post('/', async (req, res) => {
     if (whatsapp.ok && whatsapp.skipped) {
       whatsappSkipped = true;
       deliveryNote =
-        'Account created, but WhatsApp is not configured — password could not be sent. Configure WhatsApp and use Resend credentials.';
+        'Account created successfully, but WhatsApp is not configured — password could not be sent on WhatsApp.';
       console.info('[whatsapp] credentials skipped (not configured)');
     } else if (whatsapp.ok) {
       whatsappOk = true;
     } else {
       whatsappError = whatsapp.error || 'send failed';
-      deliveryNote = `Account created, but WhatsApp message failed: ${whatsappError}. Use Resend credentials after fixing WhatsApp.`;
+      deliveryNote = `Account created successfully, but WhatsApp login message failed: ${whatsappError}. Use the gold key on Accounts to resend.`;
       console.warn('[whatsapp] credentials notify failed', whatsappError);
+    }
+
+    if (emailOk) {
+      deliveryNote = whatsappOk
+        ? 'Account created successfully. Login details were sent on WhatsApp and email.'
+        : `${deliveryNote} Login details were also emailed to ${email}.`;
+    } else if (emailError) {
+      deliveryNote = `${deliveryNote} Email send failed: ${emailError}.`;
     }
 
     await recordPlatformAudit(req, {

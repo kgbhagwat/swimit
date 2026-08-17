@@ -2,6 +2,7 @@ import { pool } from '../db/pool.js';
 import { renderPassCardPng, renderPassQrPng } from '../passCardImage.js';
 import { buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
+import { WA_TEMPLATES } from './templateCatalog.js';
 import {
   formatWhatsAppUserError,
   sendWhatsAppImage,
@@ -57,6 +58,124 @@ export type NotifyCredentialsResult =
   | { ok: true; skipped: true }
   | { ok: false; error: string };
 
+async function sendTemplateInKnownLanguages(params: {
+  mobile: string;
+  templateName: string;
+  bodyTexts: string[];
+  copyCodeButton?: boolean;
+}) {
+  const preferred = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en_US').trim() || 'en_US';
+  const languages = [...new Set([preferred, 'en', 'en_US'])];
+  let lastError = 'Template failed';
+  for (const lang of languages) {
+    try {
+      const sent = await sendWhatsAppTemplateWithBody(
+        params.mobile,
+        params.templateName,
+        lang,
+        params.bodyTexts,
+        { copyCodeButton: params.copyCodeButton === true },
+      );
+      if (!sent.skipped) return sent;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'Template failed';
+    }
+  }
+  throw new Error(lastError);
+}
+
+function templateText(value: string, max = 60) {
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (text ? text.slice(0, max) : '-') || '-';
+}
+
+async function deliverNotice(params: {
+  mobile: string;
+  saasAccountId?: number;
+  kind: string;
+  templateName: string;
+  bodyTexts: string[];
+  fallbackBody: string;
+}): Promise<NotifyCredentialsResult> {
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: params.kind,
+      body: params.fallbackBody,
+      status: 'skipped',
+      error: 'WhatsApp is not configured',
+    });
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    const sent = await sendTemplateInKnownLanguages({
+      mobile: params.mobile,
+      templateName: params.templateName,
+      bodyTexts: params.bodyTexts,
+      copyCodeButton: false,
+    });
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: params.kind,
+      body: params.templateName,
+      status: 'sent',
+    });
+    return {
+      ok: true,
+      skipped: false,
+      to: sent.to,
+      messageId: sent.messageId,
+    };
+  } catch (templateErr) {
+    const templateMessage =
+      templateErr instanceof Error ? templateErr.message : 'Template failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: `${params.kind}_template`,
+      body: params.templateName,
+      status: 'failed',
+      error: templateMessage,
+    });
+  }
+
+  try {
+    const result = await sendWhatsAppText(params.mobile, params.fallbackBody);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: params.kind,
+      body: params.fallbackBody,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+    return result.skipped
+      ? { ok: true, skipped: true }
+      : {
+          ok: true,
+          skipped: false,
+          to: result.to,
+          messageId: result.messageId,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: params.kind,
+      body: params.fallbackBody,
+      status: 'failed',
+      error: message,
+    });
+    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+  }
+}
+
 /**
  * Send login credentials on WhatsApp.
  */
@@ -100,6 +219,90 @@ export async function notifyLoginCredentials(params: {
   }
 
   try {
+    const loginTemplate = String(
+      process.env.WHATSAPP_ACCOUNT_LOGIN_TEMPLATE ?? WA_TEMPLATES.accountLogin,
+    ).trim();
+    if (loginTemplate) {
+      try {
+        const templated = await sendTemplateInKnownLanguages({
+          mobile: params.mobile,
+          templateName: loginTemplate,
+          copyCodeButton: false,
+          bodyTexts: [
+            templateText(params.accountName),
+            templateText(params.accountCode, 32),
+            templateText(params.loginUrl, 200),
+            templateText(params.userName, 32),
+          ],
+        });
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: params.mobile,
+          kind: 'login_credentials',
+          body: loginTemplate,
+          status: 'sent',
+        });
+        return {
+          ok: true,
+          skipped: false,
+          to: templated.to,
+          messageId: templated.messageId,
+        };
+      } catch (templateErr) {
+        const templateMessage =
+          templateErr instanceof Error ? templateErr.message : 'Login template failed';
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: params.mobile,
+          kind: 'login_credentials_template',
+          body: loginTemplate,
+          status: 'failed',
+          error: templateMessage,
+        });
+      }
+    }
+
+    const accountTemplate = String(
+      process.env.WHATSAPP_ACCOUNT_READY_TEMPLATE ?? WA_TEMPLATES.accountReady,
+    ).trim();
+    if (accountTemplate) {
+      try {
+        const templated = await sendTemplateInKnownLanguages({
+          mobile: params.mobile,
+          templateName: accountTemplate,
+          copyCodeButton: false,
+          bodyTexts: [
+            templateText(params.accountName),
+            templateText(params.accountCode, 32),
+          ],
+        });
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: params.mobile,
+          kind: 'login_credentials',
+          body: accountTemplate,
+          status: 'sent',
+        });
+        return {
+          ok: true,
+          skipped: false,
+          to: templated.to,
+          messageId: templated.messageId,
+        };
+      } catch (templateErr) {
+        const templateMessage =
+          templateErr instanceof Error ? templateErr.message : 'Account-ready template failed';
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: params.mobile,
+          kind: 'login_credentials_template',
+          body: accountTemplate,
+          status: 'failed',
+          error: templateMessage,
+        });
+      }
+    }
+
     const result = await sendWhatsAppText(params.mobile, body);
     if (result.skipped) {
       await logOutbound({
@@ -195,43 +398,37 @@ export async function notifySignupOtp(params: {
   }
 
   try {
-    const otpTemplate = String(process.env.WHATSAPP_OTP_TEMPLATE ?? 'swimit_signup_otp').trim();
-    const otpLang = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en_US').trim() || 'en_US';
-    const languages = [...new Set([otpLang, 'en_US', 'en'])];
+    const otpTemplate = String(process.env.WHATSAPP_OTP_TEMPLATE ?? WA_TEMPLATES.signupOtp).trim();
     if (otpTemplate) {
-      for (const lang of languages) {
-        try {
-          const templated = await sendWhatsAppTemplateWithBody(
-            params.mobile,
-            otpTemplate,
-            lang,
-            [code],
-          );
-          if (!templated.skipped) {
-            await logOutbound({
-              toMobile: params.mobile,
-              kind: 'signup_otp',
-              body: otpTemplate,
-              status: 'sent',
-            });
-            return {
-              ok: true,
-              skipped: false,
-              to: templated.to,
-              messageId: templated.messageId,
-            };
-          }
-        } catch (templateErr) {
-          const templateMessage =
-            templateErr instanceof Error ? templateErr.message : 'OTP template failed';
-          await logOutbound({
-            toMobile: params.mobile,
-            kind: 'signup_otp_template',
-            body: `${otpTemplate}/${lang}`,
-            status: 'failed',
-            error: templateMessage,
-          });
-        }
+      try {
+        const templated = await sendTemplateInKnownLanguages({
+          mobile: params.mobile,
+          templateName: otpTemplate,
+          bodyTexts: [code],
+          copyCodeButton: true,
+        });
+        await logOutbound({
+          toMobile: params.mobile,
+          kind: 'signup_otp',
+          body: otpTemplate,
+          status: 'sent',
+        });
+        return {
+          ok: true,
+          skipped: false,
+          to: templated.to,
+          messageId: templated.messageId,
+        };
+      } catch (templateErr) {
+        const templateMessage =
+          templateErr instanceof Error ? templateErr.message : 'OTP template failed';
+        await logOutbound({
+          toMobile: params.mobile,
+          kind: 'signup_otp_template',
+          body: otpTemplate,
+          status: 'failed',
+          error: templateMessage,
+        });
       }
     }
 
@@ -294,28 +491,14 @@ export async function notifyRegistrationConfirmation(params: {
     'After online payment, please send the payment screenshot here.',
   ].join('\n');
 
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'registration_confirmation',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-    return result;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'registration_confirmation',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { skipped: true as const, error: message };
-  }
+  return deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'registration_confirmation',
+    templateName: WA_TEMPLATES.registrationOk,
+    bodyTexts: [templateText(params.fullName), templateText(params.poolName || 'SwimIT')],
+    fallbackBody: body,
+  });
 }
 
 export async function notifyPassIssued(params: {
@@ -354,6 +537,19 @@ export async function notifyPassIssued(params: {
     });
     return { skipped: true as const };
   }
+
+  await deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'pass_issued',
+    templateName: WA_TEMPLATES.passReady,
+    bodyTexts: [
+      templateText(params.fullName),
+      templateText(params.passType),
+      templateText(validUntil),
+    ],
+    fallbackBody: passCaption,
+  });
 
   try {
     const { rows } = await pool.query(
@@ -530,28 +726,18 @@ export async function notifyPassExpiring(params: {
     'Please renew at the pool desk to continue entry.',
   ].join('\n');
 
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'pass_expiry',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-    return result;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'pass_expiry',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { skipped: true as const, error: message };
-  }
+  return deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'pass_expiry',
+    templateName: WA_TEMPLATES.passExpiring,
+    bodyTexts: [
+      templateText(params.fullName),
+      templateText(params.passType || '-'),
+      templateText(params.passValidUntil),
+    ],
+    fallbackBody: body,
+  });
 }
 
 export async function notifySubscriptionExpiring(params: {
@@ -578,48 +764,19 @@ export async function notifySubscriptionExpiring(params: {
     'After renewing and paying online, send the payment screenshot here on WhatsApp.',
   ].join('\n');
 
-  if (!cfg.enabled) {
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'saas_subscription_expiry_5d',
-      body,
-      status: 'skipped',
-      error: 'WhatsApp is not configured',
-    });
-    return { ok: true, skipped: true };
-  }
-
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'saas_subscription_expiry_5d',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-
-    return result.skipped
-      ? { ok: true, skipped: true }
-      : {
-          ok: true,
-          skipped: false,
-          to: result.to,
-          messageId: result.messageId,
-        };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'saas_subscription_expiry_5d',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
-  }
+  return deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'saas_subscription_expiry_5d',
+    templateName: WA_TEMPLATES.subExpiring,
+    bodyTexts: [
+      templateText(params.fullName),
+      templateText(params.accountName),
+      templateText(params.subscriptionExpiresAt),
+      templateText(renewUrl, 200),
+    ],
+    fallbackBody: body,
+  });
 }
 
 /** WhatsApp a public open-form link + QR to desk staff mobile. */
@@ -650,70 +807,34 @@ export async function notifyOpenFormQr(params: {
     .filter((line) => line !== null)
     .join('\n');
 
-  if (!cfg.enabled) {
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'open_form_qr',
-      body,
-      status: 'skipped',
-      error: 'WhatsApp is not configured',
-    });
-    return { ok: true, skipped: true };
+  const sent = await deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'open_form_qr',
+    templateName: WA_TEMPLATES.openForm,
+    bodyTexts: [
+      templateText(params.form === 'staff' ? 'Staff' : 'Swimmer'),
+      templateText(params.poolName || 'SwimIT'),
+      templateText(formUrl, 200),
+    ],
+    fallbackBody: body,
+  });
+  if (!sent.ok || sent.skipped) return sent;
+
+  if (cfg.publicAppUrl) {
+    const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(formUrl)}`;
+    try {
+      await sendWhatsAppImage(
+        params.mobile,
+        qrApi,
+        params.poolName ? `${params.poolName} — ${title} QR` : `${title} QR`,
+      );
+    } catch (qrErr) {
+      console.warn('[whatsapp] form QR image send failed', qrErr);
+    }
   }
 
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    if (result.skipped) {
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'open_form_qr',
-        body,
-        status: 'skipped',
-      });
-      return { ok: true, skipped: true };
-    }
-
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'open_form_qr',
-      body,
-      status: 'sent',
-    });
-
-    if (cfg.publicAppUrl) {
-      const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(formUrl)}`;
-      try {
-        await sendWhatsAppImage(
-          params.mobile,
-          qrApi,
-          params.poolName ? `${params.poolName} — ${title} QR` : `${title} QR`,
-        );
-      } catch (qrErr) {
-        console.warn('[whatsapp] form QR image send failed', qrErr);
-      }
-    }
-
-    return {
-      ok: true,
-      skipped: false,
-      to: result.to,
-      messageId: result.messageId,
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'open_form_qr',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
-  }
+  return sent;
 }
 
 export async function sendBroadcast(params: {
@@ -723,32 +844,20 @@ export async function sendBroadcast(params: {
 }) {
   const results: { mobile: string; ok: boolean; error?: string; messageId?: string }[] = [];
   for (const mobile of params.mobiles) {
-    try {
-      const result = await sendWhatsAppText(mobile, params.message);
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: mobile,
-        kind: 'broadcast',
-        body: params.message,
-        status: result.skipped ? 'skipped' : 'sent',
-      });
-      results.push({
-        mobile,
-        ok: !result.skipped,
-        messageId: 'messageId' in result ? result.messageId : undefined,
-      });
-    } catch (err) {
-      const error = err instanceof Error ? err.message : 'Send failed';
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: mobile,
-        kind: 'broadcast',
-        body: params.message,
-        status: 'failed',
-        error,
-      });
-      results.push({ mobile, ok: false, error });
-    }
+    const sent = await deliverNotice({
+      mobile,
+      saasAccountId: params.saasAccountId,
+      kind: 'broadcast',
+      templateName: WA_TEMPLATES.broadcast,
+      bodyTexts: [templateText(params.message, 500)],
+      fallbackBody: params.message,
+    });
+    results.push({
+      mobile,
+      ok: Boolean(sent.ok && !sent.skipped),
+      error: sent.ok ? undefined : sent.error,
+      messageId: sent.ok && !sent.skipped ? sent.messageId : undefined,
+    });
   }
   return results;
 }
@@ -763,6 +872,7 @@ export async function notifyPackageRenewalPayment(params: {
   paymentQrPath?: string | null;
   saasAccountId: number;
 }): Promise<NotifyCredentialsResult> {
+  const cfg = getWhatsAppConfig();
   const amountLabel = `₹${params.amount.toLocaleString('en-IN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
@@ -795,81 +905,53 @@ export async function notifyPackageRenewalPayment(params: {
     .filter(Boolean)
     .join('\n');
 
-  const cfg = getWhatsAppConfig();
-  if (!cfg.enabled) {
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'package_renewal_payment',
-      body,
-      status: 'skipped',
-      error: 'WhatsApp is not configured',
-    });
-    return { ok: true, skipped: true };
-  }
+  const sent = await deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'package_renewal_payment',
+    templateName: WA_TEMPLATES.renewPay,
+    bodyTexts: [
+      templateText(params.accountName),
+      templateText(params.packageName),
+      templateText(`${params.months} month${params.months === 1 ? '' : 's'}`),
+      templateText(amountLabel),
+      templateText(upiPayUri || params.upiId || 'pool desk', 200),
+    ],
+    fallbackBody: body,
+  });
+  if (!sent.ok || sent.skipped) return sent;
 
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'package_renewal_payment',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-
-    if (!result.skipped) {
-      const caption = `Pay ${amountLabel} for ${params.packageName}`;
-      let amountQrSent = false;
-      if (hasAmountQr) {
-        try {
-          const qrPng = await renderUpiPayQrPng({
-            upiId: params.upiId,
-            amount: params.amount,
-            payeeName: 'SwimIT',
-            note: `SwimIT renew ${params.packageName}`.slice(0, 80),
-          });
-          const mediaId = await uploadWhatsAppMedia({
-            buffer: qrPng,
-            mimeType: 'image/png',
-            filename: `renew-pay-${params.saasAccountId}.png`,
-          });
-          await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
-          amountQrSent = true;
-        } catch (qrErr) {
-          console.warn('[whatsapp] amount-locked renewal QR failed', qrErr);
-        }
-      }
-      if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
-        const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
-        try {
-          await sendWhatsAppImage(params.mobile, qrUrl, caption);
-        } catch (qrErr) {
-          console.warn('[whatsapp] renewal QR image send failed', qrErr);
-        }
-      }
+  const caption = `Pay ${amountLabel} for ${params.packageName}`;
+  let amountQrSent = false;
+  if (hasAmountQr) {
+    try {
+      const qrPng = await renderUpiPayQrPng({
+        upiId: params.upiId,
+        amount: params.amount,
+        payeeName: 'SwimIT',
+        note: `SwimIT renew ${params.packageName}`.slice(0, 80),
+      });
+      const mediaId = await uploadWhatsAppMedia({
+        buffer: qrPng,
+        mimeType: 'image/png',
+        filename: `renew-pay-${params.saasAccountId}.png`,
+      });
+      await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
+      amountQrSent = true;
+    } catch (qrErr) {
+      console.warn('[whatsapp] amount-locked renewal QR failed', qrErr);
     }
-
-    return result.skipped
-      ? { ok: true, skipped: true }
-      : {
-          ok: true,
-          skipped: false,
-          to: result.to,
-          messageId: result.messageId,
-        };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'package_renewal_payment',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
   }
+  if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
+    const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+    try {
+      await sendWhatsAppImage(params.mobile, qrUrl, caption);
+    } catch (qrErr) {
+      console.warn('[whatsapp] renewal QR image send failed', qrErr);
+    }
+  }
+
+  return sent;
 }
 
 /** Ask swimmer to pay pool UPI/QR and send payment screenshot on WhatsApp. */
@@ -884,6 +966,7 @@ export async function notifyPassPaymentRequest(params: {
   saasAccountId: number;
   poolName?: string;
 }): Promise<NotifyCredentialsResult> {
+  const cfg = getWhatsAppConfig();
   const amountLabel = `₹${params.amount.toLocaleString('en-IN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
@@ -918,81 +1001,53 @@ export async function notifyPassPaymentRequest(params: {
     .filter(Boolean)
     .join('\n');
 
-  const cfg = getWhatsAppConfig();
-  if (!cfg.enabled) {
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'pass_payment_request',
-      body,
-      status: 'skipped',
-      error: 'WhatsApp is not configured',
-    });
-    return { ok: true, skipped: true };
-  }
+  const sent = await deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'pass_payment_request',
+    templateName: WA_TEMPLATES.passPay,
+    bodyTexts: [
+      templateText(params.fullName),
+      templateText(amountLabel),
+      templateText(params.passType),
+      templateText(params.passValidUntil),
+      templateText(upiPayUri || params.upiId || 'pool desk', 200),
+    ],
+    fallbackBody: body,
+  });
+  if (!sent.ok || sent.skipped) return sent;
 
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'pass_payment_request',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-
-    if (!result.skipped) {
-      const caption = `Pay ${amountLabel} for ${params.passType}`;
-      let amountQrSent = false;
-      if (hasAmountQr) {
-        try {
-          const qrPng = await renderUpiPayQrPng({
-            upiId: params.upiId,
-            amount: params.amount,
-            payeeName,
-            note: `Pass ${params.passType}`.slice(0, 80),
-          });
-          const mediaId = await uploadWhatsAppMedia({
-            buffer: qrPng,
-            mimeType: 'image/png',
-            filename: `pass-pay-${params.saasAccountId}.png`,
-          });
-          await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
-          amountQrSent = true;
-        } catch (qrErr) {
-          console.warn('[whatsapp] amount-locked pass payment QR failed', qrErr);
-        }
-      }
-      if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
-        const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
-        try {
-          await sendWhatsAppImage(params.mobile, qrUrl, caption);
-        } catch (qrErr) {
-          console.warn('[whatsapp] pass payment QR send failed', qrErr);
-        }
-      }
+  const caption = `Pay ${amountLabel} for ${params.passType}`;
+  let amountQrSent = false;
+  if (hasAmountQr) {
+    try {
+      const qrPng = await renderUpiPayQrPng({
+        upiId: params.upiId,
+        amount: params.amount,
+        payeeName,
+        note: `Pass ${params.passType}`.slice(0, 80),
+      });
+      const mediaId = await uploadWhatsAppMedia({
+        buffer: qrPng,
+        mimeType: 'image/png',
+        filename: `pass-pay-${params.saasAccountId}.png`,
+      });
+      await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
+      amountQrSent = true;
+    } catch (qrErr) {
+      console.warn('[whatsapp] amount-locked pass payment QR failed', qrErr);
     }
-
-    return result.skipped
-      ? { ok: true, skipped: true }
-      : {
-          ok: true,
-          skipped: false,
-          to: result.to,
-          messageId: result.messageId,
-        };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'pass_payment_request',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
   }
+  if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
+    const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+    try {
+      await sendWhatsAppImage(params.mobile, qrUrl, caption);
+    } catch (qrErr) {
+      console.warn('[whatsapp] pass payment QR send failed', qrErr);
+    }
+  }
+
+  return sent;
 }
 
 export async function notifyAccountAdminBatchOverLimit(params: {
@@ -1030,48 +1085,20 @@ export async function notifyAccountAdminBatchOverLimit(params: {
     'Please review batch and coach allocation if needed.',
   ].join('\n');
 
-  if (!getWhatsAppConfig().enabled) {
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'batch_coach_over_limit',
-      body,
-      status: 'skipped',
-      error: 'WhatsApp is not configured',
-    });
-    return { ok: true, skipped: true };
-  }
-
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'batch_coach_over_limit',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-
-    return result.skipped
-      ? { ok: true, skipped: true }
-      : {
-          ok: true,
-          skipped: false,
-          to: result.to,
-          messageId: result.messageId,
-        };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'batch_coach_over_limit',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
-  }
+  return deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'batch_coach_over_limit',
+    templateName: WA_TEMPLATES.batchLimit,
+    bodyTexts: [
+      templateText(params.adminName || 'Admin'),
+      templateText(params.accountName),
+      templateText(params.swimmerName),
+      templateText(params.batch),
+      templateText(`${params.currentCount} of ${params.limit}`),
+    ],
+    fallbackBody: body,
+  });
 }
 
 export async function notifyRemoteLoginAlert(params: {
@@ -1100,48 +1127,20 @@ export async function notifyRemoteLoginAlert(params: {
     `Deny: ${params.denyUrl}`,
   ].join('\n');
 
-  if (!getWhatsAppConfig().enabled) {
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'remote_login_alert',
-      body,
-      status: 'skipped',
-      error: 'WhatsApp is not configured',
-    });
-    return { ok: true, skipped: true };
-  }
-
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'remote_login_alert',
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-
-    return result.skipped
-      ? { ok: true, skipped: true }
-      : {
-          ok: true,
-          skipped: false,
-          to: result.to,
-          messageId: result.messageId,
-        };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'remote_login_alert',
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
-  }
+  return deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: 'remote_login_alert',
+    templateName: WA_TEMPLATES.remoteLogin,
+    bodyTexts: [
+      templateText(params.adminName || 'Admin'),
+      templateText(params.accountName),
+      templateText(params.userName),
+      templateText(`${params.distanceLabel} at ${params.whenLabel}`, 80),
+      templateText(params.approveUrl, 200),
+    ],
+    fallbackBody: body,
+  });
 }
 
 export async function notifyPackageCapacityWarning(params: {
@@ -1179,46 +1178,18 @@ export async function notifyPackageCapacityWarning(params: {
     'After paying online, send the payment screenshot here on WhatsApp.',
   ].join('\n');
 
-  if (!cfg.enabled) {
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: params.reminderKind,
-      body,
-      status: 'skipped',
-      error: 'WhatsApp is not configured',
-    });
-    return { ok: true, skipped: true };
-  }
-
-  try {
-    const result = await sendWhatsAppText(params.mobile, body);
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: params.reminderKind,
-      body,
-      status: result.skipped ? 'skipped' : 'sent',
-    });
-
-    return result.skipped
-      ? { ok: true, skipped: true }
-      : {
-          ok: true,
-          skipped: false,
-          to: result.to,
-          messageId: result.messageId,
-        };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Send failed';
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: params.reminderKind,
-      body,
-      status: 'failed',
-      error: message,
-    });
-    return { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
-  }
+  return deliverNotice({
+    mobile: params.mobile,
+    saasAccountId: params.saasAccountId,
+    kind: params.reminderKind,
+    templateName: WA_TEMPLATES.capacity,
+    bodyTexts: [
+      templateText(params.adminName || 'Admin'),
+      templateText(params.accountName),
+      templateText(`${params.thresholdPct}%`),
+      templateText(params.packageName),
+      templateText(renewUrl, 200),
+    ],
+    fallbackBody: body,
+  });
 }

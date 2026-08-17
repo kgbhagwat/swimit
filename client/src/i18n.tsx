@@ -135,6 +135,7 @@ const mr: Record<string, string> = {
   'Not sure which plan?': 'कोणती योजना निवडावी याची खात्री नाही?',
   'Compare pricing': 'किंमतींची तुलना करा',
   'You are all set': 'तुम्ही तयार आहात',
+  'Account created successfully.': 'खाते यशस्वीरित्या तयार झाले.',
   'Your SwimIT account is ready. Keep these details for the pool operator.':
     'तुमचे SwimIT खाते तयार आहे. पूल ऑपरेटरसाठी हे तपशील जपून ठेवा.',
   'Explore Features': 'वैशिष्ट्ये पहा',

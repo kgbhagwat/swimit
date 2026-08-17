@@ -185,6 +185,7 @@ export async function sendWhatsAppTemplateWithBody(
   templateName: string,
   languageCode: string,
   bodyTexts: string[],
+  options?: { copyCodeButton?: boolean },
 ) {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -195,6 +196,7 @@ export async function sendWhatsAppTemplateWithBody(
   if (!to) throw new Error('Invalid WhatsApp mobile number');
 
   const code = bodyTexts[0] ?? '';
+  const copyCodeButton = options?.copyCodeButton === true && Boolean(code);
   const result = await graphPost(`${cfg.phoneNumberId}/messages`, {
     messaging_product: 'whatsapp',
     to,
@@ -207,7 +209,7 @@ export async function sendWhatsAppTemplateWithBody(
           type: 'body',
           parameters: bodyTexts.map((text) => ({ type: 'text' as const, text })),
         },
-        ...(code
+        ...(copyCodeButton
           ? [
               {
                 type: 'button',

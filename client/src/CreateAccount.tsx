@@ -633,6 +633,7 @@ export function CreateAccount() {
 
     const createdBody = (
       <>
+        <p className="lede get-started-lede">{t('Account created successfully.')}</p>
         <p className="lede get-started-lede">{t('Account details for the pool operator.')}</p>
         {warning ? <p className="error">{t(warning)}</p> : null}
 
