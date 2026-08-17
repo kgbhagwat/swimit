@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { LanguageSwitcher, useT } from './i18n';
 import { PlatformLoginModal, type PlatformLoginFormState } from './PlatformLoginModal';
