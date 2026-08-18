@@ -17,6 +17,7 @@ import { LanguageSwitcher, useT } from './i18n';
 import { MENU_ITEMS, MenuTiles, type MenuItem } from './menuItems';
 import { pageKeysForPackage } from './packageFeatures';
 import { PassPopupOverlay } from './PassPopupOverlay';
+import { WorkflowDiagram } from './WorkflowDiagram';
 import { passwordPolicyError } from './passwordPolicy';
 import { PlatformNav } from './PlatformNav';
 import { PlatformPage } from './PlatformPage';
@@ -702,10 +703,20 @@ export function AppShell({
     }
   });
   const [inIframe, setInIframe] = useState(false);
+  const [workflowHelpOpen, setWorkflowHelpOpen] = useState(false);
 
   useEffect(() => {
     setInIframe(window.self !== window.top);
   }, []);
+
+  useEffect(() => {
+    if (!workflowHelpOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setWorkflowHelpOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [workflowHelpOpen]);
 
   useLayoutEffect(() => {
     document.documentElement.classList.add('app-shell-active');
@@ -937,6 +948,51 @@ export function AppShell({
       </button>
     ) : null;
 
+  const workflowHelpToggle = !tenantAccount ? (
+    <button
+      type="button"
+      className="app-help-toggle"
+      onClick={() => setWorkflowHelpOpen(true)}
+      aria-label={t('Help')}
+      title={t('SwimIT workflow')}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+        <path d="M12 17h.01" />
+      </svg>
+    </button>
+  ) : null;
+
+  const cornerActions = !tenantAccount ? (
+    <div className="app-corner-actions">
+      {workflowHelpToggle}
+      {inIframe ? null : appSizeToggle}
+    </div>
+  ) : null;
+
+  const workflowHelpModal = workflowHelpOpen ? (
+    <div
+      className="modal-backdrop workflow-help-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="workflow-help-title"
+      onClick={() => setWorkflowHelpOpen(false)}
+    >
+      <div className="modal-panel workflow-help-panel" onClick={(event) => event.stopPropagation()}>
+        <h2 id="workflow-help-title">{t('SwimIT workflow')}</h2>
+        <div className="workflow-help-figure">
+          <WorkflowDiagram onNavigate={() => setWorkflowHelpOpen(false)} />
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="pass-cancel" onClick={() => setWorkflowHelpOpen(false)}>
+            {t('Close')}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   /* Logged-in pool account: full-window pool chrome. */
   if (tenantAccount) {
     return (
@@ -958,7 +1014,8 @@ export function AppShell({
         }`}
       >
         {poolMenu}
-        {inIframe ? null : appSizeToggle}
+        {cornerActions}
+        {workflowHelpModal}
         <PassPopupOverlay />
       </div>
     );
@@ -983,7 +1040,8 @@ export function AppShell({
           {poolMenu}
         </div>
       </div>
-      {appSizeToggle}
+      {cornerActions}
+      {workflowHelpModal}
       <PassPopupOverlay />
     </div>
   );

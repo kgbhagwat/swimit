@@ -344,7 +344,7 @@ export const MENU_ITEMS: MenuItem[] = [
     section: 'Setup',
     to: '/user-management',
     label: 'User Management',
-    does: 'Creates login users and sets which menus each person can open or edit.',
+    does: 'Creates login users, sets which menus each person can open or edit, and how long a login session stays active.',
     helps:
       'Onboards staff with WhatsApp passwords and protects sensitive screens by role.',
     icon: (

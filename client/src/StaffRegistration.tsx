@@ -374,7 +374,7 @@ export function StaffRegistration() {
     if (form.otherMobile.trim() && !isValidMobile(form.otherMobile)) {
       fields.add('otherMobile');
     }
-    if (!form.email.trim() || !isValidEmail(form.email)) fields.add('email');
+    if (form.email.trim() && !isValidEmail(form.email)) fields.add('email');
     if (!form.birthdate) fields.add('birthdate');
     else {
       const age = getAgeYears(form.birthdate);
@@ -704,13 +704,14 @@ export function StaffRegistration() {
               ) : null}
             </label>
             <label className="field field-beside">
-              <Label required>{t("Email")}</Label>
+              <Label>{t("Email")}</Label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setField('email', e.target.value)}
                 placeholder={t("name@example.com")}
-                required
+                pattern="[^@\s]+@[^@\s]+\.[^@\s]+"
+                title="Email must include @ and ."
                 aria-invalid={isInvalid('email') || Boolean(emailHint(form.email))}
               />
               {emailHint(form.email) ? <span className="field-error">{emailHint(form.email)}</span> : null}

@@ -83,6 +83,7 @@ function mapRow(row: Record<string, unknown>) {
     status: String(row.status ?? 'Active'),
     notes: String(row.notes ?? ''),
     createdAt: row.created_at,
+    loginSessionTimeoutMinutes: Number(row.login_session_timeout_minutes ?? 30),
     activeSwimmers: Number(row.active_swimmers ?? 0),
     subscriptionExpiresAt: toIsoDateOnly(row.subscription_expires_at),
   };
@@ -205,6 +206,7 @@ function duplicateConflictMessage(message: string) {
 
 const ACCOUNT_SELECT = `SELECT a.id, a.account_name, a.contact_name, a.mobile, a.email, a.city,
               a.pool_address, a.account_code, a.service_package_id, a.status, a.notes, a.created_at,
+              COALESCE(a.login_session_timeout_minutes, 30) AS login_session_timeout_minutes,
               p.package_name,
               COALESCE(NULLIF(TRIM(p.modules), ''), 'core') AS modules,
               COALESCE(p.feature_keys, '{}') AS feature_keys,
@@ -1058,7 +1060,8 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
     }
 
     const { rows: accountRows } = await pool.query(
-      `SELECT id, account_name, account_code, status
+      `SELECT id, account_name, account_code, status,
+              COALESCE(login_session_timeout_minutes, 30) AS login_session_timeout_minutes
        FROM saas_accounts
        WHERE LOWER(account_code) = $1
        LIMIT 1`,
@@ -1122,6 +1125,7 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
         accountName: String(accountRows[0].account_name),
         accountCode: String(accountRows[0].account_code),
         status: String(accountRows[0].status),
+        loginSessionTimeoutMinutes: Number(accountRows[0].login_session_timeout_minutes ?? 30),
       },
       user: {
         id: Number(userRows[0].id),

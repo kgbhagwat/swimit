@@ -89,6 +89,48 @@ usersRouter.get('/', async (req, res) => {
   }
 });
 
+const SESSION_TIMEOUT_ALLOWED = new Set([0, 15, 30, 60, 120, 240, 480]);
+
+function parseSessionTimeoutMinutes(value: unknown): number | null {
+  const minutes = Math.round(Number(value));
+  if (!Number.isFinite(minutes) || !SESSION_TIMEOUT_ALLOWED.has(minutes)) return null;
+  return minutes;
+}
+
+usersRouter.get('/session-timeout', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const { rows } = await pool.query<{ login_session_timeout_minutes: number | null }>(
+      `SELECT COALESCE(login_session_timeout_minutes, 30) AS login_session_timeout_minutes
+       FROM saas_accounts WHERE id = $1 LIMIT 1`,
+      [accountId],
+    );
+    res.json({ minutes: Number(rows[0]?.login_session_timeout_minutes ?? 30) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load session timeout' });
+  }
+});
+
+usersRouter.put('/session-timeout', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const minutes = parseSessionTimeoutMinutes((req.body as { minutes?: unknown })?.minutes);
+    if (minutes == null) {
+      res.status(400).json({ error: 'Choose a valid login session timeout' });
+      return;
+    }
+    await pool.query(
+      `UPDATE saas_accounts SET login_session_timeout_minutes = $1 WHERE id = $2`,
+      [minutes, accountId],
+    );
+    res.json({ minutes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save session timeout' });
+  }
+});
+
 usersRouter.get('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);

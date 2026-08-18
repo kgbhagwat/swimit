@@ -470,6 +470,21 @@ function handleWaterQuality(
 }
 
 function handleUsers(method: string, pathname: string, body: Record<string, unknown>, store: DemoStore) {
+  if (pathname === '/api/users/session-timeout') {
+    if (method === 'GET') {
+      return jsonResponse({ minutes: Number(store.sessionTimeoutMinutes ?? 30) });
+    }
+    if (method === 'PUT') {
+      const minutes = Math.round(Number(body.minutes));
+      const allowed = new Set([0, 15, 30, 60, 120, 240, 480]);
+      if (!allowed.has(minutes)) {
+        return jsonResponse({ error: 'Choose a valid login session timeout' }, 400);
+      }
+      store.sessionTimeoutMinutes = minutes;
+      writeDemoStore(store);
+      return jsonResponse({ minutes });
+    }
+  }
   if (method === 'GET' && pathname === '/api/users') {
     return jsonResponse(store.users);
   }

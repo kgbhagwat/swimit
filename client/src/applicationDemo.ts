@@ -50,6 +50,7 @@ export type DemoStore = {
   registrations: Array<Record<string, unknown>>;
   staffRegistrations: Array<Record<string, unknown>>;
   users: Array<Record<string, unknown>>;
+  sessionTimeoutMinutes?: number;
   poolCoreInfo: Record<string, unknown>;
   holidaysWeekly: string[];
   holidays: Array<Record<string, unknown>>;
@@ -70,6 +71,7 @@ function emptyStore(): DemoStore {
     registrations: [],
     staffRegistrations: [],
     users: [],
+    sessionTimeoutMinutes: 30,
     poolCoreInfo: {
       poolName: '',
       poolAddress: '',

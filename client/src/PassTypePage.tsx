@@ -10,7 +10,6 @@ type PassType = {
   id: number;
   passName: string;
   forAudience: string;
-  prerequisite: string;
   duration: string;
   passCharges: number;
   coachingCharges: number;
@@ -22,7 +21,6 @@ type PassType = {
 type PassForm = {
   passName: string;
   forOptions: string[];
-  prerequisites: string[];
   durationValue: string;
   durationUnit: string;
   passCharges: string;
@@ -32,23 +30,13 @@ type PassForm = {
   exceedingLimitAllowed: 'Yes' | 'No';
 };
 
-const FOR_OPTIONS = ['Swimming', 'Competitive'] as const;
-
-const PREREQ_OPTIONS = [
-  'Free Style',
-  'Back Stroke',
-  'Breast Stroke',
-  'Butterfly',
-  'Any Stroke',
-  'Nothing',
-] as const;
+const FOR_OPTIONS = ['Walking', 'Swimming', 'Competitive'] as const;
 
 const DURATION_UNITS = ['Day', 'Week', 'Month', 'Year'] as const;
 
 const emptyForm: PassForm = {
   passName: '',
   forOptions: ['Swimming'],
-  prerequisites: ['Nothing'],
   durationValue: '1',
   durationUnit: 'Month',
   passCharges: '',
@@ -64,7 +52,6 @@ function createEmptyForm(): PassForm {
   return {
     ...emptyForm,
     forOptions: [],
-    prerequisites: [],
     passCharges: '',
     coachingCharges: '',
   };
@@ -141,21 +128,6 @@ function parseDuration(duration: string) {
 function toggleForOption(current: string[], option: string): string[] {
   if (current.includes(option)) return current.filter((item) => item !== option);
   return [...current, option];
-}
-
-function togglePrerequisite(current: string[], option: string): string[] {
-  const has = current.includes(option);
-  if (option === 'Nothing') {
-    return has ? [] : ['Nothing'];
-  }
-  if (option === 'Any Stroke') {
-    return has ? [] : ['Any Stroke'];
-  }
-  const withoutExclusive = current.filter(
-    (item) => item !== 'Nothing' && item !== 'Any Stroke',
-  );
-  if (has) return withoutExclusive.filter((item) => item !== option);
-  return [...withoutExclusive, option];
 }
 
 function selectedStrokeFilters(forOptions: string[]) {
@@ -271,7 +243,6 @@ export function PassTypePage() {
     setForm({
       passName: item.passName,
       forOptions: forOptions.length > 0 ? forOptions : ['Swimming'],
-      prerequisites: splitList(item.prerequisite),
       durationValue,
       durationUnit,
       passCharges: String(item.passCharges),
@@ -293,10 +264,6 @@ export function PassTypePage() {
     e.preventDefault();
     if (form.forOptions.length === 0) {
       setError('Select at least one option under For');
-      return;
-    }
-    if (form.prerequisites.length === 0) {
-      setError('Select at least one prerequisite');
       return;
     }
     if (form.coach !== 'Not Required') {
@@ -323,7 +290,7 @@ export function PassTypePage() {
       const payload = {
         passName: form.passName.trim(),
         forAudience: form.forOptions.join(', '),
-        prerequisite: form.prerequisites.join(', '),
+        prerequisite: 'None',
         duration: `${form.durationValue} ${form.durationUnit}`,
         passCharges,
         coachingCharges,
@@ -380,7 +347,6 @@ export function PassTypePage() {
         <div className="pass-table-head">
           <span>{t('Pass name')}</span>
           <span>{t('For')}</span>
-          <span>{t('Prerequisite')}</span>
           <span>{t('Duration')}</span>
           <span>{t('Pass Charges')}</span>
           <span>{t('Coaching Charges')}</span>
@@ -401,7 +367,6 @@ export function PassTypePage() {
                 <div className="pass-block-row">
                   <strong data-label="Pass name">{item.passName}</strong>
                   <span data-label="For">{translateList(item.forAudience)}</span>
-                  <span data-label="Prerequisite">{translateList(item.prerequisite)}</span>
                   <span data-label="Duration">{item.duration}</span>
                 </div>
                 <div className="pass-block-row">
@@ -467,29 +432,6 @@ export function PassTypePage() {
                       type="checkbox"
                       checked={form.forOptions.includes(option)}
                       onChange={() => updateForOptions(option)}
-                    />
-                    <span>{t(option)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="pass-option-row">
-            <span className="pass-option-label">{t('Prerequisite')}</span>
-            <div className="pass-check-rows">
-              <div className="pass-check-row pass-check-row--prereq">
-                {PREREQ_OPTIONS.map((option) => (
-                  <label className="pass-check" key={option}>
-                    <input
-                      type="checkbox"
-                      checked={form.prerequisites.includes(option)}
-                      onChange={() =>
-                        setForm({
-                          ...form,
-                          prerequisites: togglePrerequisite(form.prerequisites, option),
-                        })
-                      }
                     />
                     <span>{t(option)}</span>
                   </label>

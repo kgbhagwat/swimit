@@ -438,71 +438,89 @@ export function WaterQuality() {
         </div>
 
         <form className="expense-entry-row" onSubmit={onSave}>
-          <input
-            type="date"
-            value={form.recordDate}
-            max={todayIso()}
-            onChange={(e) => {
-              setForm({
-                ...form,
-                recordDate: e.target.value ? clampDateToToday(e.target.value) : '',
-              });
-            }}
-            onBlur={() => {
-              if (form.recordDate) {
-                setForm((prev) => ({
-                  ...prev,
-                  recordDate: clampDateToToday(prev.recordDate),
-                }));
-              }
-            }}
-            required
-            aria-label={t('Date')}
-          />
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.phLevel}
-            onChange={(e) => setForm({ ...form, phLevel: e.target.value })}
-            required
-            aria-label={t('pH Level')}
-          />
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.freeChlorine}
-            onChange={(e) => setForm({ ...form, freeChlorine: e.target.value })}
-            required
-            aria-label={t('Free Chlorine')}
-          />
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.totalAlkalinity}
-            onChange={(e) => setForm({ ...form, totalAlkalinity: e.target.value })}
-            required
-            aria-label={t('Total Alkalinity')}
-          />
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.calciumHardness}
-            onChange={(e) => setForm({ ...form, calciumHardness: e.target.value })}
-            required
-            aria-label={t('Calcium Hardness')}
-          />
-          <input
-            className="water-quality-tester-input"
-            value={form.testerName}
-            onChange={(e) => setForm({ ...form, testerName: e.target.value })}
-            placeholder={t('Tester Name')}
-            required
-            aria-label={t('Tester Name')}
-          />
+          <label className="expense-entry-field expense-entry-field--full">
+            <span className="expense-entry-label">{t('Date')}</span>
+            <input
+              type="date"
+              value={form.recordDate}
+              max={todayIso()}
+              onChange={(e) => {
+                setForm({
+                  ...form,
+                  recordDate: e.target.value ? clampDateToToday(e.target.value) : '',
+                });
+              }}
+              onBlur={() => {
+                if (form.recordDate) {
+                  setForm((prev) => ({
+                    ...prev,
+                    recordDate: clampDateToToday(prev.recordDate),
+                  }));
+                }
+              }}
+              required
+              aria-label={t('Date')}
+            />
+          </label>
+          <label className="expense-entry-field">
+            <span className="expense-entry-label">{t('pH Level')}</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.phLevel}
+              onChange={(e) => setForm({ ...form, phLevel: e.target.value })}
+              required
+              aria-label={t('pH Level')}
+            />
+          </label>
+          <label className="expense-entry-field">
+            <span className="expense-entry-label">{t('Free Chlorine')}</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.freeChlorine}
+              onChange={(e) => setForm({ ...form, freeChlorine: e.target.value })}
+              required
+              aria-label={t('Free Chlorine')}
+            />
+          </label>
+          <label className="expense-entry-field">
+            <span className="expense-entry-label">{t('Total Alkalinity')}</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.totalAlkalinity}
+              onChange={(e) => setForm({ ...form, totalAlkalinity: e.target.value })}
+              required
+              aria-label={t('Total Alkalinity')}
+            />
+          </label>
+          <label className="expense-entry-field">
+            <span className="expense-entry-label">{t('Calcium Hardness')}</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.calciumHardness}
+              onChange={(e) => setForm({ ...form, calciumHardness: e.target.value })}
+              required
+              aria-label={t('Calcium Hardness')}
+            />
+          </label>
+          <label className="expense-entry-field expense-entry-field--full">
+            <span className="expense-entry-label">{t('Tester Name')}</span>
+            <input
+              className="water-quality-tester-input"
+              value={form.testerName}
+              onChange={(e) => setForm({ ...form, testerName: e.target.value })}
+              placeholder={t('Tester Name')}
+              required
+              aria-label={t('Tester Name')}
+            />
+          </label>
           <div className="expense-entry-actions">
             {editingId ? (
               <button type="button" className="pass-cancel" onClick={resetForm}>

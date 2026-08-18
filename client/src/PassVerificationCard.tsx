@@ -87,36 +87,18 @@ export function PassVerificationCard() {
   return (
     <section className="pass-form-card pool-core-form whatsapp-setup-card pass-verification-card">
       <h2>{t('Pass verification')}</h2>
-      <p className="muted" style={{ marginTop: 0 }}>
-        {t('Choose how staff check a pass at the scanner.')}
-      </p>
       {settingsLoading ? (
         <p className="muted">{t('Loading…')}</p>
       ) : (
-        <div
-          className="pass-yes-no pass-verification-options"
-          role="radiogroup"
-          aria-label={t('Pass verification')}
-        >
-          {(
-            [
-              { value: 'ok_not_ok', label: 'OK / Not OK enough' },
-              { value: 'face', label: 'Face verification required' },
-            ] as const
-          ).map((option) => (
-            <label key={option.value} className="pass-yes-no-option">
-              <input
-                type="radio"
-                name="passVerificationMode"
-                value={option.value}
-                checked={mode === option.value}
-                disabled={fieldsLocked}
-                onChange={() => setMode(option.value)}
-              />
-              <span>{t(option.label)}</span>
-            </label>
-          ))}
-        </div>
+        <label className="whatsapp-expiry-check">
+          {t('If face verification required during pass check, please tick')}
+          <input
+            type="checkbox"
+            checked={mode === 'face'}
+            disabled={fieldsLocked}
+            onChange={(e) => setMode(e.target.checked ? 'face' : 'ok_not_ok')}
+          />
+        </label>
       )}
 
       {error ? <p className="error">{t(error)}</p> : null}

@@ -13,7 +13,7 @@ import {
 import { MobileField } from './MobileField';
 import { passwordPolicyError } from './passwordPolicy';
 import { isSaasManagementCode, setPlatformSession } from './platformSession';
-import { setActiveTenant } from './tenantSession';
+import { setActiveTenant, SESSION_TIMEOUT_EVENT, touchSessionActivity, readSessionActivityAt, clearSessionActivity } from './tenantSession';
 import {
   canUseBiometricLogin,
   enrollBiometricLogin,
@@ -31,6 +31,7 @@ type AccountInfo = {
   packageName?: string;
   modules?: string;
   featureKeys?: string[];
+  loginSessionTimeoutMinutes?: number;
 };
 
 type SessionUser = {
@@ -188,6 +189,7 @@ export function AccountPortal() {
           featureKeys: Array.isArray(body.featureKeys)
             ? body.featureKeys.map(String).filter(Boolean)
             : undefined,
+          loginSessionTimeoutMinutes: Number(body.loginSessionTimeoutMinutes ?? 30),
         };
         if (info.status === 'Suspended') {
           setError('This account is suspended.');
@@ -255,8 +257,76 @@ export function AccountPortal() {
     void hydrateMenuAccess();
   }, [account, sessionUser, code]);
 
+  useEffect(() => {
+    function onTimeoutSaved(event: Event) {
+      const minutes = Number((event as CustomEvent<{ minutes?: number }>).detail?.minutes);
+      if (!Number.isFinite(minutes)) return;
+      setAccount((prev) => (prev ? { ...prev, loginSessionTimeoutMinutes: minutes } : prev));
+    }
+    window.addEventListener(SESSION_TIMEOUT_EVENT, onTimeoutSaved);
+    return () => window.removeEventListener(SESSION_TIMEOUT_EVENT, onTimeoutSaved);
+  }, []);
+
+  useEffect(() => {
+    const minutes = Number(account?.loginSessionTimeoutMinutes ?? 0);
+    if (!account || !sessionUser || minutes <= 0) return;
+
+    const limitMs = minutes * 60 * 1000;
+    if (!readSessionActivityAt(code)) {
+      touchSessionActivity(code);
+    }
+
+    const expireSession = () => {
+      clearSession(code);
+      clearSessionActivity(code);
+      setActiveTenant(null);
+      setSessionUser(null);
+      setLoginPassword('');
+      setError(t('Your login session expired. Please sign in again.'));
+    };
+
+    const isExpired = () => Date.now() - readSessionActivityAt(code) > limitMs;
+
+    const check = () => {
+      if (isExpired()) expireSession();
+    };
+
+    const onActivity = () => {
+      if (isExpired()) {
+        expireSession();
+        return;
+      }
+      touchSessionActivity(code);
+    };
+
+    const events: Array<keyof WindowEventMap> = [
+      'pointerdown',
+      'keydown',
+      'click',
+      'scroll',
+      'touchstart',
+    ];
+    for (const name of events) {
+      window.addEventListener(name, onActivity, { passive: true });
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    check();
+    const timer = window.setInterval(check, 10_000);
+    return () => {
+      for (const name of events) {
+        window.removeEventListener(name, onActivity);
+      }
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [account, sessionUser, code, t]);
+
   function finishAuthenticatedSession(user: SessionUser, opts?: { offerBiometric?: boolean }) {
     writeSession(code, user);
+    touchSessionActivity(code);
     setSessionUser(user);
     setLoginPassword('');
     setCurrentPassword('');
@@ -411,6 +481,14 @@ export function AccountPortal() {
           ? body.user.menuAccess.map(String)
           : [],
       };
+      if (body.account?.loginSessionTimeoutMinutes != null) {
+        const minutes = Number(body.account.loginSessionTimeoutMinutes);
+        if (Number.isFinite(minutes)) {
+          setAccount((prev) =>
+            prev ? { ...prev, loginSessionTimeoutMinutes: minutes } : prev,
+          );
+        }
+      }
       finishAuthenticatedSession(user, { offerBiometric: true });
     } catch (err) {
       if (err instanceof RemoteAccessRequiredError) {
@@ -541,6 +619,7 @@ export function AccountPortal() {
 
   function onLogout() {
     clearSession(code);
+    clearSessionActivity(code);
     setActiveTenant(null);
     setSessionUser(null);
     setLoginPassword('');

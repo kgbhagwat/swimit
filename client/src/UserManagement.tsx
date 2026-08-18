@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CreateUserForm } from './CreateUser';
 import { useT } from './i18n';
+import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
 import {
   ACCESS_PAGES,
@@ -21,6 +22,7 @@ import {
 import {
   getActiveAccountCode,
   isPlatformUsersPath,
+  SESSION_TIMEOUT_EVENT,
 } from './tenantSession';
 
 type AppUser = {
@@ -384,6 +386,113 @@ function UserRow({
   );
 }
 
+const SESSION_TIMEOUT_OPTIONS = [
+  { value: '15', labelKey: '15 minutes' },
+  { value: '30', labelKey: '30 minutes' },
+  { value: '60', labelKey: '1 hour' },
+  { value: '120', labelKey: '2 hours' },
+  { value: '240', labelKey: '4 hours' },
+  { value: '480', labelKey: '8 hours' },
+  { value: '0', labelKey: 'Until browser is closed' },
+] as const;
+
+function SessionTimeoutCard() {
+  const t = useT();
+  const [minutes, setMinutes] = useState('30');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/users/session-timeout');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? 'Failed to load session timeout');
+        if (cancelled) return;
+        const next = String(Number(body.minutes ?? 30));
+        setMinutes(SESSION_TIMEOUT_OPTIONS.some((o) => o.value === next) ? next : '30');
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load session timeout');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function onSave() {
+    setError('');
+    setInfo('');
+    setSaving(true);
+    try {
+      const res = await fetch('/api/users/session-timeout', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutes: Number(minutes) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to save session timeout');
+      const saved = String(Number(body.minutes ?? minutes));
+      setMinutes(saved);
+      setInfo(t('Login session timeout saved.'));
+      window.dispatchEvent(
+        new CustomEvent(SESSION_TIMEOUT_EVENT, { detail: { minutes: Number(saved) } }),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save session timeout');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="pass-form-card pool-core-form user-session-timeout-card">
+      <h2>{t('Login session timeout')}</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        {t('Users are signed out after this much time with no activity.')}
+      </p>
+      {loading ? (
+        <p className="muted">{t('Loading…')}</p>
+      ) : (
+        <div className="user-session-timeout-row">
+          <div className="user-session-timeout-field">
+            <span className="label" id="login-session-timeout-label">
+              {t('Timeout')}
+            </span>
+            <InPageSelect
+              value={minutes}
+              onChange={setMinutes}
+              options={SESSION_TIMEOUT_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey),
+              }))}
+              aria-label={t('Login session timeout')}
+            />
+          </div>
+          <button
+            type="button"
+            className="submit"
+            disabled={saving}
+            onClick={() => void onSave()}
+          >
+            {saving ? t('Saving…') : t('Save')}
+          </button>
+        </div>
+      )}
+      {error ? <p className="error">{t(error)}</p> : null}
+      {info ? <p className="success">{info}</p> : null}
+    </section>
+  );
+}
+
 const SAMPLE_TENANT_USER: AppUser = {
   id: -1,
   userName: 'Anita Sharma',
@@ -546,6 +655,8 @@ export function UserManagement() {
           void load();
         }}
       />
+
+      {!platformMode && !loading ? <SessionTimeoutCard /> : null}
 
       {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
 

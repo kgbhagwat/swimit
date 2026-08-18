@@ -82,7 +82,6 @@ export function WhatsAppChargesCard() {
   }
 
   const fieldsLocked = !canEdit || !editing || saving;
-  const daysDisabled = fieldsLocked || !expiryEnabled;
 
   return (
     <section className="pass-form-card pool-core-form whatsapp-broadcast-card whatsapp-setup-card">
@@ -109,15 +108,13 @@ export function WhatsAppChargesCard() {
               />
               {t('Send a pass-expiry reminder')}
             </label>
-            <span
-              className={`whatsapp-expiry-sentence${expiryEnabled ? '' : ' whatsapp-expiry-sentence--off'}`}
-            >
+            <span className="whatsapp-expiry-sentence">
               <input
                 className="whatsapp-expiry-days-input"
                 inputMode="numeric"
                 maxLength={1}
                 value={String(expiryDays)}
-                disabled={daysDisabled}
+                disabled={fieldsLocked}
                 aria-label={t('Days before pass expiry')}
                 onChange={(e) => {
                   const next = Number(e.target.value.replace(/\D/g, '')) || 1;

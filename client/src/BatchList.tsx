@@ -753,12 +753,10 @@ export function BatchList() {
                       schedule.session !== 'Complete Day' ? (
                         <button
                           type="button"
-                          className="icon-btn icon-add"
+                          className="schedule-add-session"
                           onClick={addScheduleRow}
-                          title={t('Add another schedule')}
-                          aria-label={t('Add another schedule')}
                         >
-                          +
+                          {t('Add session')}
                         </button>
                       ) : null
                     ) : (

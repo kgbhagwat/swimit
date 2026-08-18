@@ -1000,7 +1000,7 @@ h1 {
   align-items: center;
   gap: 0.4rem 0.5rem;
   margin: 0;
-  color: #243b66;
+  color: var(--ink);
   font-weight: 600;
 }
 
@@ -1024,6 +1024,12 @@ h1 {
   flex: 0 0 auto;
 }
 
+.pass-verification-card .whatsapp-expiry-check {
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .whatsapp-expiry-days-input {
   width: 1.85rem;
   border: 1px solid #cfd6e4;
@@ -1031,13 +1037,14 @@ h1 {
   padding: 0.3rem 0.15rem;
   background: #fff;
   color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
   font: inherit;
   font-weight: 600;
   text-align: center;
 }
 
 .whatsapp-expiry-days-input:disabled {
-  opacity: 0.55;
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
@@ -2608,11 +2615,22 @@ button.platform-rail-link {
   font-weight: 700;
 }
 
-.app-fullscreen-toggle {
+.app-corner-actions {
   position: fixed;
   right: 1.15rem;
   bottom: 1.15rem;
   z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.app-fullscreen-toggle,
+.app-help-toggle {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2627,15 +2645,31 @@ button.platform-rail-link {
   box-shadow: 0 8px 20px rgba(15, 39, 72, 0.12);
 }
 
-.app-fullscreen-toggle:hover {
+.app-fullscreen-toggle:hover,
+.app-help-toggle:hover {
   background: #f7fbff;
   border-color: var(--accent-dark);
   color: var(--accent-dark);
 }
 
-.app-fullscreen-toggle svg {
+.app-fullscreen-toggle svg,
+.app-help-toggle svg {
   width: 1.65rem;
   height: 1.65rem;
+}
+
+.workflow-help-backdrop {
+  z-index: 1300;
+}
+
+.workflow-help-panel {
+  width: min(72rem, calc(100vw - 2rem));
+  max-height: min(90vh, 880px);
+}
+
+.workflow-help-figure {
+  margin: 0.35rem 1.2rem 0.75rem;
+  overflow: auto;
 }
 
 .platform-shell--app-fullscreen {
@@ -3818,6 +3852,28 @@ html[data-theme='dark'] .biometric-offer-title {
   background: #fff;
 }
 
+.workflow-map {
+  position: relative;
+}
+
+.workflow-hotspots {
+  position: absolute;
+  inset: 0;
+}
+
+.workflow-hotspot {
+  position: absolute;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.workflow-hotspot:hover,
+.workflow-hotspot:focus-visible {
+  background: rgba(47, 111, 237, 0.12);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .home-info-flow {
   margin: 0.55rem 0 0;
   padding: 0.75rem 0.35rem;
@@ -4578,6 +4634,17 @@ html[data-theme='dark'] .biometric-offer-title {
     4.5rem;
 }
 
+.water-quality-table-card .expense-entry-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.water-quality-table-card .expense-entry-label {
+  display: none;
+}
+
 .water-quality-table-card .water-quality-out {
   color: #a32020;
   background: #ffe5e5;
@@ -4801,19 +4868,71 @@ html[data-theme='dark'] .biometric-offer-title {
 
   .water-quality-table-card .expense-entry-row {
     grid-template-columns: 1fr 1fr;
+    align-items: start;
   }
 
-  .water-quality-table-card .expense-entry-row input[type='date'],
-  .water-quality-table-card .expense-entry-row .water-quality-tester-input,
+  .water-quality-table-card .expense-entry-label {
+    display: block;
+    margin-bottom: 0.28rem;
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+
+  .water-quality-table-card .expense-entry-row .expense-entry-field--full,
   .water-quality-table-card .expense-entry-row .expense-entry-actions,
   .water-quality-table-card .expense-entry-row .water-quality-result-slot {
     grid-column: 1 / -1;
   }
 
+  .water-quality-table-card .expense-entry-row .water-quality-result-slot {
+    display: none;
+  }
+
   .water-quality-table-card .expense-row .water-quality-result {
     grid-column: 1 / -1;
     justify-self: stretch;
-    margin: 0.35rem 0.55rem 0.55rem;
+    width: auto;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .water-quality-table-card .expense-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .water-quality-table-card .expense-row > span,
+  .water-quality-table-card .expense-row > strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .water-quality-table-card .expense-row > span:nth-child(4),
+  .water-quality-table-card .expense-row > span:nth-child(5),
+  .water-quality-table-card .expense-row > span:nth-child(6) {
+    border-right: 1px solid #b7d4de;
+    border-bottom: 1px solid #b7d4de;
+  }
+
+  .water-quality-table-card .expense-row > span:nth-child(even) {
+    border-right: none;
+  }
+
+  .water-quality-table-card .expense-row .pass-actions {
+    border-right: none;
+    justify-content: flex-end;
   }
 
   .expense-entry-row input[type='date'] {
@@ -8094,6 +8213,41 @@ button.coach-payment-back {
   margin: 0.15rem 0 0;
 }
 
+.user-session-timeout-card {
+  width: min(100%, 42rem);
+  max-width: min(100%, 42rem);
+  margin-bottom: 0.85rem;
+  overflow: visible;
+}
+
+.user-session-timeout-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.user-session-timeout-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 12rem;
+}
+
+.user-session-timeout-field .inpage-select {
+  width: 14rem;
+  max-width: 100%;
+}
+
+.user-session-timeout-field .inpage-select.is-open {
+  z-index: 30;
+}
+
+.user-session-timeout-row .submit {
+  margin-left: 0;
+  min-width: 7.5rem;
+}
+
 .create-user-fields {
   display: flex;
   flex-wrap: wrap;
@@ -10730,7 +10884,7 @@ button.icon-action.icon-action-unapproved:hover:not(:disabled) {
 .pass-row {
   display: grid;
   gap: 0.65rem;
-  grid-template-columns: 1.2fr 0.7fr 1fr 0.8fr 0.9fr 1fr 0.8fr 0.9fr;
+  grid-template-columns: 1.2fr 0.7fr 0.8fr 0.9fr 1fr 0.8fr 0.9fr;
   align-items: center;
 }
 
@@ -10891,6 +11045,8 @@ button.menu-link {
   border-color: rgba(47, 111, 237, 0.12);
   padding: 0.75rem 0.9rem 0.85rem;
   margin-bottom: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pass-form-card h2 {
@@ -10980,6 +11136,8 @@ button.menu-link {
   --pass-label-col: 7.5rem;
   display: grid;
   gap: 0.15rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pass-option-row {
@@ -11041,20 +11199,36 @@ button.menu-link {
 
 @media (max-width: 900px) {
   .pass-option-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: flex-start;
   }
 
-  .pass-option-label {
-    flex-basis: 100%;
+  .pass-option-row > .pass-option-label {
+    flex: 0 0 auto;
     width: auto;
+    white-space: nowrap;
+  }
+
+  .pass-name-field {
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .pass-name-field .pass-option-label,
   .pass-coach-row > .pass-inline-field:first-child > .pass-option-label,
   .pass-charges-row > .pass-inline-field:first-child > .pass-option-label {
-    flex-basis: 100%;
+    flex: 0 0 auto;
+    flex-basis: auto;
     width: auto;
+    max-width: none;
+    white-space: nowrap;
+  }
+
+  .pass-name-field input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    max-width: none;
   }
 
   .pass-check-row {
@@ -11101,9 +11275,24 @@ button.menu-link {
   margin: 0;
 }
 
+.pass-coach-field .inpage-select {
+  width: 12rem;
+  max-width: min(12rem, 100%);
+  flex: 0 0 auto;
+}
+
+.pass-coach-field .inpage-select-trigger {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  min-height: 2rem;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  gap: 0.4rem;
+}
+
 .pass-coach-field select {
-  width: 9.5rem;
-  max-width: 9.5rem;
+  width: 12rem;
+  max-width: min(12rem, 100%);
   padding: 0.4rem 0.5rem;
   font-size: 0.82rem;
   border-radius: 6px;
@@ -11111,7 +11300,9 @@ button.menu-link {
 }
 
 .pass-max-swimmers-field input {
-  width: 5.5rem;
+  width: 3.6rem;
+  max-width: 3.6rem;
+  flex: 0 0 3.6rem;
   text-align: center;
 }
 
@@ -11248,16 +11439,123 @@ button.menu-link {
 }
 
 @media (max-width: 900px) {
-  .pass-charges-row {
+  .pass-form-card,
+  .pass-form-card.pool-core-form {
+    overflow-x: hidden;
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+
+  .pass-coach-row,
+  .pass-charges-row,
+  .pass-coaching-charges-row {
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: stretch;
+    overflow: visible;
+    gap: 0.5rem;
+  }
+
+  .pass-inline-field,
+  .pass-coach-row > .pass-inline-field:first-child,
+  .pass-charges-row > .pass-inline-field:first-child {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    width: fit-content;
+    max-width: 100%;
+    gap: 0.4rem 0.55rem;
+  }
+
+  .pass-coaching-charges-row .pass-inline-field {
     flex-wrap: wrap;
   }
 
-  .pass-inline-field {
-    flex: 1 1 100%;
+  .pass-inline-field .pass-option-label,
+  .pass-option-label-wide,
+  .pass-coach-row > .pass-inline-field:first-child > .pass-option-label,
+  .pass-charges-row > .pass-inline-field:first-child > .pass-option-label,
+  .pass-name-field .pass-option-label {
+    flex: 0 1 auto;
+    flex-basis: auto;
+    width: auto;
+    max-width: none;
+    white-space: normal;
+    min-width: 0;
+  }
+
+  .pass-name-field {
+    width: 100%;
+  }
+
+  .pass-name-field .pass-option-label,
+  .pass-coach-field > .pass-option-label,
+  .pass-charges-row > .pass-inline-field:first-child > .pass-option-label,
+  .pass-charges-row > .pass-inline-field > .pass-option-label:not(.pass-option-label-wide) {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .pass-inline-field .duration-inputs {
+    width: auto;
+    max-width: 100%;
+    flex: 0 0 auto;
+    grid-template-columns: 3.6rem 6.5rem;
+  }
+
+  .pass-inline-field .money-input {
+    width: 8.25rem;
+    max-width: 8.25rem;
+    flex: 0 0 8.25rem;
+  }
+
+  .pass-inline-field input:not([type='radio']):not([type='checkbox']),
+  .pass-inline-field select,
+  .pass-inline-field .inpage-select-trigger,
+  .pass-name-field input {
+    font-size: 1rem;
+    min-height: 2.35rem;
+  }
+
+  .pass-max-swimmers-field input {
+    width: 3.6rem;
+    max-width: 3.6rem;
+    flex: 0 0 3.6rem;
+    text-align: center;
+  }
+
+  .pass-yes-no {
+    flex: 0 0 auto;
+    flex-shrink: 0;
+  }
+
+  .pass-coach-field .inpage-select,
+  .pass-coach-field select {
+    width: 9.5rem;
+    max-width: 9.5rem;
+    flex: 0 0 9.5rem;
   }
 
   .money-input {
-    width: min(9rem, 100%);
+    width: 8.25rem;
+    max-width: 8.25rem;
+  }
+
+  .pass-coach-charges-note {
+    white-space: normal;
+    flex: 1 1 100%;
+  }
+
+  .pass-form-actions {
+    flex-wrap: wrap;
+  }
+
+  .pass-form-actions .submit,
+  .pass-form-actions .pass-cancel {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-left: 0;
   }
 }
 
@@ -11312,6 +11610,19 @@ button.menu-link {
   background: #f7f9fc;
 }
 
+@media (max-width: 900px) {
+  .pass-form-actions {
+    flex-wrap: wrap;
+  }
+
+  .pass-form-actions .submit,
+  .pass-form-actions .pass-cancel {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-left: 0;
+  }
+}
+
 @media (max-width: 980px) {
   .pass-table-card {
     border: 0;
@@ -11361,6 +11672,10 @@ button.menu-link {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.4rem 0.35rem;
     align-items: start;
+  }
+
+  .pass-block-row:first-child {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .pass-block-row + .pass-block-row {
@@ -12439,6 +12754,22 @@ button.menu-link {
 }
 
 .icon-add:hover {
+  background: #dce8ff;
+}
+
+.schedule-add-session {
+  border: 1px solid #9db7f0;
+  background: #e8f0ff;
+  color: #2f6fed;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.45rem 0.95rem;
+  min-height: 2.4rem;
+  cursor: pointer;
+}
+
+.schedule-add-session:hover {
   background: #dce8ff;
 }
 
@@ -16412,17 +16743,28 @@ html[data-theme='dark'] .menu-desc-item {
   border-bottom-color: rgba(75, 132, 245, 0.12);
 }
 
-html[data-theme='dark'] .app-fullscreen-toggle {
+html[data-theme='dark'] .app-fullscreen-toggle,
+html[data-theme='dark'] .app-help-toggle {
   background: #172a42;
   border-color: rgba(75, 132, 245, 0.35);
   color: #7eb0ff;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
 }
 
-html[data-theme='dark'] .app-fullscreen-toggle:hover {
+html[data-theme='dark'] .app-fullscreen-toggle:hover,
+html[data-theme='dark'] .app-help-toggle:hover {
   background: #1a3452;
   border-color: var(--accent);
   color: #9ec0ff;
+}
+
+html[data-theme='dark'] .workflow-help-panel h2 {
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] .workflow-help-figure .home-workflow-image {
+  border-color: rgba(75, 132, 245, 0.22);
+  background: #12263d;
 }
 
 html[data-theme='dark'] .page {
@@ -16995,6 +17337,17 @@ html[data-theme='dark'] .submit {
   color: #fff;
 }
 
+html[data-theme='dark'] .schedule-add-session {
+  background: #1a3452;
+  border-color: rgba(75, 132, 245, 0.45);
+  color: #9ec0ff;
+}
+
+html[data-theme='dark'] .schedule-add-session:hover {
+  background: #203d5c;
+  border-color: var(--accent);
+}
+
 html[data-theme='dark'] .menu-tile-icon {
   color: #4b84f5;
   background: #12263d;
@@ -17077,6 +17430,7 @@ html[data-theme='dark'] .money-prefix,
 html[data-theme='dark'] .pass-name-field input,
 html[data-theme='dark'] .duration-inputs input,
 html[data-theme='dark'] .pass-inline-field input,
+html[data-theme='dark'] .whatsapp-expiry-days-input,
 html[data-theme='dark'] .pass-yes-no,
 html[data-theme='dark'] .batch-saved-table-wrap,
 html[data-theme='dark'] .pass-table-card,
@@ -17104,6 +17458,23 @@ html[data-theme='dark'] .money-input input {
 html[data-theme='dark'] .pass-option-label,
 html[data-theme='dark'] .pass-form-card.pool-core-form .pass-option-label,
 html[data-theme='dark'] .pass-form-card.pool-core-form .pass-yes-no-option,
+html[data-theme='dark'] .whatsapp-expiry-sentence,
+html[data-theme='dark'] .whatsapp-expiry-check,
+html[data-theme='dark'] .whatsapp-expiry-days-input {
+  color: #e8f0fa !important;
+  -webkit-text-fill-color: #e8f0fa;
+}
+
+html[data-theme='dark'] .whatsapp-expiry-days-input {
+  background: #0f1f33 !important;
+  border-color: #4b84f5 !important;
+  opacity: 1;
+}
+
+html[data-theme='dark'] .whatsapp-expiry-days-input:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
 html[data-theme='dark'] .app-shell-body .pass-option-label,
 html[data-theme='dark'] .app-shell-body .label,
 html[data-theme='dark'] .holiday-section .label,

@@ -1,6 +1,7 @@
 import { useT } from './i18n';
 import { PlatformShell } from './PlatformShell';
 import { PlatformPage } from './PlatformPage';
+import { WorkflowDiagram } from './WorkflowDiagram';
 
 /** Marketing home (`/`) — application overview only; no permanent app chrome. */
 export function MainMenu() {
@@ -65,13 +66,7 @@ export function MainMenu() {
             </li>
           </ul>
 
-          <figure className="home-workflow-figure" aria-label={t('SwimIT workflow')}>
-            <img
-              src="/swimit-workflow.png"
-              alt={t('SwimIT workflow')}
-              className="home-workflow-image"
-            />
-          </figure>
+          <WorkflowDiagram />
 
         </section>
       </PlatformPage>

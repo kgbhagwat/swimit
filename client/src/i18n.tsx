@@ -240,6 +240,20 @@ const mr: Record<string, string> = {
   'Pass Type': 'पास प्रकार',
   Holidays: 'सुट्ट्या',
   'User Management': 'वापरकर्ता व्यवस्थापन',
+  'Login session timeout': 'लॉगिन सत्र कालबाह्यता',
+  'Users are signed out after this much time with no activity.':
+    'इतक्या वेळ निष्क्रिय राहिल्यास वापरकर्त्यांना साइन आउट केले जाते.',
+  Timeout: 'कालमर्यादा',
+  '15 minutes': '१५ मिनिटे',
+  '30 minutes': '३० मिनिटे',
+  '1 hour': '१ तास',
+  '2 hours': '२ तास',
+  '4 hours': '४ तास',
+  '8 hours': '८ तास',
+  'Until browser is closed': 'ब्राउझर बंद होईपर्यंत',
+  'Login session timeout saved.': 'लॉगिन सत्र कालबाह्यता जतन झाली.',
+  'Your login session expired. Please sign in again.':
+    'तुमचे लॉगिन सत्र संपले. कृपया पुन्हा साइन इन करा.',
   'Activity Log': 'क्रियाकलाप नोंद',
   'Track who created, edited, or deleted records in this account.':
     'या खात्यात कोणी नोंदी तयार केल्या, संपादित केल्या किंवा हटवल्या ते वेळेसह पाहा.',
@@ -366,8 +380,8 @@ const mr: Record<string, string> = {
     'कॅलेंडरवर पूल सुट्ट्या आणि बंद दिवस चिन्हांकित करते.',
   'Stops attendance and scheduling surprises on closed days and keeps members informed.':
     'बंद दिवशी हजेरी व वेळापत्रकातील गोंधळ टाळते आणि सदस्यांना माहिती ठेवते.',
-  'Creates login users and sets which menus each person can open or edit.':
-    'लॉगिन वापरकर्ते तयार करते आणि प्रत्येकाला कोणते मेनू उघडता/एडिट करता येतील ते ठरवते.',
+  'Creates login users, sets which menus each person can open or edit, and how long a login session stays active.':
+    'लॉगिन वापरकर्ते तयार करते, मेनू एक्सेस ठरवते आणि लॉगिन सत्र किती वेळ सक्रिय राहील ते सेट करते.',
   'Onboards staff with WhatsApp passwords and protects sensitive screens by role.':
     'WhatsApp पासवर्डसह कर्मचारी जोडते आणि संवेदनशील स्क्रीन भूमिकाप्रमाणे संरक्षित करते.',
   // Common actions / labels
@@ -376,6 +390,7 @@ const mr: Record<string, string> = {
   Delete: 'हटवा',
   Cancel: 'रद्द करा',
   Close: 'बंद करा',
+  Help: 'मदत',
   Download: 'डाउनलोड',
   Search: 'शोधा',
   Filter: 'फिल्टर',
@@ -512,6 +527,7 @@ const mr: Record<string, string> = {
   "Active swimmers by group": "गटानुसार सक्रिय पोहणारे",
   "Add": "जोडा",
   "Add another schedule": "आणखी वेळापत्रक जोडा",
+  "Add session": "सत्र जोडा",
   "Add other / custom leave": "इतर / कस्टम सुट्टी जोडा",
   "Add pass type": "पास प्रकार जोडा",
   "added to Pass Payment.": "Pass Payment मध्ये जोडले.",
@@ -599,7 +615,6 @@ const mr: Record<string, string> = {
   "Checking…": "तपासत आहे…",
   "City": "शहर",
   "Clear": "साफ करा",
-  "Choose how staff check a pass at the scanner.": "स्कॅनरवर स्टाफ पास कसा तपासतो ते निवडा.",
   "Coach": "कोच",
   "coach": "कोच",
   "Coach (activate a coach for this batch in Staff List)": "प्रशिक्षक (स्टाफ यादीत या बॅचसाठी प्रशिक्षक सक्रिय करा)",
@@ -822,6 +837,7 @@ const mr: Record<string, string> = {
   "Identity & photo": "ओळखपत्र आणि फोटो",
   "Identity & photos": "ओळखपत्र आणि फोटो",
   "Identity document": "ओळखपत्र",
+  "If face verification required during pass check, please tick": "पास तपासणीदरम्यान चेहरा पडताळणी आवश्यक असल्यास, कृपया टिक करा",
   "If nothing arrives, first reply “Hi” to the +1 555… chat, then retry.": "काही आले नाही तर आधी +1 555… चॅटला “Hi” पाठवा, मग पुन्हा प्रयत्न करा.",
   "If there is major break (like lunch break) in batches, then please create session-wise schedule": "बॅचमध्ये मोठा ब्रेक (जसे जेवणाचा ब्रेक) असल्यास, कृपया सत्रानुसार वेळापत्रक तयार करा",
   "in": "मध्ये",
@@ -1225,6 +1241,7 @@ const mr: Record<string, string> = {
   "Valid from": "पासून वैध",
   "Wait for account code check to finish": "खाते कोड तपासणी संपेपर्यंत थांबा",
   "Wait for swimmer details to finish loading": "पोहणाऱ्याचे तपशील लोड होण्याची वाट पहा",
+  "Walking": "वॉकिंग",
   "Wednesday": "बुधवार",
   "Week": "आठवडा",
   "Weekly holiday": "साप्ताहिक सुट्टी",

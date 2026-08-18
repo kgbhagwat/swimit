@@ -32,6 +32,38 @@ export function getActiveAccountCode(): string | null {
   return code && /^[a-z0-9]{6}$/.test(code) ? code : null;
 }
 
+export const SESSION_TIMEOUT_EVENT = 'swimit:session-timeout';
+
+export function sessionActivityKey(accountCode: string) {
+  return `swimIT.sessionActivity.${accountCode.toLowerCase()}`;
+}
+
+export function touchSessionActivity(accountCode: string) {
+  try {
+    sessionStorage.setItem(sessionActivityKey(accountCode), String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readSessionActivityAt(accountCode: string): number {
+  try {
+    const raw = sessionStorage.getItem(sessionActivityKey(accountCode));
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function clearSessionActivity(accountCode: string) {
+  try {
+    sessionStorage.removeItem(sessionActivityKey(accountCode));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function tenantPath(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   if (isApplicationDemo()) {

@@ -108,8 +108,8 @@ export function ApplicationGuide() {
             </li>
             <li>
               <strong>Pass Type</strong> — pass names, duration, charges, and coaching fees. A
-              separate Pass verification section chooses OK / Not OK enough or face verification
-              required. WhatsApp broadcast opt-in and pass-expiry reminders are also on this page.
+              separate Pass verification tick turns on face matching at the scanner. WhatsApp
+              broadcast opt-in and pass-expiry reminders are also on this page.
             </li>
             <li>
               <strong>Pool Core Info</strong> — pool name, address, logo, terms, UPI / QR
@@ -119,7 +119,8 @@ export function ApplicationGuide() {
               <em>(Full)</em>
             </li>
             <li>
-              <strong>User Management</strong> — create staff logins and set page-level access{' '}
+              <strong>User Management</strong> — create staff logins, set page-level access, and
+              choose how long a login session stays active when nobody is using the app{' '}
               <em>(Full)</em>
             </li>
           </ul>
@@ -135,8 +136,9 @@ export function ApplicationGuide() {
               <em>(Full)</em>
             </li>
             <li>
-              <strong>Pass Scanner</strong> — scan QR / ID and mark attendance; if the pass type
-              requires face verification, staff confirm the face matches the pass photo before OK
+              <strong>Pass Scanner</strong> — scan QR / ID and mark attendance; if face
+              verification is ticked on Pass Type, staff confirm the face matches the pass photo
+              before OK
             </li>
             <li>
               <strong>Coach Payment</strong> — calculate coach dues <em>(Full)</em>
@@ -242,7 +244,7 @@ export function ApplicationGuide() {
             </li>
             <li>
               Staff use <strong>Pass Scanner</strong> — attendance is marked if the pass is valid.
-              For pass types set to face verification, staff must confirm the face matches the
+              If face verification is ticked on Pass Type, staff must confirm the face matches the
               pass photo before OK.
             </li>
             <li>

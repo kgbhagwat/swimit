@@ -60,6 +60,15 @@ function isOver18(birthdate: string) {
   return age > 18;
 }
 
+function staffEmailError(value: unknown) {
+  const email = String(value ?? '').trim();
+  if (!email) return null;
+  if (!email.includes('@') || !email.includes('.') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return 'Email must include @ and .';
+  }
+  return null;
+}
+
 export const staffRegistrationsRouter = Router();
 
 function formatPlainDate(value: unknown) {
@@ -375,7 +384,6 @@ staffRegistrationsRouter.put(
         'fullName',
         'fullAddress',
         'whatsappMobile',
-        'email',
         'birthdate',
         'sex',
         'bloodGroup',
@@ -392,6 +400,11 @@ staffRegistrationsRouter.put(
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      const emailError = staffEmailError(body.email);
+      if (emailError) {
+        res.status(400).json({ error: emailError });
+        return;
       }
       const identityNumber = String(body.identityNumber ?? '').trim();
       if (identityNumber.replace(/\s+/g, '').length < 4) {
@@ -589,7 +602,7 @@ staffRegistrationsRouter.put(
           body.fullAddress.trim(),
           body.whatsappMobile.trim(),
           body.otherMobile?.trim() || null,
-          body.email.trim().toLowerCase(),
+          String(body.email ?? '').trim().toLowerCase(),
           sealedBirth.sealed,
           body.sex,
           body.bloodGroup,
@@ -681,7 +694,6 @@ staffRegistrationsRouter.post(
         'fullName',
         'fullAddress',
         'whatsappMobile',
-        'email',
         'birthdate',
         'sex',
         'bloodGroup',
@@ -698,6 +710,11 @@ staffRegistrationsRouter.post(
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      const emailError = staffEmailError(body.email);
+      if (emailError) {
+        res.status(400).json({ error: emailError });
+        return;
       }
       const identityNumber = String(body.identityNumber ?? '').trim();
       if (identityNumber.replace(/\s+/g, '').length < 4) {
@@ -848,7 +865,7 @@ staffRegistrationsRouter.post(
           body.fullAddress.trim(),
           body.whatsappMobile.trim(),
           body.otherMobile?.trim() || null,
-          body.email.trim().toLowerCase(),
+          String(body.email ?? '').trim().toLowerCase(),
           sealedBirth.sealed,
           body.sex,
           body.bloodGroup,
