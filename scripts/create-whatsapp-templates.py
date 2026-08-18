@@ -83,6 +83,11 @@ TEMPLATES = [
         ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "admin"],
     ),
     utility(
+        "swimit_login_creds",
+        "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nUser: {{4}}\nTemporary password: {{5}}\nPlease update it after first sign-in.",
+        ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "admin", "Ab12cd34"],
+    ),
+    utility(
         "swimit_welcome",
         "Hello, your SwimIT account {{1}} is now active. Account code {{2}}. Check your email for sign-in instructions.",
         ["SMPool", "smpool"],

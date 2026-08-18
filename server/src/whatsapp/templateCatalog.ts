@@ -3,6 +3,7 @@ export const WA_TEMPLATES = {
   signupOtp: 'swimit_signup_otp',
   accountReady: 'swimit_welcome',
   accountLogin: 'swimit_login_info',
+  accountLoginWithPassword: 'swimit_login_creds',
   registrationOk: 'swimit_registration_ok',
   passReady: 'swimit_pass_ready',
   passExpiring: 'swimit_pass_expiring',

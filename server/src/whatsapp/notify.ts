@@ -177,7 +177,7 @@ async function deliverNotice(params: {
 }
 
 /**
- * Send login credentials on WhatsApp.
+ * Send login credentials on WhatsApp in a single message, including the temporary password.
  */
 export async function notifyLoginCredentials(params: {
   mobile: string;
@@ -188,22 +188,15 @@ export async function notifyLoginCredentials(params: {
   temporaryPassword: string;
   saasAccountId?: number;
 }): Promise<NotifyCredentialsResult> {
-  // Put the password alone on the next line (monospace) so it is easy to select.
-  // A second bubble with only the password lets them long-press → Copy that bubble alone.
   const passwordLine = String(params.temporaryPassword).trim();
   const body = [
-    `SwimIT login for ${params.accountName}`,
-    '',
-    `Account code: ${params.accountCode}`,
-    `Login URL: ${params.loginUrl}`,
-    `User name: ${params.userName}`,
-    'Temporary password:',
-    `\`${passwordLine}\``,
-    '',
-    'Please change the password after first login.',
-    'Tip: the next message is only the password — long-press it to copy.',
+    `Your SwimIT account ${params.accountName} is ready.`,
+    `Code: ${params.accountCode}`,
+    `Sign-in link: ${params.loginUrl}`,
+    `User: ${params.userName}`,
+    `Temporary password: ${passwordLine}`,
+    'Please update it after first sign-in.',
   ].join('\n');
-  const passwordOnlyBody = passwordLine;
 
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -218,7 +211,61 @@ export async function notifyLoginCredentials(params: {
     return { ok: true, skipped: true };
   }
 
+  const loginWithPasswordTexts = [
+    templateText(params.accountName),
+    templateText(params.accountCode, 32),
+    templateText(params.loginUrl, 200),
+    templateText(params.userName, 32),
+    templateText(passwordLine, 32),
+  ];
+  // Existing 4-variable template cannot add a 5th line, so the password is included on the User line.
+  const loginInfoTexts = [
+    templateText(params.accountName),
+    templateText(params.accountCode, 32),
+    templateText(params.loginUrl, 200),
+    templateText(`${params.userName}. Password: ${passwordLine}`, 80),
+  ];
+
+  async function sent(templateName: string, to: string, messageId: string): Promise<NotifyCredentialsResult> {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'login_credentials',
+      body: templateName,
+      status: 'sent',
+    });
+    return { ok: true, skipped: false, to, messageId };
+  }
+
+  async function templateFailed(templateName: string, err: unknown) {
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'login_credentials_template',
+      body: templateName,
+      status: 'failed',
+      error: err instanceof Error ? err.message : 'Template failed',
+    });
+  }
+
   try {
+    const loginWithPasswordTemplate = String(
+      process.env.WHATSAPP_ACCOUNT_LOGIN_CREDS_TEMPLATE ?? WA_TEMPLATES.accountLoginWithPassword,
+    ).trim();
+    if (loginWithPasswordTemplate) {
+      try {
+        const templated = await sendTemplateInKnownLanguages({
+          mobile: params.mobile,
+          templateName: loginWithPasswordTemplate,
+          copyCodeButton: false,
+          bodyTexts: loginWithPasswordTexts,
+        });
+        return sent(loginWithPasswordTemplate, templated.to, templated.messageId);
+      } catch (templateErr) {
+        await templateFailed(loginWithPasswordTemplate, templateErr);
+      }
+    }
+
     const loginTemplate = String(
       process.env.WHATSAPP_ACCOUNT_LOGIN_TEMPLATE ?? WA_TEMPLATES.accountLogin,
     ).trim();
@@ -228,78 +275,11 @@ export async function notifyLoginCredentials(params: {
           mobile: params.mobile,
           templateName: loginTemplate,
           copyCodeButton: false,
-          bodyTexts: [
-            templateText(params.accountName),
-            templateText(params.accountCode, 32),
-            templateText(params.loginUrl, 200),
-            templateText(params.userName, 32),
-          ],
+          bodyTexts: loginInfoTexts,
         });
-        await logOutbound({
-          saasAccountId: params.saasAccountId,
-          toMobile: params.mobile,
-          kind: 'login_credentials',
-          body: loginTemplate,
-          status: 'sent',
-        });
-        return {
-          ok: true,
-          skipped: false,
-          to: templated.to,
-          messageId: templated.messageId,
-        };
+        return sent(loginTemplate, templated.to, templated.messageId);
       } catch (templateErr) {
-        const templateMessage =
-          templateErr instanceof Error ? templateErr.message : 'Login template failed';
-        await logOutbound({
-          saasAccountId: params.saasAccountId,
-          toMobile: params.mobile,
-          kind: 'login_credentials_template',
-          body: loginTemplate,
-          status: 'failed',
-          error: templateMessage,
-        });
-      }
-    }
-
-    const accountTemplate = String(
-      process.env.WHATSAPP_ACCOUNT_READY_TEMPLATE ?? WA_TEMPLATES.accountReady,
-    ).trim();
-    if (accountTemplate) {
-      try {
-        const templated = await sendTemplateInKnownLanguages({
-          mobile: params.mobile,
-          templateName: accountTemplate,
-          copyCodeButton: false,
-          bodyTexts: [
-            templateText(params.accountName),
-            templateText(params.accountCode, 32),
-          ],
-        });
-        await logOutbound({
-          saasAccountId: params.saasAccountId,
-          toMobile: params.mobile,
-          kind: 'login_credentials',
-          body: accountTemplate,
-          status: 'sent',
-        });
-        return {
-          ok: true,
-          skipped: false,
-          to: templated.to,
-          messageId: templated.messageId,
-        };
-      } catch (templateErr) {
-        const templateMessage =
-          templateErr instanceof Error ? templateErr.message : 'Account-ready template failed';
-        await logOutbound({
-          saasAccountId: params.saasAccountId,
-          toMobile: params.mobile,
-          kind: 'login_credentials_template',
-          body: accountTemplate,
-          status: 'failed',
-          error: templateMessage,
-        });
+        await templateFailed(loginTemplate, templateErr);
       }
     }
 
@@ -322,31 +302,6 @@ export async function notifyLoginCredentials(params: {
       body,
       status: 'sent',
     });
-
-    // Separate bubble: long-press → Copy selects only the password.
-    try {
-      const passwordMsg = await sendWhatsAppText(params.mobile, passwordOnlyBody);
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'login_credentials_password',
-        body: passwordOnlyBody,
-        status: passwordMsg.skipped ? 'skipped' : 'sent',
-      });
-    } catch (passwordErr) {
-      const passwordMessage =
-        passwordErr instanceof Error ? passwordErr.message : 'Password-only send failed';
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'login_credentials_password',
-        body: passwordOnlyBody,
-        status: 'failed',
-        error: passwordMessage,
-      });
-      // Main credentials already sent — treat overall as success.
-    }
-
     return {
       ok: true,
       skipped: false,
