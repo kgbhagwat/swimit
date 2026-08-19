@@ -1332,6 +1332,10 @@ html[data-theme='dark'] .pdf-preview {
   gap: 0.45rem;
 }
 
+.webcam-capture:not(.webcam-capture--idle) {
+  margin-bottom: 0.55rem;
+}
+
 .webcam-capture--idle {
   position: absolute;
   width: 1px;

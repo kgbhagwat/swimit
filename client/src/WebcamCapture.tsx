@@ -386,16 +386,6 @@ export function PhotoPickerButtons({
 
   return (
     <>
-      <div className="photo-actions">
-        <button type="button" className="photo-btn" disabled={disabled} onClick={() => void onTakePhoto()}>
-          <CameraActionIcon />
-          {webcam.live ? t('Capture photo') : takeLabel}
-        </button>
-        <button type="button" className="photo-btn" disabled={disabled} onClick={onUpload}>
-          <UploadActionIcon />
-          {uploadLabel}
-        </button>
-      </div>
       <div className={`webcam-capture${webcam.live ? '' : ' webcam-capture--idle'}${faceFrame ? ' webcam-capture--face' : ` webcam-capture--document webcam-capture--${page}`}`}>
         <div className="webcam-capture-stage">
           <video
@@ -431,40 +421,29 @@ export function PhotoPickerButtons({
               </button>
             </div>
           ) : null}
-          <button
-            type="button"
-            className="webcam-flip-btn"
-            disabled={disabled || webcam.flipping || !webcam.live}
-            onClick={() => void webcam.flip()}
-            aria-label={t('Flip camera')}
-            title={t('Flip camera')}
-          >
-            <FlipCameraIcon />
-          </button>
+          {webcam.live ? (
+            <button
+              type="button"
+              className="webcam-flip-btn"
+              disabled={disabled || webcam.flipping}
+              onClick={() => void webcam.flip()}
+              aria-label={t('Flip camera')}
+              title={t('Flip camera')}
+            >
+              <FlipCameraIcon />
+            </button>
+          ) : null}
         </div>
-        <p className="hint">
-          {webcam.flipping
-            ? t('Switching camera…')
-            : webcam.ready
-              ? faceFrame
-                ? t('Keep your full face inside the oval, then press Capture photo.')
-                : t('Fill the frame with the document, then press Capture photo.')
-              : t('Starting camera…')}
-        </p>
-        <div className="webcam-capture-toolbar">
-          <button
-            type="button"
-            className="photo-btn webcam-flip-text-btn"
-            disabled={disabled || webcam.flipping || !webcam.live}
-            onClick={() => void webcam.flip()}
-          >
-            <FlipCameraIcon />
-            {t('Flip camera')}
-          </button>
-          <button type="button" className="linkish" onClick={() => webcam.stop()}>
-            {t('Close camera')}
-          </button>
-        </div>
+      </div>
+      <div className="photo-actions">
+        <button type="button" className="photo-btn" disabled={disabled} onClick={() => void onTakePhoto()}>
+          <CameraActionIcon />
+          {webcam.live ? t('Capture photo') : takeLabel}
+        </button>
+        <button type="button" className="photo-btn" disabled={disabled} onClick={onUpload}>
+          <UploadActionIcon />
+          {uploadLabel}
+        </button>
       </div>
       {webcam.error ? <p className="field-error">{t(webcam.error)}</p> : null}
       <input
