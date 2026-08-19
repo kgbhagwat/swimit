@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { CroppedPaymentQr } from './CroppedPaymentQr';
 import { FilePreview } from './FilePreview';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
@@ -18,6 +19,7 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
+import { isPdfUrl } from './uploadFile';
 
 type PendingSwimmer = {
   id: number;
@@ -976,6 +978,11 @@ export function PassPayment() {
   const sampleOnlineQrUrl = samplePaying ? SAMPLE_PAYMENT_QR_URL : null;
   const onlineQrUrl = uploadUrl(paymentQrPath) ?? sampleOnlineQrUrl;
   const onlineUpi = samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails;
+  const onlinePayAmount = selectedPass
+    ? Math.round(
+        (Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0)) * 100,
+      ) / 100
+    : 0;
 
   const queuedSamplePayments = demoMode
     ? getSamplePassPaymentQueue()
@@ -1364,6 +1371,19 @@ export function PassPayment() {
                               {t('No UPI ID set in Pool Core Info.')}
                             </p>
                           )}
+                          {onlinePayAmount > 0 ? (
+                            <>
+                              <span className="online-payment-upi-heading">
+                                <span className="label">{t('Amount to pay')}</span>
+                                <span className="online-payment-upi-sep" aria-hidden="true">
+                                  -
+                                </span>
+                              </span>
+                              <span className="online-payment-upi-value">
+                                {formatMoney(onlinePayAmount)}
+                              </span>
+                            </>
+                          ) : null}
                         </>
                       )}
                     </div>
@@ -1399,11 +1419,19 @@ export function PassPayment() {
                 {paymentMode === 'Online' ? (
                   <div className="online-payment-qr-panel">
                     {onlineDetailsLoading && !samplePaying ? null : onlineQrUrl ? (
-                      <FilePreview
-                        src={onlineQrUrl}
-                        alt={t('Payment QR code')}
-                        className="online-payment-qr"
-                      />
+                      isPdfUrl(onlineQrUrl) ? (
+                        <FilePreview
+                          src={onlineQrUrl}
+                          alt={t('Payment QR code')}
+                          className="online-payment-qr"
+                        />
+                      ) : (
+                        <CroppedPaymentQr
+                          src={onlineQrUrl}
+                          alt={t('Payment QR code')}
+                          className="online-payment-qr"
+                        />
+                      )
                     ) : (
                       <p className="muted">{t('No payment QR code set in Pool Core Info.')}</p>
                     )}
