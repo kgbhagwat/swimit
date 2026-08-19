@@ -6,7 +6,6 @@ import { useT } from './i18n';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
 import { QrImage } from './QrImage';
-import QRCode from 'qrcode';
 import {
   getSamplePassPaymentQueue,
   isApplicationDemo,
@@ -20,7 +19,7 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
-import { buildPassPaymentRequestMessage, buildUpiPayUri, extractPayLaunchHref, openPayLaunch, paymentQrPayload } from './upiPay';
+import { buildUpiPayUri } from './upiPay';
 import { UpiPayAppButton } from './UpiAppPicker';
 
 type PendingSwimmer = {
@@ -156,173 +155,6 @@ const SAMPLE_PAYMENT_QR_URL =
 
 function isSamplePendingId(id: number) {
   return id < 0;
-}
-
-function PaymentRequestPreview({ text, qrValue }: { text: string; qrValue: string }) {
-  const t = useT();
-  const areaRef = useRef<HTMLTextAreaElement>(null);
-  const [copied, setCopied] = useState('');
-  const [qrSrc, setQrSrc] = useState('');
-  const payHref = extractPayLaunchHref(text);
-  const chunks = String(text ?? '').split(/(upi:\/\/pay\?[^\s]+|https?:\/\/[^\s]+)/gi);
-
-  useEffect(() => {
-    const value =
-      (/^https:\/\//i.test(payHref) ? payHref : paymentQrPayload(String(qrValue ?? '').trim())) ||
-      String(qrValue ?? '').trim();
-    if (!value) {
-      setQrSrc('');
-      return;
-    }
-    let cancelled = false;
-    void QRCode.toDataURL(value, { width: 360, margin: 1, errorCorrectionLevel: 'M' }).then(
-      (url) => {
-        if (!cancelled) setQrSrc(url);
-      },
-      () => {
-        if (!cancelled) setQrSrc('');
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [qrValue, payHref]);
-
-  async function copyMessage() {
-    const value = String(text ?? '');
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const el = areaRef.current;
-      if (!el) return;
-      el.focus();
-      el.select();
-      document.execCommand('copy');
-    }
-    setCopied('text');
-    window.setTimeout(() => setCopied(''), 2000);
-  }
-
-  async function copyQr() {
-    if (!qrSrc) return;
-    try {
-      const blob = await (await fetch(qrSrc)).blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-      setCopied('qr');
-      window.setTimeout(() => setCopied(''), 2000);
-    } catch {
-      downloadQr();
-    }
-  }
-
-  function downloadQr() {
-    if (!qrSrc) return;
-    const link = document.createElement('a');
-    link.href = qrSrc;
-    link.download = 'swimit-pass-payment-qr.png';
-    link.click();
-    setCopied('qr');
-    window.setTimeout(() => setCopied(''), 2000);
-  }
-
-  return (
-    <div className="payment-request-preview">
-      <div className="payment-request-preview-head">
-        <span className="label">{t('Request message')}</span>
-        <div className="payment-request-preview-actions">
-          <button type="button" className="csv-btn" onClick={() => void copyMessage()}>
-            {copied === 'text' ? t('Copied') : t('Copy message')}
-          </button>
-          {qrSrc ? (
-            <button type="button" className="csv-btn" onClick={() => void copyQr()}>
-              {copied === 'qr' ? t('Copied') : t('Copy QR')}
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <p className="muted payment-request-copy-hint">
-        {/^https:\/\//i.test(payHref)
-          ? t('Paste this message in WhatsApp, then Copy QR and attach the image.')
-          : t(
-              'WhatsApp will not make UPI text tappable. Copy the QR and attach it in the same chat.',
-            )}
-      </p>
-      <textarea
-        ref={areaRef}
-        className="visually-hidden"
-        readOnly
-        value={text}
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-      <div className="payment-request-preview-body">
-        {chunks.map((chunk, index) => {
-          if (/^upi:\/\/pay\?/i.test(chunk)) {
-            return (
-              <a
-                key={`upi-${index}`}
-                className="wa-chat-upi-link"
-                href={chunk}
-                onClick={(event) => {
-                  event.preventDefault();
-                  openPayLaunch(chunk);
-                }}
-              >
-                {chunk}
-              </a>
-            );
-          }
-          if (/^https?:\/\//i.test(chunk)) {
-            return (
-              <a
-                key={`http-${index}`}
-                className="wa-chat-upi-link"
-                href={chunk}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {chunk}
-              </a>
-            );
-          }
-          return <span key={`t-${index}`}>{chunk}</span>;
-        })}
-        {qrSrc ? (
-          <QrImage
-            value={qrValue}
-            encodeValue={/^https:\/\//i.test(payHref) ? payHref : undefined}
-            alt={t('Payment QR code')}
-            className="payment-request-preview-qr"
-            size={180}
-          />
-        ) : null}
-      </div>
-      {payHref || qrSrc ? (
-        <div className="payment-request-preview-actions">
-          {payHref ? (
-            <a
-              className="csv-btn payment-request-pay-link"
-              href={payHref}
-              target={payHref.toLowerCase().startsWith('upi:') ? undefined : '_blank'}
-              rel={payHref.toLowerCase().startsWith('upi:') ? undefined : 'noreferrer'}
-              onClick={(event) => {
-                if (!payHref.toLowerCase().startsWith('upi:')) return;
-                event.preventDefault();
-                openPayLaunch(payHref);
-              }}
-            >
-              {t('Pay now')}
-            </a>
-          ) : null}
-          {qrSrc ? (
-            <button type="button" className="csv-btn" onClick={downloadQr}>
-              {t('Download QR')}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function sampleProfileFromRow(row: PendingSwimmer): SwimmerProfile {
@@ -505,8 +337,6 @@ export function PassPayment() {
   const [onlineDetailsLoading, setOnlineDetailsLoading] = useState(false);
   const [holidayRecords, setHolidayRecords] = useState<HolidayRecord[]>([]);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
-  const [waRequesting, setWaRequesting] = useState(false);
-  const [waRequestMessage, setWaRequestMessage] = useState('');
   const [assignmentCount, setAssignmentCount] = useState<number | null>(null);
   const [assignmentCountLoading, setAssignmentCountLoading] = useState(false);
   const [swimmerProfile, setSwimmerProfile] = useState<SwimmerProfile | null>(null);
@@ -639,7 +469,6 @@ export function PassPayment() {
     setError('');
     setMissingFields([]);
     setSuccessMessage('');
-    setWaRequestMessage('');
     clearIssueCloseTimer();
     setIssueSuccessMessage('');
     setDetailsConfirmed(false);
@@ -685,7 +514,6 @@ export function PassPayment() {
     setMissingFields([]);
     setSuccessMessage('');
     setIssueSuccessMessage('');
-    setWaRequestMessage('');
   }
 
   function scheduleCloseAfterIssue(afterClose?: () => void) {
@@ -824,6 +652,106 @@ export function PassPayment() {
       cancelled = true;
     };
   }, [paying, samplePaying, paymentMode]);
+
+  useEffect(() => {
+    if (samplePaying || paymentMode !== 'Online') return;
+    setTransactionId('');
+    setPaymentReceived(false);
+  }, [paying?.id, samplePaying, paymentMode, passTypeId, batch, coach]);
+
+  useEffect(() => {
+    if (
+      !paying ||
+      samplePaying ||
+      paymentMode !== 'Online' ||
+      !selectedPass ||
+      !batch.trim() ||
+      !passValidUntil
+    ) {
+      return;
+    }
+    if (coachingRequired && !coach.trim()) return;
+
+    let cancelled = false;
+    let timer: number | null = null;
+    const registrationId = paying.id;
+    const passName = selectedPass.passName;
+
+    async function pollScreenshot() {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/registrations/${registrationId}/payment-screenshot`);
+        const body = (await res.json().catch(() => ({}))) as {
+          upiOk?: boolean;
+          amountMatched?: boolean;
+          transactionId?: string;
+        };
+        if (!cancelled && res.ok && body.upiOk && body.amountMatched) {
+          const txn = String(body.transactionId ?? '').trim();
+          if (txn) {
+            setTransactionId((prev) => (prev.trim() ? prev : txn));
+          }
+          setPaymentReceived(true);
+        }
+      } catch {
+        /* keep polling */
+      }
+      if (!cancelled) {
+        timer = window.setTimeout(() => {
+          void pollScreenshot();
+        }, 4000);
+      }
+    }
+
+    fetch(`/api/registrations/${registrationId}/expect-online-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        passType: passName,
+        batch: batch.trim(),
+        coach: coachingRequired ? coach.trim() : '',
+        passValidUntil,
+      }),
+    })
+      .then(async (res) => {
+        const body = (await res.json().catch(() => ({}))) as {
+          screenshot?: {
+            upiOk?: boolean;
+            amountMatched?: boolean;
+            transactionId?: string;
+          };
+        };
+        if (cancelled) return;
+        const shot = body.screenshot;
+        if (res.ok && shot?.upiOk && shot.amountMatched) {
+          const txn = String(shot.transactionId ?? '').trim();
+          if (txn) {
+            setTransactionId((prev) => (prev.trim() ? prev : txn));
+          }
+          setPaymentReceived(true);
+        }
+      })
+      .catch(() => {
+        /* poll anyway — screenshot may arrive later */
+      })
+      .finally(() => {
+        if (!cancelled) void pollScreenshot();
+      });
+
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [
+    paying,
+    samplePaying,
+    paymentMode,
+    selectedPass,
+    batch,
+    coach,
+    coachingRequired,
+    passValidUntil,
+  ]);
 
   const selectedBatchSlot = useMemo(
     () => activeBatches.find((slot) => batchLabel(slot) === batch) ?? null,
@@ -981,90 +909,6 @@ export function PassPayment() {
   function showMissing(missing: string[]) {
     setMissingFields(missing);
     setError(missing.length ? 'Please complete the missing items below.' : '');
-  }
-
-  async function onRequestWhatsAppPayment() {
-    const preview = (payLink?: string) => {
-      if (!paying || !selectedPass) return '';
-      const amount =
-        Math.round(
-          (Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0)) * 100,
-        ) / 100;
-      return buildPassPaymentRequestMessage({
-        fullName: paying.fullName,
-        passType: selectedPass.passName,
-        amount,
-        passValidUntil,
-        upiId: samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails,
-        payLink,
-      }).body;
-    };
-
-    if (samplePaying) {
-      const missing = collectSharedMissing();
-      if (missing.length) {
-        showMissing(missing);
-        return;
-      }
-      setError('');
-      setMissingFields([]);
-      setWaRequestMessage(preview());
-      return;
-    }
-    const missing = collectSharedMissing();
-    if (missing.length) {
-      showMissing(missing);
-      return;
-    }
-    if (!paying || !selectedPass) {
-      showMissing(['Pass']);
-      return;
-    }
-    if (!confirmAssignmentIfOverLimit()) return;
-
-    setWaRequesting(true);
-    setError('');
-    setMissingFields([]);
-    setWaRequestMessage('');
-    try {
-      const assignedCoach = !coachingRequired
-        ? null
-        : coach || (selectedPass.coach !== 'Any' ? selectedPass.coach : null);
-      const res = await fetch(`/api/registrations/${paying.id}/pass-payment-intent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          passType: selectedPass.passName,
-          coach: assignedCoach,
-          batch: batch.trim(),
-          passValidUntil,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Failed to send payment request');
-
-      setWaRequestMessage(String(body.message ?? '').trim() || preview(body.payLink));
-
-      if (body.whatsapp?.ok === false) {
-        setError(
-          `${t('Payment request saved, but WhatsApp failed')}: ${
-            body.whatsapp.error || t('send failed')
-          }. ${t('Swimmer can still send the screenshot to the business number.')}`,
-        );
-      } else if (body.whatsapp?.ok && body.whatsapp?.qrSent === false) {
-        setError(
-          t('WhatsApp message sent without the QR. Copy QR and attach it in the same chat.'),
-        );
-      } else if (body.whatsapp?.skipped) {
-        setError('');
-      }
-    } catch (err) {
-      setMissingFields([]);
-      setWaRequestMessage(preview());
-      setError(err instanceof Error ? err.message : 'Failed to send payment request');
-    } finally {
-      setWaRequesting(false);
-    }
   }
 
   async function onConfirmPay(e: FormEvent) {
@@ -1521,24 +1365,6 @@ export function PassPayment() {
                     <div className="payment-mode-online-followup">
                       {onlineDetailsLoading && !samplePaying ? (
                         <p className="muted payment-mode-online-muted">{t('Loading payment details…')}</p>
-                      ) : onlineUpi ? (
-                        <>
-                          <span className="online-payment-upi-heading">
-                            <span className="label">{t('UPI ID')}</span>
-                            <span className="online-payment-upi-sep" aria-hidden="true">
-                              -
-                            </span>
-                          </span>
-                          <span className="online-payment-upi-value">{onlineUpi}</span>
-                          <button
-                            type="button"
-                            className="csv-btn payment-wa-request-btn"
-                            disabled={waRequesting}
-                            onClick={() => void onRequestWhatsAppPayment()}
-                          >
-                            {waRequesting ? t('Sending…') : t('Send payment request')}
-                          </button>
-                        </>
                       ) : (
                         <>
                           <span className="online-payment-upi-heading">
@@ -1547,22 +1373,15 @@ export function PassPayment() {
                               -
                             </span>
                           </span>
-                          <p className="muted payment-mode-online-muted">
-                            {t('No UPI ID set in Pool Core Info.')}
-                          </p>
-                          <button
-                            type="button"
-                            className="csv-btn payment-wa-request-btn"
-                            disabled={waRequesting}
-                            onClick={() => void onRequestWhatsAppPayment()}
-                          >
-                            {waRequesting ? t('Sending…') : t('Send payment request')}
-                          </button>
+                          {onlineUpi ? (
+                            <span className="online-payment-upi-value">{onlineUpi}</span>
+                          ) : (
+                            <p className="muted payment-mode-online-muted">
+                              {t('No UPI ID set in Pool Core Info.')}
+                            </p>
+                          )}
                         </>
                       )}
-                      {waRequestMessage ? (
-                        <PaymentRequestPreview text={waRequestMessage} qrValue={amountLockedUpiQr} />
-                      ) : null}
                     </div>
                   ) : null}
 

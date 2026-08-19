@@ -356,6 +356,10 @@ CREATE TABLE IF NOT EXISTS whatsapp_inbound (
   status TEXT NOT NULL DEFAULT 'received',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS ocr_upi_ok BOOLEAN;
+ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS ocr_amount NUMERIC(12, 2);
+ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS ocr_transaction_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS payment_notice_sent BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_whatsapp_inbound_account ON whatsapp_inbound (saas_account_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_outbound_account ON whatsapp_outbound (saas_account_id, created_at DESC);

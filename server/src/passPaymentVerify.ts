@@ -7,9 +7,6 @@ import {
   upiIdPresentInText,
   uploadAbsolutePath,
 } from './paymentAmount.js';
-import { notifyPassIssued } from './whatsapp/notify.js';
-import { maybeNotifyBatchCoachOverLimit } from './batchCapacity.js';
-import { maybeNotifyPackageSwimmerCapacity } from './packageCapacityWarnings.js';
 import { sendWhatsAppText } from './whatsapp/client.js';
 import { getWhatsAppConfig } from './whatsapp/config.js';
 
@@ -75,9 +72,34 @@ async function replyText(saasAccountId: number, mobile: string, body: string, ki
   }
 }
 
+export type PassScreenshotStatus = {
+  upiOk: boolean;
+  amountMatched: boolean;
+  transactionId: string;
+  detectedAmount: number | null;
+  expectedAmount: number | null;
+};
+
+function screenshotStatusFromRow(row: Record<string, unknown> | undefined): PassScreenshotStatus {
+  const expected = row?.expected_amount == null ? null : Number(row.expected_amount);
+  const detected = row?.detected_amount == null ? null : Number(row.detected_amount);
+  const notes = String(row?.notes ?? '');
+  const matched = notes.includes('Screenshot matched');
+  const upiFailed = notes.includes('UPI ID not found');
+  const amountFailed = notes.includes('Amount not');
+  return {
+    upiOk: matched || (Boolean(notes) && !upiFailed),
+    amountMatched: matched && !amountFailed,
+    transactionId: String(row?.transaction_id ?? '').trim(),
+    detectedAmount: Number.isFinite(detected as number) ? detected : null,
+    expectedAmount: Number.isFinite(expected as number) ? expected : null,
+  };
+}
+
 /**
- * Verify pass payment screenshot against a pending intent for this account + mobile.
- * Matches pool UPI + expected amount, then issues the pass and confirms on WhatsApp.
+ * Verify pass payment screenshot: UPI first, then amount.
+ * On match, save the transaction ID and send a payment-received WhatsApp.
+ * Does not issue the pass — staff confirms it on Pass Payment.
  */
 export async function processPassPaymentInbound(params: {
   saasAccountId: number;
@@ -102,18 +124,6 @@ export async function processPassPaymentInbound(params: {
      LIMIT 1`,
     [params.saasAccountId, params.fromMobileLast10, params.registrationId ?? null],
   );
-  if (!pending.rows[0]) return false;
-
-  const intent = pending.rows[0] as Record<string, unknown>;
-  const intentId = Number(intent.id);
-  const registrationId = Number(intent.registration_id);
-  const expected = Number(intent.expected_amount);
-  const passType = String(intent.pass_type ?? '');
-  const batch = String(intent.batch ?? '');
-  const coach = String(intent.coach ?? '');
-  const passValidUntil = String(intent.pass_valid_until).slice(0, 10);
-  const passCharges = Number(intent.pass_charges ?? 0);
-  const coachingCharges = Number(intent.coaching_charges ?? 0);
 
   let textBlob = String(params.caption ?? '');
   if (params.relativeFilePath) {
@@ -133,176 +143,216 @@ export async function processPassPaymentInbound(params: {
   const configuredUpi = String(poolPay.rows[0]?.upi_details ?? '').trim();
   const upiOk = upiIdPresentInText(configuredUpi, textBlob);
   const found = extractPaymentAmounts(textBlob);
-  const matched = amountsMatch(expected, found);
-  const detected = found.find((a) => Math.abs(a - expected) <= 1) ?? found[0] ?? null;
   const transactionId = extractTransactionId(textBlob) ?? '';
+  const detected = found[0] ?? null;
 
-  if (!matched || !upiOk) {
-    const reasons: string[] = [];
-    if (!matched) {
-      reasons.push(
-        found.length
-          ? `Amount not matched. Expected ₹${expected}, found: ${found.join(', ')}`
-          : `Amount not found. Expected ₹${expected}`,
+  await pool.query(
+    `UPDATE whatsapp_inbound
+        SET ocr_upi_ok = $1,
+            ocr_amount = $2,
+            ocr_transaction_id = $3
+      WHERE id = $4`,
+    [upiOk, detected, transactionId, params.inboundId],
+  );
+
+  if (!pending.rows[0]) {
+    return Boolean(params.registrationId);
+  }
+
+  const intent = pending.rows[0] as Record<string, unknown>;
+  const intentId = Number(intent.id);
+  const expected = Number(intent.expected_amount);
+  const alreadyMatched = String(intent.notes ?? '').includes('Screenshot matched');
+  if (alreadyMatched) {
+    if (transactionId) {
+      await pool.query(
+        `UPDATE pass_payment_intents
+            SET transaction_id = COALESCE(NULLIF($1, ''), transaction_id)
+          WHERE id = $2 AND status = 'pending'`,
+        [transactionId, intentId],
       );
     }
-    if (!upiOk) {
-      reasons.push(
+    return true;
+  }
+  if (Number(intent.inbound_id) === params.inboundId && String(intent.notes ?? '').trim()) {
+    return true;
+  }
+
+  if (!upiOk) {
+    await pool.query(
+      `UPDATE pass_payment_intents
+          SET inbound_id = $1,
+              detected_amount = $2,
+              transaction_id = COALESCE(NULLIF($3, ''), transaction_id),
+              notes = $4
+        WHERE id = $5 AND status = 'pending'`,
+      [
+        params.inboundId,
+        detected,
+        transactionId,
         configuredUpi
           ? `UPI ID not found in screenshot. Expected payment to ${configuredUpi}`
           : 'Pool UPI ID could not be verified',
-      );
-    }
-
-    await pool.query(
-      `UPDATE pass_payment_intents
-       SET inbound_id = $1,
-           detected_amount = $2,
-           transaction_id = COALESCE(NULLIF($3, ''), transaction_id),
-           notes = $4
-       WHERE id = $5 AND status = 'pending'`,
-      [params.inboundId, detected, transactionId, reasons.join(' | '), intentId],
+        intentId,
+      ],
     );
-
     await replyText(
       params.saasAccountId,
       params.fromMobileLast10,
       [
-        'We received your pass payment screenshot, but could not confirm it yet.',
-        ...reasons,
-        '',
-        'Please pay the exact amount to the pool UPI / QR and send the payment screenshot again.',
+        'We received your payment screenshot, but the UPI ID did not match.',
+        configuredUpi ? `Please pay to *${configuredUpi}* and send the screenshot again.` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      'pass_payment_mismatch',
+    );
+    return true;
+  }
+
+  const amountOk = amountsMatch(expected, found);
+  if (!amountOk) {
+    await pool.query(
+      `UPDATE pass_payment_intents
+          SET inbound_id = $1,
+              detected_amount = $2,
+              transaction_id = COALESCE(NULLIF($3, ''), transaction_id),
+              notes = $4
+        WHERE id = $5 AND status = 'pending'`,
+      [
+        params.inboundId,
+        detected,
+        transactionId,
+        found.length
+          ? `Amount not matched. Expected ₹${expected}, found: ${found.join(', ')}`
+          : `Amount not found. Expected ₹${expected}`,
+        intentId,
+      ],
+    );
+    await replyText(
+      params.saasAccountId,
+      params.fromMobileLast10,
+      [
+        'We received your payment screenshot. The UPI ID matched, but the amount did not.',
+        `Please pay *₹${expected.toLocaleString('en-IN')}* and send the screenshot again.`,
       ].join('\n'),
       'pass_payment_mismatch',
     );
     return true;
   }
 
-  const client = await pool.connect();
-  let swimmerName = '';
-  let mobile = params.fromMobileLast10;
-  try {
-    await client.query('BEGIN');
+  const matchedAmount = found.find((a) => Math.abs(a - expected) <= 1) ?? expected;
+  await pool.query(
+    `UPDATE pass_payment_intents
+        SET inbound_id = $1,
+            detected_amount = $2,
+            transaction_id = COALESCE(NULLIF($3, ''), transaction_id),
+            notes = 'Screenshot matched'
+      WHERE id = $4 AND status = 'pending'`,
+    [params.inboundId, matchedAmount, transactionId, intentId],
+  );
 
-    const locked = await client.query(
-      `UPDATE pass_payment_intents
-       SET status = 'verified',
-           inbound_id = $1,
-           detected_amount = $2,
-           transaction_id = $3,
-           verified_at = NOW(),
-           notes = 'Payment verified'
-       WHERE id = $4 AND status = 'pending'
-       RETURNING id`,
-      [params.inboundId, detected ?? expected, transactionId, intentId],
-    );
-    if ((locked.rowCount ?? 0) === 0) {
-      await client.query('ROLLBACK');
-      return true;
-    }
-
-    await client.query(
-      `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ`,
-    );
-
-    const updated = await client.query(
-      `UPDATE registrations
-       SET pass_type = $1,
-           batch = NULLIF($2, ''),
-           coach = NULLIF($3, ''),
-           pass_valid_until = $4::date,
-           is_active = TRUE,
-           inactive_at = NULL
-       WHERE id = $5 AND saas_account_id = $6
-       RETURNING id, full_name, whatsapp_mobile, pass_valid_until`,
-      [passType, batch, coach, passValidUntil, registrationId, params.saasAccountId],
-    );
-    if (!updated.rows[0]) {
-      await client.query('ROLLBACK');
-      return true;
-    }
-
-    swimmerName = String(updated.rows[0].full_name ?? '');
-    mobile = String(updated.rows[0].whatsapp_mobile ?? params.fromMobileLast10)
-      .replace(/\D/g, '')
-      .slice(-10);
-
-    await client.query(
-      `INSERT INTO pass_payments
-       (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges,
-        amount, payment_date, payment_mode, transaction_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, 'Online', $8)`,
+  if (!alreadyMatched) {
+    await replyText(
+      params.saasAccountId,
+      params.fromMobileLast10,
       [
-        params.saasAccountId,
-        registrationId,
-        swimmerName,
-        passType,
-        passCharges,
-        coachingCharges,
-        expected,
-        transactionId || null,
-      ],
+        'Payment received. Thank you!',
+        '',
+        `Amount: ₹${expected.toLocaleString('en-IN')}`,
+        transactionId ? `Transaction ID: ${transactionId}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      'pass_payment_received',
     );
-
-    await client.query(
-      `UPDATE pass_payment_intents
-       SET status = 'cancelled', notes = 'Superseded by verified payment'
-       WHERE registration_id = $1 AND status = 'pending' AND id <> $2`,
-      [registrationId, intentId],
-    );
-
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
+    await pool.query(`UPDATE whatsapp_inbound SET payment_notice_sent = TRUE WHERE id = $1`, [
+      params.inboundId,
+    ]);
   }
 
-  const account = await pool.query(`SELECT account_code FROM saas_accounts WHERE id = $1`, [
-    params.saasAccountId,
-  ]);
-
-  await replyText(
-    params.saasAccountId,
-    mobile,
-    [
-      'Payment confirmation: pass payment received. Thank you!',
-      '',
-      `Swimmer: ${swimmerName}`,
-      `Pass: ${passType}`,
-      `Amount: ₹${expected.toLocaleString('en-IN')}`,
-      transactionId ? `Transaction ID: ${transactionId}` : '',
-      `Valid until: ${passValidUntil}`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    'pass_payment_verified',
-  );
-
-  void notifyPassIssued({
-    mobile,
-    fullName: swimmerName,
-    passType,
-    passValidUntil,
-    registrationId,
-    accountCode: String(account.rows[0]?.account_code ?? ''),
-    saasAccountId: params.saasAccountId,
-  }).catch((err) => console.warn('[whatsapp] pass notify after WA payment failed', err));
-
-  void maybeNotifyBatchCoachOverLimit({
-    saasAccountId: params.saasAccountId,
-    registrationId,
-    swimmerName,
-    passType,
-    batch,
-    coach,
-    source: 'whatsapp_verified',
-  }).catch((err) => console.warn('[whatsapp] batch capacity notify failed', err));
-
-  void maybeNotifyPackageSwimmerCapacity(params.saasAccountId).catch((err) =>
-    console.warn('[whatsapp] package capacity notify failed', err),
-  );
-
   return true;
+}
+
+export async function applyLatestScreenshotToIntent(params: {
+  saasAccountId: number;
+  registrationId: number;
+}) {
+  const inbound = await pool.query(
+    `SELECT id, ocr_upi_ok, ocr_amount, ocr_transaction_id, payment_notice_sent, caption, file_path
+       FROM whatsapp_inbound
+      WHERE saas_account_id = $1
+        AND registration_id = $2
+        AND file_path IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [params.saasAccountId, params.registrationId],
+  );
+  const row = inbound.rows[0] as
+    | {
+        id: number;
+        ocr_upi_ok: boolean | null;
+        ocr_amount: string | number | null;
+        ocr_transaction_id: string | null;
+        payment_notice_sent: boolean | null;
+        caption: string | null;
+        file_path: string | null;
+      }
+    | undefined;
+  if (!row) return;
+
+  const intent = await pool.query(
+    `SELECT id, from_mobile, expected_amount, notes
+       FROM pass_payment_intents
+      WHERE saas_account_id = $1 AND registration_id = $2 AND status = 'pending'
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [params.saasAccountId, params.registrationId],
+  );
+  if (!intent.rows[0]) return;
+
+  await processPassPaymentInbound({
+    saasAccountId: params.saasAccountId,
+    fromMobileLast10: String(intent.rows[0].from_mobile ?? '')
+      .replace(/\D/g, '')
+      .slice(-10),
+    caption: String(row.caption ?? ''),
+    relativeFilePath: row.file_path,
+    inboundId: Number(row.id),
+    registrationId: params.registrationId,
+  });
+}
+
+export async function getPassPaymentScreenshot(params: {
+  saasAccountId: number;
+  registrationId: number;
+}): Promise<PassScreenshotStatus> {
+  const { rows } = await pool.query(
+    `SELECT transaction_id, detected_amount, expected_amount, notes
+       FROM pass_payment_intents
+      WHERE saas_account_id = $1 AND registration_id = $2 AND status = 'pending'
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [params.saasAccountId, params.registrationId],
+  );
+  if (rows[0]) {
+    return screenshotStatusFromRow(rows[0] as Record<string, unknown>);
+  }
+
+  const inbound = await pool.query(
+    `SELECT ocr_upi_ok, ocr_amount, ocr_transaction_id
+       FROM whatsapp_inbound
+      WHERE saas_account_id = $1 AND registration_id = $2 AND file_path IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [params.saasAccountId, params.registrationId],
+  );
+  const w = inbound.rows[0];
+  return {
+    upiOk: w?.ocr_upi_ok === true,
+    amountMatched: false,
+    transactionId: String(w?.ocr_transaction_id ?? '').trim(),
+    detectedAmount: w?.ocr_amount == null ? null : Number(w.ocr_amount),
+    expectedAmount: null,
+  };
 }

@@ -58,4 +58,16 @@ export async function ensureSchema() {
       ON pass_payment_intents (share_token)
       WHERE share_token IS NOT NULL AND TRIM(share_token) <> '';
   `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.whatsapp_inbound') IS NULL THEN
+        RETURN;
+      END IF;
+      ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS ocr_upi_ok BOOLEAN;
+      ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS ocr_amount NUMERIC(12, 2);
+      ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS ocr_transaction_id TEXT NOT NULL DEFAULT '';
+      ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS payment_notice_sent BOOLEAN NOT NULL DEFAULT FALSE;
+    END $$;
+  `);
 }

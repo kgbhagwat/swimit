@@ -110,16 +110,6 @@ export function parseUpiPayFields(upiUri: string) {
   };
 }
 
-/** Payee only — user types the amount in the UPI app (GPay rejects pre-filled collect). */
-export function upiPayeeOnlyUri(upiUri: string) {
-  const { pa, pn } = parseUpiPayFields(upiUri);
-  if (!pa) return '';
-  return `upi://pay?${upiQuery([
-    ['pa', pa],
-    ['pn', pn],
-  ])}`;
-}
-
 export const UPI_APP_CHOICES = [
   { id: 'gpay', label: 'Google Pay' },
   { id: 'phonepe', label: 'PhonePe' },
@@ -137,23 +127,20 @@ const UPI_APP_ANDROID_PACKAGE: Record<UpiAppId, string> = {
 };
 
 function androidOpenApp(packageName: string) {
-  return `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${packageName};end`;
+  return `intent://#Intent;package=${packageName};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`;
 }
 
-/** Open the app so the user can enter the amount. Do not send a pre-filled collect. */
-export function upiAppLaunchHref(appId: UpiAppId, query: string) {
-  const payee = upiPayeeOnlyUri(`upi://pay?${query}`);
-  if (isAndroidDevice()) {
-    if (appId === 'gpay') return androidOpenApp(UPI_APP_ANDROID_PACKAGE.gpay);
-    if (payee) {
-      return `intent://pay?${upiPayQuery(payee)}#Intent;scheme=upi;package=${UPI_APP_ANDROID_PACKAGE[appId]};end`;
-    }
-    return androidOpenApp(UPI_APP_ANDROID_PACKAGE[appId]);
-  }
-  if (appId === 'gpay') return payee ? `gpay://upi/pay?${upiPayQuery(payee)}` : 'gpay://';
-  if (appId === 'phonepe') return payee ? `phonepe://upi/pay?${upiPayQuery(payee)}` : 'phonepe://';
-  if (appId === 'paytm') return payee ? `paytmmp://pay?${upiPayQuery(payee)}` : 'paytmmp://';
-  return payee ? `bhim://upi/pay?${upiPayQuery(payee)}` : 'bhim://';
+const UPI_APP_IOS_HOME: Record<UpiAppId, string> = {
+  gpay: 'gpay://',
+  phonepe: 'phonepe://',
+  paytm: 'paytmmp://',
+  bhim: 'bhim://',
+};
+
+/** Open the installed app only — never send upi://pay (GPay shows ₹0 and rejects collect). */
+export function upiAppLaunchHref(appId: UpiAppId, _query = '') {
+  if (isAndroidDevice()) return androidOpenApp(UPI_APP_ANDROID_PACKAGE[appId]);
+  return UPI_APP_IOS_HOME[appId];
 }
 
 export async function copyUpiPayee(upiUri: string) {
@@ -188,14 +175,9 @@ export function chromeHttpsIntent(httpsUrl: string) {
   }
 }
 
-export function openUpiPay(upiUri: string) {
-  const uri = upiPayeeOnlyUri(upiUri) || String(upiUri ?? '').trim();
-  if (!uri || typeof window === 'undefined') return;
-  if (isAndroidDevice()) {
-    window.location.assign(toAndroidUpiIntent(uri));
-    return;
-  }
-  window.location.assign(uri);
+export function openUpiPay(_upiUri: string) {
+  // GPay rejects upi://pay collect to personal VPAs (including amount 0).
+  // The picker opens the app home instead; the payer enters the amount there.
 }
 
 export function openUpiAppChoice(href: string) {

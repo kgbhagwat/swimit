@@ -18,6 +18,7 @@ import {
 import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
 import { newPaymentShareToken, whatsAppPayShareUrl } from '../upiPayQr.js';
 import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
+import { applyLatestScreenshotToIntent, getPassPaymentScreenshot } from '../passPaymentVerify.js';
 import {
   guessImageContentType,
   normalizeBirthdate,
@@ -1232,6 +1233,187 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create pass payment request' });
+  }
+});
+
+/** Silent pending intent so inbound screenshots can be checked against the selected pass amount. */
+registrationsRouter.post('/:id/expect-online-payment', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid swimmer id' });
+      return;
+    }
+
+    const body = req.body as {
+      passType?: string;
+      batch?: string;
+      coach?: string | null;
+      passValidUntil?: string;
+    };
+    const passType = String(body.passType ?? '').trim();
+    const batch = String(body.batch ?? '').trim();
+    const coach = String(body.coach ?? '').trim();
+    const passValidUntil = String(body.passValidUntil ?? '').trim().slice(0, 10);
+
+    if (!passType) {
+      res.status(400).json({ error: 'Select a pass type' });
+      return;
+    }
+    if (!batch) {
+      res.status(400).json({ error: 'Select a batch' });
+      return;
+    }
+
+    const ladiesError = await assertLadiesBatchForFemaleSwimmer(accountId, id, batch);
+    if (ladiesError) {
+      res.status(400).json({ error: ladiesError });
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(passValidUntil)) {
+      res.status(400).json({ error: 'Pass valid-until date is required' });
+      return;
+    }
+
+    const { rows: regRows } = await pool.query(
+      `SELECT id, whatsapp_mobile
+       FROM registrations
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    if (!regRows[0]) {
+      res.status(404).json({ error: 'Swimmer not found' });
+      return;
+    }
+
+    const mobile = String(regRows[0].whatsapp_mobile ?? '').replace(/\D/g, '').slice(-10);
+    if (mobile.length !== 10) {
+      res.status(400).json({ error: 'Swimmer WhatsApp mobile is required' });
+      return;
+    }
+
+    const passRes = await pool.query(
+      `SELECT pass_charges, coaching_charges
+       FROM pass_types
+       WHERE saas_account_id = $1
+         AND LOWER(TRIM(pass_name)) = LOWER(TRIM($2))
+       LIMIT 1`,
+      [accountId, passType],
+    );
+    if (!passRes.rows[0]) {
+      res.status(400).json({ error: 'Pass type not found' });
+      return;
+    }
+    const passCharges = Number(passRes.rows[0].pass_charges ?? 0);
+    const coachingCharges = Number(passRes.rows[0].coaching_charges ?? 0);
+    const expectedAmount = Math.round((passCharges + coachingCharges) * 100) / 100;
+    if (expectedAmount <= 0) {
+      res.status(400).json({ error: 'Pass amount must be greater than zero' });
+      return;
+    }
+
+    const poolPay = await pool.query(
+      `SELECT payment_accept_online
+       FROM pool_core_info WHERE saas_account_id = $1 LIMIT 1`,
+      [accountId],
+    );
+    if (poolPay.rows[0]?.payment_accept_online === false) {
+      res.status(400).json({ error: 'Online payment is not enabled for this pool' });
+      return;
+    }
+
+    const existing = await pool.query(
+      `SELECT id, pass_type, batch, coach, pass_valid_until::text AS pass_valid_until, expected_amount
+         FROM pass_payment_intents
+        WHERE registration_id = $1 AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [id],
+    );
+    const current = existing.rows[0] as
+      | {
+          id: number;
+          pass_type: string;
+          batch: string;
+          coach: string;
+          pass_valid_until: string;
+          expected_amount: string | number;
+        }
+      | undefined;
+    const sameIntent =
+      current &&
+      String(current.pass_type).trim().toLowerCase() === passType.toLowerCase() &&
+      String(current.batch).trim() === batch &&
+      String(current.coach ?? '').trim() === coach &&
+      String(current.pass_valid_until ?? '').slice(0, 10) === passValidUntil &&
+      Math.abs(Number(current.expected_amount) - expectedAmount) < 0.01;
+
+    if (!sameIntent) {
+      await pool.query(
+        `UPDATE pass_payment_intents
+            SET status = 'cancelled', notes = 'Superseded by Pass Payment selection'
+          WHERE registration_id = $1 AND status = 'pending'`,
+        [id],
+      );
+      await pool.query(
+        `INSERT INTO pass_payment_intents
+         (saas_account_id, registration_id, from_mobile, pass_type, batch, coach,
+          pass_valid_until, expected_amount, pass_charges, coaching_charges, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, 'pending')`,
+        [
+          accountId,
+          id,
+          mobile,
+          passType,
+          batch,
+          coach,
+          passValidUntil,
+          expectedAmount,
+          passCharges,
+          coachingCharges,
+        ],
+      );
+    }
+
+    await applyLatestScreenshotToIntent({ saasAccountId: accountId, registrationId: id });
+    const screenshot = await getPassPaymentScreenshot({
+      saasAccountId: accountId,
+      registrationId: id,
+    });
+    res.json({ ok: true, expectedAmount, screenshot });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to expect online payment' });
+  }
+});
+
+registrationsRouter.get('/:id/payment-screenshot', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid swimmer id' });
+      return;
+    }
+
+    const { rows: regRows } = await pool.query(
+      `SELECT id FROM registrations WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    if (!regRows[0]) {
+      res.status(404).json({ error: 'Swimmer not found' });
+      return;
+    }
+
+    const screenshot = await getPassPaymentScreenshot({
+      saasAccountId: accountId,
+      registrationId: id,
+    });
+    res.json(screenshot);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load payment screenshot' });
   }
 });
 

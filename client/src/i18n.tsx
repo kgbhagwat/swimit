@@ -555,6 +555,8 @@ const mr: Record<string, string> = {
   'Select an installed UPI app to pay.': 'पेमेंटसाठी इंस्टॉल केलेले UPI अॅप निवडा.',
   'Open the app, enter this amount, and complete payment to the UPI ID.':
     'अॅप उघडा, ही रक्कम टाका आणि या UPI ID वर पेमेंट पूर्ण करा.',
+  'In the app, start a new payment, paste the UPI ID, enter this amount, and pay.':
+    'अॅपमध्ये नवीन पेमेंट सुरू करा, UPI ID पेस्ट करा, ही रक्कम टाका आणि पैसे भरा.',
   'Copy UPI ID': 'UPI ID कॉपी करा',
   'More payment apps': 'इतर पेमेंट अॅप्स',
   'Google Pay': 'Google Pay',

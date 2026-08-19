@@ -6,9 +6,7 @@ import {
   copyUpiPayee,
   isAndroidDevice,
   isInAppBrowser,
-  isMobileUpiClient,
   openUpiAppChoice,
-  openUpiPay,
   parseUpiPayFields,
   upiAppLaunchHref,
   upiPayQuery,
@@ -47,9 +45,7 @@ export function UpiAppPicker({
     void copyPayee();
     if (isAndroidDevice() && isInAppBrowser()) {
       openUpiAppChoice(chromeHttpsIntent(window.location.href));
-      return;
     }
-    openUpiPay(uri);
   }
 
   const list = (
@@ -67,7 +63,7 @@ export function UpiAppPicker({
           </p>
         ) : null}
         <p className="upi-pay-summary-hint">
-          {t('Open the app, enter this amount, and complete payment to the UPI ID.')}
+          {t('In the app, start a new payment, paste the UPI ID, enter this amount, and pay.')}
         </p>
         <button type="button" className="upi-pay-copy" onClick={() => void copyPayee()}>
           {copied ? t('Copied') : t('Copy UPI ID')}
@@ -128,13 +124,7 @@ export function UpiPayAppButton({
       <button
         type="button"
         className={className}
-        onClick={() => {
-          if (isMobileUpiClient()) {
-            setOpen(true);
-            return;
-          }
-          openUpiPay(uri);
-        }}
+        onClick={() => setOpen(true)}
       >
         {children}
       </button>
