@@ -174,9 +174,9 @@ export async function processPassPaymentInbound(params: {
     }
     return true;
   }
-  if (Number(intent.inbound_id) === params.inboundId && String(intent.notes ?? '').trim()) {
-    return true;
-  }
+  const sameInbound = Number(intent.inbound_id) === params.inboundId;
+  const alreadyUpiMismatch = String(intent.notes ?? '').includes('UPI ID not found');
+  const alreadyAmountMismatch = String(intent.notes ?? '').includes('Amount not');
 
   if (!upiOk) {
     await pool.query(
@@ -196,17 +196,19 @@ export async function processPassPaymentInbound(params: {
         intentId,
       ],
     );
-    await replyText(
-      params.saasAccountId,
-      params.fromMobileLast10,
-      [
-        'We received your payment screenshot, but the UPI ID did not match.',
-        configuredUpi ? `Please pay to *${configuredUpi}* and send the screenshot again.` : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-      'pass_payment_mismatch',
-    );
+    if (!sameInbound || !alreadyUpiMismatch) {
+      await replyText(
+        params.saasAccountId,
+        params.fromMobileLast10,
+        [
+          'We received your payment screenshot, but the UPI ID did not match.',
+          configuredUpi ? `Please pay to *${configuredUpi}* and send the screenshot again.` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        'pass_payment_mismatch',
+      );
+    }
     return true;
   }
 
@@ -229,15 +231,17 @@ export async function processPassPaymentInbound(params: {
         intentId,
       ],
     );
-    await replyText(
-      params.saasAccountId,
-      params.fromMobileLast10,
-      [
-        'We received your payment screenshot. The UPI ID matched, but the amount did not.',
-        `Please pay *₹${expected.toLocaleString('en-IN')}* and send the screenshot again.`,
-      ].join('\n'),
-      'pass_payment_mismatch',
-    );
+    if (!sameInbound || !alreadyAmountMismatch) {
+      await replyText(
+        params.saasAccountId,
+        params.fromMobileLast10,
+        [
+          'We received your payment screenshot. The UPI ID matched, but the amount did not.',
+          `Please pay *₹${expected.toLocaleString('en-IN')}* and send the screenshot again.`,
+        ].join('\n'),
+        'pass_payment_mismatch',
+      );
+    }
     return true;
   }
 
