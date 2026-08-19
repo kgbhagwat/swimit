@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DownloadButton } from './DownloadButton';
+import { saveCsvFile } from './csvDownload';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
@@ -236,13 +237,7 @@ function ActivityLogBody({
           .join(','),
       ),
     ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `activity-log-${code}-${from || 'from'}-to-${to || 'to'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    saveCsvFile(`activity-log-${code}-${from || 'from'}-to-${to || 'to'}.csv`, lines.join('\n'));
   }
 
   return (

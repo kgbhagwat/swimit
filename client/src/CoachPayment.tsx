@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { saveCsvFile } from './csvDownload';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
@@ -459,13 +460,7 @@ export function CoachPayment() {
       ),
       ['', '', '', '', t('Grand total'), String(summary.grandTotal)].map(csvEscape).join(','),
     ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `coach-payment-summary-${month}-${basis}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveCsvFile(`coach-payment-summary-${month}-${basis}.csv`, lines.join('\n'));
   }
 
   function downloadDetailCsv() {
@@ -510,13 +505,10 @@ export function CoachPayment() {
       ),
       ['', '', '', '', '', '', t('Total'), String(result.total)].map(csvEscape).join(','),
     ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `coach-payment-${coach.replace(/\s+/g, '-').toLowerCase()}-${month}-${basis}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveCsvFile(
+      `coach-payment-${coach.replace(/\s+/g, '-').toLowerCase()}-${month}-${basis}.csv`,
+      lines.join('\n'),
+    );
   }
 
   return (

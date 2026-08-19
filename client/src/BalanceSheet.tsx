@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { saveCsvFile } from './csvDownload';
 import { useT } from './i18n';
 import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
@@ -233,13 +234,7 @@ export function BalanceSheet() {
         .map(csvEscape)
         .join(','),
     ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `balance-sheet-${month}${filter === 'all' ? '' : `-${filter}`}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveCsvFile(`balance-sheet-${month}${filter === 'all' ? '' : `-${filter}`}.csv`, lines.join('\n'));
   }
 
   return (

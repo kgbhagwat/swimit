@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT } from './i18n';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { saveCsvFile } from './csvDownload';
 import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
 import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
@@ -390,13 +391,7 @@ export function AttendanceSheet() {
         }),
       ];
     }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `attendance-sheet-${view}-${month}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveCsvFile(`attendance-sheet-${view}-${month}.csv`, lines.join('\n'));
   }
 
   const summaryText = (() => {

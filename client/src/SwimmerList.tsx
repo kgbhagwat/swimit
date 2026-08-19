@@ -8,6 +8,7 @@ import {
   resetSampleSwimmerPreview,
 } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { csvPlain, saveCsvFile } from './csvDownload';
 import { formatBatchDisplay } from './IdCard';
 import { downloadSelectedPassQrPdf } from './printPassQrPdf';
 import { InPageSelect } from './InPageSelect';
@@ -188,17 +189,11 @@ function downloadCsv(rows: SwimmerRow[]) {
         row.coach,
         belongsOnActiveList(row) ? 'Active' : 'Inactive',
       ]
-        .map(csvEscape)
+        .map((cell) => csvEscape(csvPlain(cell)))
         .join(','),
     ),
   ];
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `swimmer-list-${todayIso()}.csv`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  saveCsvFile(`swimmer-list-${todayIso()}.csv`, lines.join('\n'));
 }
 
 function mapRow(row: RegistrationApiRow): SwimmerRow {

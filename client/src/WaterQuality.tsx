@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
+import { saveCsvFile } from './csvDownload';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
@@ -388,13 +389,7 @@ export function WaterQuality() {
           .join(','),
       ),
     ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `water-quality-${month}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveCsvFile(`water-quality-${month}.csv`, lines.join('\n'));
   }
 
   return (
