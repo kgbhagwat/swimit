@@ -14690,21 +14690,38 @@ html.sensitive-screen-cover-on::before {
 }
 
 .public-open-form {
-  min-height: 100%;
-  padding-bottom: 2rem;
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 2rem;
+  box-sizing: border-box;
+  background: var(--bg);
+}
+
+.public-open-form.page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  min-height: 100vh;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1.25rem clamp(1.25rem, 3vw, 2.5rem);
 }
 
 .public-pool-banner {
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  width: min(860px, calc(100% - 1.5rem));
-  margin: 1rem auto 0.35rem;
-  padding: 0.85rem 1rem;
-  background: linear-gradient(165deg, #e8f1ff 0%, #f7fbff 100%);
-  border: 1px solid #c5d4ea;
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(10, 35, 70, 0.12);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0.7rem clamp(1.25rem, 3vw, 2.5rem);
+  background: rgba(255, 255, 255, 0.92);
+  border: 0;
+  border-bottom: 1px solid rgba(47, 111, 237, 0.08);
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
 }
 
 .public-pool-logo {
@@ -14741,8 +14758,30 @@ html.sensitive-screen-cover-on::before {
 }
 
 .public-open-form .page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
   box-shadow: none;
-  background: #fff;
+  background: transparent;
+  padding: 0.35rem clamp(1.25rem, 3vw, 2.5rem) 1.5rem;
+}
+
+.public-open-form .registration-form.pass-form-card {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 860px) {
+  .public-open-form .grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1100px) {
+  .public-open-form .grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
 }
 
 /* Account dashboard */

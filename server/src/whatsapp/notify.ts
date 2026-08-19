@@ -605,19 +605,6 @@ export async function notifyPassIssued(params: {
     return { skipped: true as const };
   }
 
-  await deliverNotice({
-    mobile: params.mobile,
-    saasAccountId: params.saasAccountId,
-    kind: 'pass_issued',
-    templateName: WA_TEMPLATES.passReady,
-    bodyTexts: [
-      templateText(params.fullName),
-      templateText(params.passType),
-      templateText(validUntil),
-    ],
-    fallbackBody: passCaption,
-  });
-
   try {
     const { rows } = await pool.query(
       `SELECT r.id, r.full_name, r.pass_type, r.batch, r.coach, r.pass_valid_until,
