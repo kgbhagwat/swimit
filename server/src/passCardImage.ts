@@ -101,13 +101,20 @@ function wrapLines(text: string, maxChars: number, maxLines: number) {
 }
 
 export async function renderPassCardPng(input: PassCardImageInput): Promise<Buffer> {
+  const qrPng = await QRCode.toBuffer(`SWIMIT:${input.id}`, {
+    type: 'png',
+    width: 240,
+    margin: 1,
+    errorCorrectionLevel: 'M',
+  });
+  const qrUri = `data:image/png;base64,${qrPng.toString('base64')}`;
   const photoUri = await fileToDataUri(input.photoPath);
   const logoUri = await fileToDataUri(input.poolLogoPath);
   const poolName = String(input.poolName ?? '').trim() || 'SwimIT';
   const poolAddress = String(input.poolAddress ?? '').trim();
   const batch = splitBatch(input.batch);
   const validUntil = formatPassDate(input.passValidUntil);
-  const addressLines = wrapLines(poolAddress, 42, 2);
+  const addressLines = wrapLines(poolAddress, 28, 2);
   const batchLines = [batch.title, batch.time].filter(Boolean);
 
   const fields: Array<{ label: string; value: string }> = [
@@ -124,7 +131,7 @@ export async function renderPassCardPng(input: PassCardImageInput): Promise<Buff
   let fieldY = 268;
   const fieldRows = fields
     .map((field) => {
-      const valueLines = wrapLines(field.value, 28, 2);
+      const valueLines = wrapLines(field.value, 22, 2);
       const row = `
         <text x="292" y="${fieldY}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="18" fill="#5b6b84" font-weight="600">${escapeXml(field.label)}</text>
         ${valueLines
@@ -174,8 +181,10 @@ export async function renderPassCardPng(input: PassCardImageInput): Promise<Buff
   <clipPath id="photoClip"><rect x="36" y="156" width="200" height="250" rx="14" /></clipPath>
   <g clip-path="url(#photoClip)">${photoBlock}</g>
   <rect x="36" y="156" width="200" height="250" rx="14" fill="none" stroke="#b8c7dc" />
+  <rect x="592" y="32" width="128" height="128" rx="12" fill="#ffffff" stroke="#d7e2f5" />
+  <image href="${qrUri}" x="598" y="38" width="116" height="116" />
   <text x="292" y="190" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#1a3568">${escapeXml(
-    wrapLines(input.fullName, 26, 1)[0],
+    wrapLines(input.fullName, 18, 1)[0],
   )}</text>
   ${fieldRows}
 </svg>`;

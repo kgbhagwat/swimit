@@ -1,7 +1,8 @@
 import { isApplicationDemo } from './applicationDemo';
 import { FilePreview } from './FilePreview';
+import { QrImage } from './QrImage';
 import { SensitiveSurface } from './sensitiveScreen';
-import { formatDisplayDate } from './swimmerPass';
+import { formatDisplayDate, idCardUrl } from './swimmerPass';
 
 export type IdCardData = {
   id: number;
@@ -170,6 +171,14 @@ export function IdCard({ data }: { data: IdCardData }) {
               </div>
             </dl>
           </div>
+        </div>
+        <div className="id-card-qr-wrap">
+          <QrImage
+            value={idCardUrl(data.id)}
+            alt={`QR code for pass ${data.id}`}
+            className="id-card-qr"
+            size={128}
+          />
         </div>
       </article>
     </SensitiveSurface>

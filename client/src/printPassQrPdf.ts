@@ -77,6 +77,7 @@ function drawPassCard(
   brand: PoolBrand,
   photo: HTMLImageElement | null,
   logo: HTMLImageElement | null,
+  qr: HTMLImageElement | null,
 ) {
   const poolName = brand.poolName?.trim() || 'SwimIT';
   const poolAddress = brand.poolAddress?.trim() || '';
@@ -100,6 +101,12 @@ function drawPassCard(
   const logoSize = Math.round(headerH * 0.72);
   const logoX = x + 12;
   const logoY = y + 10;
+  const pad = 10;
+  const qrSize = Math.round(Math.min(h * 0.46, w * 0.32, 128));
+  const qrX = x + w - pad - qrSize;
+  const qrY = y + 10;
+  const headerTextW = Math.max(40, qrX - (logoX + logoSize + 10) - 8);
+
   roundRect(ctx, logoX, logoY, logoSize, logoSize, 8);
   ctx.fillStyle = '#f7faff';
   ctx.fill();
@@ -122,17 +129,23 @@ function drawPassCard(
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#1a3568';
   ctx.font = `800 ${Math.round(h * 0.075)}px Arial, sans-serif`;
-  ctx.fillText(poolName, textX, y + 12, w - (textX - x) - 12);
+  ctx.fillText(poolName, textX, y + 12, headerTextW);
   if (poolAddress) {
     ctx.fillStyle = '#5b6b84';
     ctx.font = `500 ${Math.round(h * 0.045)}px Arial, sans-serif`;
-    const addrLines = wrapText(ctx, poolAddress, w - (textX - x) - 14, 2);
+    const addrLines = wrapText(ctx, poolAddress, headerTextW, 2);
     addrLines.forEach((line, i) => {
       ctx.fillText(line, textX, y + 12 + Math.round(h * 0.09) + i * Math.round(h * 0.055));
     });
   }
 
-  const pad = 10;
+  if (qr) {
+    ctx.fillStyle = '#ffffff';
+    roundRect(ctx, qrX - 4, qrY - 4, qrSize + 8, qrSize + 8, 8);
+    ctx.fill();
+    ctx.drawImage(qr, qrX, qrY, qrSize, qrSize);
+  }
+
   const bodyY = y + headerH + 4;
   const bodyH = h - headerH - 12;
   const maxPhotoH = Math.round(bodyH * 0.94);
@@ -172,7 +185,7 @@ function drawPassCard(
   }
 
   const fieldX = photoX + photoW + 10;
-  const fieldW = w - (fieldX - x) - pad;
+  const fieldW = Math.max(40, qrX - fieldX - 8);
   const labelW = Math.min(92, Math.round(fieldW * 0.34));
   const valueW = Math.max(40, fieldW - labelW - 6);
   ctx.textAlign = 'left';
@@ -218,28 +231,23 @@ async function renderPage(
   const margin = 36;
   const contentW = PAGE_W - margin * 2;
   const passW = Math.round(contentW / 2);
-  const gap = 24;
-  const qrColW = contentW - passW - gap;
   const rowH = (PAGE_H - margin * 2) / PAIRS_PER_PAGE;
   pairs.forEach((pair, index) => {
     const y = margin + index * rowH;
     const inner = 8;
     const pairH = rowH - inner * 2;
-    const nameH = 26;
-    const qrSize = Math.round(Math.min(pairH - nameH - 8, qrColW * 0.92, passW * 0.58));
-    drawPassCard(ctx, margin, y + inner, passW, pairH, pair.pass, pair.brand, pair.photo, pair.logo);
-    const qrX = margin + passW + gap + Math.max(0, (qrColW - qrSize) / 2);
-    const qrY = y + inner + Math.max(0, (pairH - qrSize - nameH) / 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(qrX, qrY, qrSize, qrSize);
-    ctx.drawImage(pair.qr, qrX, qrY, qrSize, qrSize);
-    ctx.strokeStyle = '#d7e2f5';
-    ctx.strokeRect(qrX + 0.5, qrY + 0.5, qrSize - 1, qrSize - 1);
-    ctx.fillStyle = '#1a3568';
-    ctx.font = '700 15px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(pair.pass.fullName, qrX + qrSize / 2, qrY + qrSize + 6, qrSize);
+    drawPassCard(
+      ctx,
+      margin,
+      y + inner,
+      passW,
+      pairH,
+      pair.pass,
+      pair.brand,
+      pair.photo,
+      pair.logo,
+      pair.qr,
+    );
   });
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));

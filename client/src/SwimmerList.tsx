@@ -376,6 +376,7 @@ export function SwimmerList() {
   const [sampleMode, setSampleMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   const [printing, setPrinting] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const canEdit = canEditPage('swimmers') && !sampleMode;
   const canToggleActive = sampleMode || canEditPage('swimmers');
 
@@ -604,13 +605,21 @@ export function SwimmerList() {
     () => visibleRows.filter((row) => hasCurrentPass(row)),
     [visibleRows],
   );
+  const selectableRows = useMemo(
+    () => (status === 'inactive' ? visibleRows : printableRows),
+    [status, visibleRows, printableRows],
+  );
   const selectedPrintable = useMemo(
     () => printableRows.filter((row) => selectedIds.has(row.id)),
     [printableRows, selectedIds],
   );
-  const allPrintableSelected =
-    printableRows.length > 0 && selectedPrintable.length === printableRows.length;
-  const somePrintableSelected = selectedPrintable.length > 0 && !allPrintableSelected;
+  const selectedSelectable = useMemo(
+    () => selectableRows.filter((row) => selectedIds.has(row.id)),
+    [selectableRows, selectedIds],
+  );
+  const allSelectableSelected =
+    selectableRows.length > 0 && selectedSelectable.length === selectableRows.length;
+  const someSelectableSelected = selectedSelectable.length > 0 && !allSelectableSelected;
 
   function toggleSelected(id: number, on: boolean) {
     setSelectedIds((prev) => {
@@ -624,10 +633,20 @@ export function SwimmerList() {
   function toggleSelectAll(on: boolean) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      for (const row of printableRows) {
+      for (const row of selectableRows) {
         if (on) next.add(row.id);
         else next.delete(row.id);
       }
+      return next;
+    });
+  }
+
+  function removeRowsFromState(ids: number[]) {
+    const idSet = new Set(ids);
+    setRows((prev) => prev.filter((item) => !idSet.has(item.id)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
       return next;
     });
   }
@@ -710,17 +729,12 @@ export function SwimmerList() {
   }
 
   async function deleteSwimmer(row: SwimmerRow) {
-    if (!canToggleActive || deletingId === row.id) return;
+    if (!canToggleActive || deletingId === row.id || deletingSelected) return;
     if (!window.confirm(`${t('Delete this swimmer?')}\n${row.swimmer}`)) return;
     setError('');
     setSuccess('');
     if (sampleMode || row.id < 0) {
-      setRows((prev) => prev.filter((item) => item.id !== row.id));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(row.id);
-        return next;
-      });
+      removeRowsFromState([row.id]);
       return;
     }
     setDeletingId(row.id);
@@ -730,16 +744,63 @@ export function SwimmerList() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? 'Failed to delete swimmer');
       }
-      setRows((prev) => prev.filter((item) => item.id !== row.id));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(row.id);
-        return next;
-      });
+      removeRowsFromState([row.id]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete swimmer');
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function deleteSelectedSwimmers() {
+    if (!canToggleActive || deletingSelected || printing) return;
+    const targets = selectedSelectable;
+    if (targets.length === 0) {
+      setError(t('Select swimmers to delete.'));
+      return;
+    }
+    const confirmMsg =
+      targets.length === 1
+        ? `${t('Delete this swimmer?')}\n${targets[0].swimmer}`
+        : `${t('Delete selected swimmers?')}\n${targets.map((row) => row.swimmer).join('\n')}`;
+    if (!window.confirm(confirmMsg)) return;
+    setError('');
+    setSuccess('');
+    const sampleTargets = targets.filter((row) => sampleMode || row.id < 0);
+    const apiTargets = targets.filter((row) => !sampleMode && row.id >= 0);
+    if (sampleTargets.length) {
+      removeRowsFromState(sampleTargets.map((row) => row.id));
+    }
+    if (apiTargets.length === 0) {
+      setSuccess(t('Selected swimmers deleted.'));
+      return;
+    }
+    setDeletingSelected(true);
+    const deletedIds: number[] = [];
+    const failed: string[] = [];
+    try {
+      for (const row of apiTargets) {
+        try {
+          const res = await fetch(`/api/registrations/${row.id}`, { method: 'DELETE' });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error ?? 'Failed to delete swimmer');
+          }
+          deletedIds.push(row.id);
+        } catch (err) {
+          failed.push(
+            `${row.swimmer}: ${err instanceof Error ? err.message : 'Failed to delete swimmer'}`,
+          );
+        }
+      }
+      if (deletedIds.length) removeRowsFromState(deletedIds);
+      if (failed.length) {
+        setError(failed.join('\n'));
+      } else {
+        setSuccess(t('Selected swimmers deleted.'));
+      }
+    } finally {
+      setDeletingSelected(false);
     }
   }
 
@@ -796,30 +857,55 @@ export function SwimmerList() {
       actions={
         !editing && !viewing ? (
           <div className="list-head-actions">
-            <button
-              type="button"
-              className="csv-btn print-pass-qr-btn"
-              onClick={() => void printSelectedPasses()}
-              disabled={printing || selectedPrintable.length === 0}
-              title={
-                selectedPrintable.length === 0
-                  ? t('Select swimmers with a pass to print.')
-                  : t('Print pass / QR')
-              }
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="M6 9V3h12v6" />
-                <path d="M6 15H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
-                <path d="M6 13h12v8H6z" />
-              </svg>
-              <span>
-                {printing
-                  ? t('Preparing PDF…')
-                  : selectedPrintable.length
-                    ? `${t('Print pass / QR')} (${selectedPrintable.length})`
-                    : t('Print pass / QR')}
-              </span>
-            </button>
+            {status === 'inactive' ? (
+              canToggleActive ? (
+                <button
+                  type="button"
+                  className="csv-btn delete-selected-btn"
+                  onClick={() => void deleteSelectedSwimmers()}
+                  disabled={deletingSelected || selectedSelectable.length === 0}
+                  title={
+                    selectedSelectable.length === 0
+                      ? t('Select swimmers to delete.')
+                      : t('Delete selected swimmers')
+                  }
+                >
+                  <DeleteIcon />
+                  <span>
+                    {deletingSelected
+                      ? t('Deleting…')
+                      : selectedSelectable.length
+                        ? `${t('Delete')} (${selectedSelectable.length})`
+                        : t('Delete')}
+                  </span>
+                </button>
+              ) : null
+            ) : (
+              <button
+                type="button"
+                className="csv-btn print-pass-qr-btn"
+                onClick={() => void printSelectedPasses()}
+                disabled={printing || selectedPrintable.length === 0}
+                title={
+                  selectedPrintable.length === 0
+                    ? t('Select swimmers with a pass to print.')
+                    : t('Print pass / QR')
+                }
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M6 9V3h12v6" />
+                  <path d="M6 15H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+                  <path d="M6 13h12v8H6z" />
+                </svg>
+                <span>
+                  {printing
+                    ? t('Preparing PDF…')
+                    : selectedPrintable.length
+                      ? `${t('Print pass / QR')} (${selectedPrintable.length})`
+                      : t('Print pass / QR')}
+                </span>
+              </button>
+            )}
             <DownloadButton
               onClick={() => downloadCsv(visibleRows)}
               disabled={visibleRows.length === 0}
@@ -916,12 +1002,12 @@ export function SwimmerList() {
                 <label className="swimmer-select-cell" title={t('Select all')}>
                   <input
                     type="checkbox"
-                    checked={allPrintableSelected}
+                    checked={allSelectableSelected}
                     ref={(node) => {
-                      if (node) node.indeterminate = somePrintableSelected;
+                      if (node) node.indeterminate = someSelectableSelected;
                     }}
                     onChange={(e) => toggleSelectAll(e.target.checked)}
-                    disabled={printableRows.length === 0}
+                    disabled={selectableRows.length === 0}
                     aria-label={t('Select all')}
                   />
                 </label>
@@ -980,7 +1066,7 @@ export function SwimmerList() {
                         <input
                           type="checkbox"
                           checked={selectedIds.has(row.id)}
-                          disabled={!showPassActions}
+                          disabled={status === 'active' ? !showPassActions : false}
                           onChange={(e) => toggleSelected(row.id, e.target.checked)}
                           aria-label={`${t('Select')} ${row.swimmer}`}
                         />
@@ -1112,7 +1198,7 @@ export function SwimmerList() {
                             type="button"
                             className="icon-action icon-action-danger"
                             onClick={() => void deleteSwimmer(row)}
-                            disabled={deletingId === row.id}
+                            disabled={deletingId === row.id || deletingSelected}
                             aria-label={`${t('Delete')} ${row.swimmer}`}
                             title={t('Delete')}
                           >
