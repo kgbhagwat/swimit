@@ -20,7 +20,6 @@ import {
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
 import { buildUpiPayUri } from './upiPay';
-import { UpiPayAppButton } from './UpiAppPicker';
 
 type PendingSwimmer = {
   id: number;
@@ -1415,20 +1414,13 @@ export function PassPayment() {
                 {paymentMode === 'Online' ? (
                   <div className="online-payment-qr-panel">
                     {onlineDetailsLoading && !samplePaying ? null : amountLockedUpiQr ? (
-                      <>
-                        <QrImage
-                          value={amountLockedUpiQr}
-                          alt={t('Payment QR code')}
-                          className="online-payment-qr"
-                          size={220}
-                        />
-                        <p className="hint" style={{ marginTop: '0.4rem' }}>
-                          {t('Tap the QR to choose a payment app.')}
-                        </p>
-                        <UpiPayAppButton uri={amountLockedUpiQr} className="csv-btn qr-pay-app-btn">
-                          {t('Pay with UPI app')}
-                        </UpiPayAppButton>
-                      </>
+                      <QrImage
+                        value={amountLockedUpiQr}
+                        alt={t('Payment QR code')}
+                        className="online-payment-qr"
+                        size={220}
+                        openOnClick={false}
+                      />
                     ) : onlineQrUrl ? (
                       <FilePreview
                         src={onlineQrUrl}
