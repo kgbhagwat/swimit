@@ -5,7 +5,6 @@ import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
-import { QrImage } from './QrImage';
 import {
   getSamplePassPaymentQueue,
   isApplicationDemo,
@@ -19,7 +18,6 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
-import { buildUpiPayUri } from './upiPay';
 
 type PendingSwimmer = {
   id: number;
@@ -978,19 +976,6 @@ export function PassPayment() {
   const sampleOnlineQrUrl = samplePaying ? SAMPLE_PAYMENT_QR_URL : null;
   const onlineQrUrl = uploadUrl(paymentQrPath) ?? sampleOnlineQrUrl;
   const onlineUpi = samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails;
-  const onlinePayAmount = selectedPass
-    ? Math.round(
-        (Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0)) * 100,
-      ) / 100
-    : 0;
-  const amountLockedUpiQr =
-    onlineUpi && onlinePayAmount > 0
-      ? buildUpiPayUri(
-          onlineUpi,
-          onlinePayAmount,
-          selectedPass ? `Pass ${selectedPass.passName}` : 'Pass payment',
-        )
-      : '';
 
   const queuedSamplePayments = demoMode
     ? getSamplePassPaymentQueue()
@@ -1413,15 +1398,7 @@ export function PassPayment() {
 
                 {paymentMode === 'Online' ? (
                   <div className="online-payment-qr-panel">
-                    {onlineDetailsLoading && !samplePaying ? null : amountLockedUpiQr ? (
-                      <QrImage
-                        value={amountLockedUpiQr}
-                        alt={t('Payment QR code')}
-                        className="online-payment-qr"
-                        size={220}
-                        openOnClick={false}
-                      />
-                    ) : onlineQrUrl ? (
+                    {onlineDetailsLoading && !samplePaying ? null : onlineQrUrl ? (
                       <FilePreview
                         src={onlineQrUrl}
                         alt={t('Payment QR code')}
