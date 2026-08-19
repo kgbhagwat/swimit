@@ -146,19 +146,10 @@ export function IdCard({ data }: { data: IdCardData }) {
                 <dt>Pass type</dt>
                 <dd>{data.passType || '—'}</dd>
               </div>
-              {data.duration ? (
-                <div>
-                  <dt>Duration</dt>
-                  <dd>{data.duration}</dd>
-                </div>
-              ) : null}
               <div>
                 <dt>Batch</dt>
                 <dd>
-                  <span className="id-card-batch-title">{batchDisplay.title}</span>
-                  {batchDisplay.time ? (
-                    <span className="id-card-batch-time">{batchDisplay.time}</span>
-                  ) : null}
+                  {[batchDisplay.title, batchDisplay.time].filter(Boolean).join(' · ') || '—'}
                 </dd>
               </div>
               <div>
@@ -177,7 +168,7 @@ export function IdCard({ data }: { data: IdCardData }) {
             value={idCardUrl(data.id)}
             alt={`QR code for pass ${data.id}`}
             className="id-card-qr"
-            size={128}
+            size={192}
           />
         </div>
       </article>

@@ -102,7 +102,7 @@ function drawPassCard(
   const logoX = x + 12;
   const logoY = y + 10;
   const pad = 10;
-  const qrSize = Math.round(Math.min(h * 0.46, w * 0.32, 128));
+  const qrSize = Math.round(Math.min(h * 0.69, w * 0.48, 192));
   const qrX = x + w - pad - qrSize;
   const qrY = y + 10;
   const headerTextW = Math.max(40, qrX - (logoX + logoSize + 10) - 8);
