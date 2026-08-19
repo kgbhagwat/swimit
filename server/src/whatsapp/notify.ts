@@ -1,5 +1,5 @@
 import { pool } from '../db/pool.js';
-import { renderPassCardPng, renderPassQrPng } from '../passCardImage.js';
+import { renderPassCardPng, renderPassQrPng, renderUrlQrPng } from '../passCardImage.js';
 import { buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
 import { WA_TEMPLATES } from './templateCatalog.js';
@@ -64,7 +64,7 @@ async function sendTemplateInKnownLanguages(params: {
   bodyTexts: string[];
   copyCodeButton?: boolean;
 }) {
-  const preferred = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en_US').trim() || 'en_US';
+  const preferred = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en').trim() || 'en';
   const languages = [...new Set([preferred, 'en', 'en_US'])];
   let lastError = 'Template failed';
   for (const lang of languages) {
@@ -98,6 +98,8 @@ async function deliverNotice(params: {
   templateName: string;
   bodyTexts: string[];
   fallbackBody: string;
+  /** Session text is not delivered unless the person already chatted with the business. */
+  allowTextFallback?: boolean;
 }): Promise<NotifyCredentialsResult> {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -143,6 +145,9 @@ async function deliverNotice(params: {
       status: 'failed',
       error: templateMessage,
     });
+    if (params.allowTextFallback === false) {
+      return { ok: false, error: formatWhatsAppUserError(templateMessage, params.mobile) };
+    }
   }
 
   try {
@@ -194,8 +199,9 @@ export async function notifyLoginCredentials(params: {
     `Code: ${params.accountCode}`,
     `Sign-in link: ${params.loginUrl}`,
     `User: ${params.userName}`,
-    `Temporary password: ${passwordLine}`,
-    'Please update it after first sign-in.',
+    `Password: ${passwordLine}`,
+    'This sign-in information sent on email as well.',
+    'Please update it after first sign-in',
   ].join('\n');
 
   const cfg = getWhatsAppConfig();
@@ -218,12 +224,12 @@ export async function notifyLoginCredentials(params: {
     templateText(params.userName, 32),
     templateText(passwordLine, 32),
   ];
-  // Existing 4-variable template cannot add a 5th line, so the password is included on the User line.
+  // Older 4-variable template: username only (no trailing full stop — it can look like part of the login).
   const loginInfoTexts = [
     templateText(params.accountName),
     templateText(params.accountCode, 32),
     templateText(params.loginUrl, 200),
-    templateText(`${params.userName}. Password: ${passwordLine}`, 80),
+    templateText(params.userName, 32),
   ];
 
   async function sent(templateName: string, to: string, messageId: string): Promise<NotifyCredentialsResult> {
@@ -249,6 +255,23 @@ export async function notifyLoginCredentials(params: {
   }
 
   try {
+    const readyTemplate = String(
+      process.env.WHATSAPP_ACCOUNT_LOGIN_READY_TEMPLATE ?? WA_TEMPLATES.accountLoginReady,
+    ).trim();
+    if (readyTemplate) {
+      try {
+        const templated = await sendTemplateInKnownLanguages({
+          mobile: params.mobile,
+          templateName: readyTemplate,
+          copyCodeButton: false,
+          bodyTexts: loginWithPasswordTexts,
+        });
+        return sent(readyTemplate, templated.to, templated.messageId);
+      } catch (templateErr) {
+        await templateFailed(readyTemplate, templateErr);
+      }
+    }
+
     const loginWithPasswordTemplate = String(
       process.env.WHATSAPP_ACCOUNT_LOGIN_CREDS_TEMPLATE ?? WA_TEMPLATES.accountLoginWithPassword,
     ).trim();
@@ -275,11 +298,22 @@ export async function notifyLoginCredentials(params: {
           mobile: params.mobile,
           templateName: loginTemplate,
           copyCodeButton: false,
-          bodyTexts: loginInfoTexts,
+          bodyTexts: loginWithPasswordTexts,
         });
         return sent(loginTemplate, templated.to, templated.messageId);
-      } catch (templateErr) {
-        await templateFailed(loginTemplate, templateErr);
+      } catch (fiveVarErr) {
+        await templateFailed(`${loginTemplate}:5`, fiveVarErr);
+        try {
+          const templated = await sendTemplateInKnownLanguages({
+            mobile: params.mobile,
+            templateName: loginTemplate,
+            copyCodeButton: false,
+            bodyTexts: loginInfoTexts,
+          });
+          return sent(loginTemplate, templated.to, templated.messageId);
+        } catch (templateErr) {
+          await templateFailed(loginTemplate, templateErr);
+        }
       }
     }
 
@@ -748,7 +782,13 @@ export async function notifyOpenFormQr(params: {
     params.form === 'staff'
       ? `/${params.accountCode}/open/staff-register`
       : `/${params.accountCode}/open/register`;
-  const formUrl = cfg.publicAppUrl ? `${cfg.publicAppUrl}${path}` : path;
+  if (!cfg.publicAppUrl) {
+    return {
+      ok: false,
+      error: 'Public app URL is not configured, so the form link cannot be sent on WhatsApp.',
+    };
+  }
+  const formUrl = `${cfg.publicAppUrl}${path}`;
   const title = params.form === 'staff' ? 'Staff registration' : 'Swimmer registration';
   const body = [
     params.poolName ? `${params.poolName}` : 'SwimIT',
@@ -761,32 +801,44 @@ export async function notifyOpenFormQr(params: {
   ]
     .filter((line) => line !== null)
     .join('\n');
+  const bodyTexts = [
+    templateText(params.form === 'staff' ? 'Staff' : 'Swimmer'),
+    templateText(params.poolName || 'SwimIT'),
+    templateText(formUrl, 200),
+  ];
 
-  const sent = await deliverNotice({
-    mobile: params.mobile,
-    saasAccountId: params.saasAccountId,
-    kind: 'open_form_qr',
-    templateName: WA_TEMPLATES.openForm,
-    bodyTexts: [
-      templateText(params.form === 'staff' ? 'Staff' : 'Swimmer'),
-      templateText(params.poolName || 'SwimIT'),
-      templateText(formUrl, 200),
-    ],
-    fallbackBody: body,
-  });
+  let sent: NotifyCredentialsResult | null = null;
+  for (const templateName of [WA_TEMPLATES.openFormDesk, WA_TEMPLATES.openForm]) {
+    sent = await deliverNotice({
+      mobile: params.mobile,
+      saasAccountId: params.saasAccountId,
+      kind: 'open_form_qr',
+      templateName,
+      bodyTexts,
+      fallbackBody: body,
+      allowTextFallback: false,
+    });
+    if (sent.ok && !sent.skipped) break;
+    if (!sent.ok && templateName === WA_TEMPLATES.openFormDesk) continue;
+    break;
+  }
+  if (!sent) return { ok: false, error: 'Failed to send form link on WhatsApp' };
   if (!sent.ok || sent.skipped) return sent;
 
-  if (cfg.publicAppUrl) {
-    const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(formUrl)}`;
-    try {
-      await sendWhatsAppImage(
-        params.mobile,
-        qrApi,
-        params.poolName ? `${params.poolName} — ${title} QR` : `${title} QR`,
-      );
-    } catch (qrErr) {
-      console.warn('[whatsapp] form QR image send failed', qrErr);
-    }
+  try {
+    const qrPng = await renderUrlQrPng(formUrl);
+    const mediaId = await uploadWhatsAppMedia({
+      buffer: qrPng,
+      mimeType: 'image/png',
+      filename: 'form-qr.png',
+    });
+    await sendWhatsAppImageByMediaId(
+      params.mobile,
+      mediaId,
+      params.poolName ? `${params.poolName} — ${title}\n${formUrl}` : `${title}\n${formUrl}`,
+    );
+  } catch (qrErr) {
+    console.warn('[whatsapp] form QR image send failed', qrErr);
   }
 
   return sent;

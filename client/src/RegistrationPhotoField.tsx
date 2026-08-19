@@ -1,10 +1,13 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { compressImageToLimit } from './compressImage';
+import { FilePreview } from './FilePreview';
 import { useT } from './i18n';
+import { shouldMaskIdentityNumber } from './identityNumber';
 import { maskIdentityProofImage } from './maskIdentityProofImage';
-import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
 import { SensitiveSurface, useSensitiveScreen } from './sensitiveScreen';
+import { isPdfFile, prepareUploadFile } from './uploadFile';
 import { useObjectUrl, useObjectUrls } from './useObjectUrl';
+import { PhotoPickerButtons, type CameraFacing } from './WebcamCapture';
 
 function FieldLabel({ children, required }: { children: string; required?: boolean }) {
   return (
@@ -41,6 +44,8 @@ type RegistrationPhotoFieldProps = {
    * the last 4 characters remain visible before the file is accepted.
    */
   identityNumberToMask?: string;
+  /** Rear camera for ID / certificates; front camera for portraits. */
+  cameraFacing?: CameraFacing;
 };
 
 /** Upload trigger + modal (Take photo / Upload → OK), matching Core Info. */
@@ -59,12 +64,13 @@ export function RegistrationPhotoField({
   hideLabel = false,
   protectFromCapture = false,
   identityNumberToMask,
+  cameraFacing = 'user',
 }: RegistrationPhotoFieldProps) {
   const t = useT();
   const resolvedTake = takeLabel ?? t('Take photo');
   const resolvedUpload = uploadLabel ?? t('Upload');
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const previewClass =
+    cameraFacing === 'user' ? 'preview pool-core-preview preview--portrait' : 'preview pool-core-preview';
   const [open, setOpen] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [compressing, setCompressing] = useState(false);
@@ -80,8 +86,6 @@ export function RegistrationPhotoField({
     setCompressing(false);
     setMasking(false);
     setOpen(false);
-    if (cameraRef.current) cameraRef.current.value = '';
-    if (fileRef.current) fileRef.current.value = '';
   }
 
   async function handleDraftFile(selected: File | null) {
@@ -91,27 +95,20 @@ export function RegistrationPhotoField({
     }
     setCompressing(true);
     try {
-      const ready = await compressImageToLimit(selected);
+      const ready = await prepareUploadFile(selected);
       setDraftFile(ready);
     } catch (err) {
-      alert(err instanceof Error ? err.message : t('Unable to process image'));
+      alert(err instanceof Error ? t(err.message) : t('Unable to process image'));
       setDraftFile(null);
     } finally {
       setCompressing(false);
-      if (cameraRef.current) cameraRef.current.value = '';
-      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
   async function confirmDraft() {
     if (!draftFile || masking || compressing) return;
     const idNumber = String(identityNumberToMask ?? '').trim();
-    const mustMask = identityNumberToMask !== undefined;
-    if (mustMask && idNumber.replace(/[\s\-_/]/g, '').length < 4) {
-      alert(t('Enter the identity number first (at least 4 characters), then upload the proof photo.'));
-      return;
-    }
-    if (mustMask) {
+    if (shouldMaskIdentityNumber(idNumber) && !isPdfFile(draftFile)) {
       setMasking(true);
       try {
         const masked = await maskIdentityProofImage(draftFile, idNumber);
@@ -164,10 +161,11 @@ export function RegistrationPhotoField({
           enabled={protectFromCapture}
         >
           <div className="preview-wrap preview-wrap--deletable">
-            <img
+            <FilePreview
               src={display}
+              file={file}
               alt={label}
-              className="preview pool-core-preview"
+              className={previewClass}
               draggable={protectFromCapture ? false : undefined}
             />
             <button
@@ -207,44 +205,16 @@ export function RegistrationPhotoField({
           >
             <h2 id={modalTitleId}>{label}</h2>
             <p className="modal-intro">
-              {t('Take a photo or upload an image, then confirm with OK.')}
+              {t('Take a photo or upload an image or PDF, then confirm with OK.')}
               {hint ? ` ${hint}` : ''}
             </p>
             <div className="modal-scroll">
-              <div className="photo-actions">
-                <button
-                  type="button"
-                  className="photo-btn"
-                  disabled={compressing}
-                  onClick={() => cameraRef.current?.click()}
-                >
-                  <CameraActionIcon />
-                  {resolvedTake}
-                </button>
-                <button
-                  type="button"
-                  className="photo-btn"
-                  disabled={compressing}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <UploadActionIcon />
-                  {resolvedUpload}
-                </button>
-              </div>
-              <input
-                ref={cameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={(e) => void handleDraftFile(e.target.files?.[0] ?? null)}
-              />
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => void handleDraftFile(e.target.files?.[0] ?? null)}
+              <PhotoPickerButtons
+                disabled={compressing}
+                takeLabel={resolvedTake}
+                uploadLabel={resolvedUpload}
+                facing={cameraFacing}
+                onPickFile={(file) => void handleDraftFile(file)}
               />
               {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
               {masking ? (
@@ -252,11 +222,12 @@ export function RegistrationPhotoField({
               ) : null}
               {draftPreview ? (
                 <div className="preview-wrap pool-core-image-modal-preview">
-                  <img
-                    draggable={protectFromCapture ? false : undefined}
+                  <FilePreview
                     src={draftPreview}
+                    file={draftFile}
                     alt={`${label} ${t('preview')}`}
-                    className="preview pool-core-preview"
+                    className={previewClass}
+                    draggable={protectFromCapture ? false : undefined}
                   />
                 </div>
               ) : null}
@@ -265,7 +236,7 @@ export function RegistrationPhotoField({
                   {draftFile.name} ({Math.ceil(draftFile.size / 1024)} KB)
                 </p>
               ) : null}
-              {identityNumberToMask !== undefined ? (
+              {shouldMaskIdentityNumber(identityNumberToMask) && !isPdfFile(draftFile) ? (
                 <p className="hint">
                   {t('On OK, the identity number on this photo is masked — only the last 4 digits stay visible.')}
                 </p>
@@ -308,6 +279,7 @@ type MultiCertificateFieldProps = {
   uploadLabel?: string;
   onChangeFiles: (next: (File | null)[]) => void;
   onChangeExisting: (next: (string | null)[]) => void;
+  cameraFacing?: CameraFacing;
 };
 
 /** Multi-image certificate upload with one Upload modal. */
@@ -321,12 +293,11 @@ export function MultiCertificateField({
   uploadLabel,
   onChangeFiles,
   onChangeExisting,
+  cameraFacing = 'environment',
 }: MultiCertificateFieldProps) {
   const t = useT();
   const resolvedTake = takeLabel ?? t('Take photo');
   const resolvedUpload = uploadLabel ?? t('Upload');
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [compressing, setCompressing] = useState(false);
@@ -340,8 +311,6 @@ export function MultiCertificateField({
     if (discardDraft) setDraftFiles([]);
     setCompressing(false);
     setOpen(false);
-    if (cameraRef.current) cameraRef.current.value = '';
-    if (fileRef.current) fileRef.current.value = '';
   }
 
   async function addFiles(selected: FileList | File[] | null) {
@@ -351,15 +320,13 @@ export function MultiCertificateField({
     try {
       const compressed: File[] = [];
       for (const nextFile of incoming) {
-        compressed.push(await compressImageToLimit(nextFile));
+        compressed.push(await prepareUploadFile(nextFile));
       }
       setDraftFiles((prev) => [...prev, ...compressed].slice(0, MAX_CERTIFICATE_COUNT));
     } catch (err) {
-      alert(err instanceof Error ? err.message : t('Unable to process image'));
+      alert(err instanceof Error ? t(err.message) : t('Unable to process image'));
     } finally {
       setCompressing(false);
-      if (cameraRef.current) cameraRef.current.value = '';
-      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
@@ -403,7 +370,12 @@ export function MultiCertificateField({
           if (!src) return null;
           return (
             <div className="preview-wrap preview-wrap--deletable" key={`cert-preview-${i}`}>
-              <img src={src} alt={`${label} ${i + 1}`} className="preview pool-core-preview" />
+              <FilePreview
+                src={src}
+                file={files[i]}
+                alt={`${label} ${i + 1}`}
+                className="preview pool-core-preview"
+              />
               <button
                 type="button"
                 className="preview-delete-btn"
@@ -443,45 +415,18 @@ export function MultiCertificateField({
           >
             <h2 id={modalTitleId}>{label}</h2>
             <p className="modal-intro">
-              {t('Upload one or more certificate photos (up to 3). Each image must be max 200 KB — larger photos are compressed automatically.')}
+              {t('Upload one or more certificate photos or PDFs (up to 3). Images over 200 KB are compressed; PDFs can be up to 2 MB.')}
               {hint ? ` ${hint}` : ''}
             </p>
             <div className="modal-scroll">
-              <div className="photo-actions">
-                <button
-                  type="button"
-                  className="photo-btn"
-                  disabled={compressing || draftFiles.length >= MAX_CERTIFICATE_COUNT}
-                  onClick={() => cameraRef.current?.click()}
-                >
-                  <CameraActionIcon />
-                  {resolvedTake}
-                </button>
-                <button
-                  type="button"
-                  className="photo-btn"
-                  disabled={compressing || draftFiles.length >= MAX_CERTIFICATE_COUNT}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <UploadActionIcon />
-                  {resolvedUpload}
-                </button>
-              </div>
-              <input
-                ref={cameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={(e) => void addFiles(e.target.files)}
-              />
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
+              <PhotoPickerButtons
+                disabled={compressing || draftFiles.length >= MAX_CERTIFICATE_COUNT}
+                takeLabel={resolvedTake}
+                uploadLabel={resolvedUpload}
+                facing={cameraFacing}
+                onPickFile={(file) => void addFiles([file])}
+                onPickFiles={(files) => void addFiles(files)}
                 multiple
-                hidden
-                onChange={(e) => void addFiles(e.target.files)}
               />
               {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
               {draftFiles.length > 0 ? (
@@ -489,8 +434,9 @@ export function MultiCertificateField({
                   {draftFiles.map((file, i) => (
                     <div className="multi-certificate-draft" key={`${file.name}-${i}`}>
                       {draftPreviews[i] ? (
-                        <img
-                          src={draftPreviews[i]!}
+                        <FilePreview
+                          src={draftPreviews[i]}
+                          file={file}
                           alt={`${t('Certificate')} ${i + 1}`}
                           className="preview pool-core-preview"
                         />

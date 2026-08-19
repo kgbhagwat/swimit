@@ -7,6 +7,7 @@ import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { parseGoogleMapsLocation } from '../googleMapsLocation.js';
 import { tenantId } from '../middleware/tenant.js';
+import { imageOrPdfFileFilter, UPLOAD_MAX_BYTES } from '../uploadFilter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../uploads');
@@ -25,14 +26,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      cb(new Error('Only image files are allowed'));
-      return;
-    }
-    cb(null, true);
-  },
+  limits: { fileSize: UPLOAD_MAX_BYTES },
+  fileFilter: imageOrPdfFileFilter,
 });
 
 export const poolCoreInfoRouter = Router();

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { maskIdentityNumber } from './identityNumber';
+import { FilePreview } from './FilePreview';
+import { maskIdentityNumber, shouldMaskIdentityNumber } from './identityNumber';
 import { MaskedIdentityProofImage } from './MaskedIdentityProofImage';
 import { SensitiveSurface } from './sensitiveScreen';
 
@@ -181,10 +182,11 @@ export function SwimmerProfileReview({
           <div className="swimmer-review-identity-type">
             <span className="swimmer-review-label">Identity number</span>
             <span>
-              {displayProfileValue(
-                profile.identityNumberMasked ||
-                  maskIdentityNumber(profile.identityNumber),
-              )}
+              {shouldMaskIdentityNumber(profile.identityNumber) || profile.identityNumberMasked
+                ? displayProfileValue(
+                    profile.identityNumberMasked || maskIdentityNumber(profile.identityNumber),
+                  )
+                : '—'}
             </span>
           </div>
           <SensitiveSurface
@@ -197,7 +199,11 @@ export function SwimmerProfileReview({
                   <MaskedIdentityProofImage
                     className="swimmer-review-photo-doc"
                     src={profile.identityPhotoUrl}
-                    identityNumber={profile.identityNumber}
+                    identityNumber={
+                      shouldMaskIdentityNumber(profile.identityNumber)
+                        ? profile.identityNumber
+                        : undefined
+                    }
                     alt={`${profile.fullName} identity proof`}
                   />
                 ) : (
@@ -205,11 +211,12 @@ export function SwimmerProfileReview({
                 )}
                 <figcaption>Identity proof photo</figcaption>
               </figure>
-              <figure className="swimmer-review-photo">
+              <figure className="swimmer-review-photo swimmer-review-photo--face">
                 {profile.photoUrl ? (
-                  <img
+                  <FilePreview
                     src={profile.photoUrl}
                     alt={`${profile.fullName} photo`}
+                    className="preview pool-core-preview preview--portrait"
                     draggable={false}
                   />
                 ) : (

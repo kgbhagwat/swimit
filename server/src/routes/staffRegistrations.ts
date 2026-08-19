@@ -8,11 +8,14 @@ import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
+import { isValidPersonName, NAME_INVALID_MSG } from '../nameValidation.js';
+import { imageOrPdfFileFilter, UPLOAD_MAX_BYTES } from '../uploadFilter.js';
 import {
   guessImageContentType,
   normalizeBirthdate,
   openSealedUploadFile,
   maskIdentityNumber,
+  identityNumberError,
   revealIdentityDocument,
   revealIdentityNumber,
   sealBirthdate,
@@ -38,14 +41,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      cb(new Error('Only image files are allowed'));
-      return;
-    }
-    cb(null, true);
-  },
+  limits: { fileSize: UPLOAD_MAX_BYTES },
+  fileFilter: imageOrPdfFileFilter,
 });
 
 function isOver18(birthdate: string) {
@@ -392,7 +389,6 @@ staffRegistrationsRouter.put(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
-        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -407,8 +403,9 @@ staffRegistrationsRouter.put(
         return;
       }
       const identityNumber = String(body.identityNumber ?? '').trim();
-      if (identityNumber.replace(/\s+/g, '').length < 4) {
-        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+      const numberError = identityNumberError(identityNumber);
+      if (numberError) {
+        res.status(400).json({ error: numberError });
         return;
       }
 
@@ -417,6 +414,10 @@ staffRegistrationsRouter.put(
         return;
       }
 
+      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
       if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
@@ -702,7 +703,6 @@ staffRegistrationsRouter.post(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
-        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -717,8 +717,9 @@ staffRegistrationsRouter.post(
         return;
       }
       const identityNumber = String(body.identityNumber ?? '').trim();
-      if (identityNumber.replace(/\s+/g, '').length < 4) {
-        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+      const numberError = identityNumberError(identityNumber);
+      if (numberError) {
+        res.status(400).json({ error: numberError });
         return;
       }
 
@@ -740,6 +741,10 @@ staffRegistrationsRouter.post(
         return;
       }
 
+      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
       if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;

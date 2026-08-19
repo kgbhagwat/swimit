@@ -44,6 +44,22 @@ type DashboardData = {
   waterQuality?: WaterQualityPoint[];
 };
 
+type DashboardDetailKind = 'active' | 'present' | 'expiring' | 'users' | 'admissions';
+
+type DashboardDetailRow = {
+  id: number;
+  fullName?: string;
+  mobile?: string;
+  batch?: string;
+  coach?: string;
+  passType?: string;
+  passValidUntil?: string | null;
+  createdAt?: string | null;
+  userName?: string;
+  email?: string;
+  isAccountAdmin?: boolean;
+};
+
 const WQ_PARAMS = [
   { key: 'phLevel' as const, label: 'pH Level', unit: '', min: 7.2, max: 7.6 },
   { key: 'freeChlorine' as const, label: 'Free Chlorine', unit: 'ppm', min: 1, max: 3 },
@@ -81,6 +97,42 @@ function formatMoney(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN', {
     maximumFractionDigits: 0,
   })}`;
+}
+
+const SAMPLE_DETAIL_PEOPLE = [
+  { fullName: 'Aarav Patil', mobile: '9876543210', batch: 'Morning A — Mixed — 06:00 to 07:00', coach: 'Riya Kulkarni', passType: 'Monthly Swim' },
+  { fullName: 'Sana Joshi', mobile: '9123456780', batch: 'Evening B — Ladies — 17:00 to 18:00', coach: 'Amit Shah', passType: 'Quarterly Swim' },
+  { fullName: 'Vihaan Kulkarni', mobile: '9988776655', batch: 'Afternoon C — Mixed — 14:00 to 15:00', coach: 'Riya Kulkarni', passType: 'Monthly Swim' },
+  { fullName: 'Anaya Deshmukh', mobile: '9001122334', batch: 'Morning A — Mixed — 06:00 to 07:00', coach: 'Amit Shah', passType: 'Trial Pass' },
+  { fullName: 'Kabir Mehta', mobile: '9812345670', batch: 'Evening B — Ladies — 17:00 to 18:00', coach: 'Riya Kulkarni', passType: 'Monthly Swim' },
+  { fullName: 'Isha Sharma', mobile: '9765432109', batch: 'Afternoon C — Mixed — 14:00 to 15:00', coach: 'Amit Shah', passType: 'Quarterly Swim' },
+];
+
+function sampleDetailRows(kind: DashboardDetailKind, asOf: string, count: number): DashboardDetailRow[] {
+  const n = Math.max(0, count);
+  if (kind === 'users') {
+    return [
+      { id: 1, userName: 'pooladmin', mobile: '9000000001', email: 'admin@example.com', isAccountAdmin: true, createdAt: asOf },
+      { id: 2, userName: 'riya.k', mobile: '9000000002', email: 'riya@example.com', isAccountAdmin: false, createdAt: asOf },
+      { id: 3, userName: 'amit.s', mobile: '9000000003', email: 'amit@example.com', isAccountAdmin: false, createdAt: asOf },
+      { id: 4, userName: 'front.desk', mobile: '9000000004', email: 'desk@example.com', isAccountAdmin: false, createdAt: asOf },
+    ].slice(0, n);
+  }
+  return Array.from({ length: n }, (_, index) => {
+    const sample = SAMPLE_DETAIL_PEOPLE[index % SAMPLE_DETAIL_PEOPLE.length];
+    const until = new Date(`${asOf}T12:00:00`);
+    until.setDate(until.getDate() + (kind === 'expiring' ? 1 + (index % 3) : 12 + (index % 20)));
+    return {
+      id: index + 1,
+      fullName: sample.fullName,
+      mobile: sample.mobile,
+      batch: sample.batch,
+      coach: sample.coach,
+      passType: sample.passType,
+      passValidUntil: until.toISOString().slice(0, 10),
+      createdAt: asOf,
+    };
+  });
 }
 
 /** Deterministic sample figures that change with the selected date (Application Preview). */
@@ -303,6 +355,38 @@ function WaterQualityParamChart({
   );
 }
 
+function KpiCard({
+  className,
+  label,
+  value,
+  hint,
+  onOpen,
+  openLabel,
+}: {
+  className: string;
+  label: string;
+  value: number | string;
+  hint?: string;
+  onOpen: () => void;
+  openLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`dashboard-kpi ${className} dashboard-kpi--clickable`}
+      onClick={onOpen}
+      title={openLabel}
+      aria-label={`${label}: ${value}. ${openLabel}`}
+    >
+      <span className="dashboard-kpi-label">
+        {label}
+        {hint ? <span className="dashboard-kpi-hint">{hint}</span> : null}
+      </span>
+      <span className="dashboard-kpi-value">{value}</span>
+    </button>
+  );
+}
+
 function BreakdownList({ items, emptyLabel }: { items: NamedCount[]; emptyLabel: string }) {
   if (items.length === 0) {
     return <p className="dashboard-empty muted">{emptyLabel}</p>;
@@ -334,6 +418,10 @@ export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [detailKind, setDetailKind] = useState<DashboardDetailKind | null>(null);
+  const [detailRows, setDetailRows] = useState<DashboardDetailRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
   const demo = isApplicationDemo();
   const isToday = asOf === todayIso();
   const dayLabel = formatDisplayDate(asOf);
@@ -378,6 +466,71 @@ export function Dashboard() {
     ? t('Today at a glance')
     : `${dayLabel} ${t('at a glance')}`;
 
+  const detailTitle =
+    detailKind === 'present'
+      ? isToday
+        ? t('Present today')
+        : t('Present')
+      : detailKind === 'expiring'
+        ? t('Expiring soon')
+        : detailKind === 'users'
+          ? t('App users')
+          : detailKind === 'admissions'
+            ? isToday
+              ? t('New admissions today')
+              : t('New admissions')
+            : t('Active swimmers');
+
+  function countForKind(kind: DashboardDetailKind) {
+    if (!summary) return 0;
+    if (kind === 'present') return summary.presentToday;
+    if (kind === 'expiring') return summary.expiringSoon;
+    if (kind === 'users') return summary.activeUsers;
+    if (kind === 'admissions') return summary.newAdmissionsToday;
+    return summary.activeSwimmers;
+  }
+
+  async function openDetails(kind: DashboardDetailKind) {
+    setDetailKind(kind);
+    setDetailRows([]);
+    setDetailError('');
+    setDetailLoading(true);
+    try {
+      const res = await fetch(
+        `/api/dashboard/details?kind=${encodeURIComponent(kind)}&date=${encodeURIComponent(asOf)}`,
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        rows?: DashboardDetailRow[];
+        error?: string;
+      };
+      if (!res.ok) {
+        if (demo) {
+          setDetailRows(sampleDetailRows(kind, asOf, countForKind(kind)));
+          return;
+        }
+        throw new Error(body.error || 'Failed to load dashboard details');
+      }
+      setDetailRows(Array.isArray(body.rows) ? body.rows : []);
+    } catch (err) {
+      if (demo) {
+        setDetailRows(sampleDetailRows(kind, asOf, countForKind(kind)));
+        return;
+      }
+      setDetailError(err instanceof Error ? err.message : 'Failed to load dashboard details');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeDetails() {
+    setDetailKind(null);
+    setDetailRows([]);
+    setDetailError('');
+    setDetailLoading(false);
+  }
+
+  const showUserColumns = detailKind === 'users';
+
   return (
     <PlatformPage
       title="Dashboard"
@@ -411,31 +564,42 @@ export function Dashboard() {
           <section className="card dashboard-card pool-core-form" aria-label={glanceTitle}>
             <h2>{glanceTitle}</h2>
             <div className="dashboard-kpi-grid">
-              <article className="dashboard-kpi dashboard-kpi--active">
-                <p className="dashboard-kpi-label">{t('Active swimmers')}</p>
-                <p className="dashboard-kpi-value">{summary.activeSwimmers}</p>
-              </article>
-              <article className="dashboard-kpi dashboard-kpi--present">
-                <p className="dashboard-kpi-label">{isToday ? t('Present today') : t('Present')}</p>
-                <p className="dashboard-kpi-value">{summary.presentToday}</p>
-              </article>
-              <article className="dashboard-kpi dashboard-kpi--expiring">
-                <p className="dashboard-kpi-label">
-                  {t('Expiring soon')}
-                  <span className="dashboard-kpi-hint"> ({summary.expiryNoticeDays}d)</span>
-                </p>
-                <p className="dashboard-kpi-value">{summary.expiringSoon}</p>
-              </article>
-              <article className="dashboard-kpi dashboard-kpi--users">
-                <p className="dashboard-kpi-label">{t('App users')}</p>
-                <p className="dashboard-kpi-value">{summary.activeUsers}</p>
-              </article>
-              <article className="dashboard-kpi dashboard-kpi--admissions">
-                <p className="dashboard-kpi-label">
-                  {isToday ? t('New admissions today') : t('New admissions')}
-                </p>
-                <p className="dashboard-kpi-value">{summary.newAdmissionsToday}</p>
-              </article>
+              <KpiCard
+                className="dashboard-kpi--active"
+                label={t('Active swimmers')}
+                value={summary.activeSwimmers}
+                onOpen={() => void openDetails('active')}
+                openLabel={t('Show details')}
+              />
+              <KpiCard
+                className="dashboard-kpi--present"
+                label={isToday ? t('Present today') : t('Present')}
+                value={summary.presentToday}
+                onOpen={() => void openDetails('present')}
+                openLabel={t('Show details')}
+              />
+              <KpiCard
+                className="dashboard-kpi--expiring"
+                label={t('Expiring soon')}
+                hint={` (${summary.expiryNoticeDays}d)`}
+                value={summary.expiringSoon}
+                onOpen={() => void openDetails('expiring')}
+                openLabel={t('Show details')}
+              />
+              <KpiCard
+                className="dashboard-kpi--users"
+                label={t('App users')}
+                value={summary.activeUsers}
+                onOpen={() => void openDetails('users')}
+                openLabel={t('Show details')}
+              />
+              <KpiCard
+                className="dashboard-kpi--admissions"
+                label={isToday ? t('New admissions today') : t('New admissions')}
+                value={summary.newAdmissionsToday}
+                onOpen={() => void openDetails('admissions')}
+                openLabel={t('Show details')}
+              />
               <article className="dashboard-kpi dashboard-kpi--cash">
                 <p className="dashboard-kpi-label">{isToday ? t('Cash today') : t('Cash')}</p>
                 <p className="dashboard-kpi-value">{formatMoney(payments.cash)}</p>
@@ -501,6 +665,104 @@ export function Dashboard() {
               ))}
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {detailKind ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dashboard-details-title"
+          onClick={closeDetails}
+        >
+          <div
+            className="modal-panel dashboard-details-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pass-popup-panel-head">
+              <h2 id="dashboard-details-title">{detailTitle}</h2>
+              <button
+                type="button"
+                className="pass-popup-close-x"
+                onClick={closeDetails}
+                aria-label={t('Close')}
+                title={t('Close')}
+              >
+                ×
+              </button>
+            </div>
+            <p className="modal-intro">
+              {dayLabel}
+              {detailRows.length ? ` · ${detailRows.length}` : ''}
+            </p>
+            <div className="modal-scroll">
+              {detailLoading ? <p>{t('Loading…')}</p> : null}
+              {detailError ? <p className="error">{t(detailError)}</p> : null}
+              {!detailLoading && !detailError && detailRows.length === 0 ? (
+                <p className="dashboard-empty muted">{t('No matching records.')}</p>
+              ) : null}
+              {!detailLoading && detailRows.length > 0 ? (
+                <div className="dashboard-details-table-wrap">
+                  <table className="dashboard-details-table">
+                    <thead>
+                      {showUserColumns ? (
+                        <tr>
+                          <th>{t('User name')}</th>
+                          <th>{t('Mobile')}</th>
+                          <th>{t('Email')}</th>
+                          <th>{t('Role')}</th>
+                          <th>{t('Created')}</th>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <th>{t('Name')}</th>
+                          <th>{t('Mobile')}</th>
+                          <th>{t('Batch')}</th>
+                          <th>{t('Coach')}</th>
+                          <th>{t('Pass type')}</th>
+                          <th>{t('Valid until')}</th>
+                          {detailKind === 'admissions' ? <th>{t('Created')}</th> : null}
+                        </tr>
+                      )}
+                    </thead>
+                    <tbody>
+                      {showUserColumns
+                        ? detailRows.map((row) => (
+                            <tr key={row.id}>
+                              <td>{row.userName || '—'}</td>
+                              <td>{row.mobile || '—'}</td>
+                              <td>{row.email || '—'}</td>
+                              <td>{row.isAccountAdmin ? t('Admin user') : t('User')}</td>
+                              <td>{row.createdAt ? formatDisplayDate(row.createdAt) : '—'}</td>
+                            </tr>
+                          ))
+                        : detailRows.map((row) => (
+                            <tr key={row.id}>
+                              <td>{row.fullName || '—'}</td>
+                              <td>{row.mobile || '—'}</td>
+                              <td>{row.batch || '—'}</td>
+                              <td>{row.coach || '—'}</td>
+                              <td>{row.passType || '—'}</td>
+                              <td>
+                                {row.passValidUntil ? formatDisplayDate(row.passValidUntil) : '—'}
+                              </td>
+                              {detailKind === 'admissions' ? (
+                                <td>{row.createdAt ? formatDisplayDate(row.createdAt) : '—'}</td>
+                              ) : null}
+                            </tr>
+                          ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="ghost-btn" onClick={closeDetails}>
+                {t('Close')}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </PlatformPage>

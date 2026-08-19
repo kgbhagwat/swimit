@@ -8,6 +8,8 @@ import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
+import { isValidPersonName, NAME_INVALID_MSG } from '../nameValidation.js';
+import { imageOrPdfFileFilter, UPLOAD_MAX_BYTES } from '../uploadFilter.js';
 import {
   notifyPassIssued,
   notifyPassPaymentRequest,
@@ -20,6 +22,7 @@ import {
   normalizeBirthdate,
   openSealedUploadFile,
   maskIdentityNumber,
+  identityNumberError,
   revealIdentityDocument,
   revealIdentityNumber,
   sealBirthdate,
@@ -67,14 +70,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      cb(new Error('Only image files are allowed'));
-      return;
-    }
-    cb(null, true);
-  },
+  limits: { fileSize: UPLOAD_MAX_BYTES },
+  fileFilter: imageOrPdfFileFilter,
 });
 
 export const registrationsRouter = Router();
@@ -788,7 +785,6 @@ registrationsRouter.put(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
-        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -798,8 +794,9 @@ registrationsRouter.put(
         }
       }
       const identityNumber = String(body.identityNumber ?? '').trim();
-      if (identityNumber.replace(/\s+/g, '').length < 4) {
-        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+      const numberError = identityNumberError(identityNumber);
+      if (numberError) {
+        res.status(400).json({ error: numberError });
         return;
       }
 
@@ -825,6 +822,10 @@ registrationsRouter.put(
         identityPhotoPath = await sealUploadFile(uploadDir, identityPhoto.filename);
       }
 
+      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
       if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
@@ -854,7 +855,7 @@ registrationsRouter.put(
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
       const needsParent = !Number.isNaN(birth.getTime()) && age < 18;
       if (needsParent) {
-        if (!String(body.parentName ?? '').trim() || !String(body.parentRelation ?? '').trim()) {
+        if (!isValidPersonName(body.parentName) || !String(body.parentRelation ?? '').trim()) {
           res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
           return;
         }
@@ -1191,7 +1192,6 @@ registrationsRouter.post(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
-        'identityNumber',
       ] as const;
 
       for (const key of required) {
@@ -1201,8 +1201,9 @@ registrationsRouter.post(
         }
       }
       const identityNumber = String(body.identityNumber ?? '').trim();
-      if (identityNumber.replace(/\s+/g, '').length < 4) {
-        res.status(400).json({ error: 'Identity number must be at least 4 characters' });
+      const numberError = identityNumberError(identityNumber);
+      if (numberError) {
+        res.status(400).json({ error: numberError });
         return;
       }
 
@@ -1219,6 +1220,10 @@ registrationsRouter.post(
         return;
       }
 
+      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
       if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
@@ -1248,7 +1253,7 @@ registrationsRouter.post(
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
       const needsParent = !Number.isNaN(birth.getTime()) && age < 18;
       if (needsParent) {
-        if (!String(body.parentName ?? '').trim() || !String(body.parentRelation ?? '').trim()) {
+        if (!isValidPersonName(body.parentName) || !String(body.parentRelation ?? '').trim()) {
           res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
           return;
         }

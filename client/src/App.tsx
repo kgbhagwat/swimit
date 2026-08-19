@@ -2,11 +2,13 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useT } from './i18n';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PlatformPage } from './PlatformPage';
-import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint, sanitizeMobileInput } from './formValidation';
+import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, isValidPersonName, mobileHint, nameHint, sanitizeMobileInput, sanitizeNameInput } from './formValidation';
 import { canEditPage } from './pageAccess';
 import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
 import { TermsModal } from './TermsModal';
+import { IdentityCaptureFields } from './IdentityCaptureFields';
+import { identityNumberError } from './identityNumber';
 import { RegistrationPhotoField } from './RegistrationPhotoField';
 import { useObjectUrl } from './useObjectUrl';
 
@@ -263,7 +265,7 @@ export function App() {
   function collectInvalidFields() {
     const fields = new Set<string>();
 
-    if (!form.fullName.trim()) fields.add('fullName');
+    if (!form.fullName.trim() || !isValidPersonName(form.fullName)) fields.add('fullName');
     if (!form.fullAddress.trim()) fields.add('fullAddress');
     if (!form.whatsappMobile.trim() || !isValidMobile(form.whatsappMobile)) {
       fields.add('whatsappMobile');
@@ -277,14 +279,14 @@ export function App() {
     if (!form.bloodGroup) fields.add('bloodGroup');
 
     if (needsParentInfo) {
-      if (!form.parentName.trim()) fields.add('parentName');
+      if (!form.parentName.trim() || !isValidPersonName(form.parentName)) fields.add('parentName');
       if (!form.parentRelation) fields.add('parentRelation');
       if (!form.parentMobile.trim() || !isValidMobile(form.parentMobile)) {
         fields.add('parentMobile');
       }
     }
 
-    if (!form.emergencyName.trim()) fields.add('emergencyName');
+    if (!form.emergencyName.trim() || !isValidPersonName(form.emergencyName)) fields.add('emergencyName');
     if (!form.emergencyRelation) fields.add('emergencyRelation');
     if (!form.emergencyMobile.trim() || !isValidMobile(form.emergencyMobile)) {
       fields.add('emergencyMobile');
@@ -307,9 +309,7 @@ export function App() {
     }
 
     if (!form.identityDocument) fields.add('identityDocument');
-    if (form.identityNumber.trim().replace(/\s+/g, '').length < 4) {
-      fields.add('identityNumber');
-    }
+    if (identityNumberError(form.identityNumber)) fields.add('identityNumber');
     if (isEdit) {
       if (!identityPhoto && !existingIdentityUrl) fields.add('identityPhoto');
       if (!swimmerPhoto && !existingSwimmerUrl) fields.add('swimmerPhoto');
@@ -443,11 +443,16 @@ export function App() {
               <Label required>{t("Full name")}</Label>
               <input
                 value={form.fullName}
-                onChange={(e) => setField('fullName', e.target.value)}
+                onChange={(e) => setField('fullName', sanitizeNameInput(e.target.value))}
                 placeholder={t("As per identity document")}
+                autoCapitalize="words"
+                autoComplete="name"
                 required
-                aria-invalid={isInvalid('fullName')}
+                aria-invalid={isInvalid('fullName') || Boolean(nameHint(form.fullName))}
               />
+              {nameHint(form.fullName) ? (
+                <span className="field-error">{t(nameHint(form.fullName))}</span>
+              ) : null}
             </label>
 
             <label className="field field-beside">
@@ -563,11 +568,16 @@ export function App() {
                 <Label required>{t("Name")}</Label>
                 <input
                   value={form.parentName}
-                  onChange={(e) => setField('parentName', e.target.value)}
+                  onChange={(e) => setField('parentName', sanitizeNameInput(e.target.value))}
                   placeholder={t("Parent / guardian full name")}
+                  autoCapitalize="words"
+                  autoComplete="name"
                   required
-                  aria-invalid={isInvalid('parentName')}
+                  aria-invalid={isInvalid('parentName') || Boolean(nameHint(form.parentName))}
                 />
+                {nameHint(form.parentName) ? (
+                  <span className="field-error">{t(nameHint(form.parentName))}</span>
+                ) : null}
               </label>
               <label className="field field-beside">
                 <Label required>{t("Relationship")}</Label>
@@ -623,12 +633,17 @@ export function App() {
               <Label required>{t("Emergency contact name")}</Label>
               <input
                 value={form.emergencyName}
-                onChange={(e) => setField('emergencyName', e.target.value)}
+                onChange={(e) => setField('emergencyName', sanitizeNameInput(e.target.value))}
                 placeholder={t("Contact person name")}
+                autoCapitalize="words"
+                autoComplete="name"
                 required
                 readOnly={parentOnly && needsParentInfo}
-                aria-invalid={isInvalid('emergencyName')}
+                aria-invalid={isInvalid('emergencyName') || Boolean(nameHint(form.emergencyName))}
               />
+              {nameHint(form.emergencyName) ? (
+                <span className="field-error">{t(nameHint(form.emergencyName))}</span>
+              ) : null}
             </label>
             <label className="field field-beside">
               <Label required>{t("Relation")}</Label>
@@ -734,72 +749,32 @@ export function App() {
 
         <section className="registration-section">
           <h2>{t("Identity & photos")}</h2>
-          <div className="registration-identity-row">
-            <label
-              className={`field field-beside registration-identity-doc${
-                isInvalid('identityDocument') ? ' field-box-invalid' : ''
-              }`}
-            >
-              <Label required>{t("Identity document")}</Label>
-              <select
-                className="field-control-sm registration-identity-doc-select"
-                value={form.identityDocument}
-                onChange={(e) => setField('identityDocument', e.target.value)}
-                required
-                aria-invalid={isInvalid('identityDocument')}
-              >
-                <option value="">{t("Select document type")}</option>
-                <option value="Aadhaar">{t("Aadhaar card")}</option>
-                <option value="PAN">{t("PAN card")}</option>
-                <option value="Passport">{t("Passport")}</option>
-                <option value="Driving Licence">{t("Driving licence")}</option>
-                <option value="School ID">{t("School / college ID")}</option>
-              </select>
-            </label>
-            <label
-              className={`field field-beside registration-identity-number${
-                isInvalid('identityNumber') ? ' field-box-invalid' : ''
-              }`}
-            >
-              <Label required>{t('Identity number')}</Label>
-              <input
-                className="field-control-sm"
-                value={form.identityNumber}
-                onChange={(e) => setField('identityNumber', e.target.value)}
-                placeholder={t('Enter document number')}
-                autoComplete="off"
-                required
-                aria-invalid={isInvalid('identityNumber')}
-              />
-            </label>
-            <RegistrationPhotoField
-              label={t("Photo of identity proof")}
-              hint={t("Max 200 KB — upload or take a photo of your identity proof")}
-              required
-              hideLabel
-              protectFromCapture
-              identityNumberToMask={form.identityNumber}
-              file={identityPhoto}
-              preview={identityPreview}
-              existingUrl={existingIdentityUrl}
-              takeLabel={t("Take photo")}
-              uploadLabel={t("Upload")}
-              invalid={isInvalid('identityPhoto')}
-              onClearExisting={() => setExistingIdentityUrl(null)}
-              onPick={(file) => {
-                setInvalidFields((prev) => {
-                  if (!prev.has('identityPhoto')) return prev;
-                  const next = new Set(prev);
-                  next.delete('identityPhoto');
-                  setErrorCount(next.size);
-                  return next;
-                });
-                setIdentityPhoto(file);
-              }}
-            />
+          <IdentityCaptureFields
+            document={form.identityDocument}
+            number={form.identityNumber}
+            onDocumentChange={(value) => setField('identityDocument', value)}
+            onNumberChange={(value) => setField('identityNumber', value)}
+            documentInvalid={isInvalid('identityDocument')}
+            numberInvalid={isInvalid('identityNumber')}
+            proofFile={identityPhoto}
+            proofPreview={identityPreview}
+            proofExistingUrl={existingIdentityUrl}
+            proofInvalid={isInvalid('identityPhoto')}
+            onClearProofExisting={() => setExistingIdentityUrl(null)}
+            onPickProof={(file) => {
+              setInvalidFields((prev) => {
+                if (!prev.has('identityPhoto')) return prev;
+                const next = new Set(prev);
+                next.delete('identityPhoto');
+                setErrorCount(next.size);
+                return next;
+              });
+              setIdentityPhoto(file);
+            }}
+          >
             <RegistrationPhotoField
               label={t("Swimmer photo")}
-              hint={t("Max 200 KB — recent passport-size photo of the swimmer")}
+              hint={t("Image (max 200 KB) or PDF (max 2 MB) — recent passport-size photo of the swimmer")}
               required
               protectFromCapture
               file={swimmerPhoto}
@@ -820,7 +795,7 @@ export function App() {
                 setSwimmerPhoto(file);
               }}
             />
-          </div>
+          </IdentityCaptureFields>
         </section>
 
         <div className="footer-row">

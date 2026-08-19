@@ -129,6 +129,15 @@ export function revealIdentityNumber(stored: unknown): string {
   }
 }
 
+export function identityNumberError(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (raw.replace(/[\s\-_/]/g, '').length < 4) {
+    return 'Identity number must be at least 4 characters';
+  }
+  return '';
+}
+
 /** Mask identity number for ID cards — only last 4 characters visible. */
 export function maskIdentityNumber(value: unknown): string {
   const raw = String(value ?? '').trim();
@@ -197,6 +206,7 @@ export async function openSealedUploadFile(uploadDir: string, filename: string):
 
 export function guessImageContentType(filename: string) {
   const lower = String(filename ?? '').toLowerCase().replace(/\.enc$/i, '');
+  if (lower.endsWith('.pdf')) return 'application/pdf';
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.webp')) return 'image/webp';
   if (lower.endsWith('.gif')) return 'image/gif';

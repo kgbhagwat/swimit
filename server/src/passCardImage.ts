@@ -58,7 +58,8 @@ async function fileToDataUri(relativePath: string | null | undefined): Promise<s
   try {
     const abs = path.join(uploadsRoot, rel);
     const buf = await fs.readFile(abs);
-    const ext = path.extname(rel).toLowerCase();
+    const ext = path.extname(rel.replace(/\.enc$/i, '')).toLowerCase();
+    if (ext === '.pdf') return null;
     const mime =
       ext === '.png'
         ? 'image/png'
@@ -191,6 +192,15 @@ export async function renderPassCardPng(input: PassCardImageInput): Promise<Buff
 
 export async function renderPassQrPng(registrationId: number): Promise<Buffer> {
   return QRCode.toBuffer(`SWIMIT:${registrationId}`, {
+    type: 'png',
+    width: 640,
+    margin: 2,
+    errorCorrectionLevel: 'M',
+  });
+}
+
+export async function renderUrlQrPng(url: string): Promise<Buffer> {
+  return QRCode.toBuffer(url, {
     type: 'png',
     width: 640,
     margin: 2,

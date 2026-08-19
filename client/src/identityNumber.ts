@@ -1,3 +1,24 @@
+/** Compact identity number: strip spaces and common separators. */
+export function compactIdentityNumber(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .replace(/[\s\-_/]/g, '');
+}
+
+/** True when a number was entered and is long enough to mask on the proof photo. */
+export function shouldMaskIdentityNumber(value: unknown): boolean {
+  return compactIdentityNumber(value).length >= 4;
+}
+
+export function identityNumberError(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (compactIdentityNumber(raw).length < 4) {
+    return 'Identity number must be at least 4 characters';
+  }
+  return '';
+}
+
 /** Mask identity number for ID cards — only last 4 characters visible. */
 export function maskIdentityNumber(value: unknown): string {
   const raw = String(value ?? '').trim();

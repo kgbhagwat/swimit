@@ -1,13 +1,17 @@
 import { FormEvent, useEffect, useState, type ReactNode } from 'react';
+import { FilePreview } from './FilePreview';
 import { useT } from './i18n';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   emailHint,
   isValidEmail,
   isValidMobile,
+  isValidPersonName,
   mobileHint,
   MOBILE_INVALID_MSG,
+  nameHint,
   sanitizeMobileInput,
+  sanitizeNameInput,
 } from './formValidation';
 import { MarketingLayout } from './MarketingLayout';
 import { MobileField } from './MobileField';
@@ -497,6 +501,10 @@ export function CreateAccount() {
       setError('Enter contact name');
       return;
     }
+    if (!isValidPersonName(form.contactName)) {
+      setError(nameHint(form.contactName) || 'Enter a name using letters only.');
+      return;
+    }
     if (!isValidMobile(form.mobile)) {
       setError(mobileHint(form.mobile) || MOBILE_INVALID_MSG);
       return;
@@ -605,41 +613,16 @@ export function CreateAccount() {
   }
 
   if (created) {
-    const mailto = created.email
-      ? `mailto:${encodeURIComponent(created.email)}?subject=${encodeURIComponent(
-          `SwimIT account ${created.accountCode}`,
-        )}&body=${encodeURIComponent(
-          [
-            `Hello ${created.contactName},`,
-            '',
-            'Your SwimIT account is ready.',
-            '',
-            `Account / Swimming Pool: ${created.accountName}`,
-            created.packageName ? `Package: ${created.packageName}` : null,
-            created.poolAddress ? `Pool address: ${created.poolAddress}` : null,
-            created.city ? `City: ${created.city}` : null,
-            `Account code: ${created.accountCode}`,
-            `Login URL: ${created.loginUrl}`,
-            `Admin user: ${created.adminUserName}`,
-            '',
-            'Temporary password was sent to your WhatsApp mobile. Please change it on first login.',
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        )}`
-      : '';
-
     const showPayment = !isTrialPackage(created.packageName);
 
     const createdBody = (
       <>
-        <p className="lede get-started-lede">{t('Account created successfully.')}</p>
-        <p className="lede get-started-lede">{t('Account details for the pool operator.')}</p>
+        <p className={`${created.whatsappOk ? 'success' : 'error'} get-started-lede`}>
+          {created.deliveryNote}
+        </p>
         {warning ? <p className="error">{t(warning)}</p> : null}
 
         <section className="pass-form-card account-credentials-card get-started-card">
-          <p className={created.whatsappOk ? 'success' : 'error'}>{created.deliveryNote}</p>
-
           <dl className="account-credentials-list">
             <div>
               <dt>{t('Account / Swimming Pool')}</dt>
@@ -716,8 +699,8 @@ export function CreateAccount() {
 
             <div className="online-payment-details">
               {uploadUrl(platformPay?.paymentQrPath) ? (
-                <img
-                  src={uploadUrl(platformPay?.paymentQrPath)!}
+                <FilePreview
+                  src={uploadUrl(platformPay?.paymentQrPath)}
                   alt={t('SwimIT SaaS payment QR code')}
                   className="online-payment-qr"
                 />
@@ -743,11 +726,6 @@ export function CreateAccount() {
         ) : null}
 
           <div className="submit-wrap get-started-actions" style={{ marginTop: '1rem' }}>
-            {mailto ? (
-              <a className="marketing-btn marketing-btn--outline" href={mailto}>
-                {t('Email details')}
-              </a>
-            ) : null}
             {canManageAccounts ? (
               <Link className="marketing-btn marketing-btn--primary" to="/accounts">
                 {t('Go to Accounts')}
@@ -895,10 +873,15 @@ export function CreateAccount() {
             </span>
             <input
               value={form.contactName}
-              onChange={(e) => setField('contactName', e.target.value)}
+              onChange={(e) => setField('contactName', sanitizeNameInput(e.target.value))}
               placeholder={t('Owner / manager name')}
+              autoCapitalize="words"
+              autoComplete="name"
               required
             />
+            {nameHint(form.contactName) ? (
+              <span className="field-error">{t(nameHint(form.contactName))}</span>
+            ) : null}
           </label>
 
           <label className="field field-beside">

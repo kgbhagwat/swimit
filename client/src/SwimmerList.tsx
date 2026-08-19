@@ -9,6 +9,7 @@ import {
 } from './applicationDemo';
 import { DownloadButton } from './DownloadButton';
 import { formatBatchDisplay } from './IdCard';
+import { downloadSelectedPassQrPdf } from './printPassQrPdf';
 import { InPageSelect } from './InPageSelect';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
@@ -366,6 +367,8 @@ export function SwimmerList() {
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [success, setSuccess] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+  const [printing, setPrinting] = useState(false);
   const canEdit = canEditPage('swimmers') && !sampleMode;
   const canToggleActive = sampleMode || canEditPage('swimmers');
 
@@ -558,6 +561,7 @@ export function SwimmerList() {
     setColumnSelected({});
     setSortKey(null);
     setSortDir(null);
+    setSelectedIds(new Set());
   }, [status]);
 
   const statusRows = useMemo(() => {
@@ -588,6 +592,58 @@ export function SwimmerList() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
   }, [statusRows, columnSelected, sortKey, sortDir]);
+
+  const printableRows = useMemo(
+    () => visibleRows.filter((row) => hasCurrentPass(row)),
+    [visibleRows],
+  );
+  const selectedPrintable = useMemo(
+    () => printableRows.filter((row) => selectedIds.has(row.id)),
+    [printableRows, selectedIds],
+  );
+  const allPrintableSelected =
+    printableRows.length > 0 && selectedPrintable.length === printableRows.length;
+  const somePrintableSelected = selectedPrintable.length > 0 && !allPrintableSelected;
+
+  function toggleSelected(id: number, on: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(on: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const row of printableRows) {
+        if (on) next.add(row.id);
+        else next.delete(row.id);
+      }
+      return next;
+    });
+  }
+
+  async function printSelectedPasses() {
+    if (printing) return;
+    if (selectedPrintable.length === 0) {
+      setError('Select swimmers with a pass to print.');
+      return;
+    }
+    setPrinting(true);
+    setError('');
+    setSuccess('');
+    try {
+      await downloadSelectedPassQrPdf(
+        selectedPrintable.map((row) => ({ id: row.id, name: row.swimmer })),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create PDF');
+    } finally {
+      setPrinting(false);
+    }
+  }
 
   const summary =
     status === 'active'
@@ -698,10 +754,36 @@ export function SwimmerList() {
       title="Swimmer's List"
       actions={
         !editing && !viewing ? (
-          <DownloadButton
-            onClick={() => downloadCsv(visibleRows)}
-            disabled={visibleRows.length === 0}
-          />
+          <div className="list-head-actions">
+            <button
+              type="button"
+              className="csv-btn print-pass-qr-btn"
+              onClick={() => void printSelectedPasses()}
+              disabled={printing || selectedPrintable.length === 0}
+              title={
+                selectedPrintable.length === 0
+                  ? t('Select swimmers with a pass to print.')
+                  : t('Print pass / QR')
+              }
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M6 9V3h12v6" />
+                <path d="M6 15H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+                <path d="M6 13h12v8H6z" />
+              </svg>
+              <span>
+                {printing
+                  ? t('Preparing PDF…')
+                  : selectedPrintable.length
+                    ? `${t('Print pass / QR')} (${selectedPrintable.length})`
+                    : t('Print pass / QR')}
+              </span>
+            </button>
+            <DownloadButton
+              onClick={() => downloadCsv(visibleRows)}
+              disabled={visibleRows.length === 0}
+            />
+          </div>
         ) : undefined
       }
     >
@@ -779,6 +861,7 @@ export function SwimmerList() {
               <p className="pass-count batch-list-lede swimmer-list-summary">{summary}</p>
             ) : null}
             {success ? <p className="success">{t(success)}</p> : null}
+            {error ? <p className="error">{t(error)}</p> : null}
 
             <section
               className={`pass-form-card pool-core-form pass-table-card swimmer-table-card${sampleMode ? ' pass-form-card--sample' : ''}`}
@@ -789,6 +872,18 @@ export function SwimmerList() {
                 </div>
               ) : null}
               <div className="swimmer-table-head">
+                <label className="swimmer-select-cell" title={t('Select all')}>
+                  <input
+                    type="checkbox"
+                    checked={allPrintableSelected}
+                    ref={(node) => {
+                      if (node) node.indeterminate = somePrintableSelected;
+                    }}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    disabled={printableRows.length === 0}
+                    aria-label={t('Select all')}
+                  />
+                </label>
                 {SWIMMER_COLUMNS.map(({ key, label }) => (
                   <div key={key} className="swimmer-col-head">
                     <TableColumnFilter
@@ -835,9 +930,20 @@ export function SwimmerList() {
                     const showToggle = canToggleActive;
                     return (
                     <div
-                      className={`swimmer-row${index % 2 === 1 ? ' swimmer-row-alt' : ''}`}
+                      className={`swimmer-row${index % 2 === 1 ? ' swimmer-row-alt' : ''}${
+                        selectedIds.has(row.id) ? ' is-selected' : ''
+                      }`}
                       key={row.id}
                     >
+                      <label className="swimmer-select-cell" data-label={t('Select')}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(row.id)}
+                          disabled={!showPassActions}
+                          onChange={(e) => toggleSelected(row.id, e.target.checked)}
+                          aria-label={`${t('Select')} ${row.swimmer}`}
+                        />
+                      </label>
                       <strong data-label={t('Swimmer')}>{row.swimmer}</strong>
                       <span data-label={t('Contact')}>
                         <span className="coach-contact">{row.contact}</span>

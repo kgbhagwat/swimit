@@ -1,11 +1,12 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useT } from './i18n';
-import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
-import { compressImageToLimit } from './compressImage';
+import { FilePreview } from './FilePreview';
+import { prepareUploadFile } from './uploadFile';
 import { PlatformPage } from './PlatformPage';
 import { getPlatformSession } from './platformSession';
 import { hasPlatformAccess } from './platformAccess';
 import { useObjectUrl } from './useObjectUrl';
+import { PhotoPickerButtons } from './WebcamCapture';
 
 type PaymentSettings = {
   paymentQrPath: string | null;
@@ -61,8 +62,6 @@ function ImageField({
   onClear: () => void;
 }) {
   const t = useT();
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [compressing, setCompressing] = useState(false);
   const display = preview || existingUrl;
 
@@ -73,15 +72,13 @@ function ImageField({
     }
     setCompressing(true);
     try {
-      const ready = await compressImageToLimit(selected);
+      const ready = await prepareUploadFile(selected);
       onPick(ready);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Unable to process image');
+      alert(err instanceof Error ? t(err.message) : t('Unable to process image'));
       onPick(null);
     } finally {
       setCompressing(false);
-      if (cameraRef.current) cameraRef.current.value = '';
-      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
@@ -92,7 +89,7 @@ function ImageField({
       {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
       {display ? (
         <div className={`preview-wrap${editable ? ' preview-wrap--deletable' : ''}`}>
-          <img src={display} alt={label} className="preview pool-core-preview" />
+          <FilePreview src={display} file={file} alt={label} className="preview pool-core-preview" />
           {editable ? (
             <button
               type="button"
@@ -116,40 +113,12 @@ function ImageField({
       )}
       {editable ? (
         <>
-          <div className="photo-actions">
-            <button
-              type="button"
-              className="photo-btn"
-              disabled={compressing}
-              onClick={() => cameraRef.current?.click()}
-            >
-              <CameraActionIcon />
-              {t('Take photo')}
-            </button>
-            <button
-              type="button"
-              className="photo-btn"
-              disabled={compressing}
-              onClick={() => fileRef.current?.click()}
-            >
-              <UploadActionIcon />
-              {t('Upload image')}
-            </button>
-          </div>
-          <input
-            ref={cameraRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-          />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
+          <PhotoPickerButtons
+            disabled={compressing}
+            takeLabel={t('Take photo')}
+            uploadLabel={t('Upload')}
+            facing="environment"
+            onPickFile={(file) => void handleFile(file)}
           />
           {file ? (
             <p className="file-name">
@@ -312,7 +281,7 @@ export function PlatformPayment() {
           <form className="pass-form-card platform-payment-details-card" onSubmit={onSubmit}>
             <ImageField
               label="SaaS payment QR code"
-              hint="Max 200 KB — upload the UPI / payment QR image account holders will scan"
+              hint="Image (max 200 KB) or PDF (max 2 MB) — upload the UPI / payment QR account holders will scan"
               file={qrFile}
               preview={qrPreview}
               existingUrl={clearQr ? null : uploadUrl(form.paymentQrPath)}
@@ -367,8 +336,8 @@ export function PlatformPayment() {
               <span className="label">{t('SaaS payment QR code')}</span>
               {uploadUrl(form.paymentQrPath) ? (
                 <div className="preview-wrap">
-                  <img
-                    src={uploadUrl(form.paymentQrPath)!}
+                  <FilePreview
+                    src={uploadUrl(form.paymentQrPath)}
                     alt={t('SaaS payment QR code')}
                     className="preview pool-core-preview"
                   />

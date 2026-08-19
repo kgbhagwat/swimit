@@ -59,3 +59,27 @@ export function emailHint(value: string) {
   }
   return '';
 }
+
+export const NAME_INVALID_MSG = 'Enter a name using letters only.';
+
+/** Letters (any language), spaces, hyphen, apostrophe, and initials — no digits. */
+export function sanitizeNameInput(value: string) {
+  return String(value ?? '')
+    .replace(/[^\p{L}\s.'’-]/gu, '')
+    .slice(0, 80);
+}
+
+export function isValidPersonName(value: string) {
+  const v = String(value ?? '').trim();
+  if (v.length < 2) return false;
+  if (/\d/.test(v)) return false;
+  const letters = v.match(/\p{L}/gu) ?? [];
+  return letters.length >= 2 && /^[\p{L}\s.'’-]+$/u.test(v);
+}
+
+export function nameHint(value: string) {
+  const v = value.trim();
+  if (!v) return '';
+  if (!isValidPersonName(v)) return NAME_INVALID_MSG;
+  return '';
+}

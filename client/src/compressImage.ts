@@ -36,6 +36,40 @@ function drawScaled(img: HTMLImageElement, maxSide: number) {
   return canvas;
 }
 
+function portraitCropRect(width: number, height: number) {
+  const target = 3 / 4;
+  const ratio = width / Math.max(1, height);
+  if (ratio > target) {
+    const sw = height * target;
+    return { sx: (width - sw) / 2, sy: 0, sw, sh: height };
+  }
+  const sh = width / target;
+  const extra = height - sh;
+  return { sx: 0, sy: extra * 0.22, sw: width, sh };
+}
+
+/** Crop a camera photo to a 3:4 portrait so the full face stays in frame. */
+export async function cropImageToPortraitFace(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  const img = await loadImage(file);
+  const ratio = img.width / Math.max(1, img.height);
+  if (ratio <= 0.82 && ratio >= 0.68) return file;
+  const { sx, sy, sw, sh } = portraitCropRect(img.width, img.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = 720;
+  canvas.height = 960;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 720, 960);
+  const blob = await canvasToBlob(canvas, 0.92);
+  if (!blob) return file;
+  const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo';
+  return new File([blob], `${baseName}.jpg`, {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
+  });
+}
+
 /**
  * If the image is over maxBytes, compress/resize it to fit under the limit.
  * Non-image files or already-small images are returned unchanged.

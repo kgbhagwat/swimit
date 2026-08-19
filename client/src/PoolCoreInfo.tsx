@@ -1,8 +1,8 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useLanguage, useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
-import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
-import { compressImageToLimit } from './compressImage';
+import { FilePreview } from './FilePreview';
+import { prepareUploadFile } from './uploadFile';
 import { TermsDocumentField } from './TermsDocumentField';
 import { TermsBlocks } from './TermsBlocks';
 import {
@@ -16,6 +16,7 @@ import {
   resolveSwimmerTerms,
 } from './swimmerTermsDefaults';
 import { useObjectUrl } from './useObjectUrl';
+import { PhotoPickerButtons } from './WebcamCapture';
 
 type PoolCoreInfoData = {
   poolName: string;
@@ -77,8 +78,6 @@ function ImageField({
   onClear: () => void;
 }) {
   const t = useT();
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [compressing, setCompressing] = useState(false);
@@ -89,8 +88,6 @@ function ImageField({
     if (discardDraft) setDraftFile(null);
     setCompressing(false);
     setOpen(false);
-    if (cameraRef.current) cameraRef.current.value = '';
-    if (fileRef.current) fileRef.current.value = '';
   }
 
   async function handleDraftFile(selected: File | null) {
@@ -100,15 +97,13 @@ function ImageField({
     }
     setCompressing(true);
     try {
-      const ready = await compressImageToLimit(selected);
+      const ready = await prepareUploadFile(selected);
       setDraftFile(ready);
     } catch (err) {
-      alert(err instanceof Error ? err.message : t('Unable to process image'));
+      alert(err instanceof Error ? t(err.message) : t('Unable to process image'));
       setDraftFile(null);
     } finally {
       setCompressing(false);
-      if (cameraRef.current) cameraRef.current.value = '';
-      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
@@ -138,7 +133,7 @@ function ImageField({
         {display ? (
           <div className="pool-core-image-preview-row">
             <div className="preview-wrap">
-              <img src={display} alt={label} className="preview pool-core-preview" />
+              <FilePreview src={display} file={file} alt={label} className="preview pool-core-preview" />
             </div>
             {editable ? (
               <button
@@ -179,49 +174,22 @@ function ImageField({
           >
             <h2 id="pool-core-image-modal-title">{label}</h2>
             <p className="modal-intro">
-              {t('Take a photo or upload an image, then confirm with OK.')}
+              {t('Take a photo or upload an image or PDF, then confirm with OK.')}
             </p>
             <div className="modal-scroll">
-              <div className="photo-actions">
-                <button
-                  type="button"
-                  className="photo-btn"
-                  disabled={compressing}
-                  onClick={() => cameraRef.current?.click()}
-                >
-                  <CameraActionIcon />
-                  {t('Take photo')}
-                </button>
-                <button
-                  type="button"
-                  className="photo-btn"
-                  disabled={compressing}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <UploadActionIcon />
-                  {t('Upload image')}
-                </button>
-              </div>
-              <input
-                ref={cameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={(e) => void handleDraftFile(e.target.files?.[0] ?? null)}
-              />
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => void handleDraftFile(e.target.files?.[0] ?? null)}
+              <PhotoPickerButtons
+                disabled={compressing}
+                takeLabel={t('Take photo')}
+                uploadLabel={t('Upload')}
+                facing="environment"
+                onPickFile={(file) => void handleDraftFile(file)}
               />
               {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
               {draftPreview ? (
                 <div className="preview-wrap pool-core-image-modal-preview">
-                  <img
+                  <FilePreview
                     src={draftPreview}
+                    file={draftFile}
                     alt={`${label} ${t('preview')}`}
                     className="preview pool-core-preview"
                   />
@@ -542,8 +510,8 @@ export function PoolCoreInfo() {
               <span className="label">{t('Pool Logo')}</span>
               {uploadUrl(form.poolLogoPath) ? (
                 <div className="preview-wrap">
-                  <img
-                    src={uploadUrl(form.poolLogoPath)!}
+                  <FilePreview
+                    src={uploadUrl(form.poolLogoPath)}
                     alt={t('Pool Logo')}
                     className="preview pool-core-preview"
                   />
@@ -556,8 +524,8 @@ export function PoolCoreInfo() {
               <span className="label">{t('Payment QR code')}</span>
               {uploadUrl(form.paymentQrPath) ? (
                 <div className="preview-wrap">
-                  <img
-                    src={uploadUrl(form.paymentQrPath)!}
+                  <FilePreview
+                    src={uploadUrl(form.paymentQrPath)}
                     alt={t('Payment QR code')}
                     className="preview pool-core-preview"
                   />
@@ -702,7 +670,7 @@ export function PoolCoreInfo() {
           <div className="grid-2 photos">
             <ImageField
               label={t('Pool Logo')}
-              hint={t('Max 200 KB')}
+              hint={t('Images max 200 KB; PDFs max 2 MB')}
               file={logoFile}
               preview={logoPreview}
               existingUrl={clearLogo ? null : uploadUrl(form.poolLogoPath)}
@@ -744,7 +712,7 @@ export function PoolCoreInfo() {
                 label={t('Terms & Conditions for swimmer')}
                 value={form.swimmerTerms}
                 onChange={(swimmerTerms) => setForm((prev) => ({ ...prev, swimmerTerms }))}
-                placeholder={t('Type or Upload .doc or .txt file.')}
+                placeholder={t('Type or upload Word, Pages, OpenDocument, or .txt.')}
                 rows={8}
                 editable
                 richHeadings
@@ -761,7 +729,7 @@ export function PoolCoreInfo() {
                 label={t('Terms & Conditions for staff')}
                 value={form.staffTerms}
                 onChange={(staffTerms) => setForm((prev) => ({ ...prev, staffTerms }))}
-                placeholder={t('Type or Upload .doc or .txt file.')}
+                placeholder={t('Type or upload Word, Pages, OpenDocument, or .txt.')}
                 rows={8}
                 editable
                 richHeadings

@@ -13,6 +13,7 @@ import {
   type MenuPageKey,
   type MenuSection,
 } from './menuCatalog';
+import { FilePreview } from './FilePreview';
 import { LanguageSwitcher, useT } from './i18n';
 import { MENU_ITEMS, MenuTiles, type MenuItem } from './menuItems';
 import { pageKeysForPackage } from './packageFeatures';
@@ -23,7 +24,7 @@ import { PlatformNav } from './PlatformNav';
 import { PlatformPage } from './PlatformPage';
 import { SupportInboxButton } from './SupportInboxButton';
 import { ThemeToggle, useTheme } from './theme';
-import { setActiveTenant } from './tenantSession';
+import { setActiveTenant, tenantPath } from './tenantSession';
 import { fetchWhatsAppNoticeSettings, WHATSAPP_CHARGES_EVENT } from './whatsappCharges';
 import { isPassPopupWindow } from './swimmerPass';
 import {
@@ -282,8 +283,16 @@ function TenantUserBar({
             Role: {user.isAccountAdmin ? 'Admin' : 'User'}
           </p>
           {user.isAccountAdmin && account.packageName ? (
-            <p className="tenant-profile-detail">
-              Package: <strong>{account.packageName}</strong>
+            <p className="tenant-profile-detail tenant-profile-package">
+              {t('Package')}: <strong>{account.packageName}</strong>
+              <Link
+                className="tenant-profile-upgrade"
+                to={tenantPath('/renew-payment')}
+                onClick={() => setOpen(false)}
+                title={t('Change package')}
+              >
+                {t('Upgrade')}
+              </Link>
             </p>
           ) : null}
           {user.isAccountAdmin && saasPayment ? (
@@ -292,7 +301,7 @@ function TenantUserBar({
                 <strong>Pay SwimIT subscription</strong>
               </p>
               {saasPayment.paymentQrPath ? (
-                <img
+                <FilePreview
                   src={`/uploads/${saasPayment.paymentQrPath}`}
                   alt="SwimIT payment QR code"
                   className="tenant-saas-payment-qr"

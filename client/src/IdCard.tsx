@@ -1,4 +1,5 @@
 import { isApplicationDemo } from './applicationDemo';
+import { FilePreview } from './FilePreview';
 import { SensitiveSurface } from './sensitiveScreen';
 import { formatDisplayDate } from './swimmerPass';
 
@@ -112,12 +113,7 @@ export function IdCard({ data }: { data: IdCardData }) {
           <div className="id-card-brand-row">
             <div className="id-card-logo-wrap" aria-hidden={!logoUrl}>
               {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt=""
-                  className="id-card-logo"
-                  draggable={false}
-                />
+                <FilePreview src={logoUrl} alt={poolName} className="id-card-logo" draggable={false} />
               ) : (
                 <span className="id-card-logo-fallback">{poolName.slice(0, 1).toUpperCase()}</span>
               )}
@@ -132,12 +128,7 @@ export function IdCard({ data }: { data: IdCardData }) {
         <div className="id-card-body">
           <div className="id-card-photo-wrap">
             {data.photoUrl ? (
-              <img
-                src={data.photoUrl}
-                alt={data.fullName}
-                className="id-card-photo"
-                draggable={false}
-              />
+              <FilePreview src={data.photoUrl} alt={data.fullName} className="id-card-photo" draggable={false} />
             ) : (
               <div className="id-card-photo-fallback">No photo</div>
             )}

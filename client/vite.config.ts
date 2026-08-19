@@ -12,7 +12,7 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules/tesseract.js')) return 'ocr-tesseract';
           if (id.includes('node_modules/pdfjs-dist')) return 'ocr-pdf';
-          if (id.includes('node_modules/html5-qrcode')) return 'vendor-qr';
+          if (id.includes('node_modules/mammoth')) return 'vendor-word';
           if (id.includes('node_modules/react-dom')) return 'vendor-react';
           if (id.includes('node_modules/react-router')) return 'vendor-router';
           if (id.includes('node_modules/react/')) return 'vendor-react';

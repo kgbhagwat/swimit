@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { TermsBlocks } from './TermsBlocks';
+import { isWordDocument, readWordDocumentText } from './termsWord';
 
 type Props = {
   label: string;
@@ -88,18 +89,22 @@ function isTextFile(file: File) {
   const type = file.type.toLowerCase();
   return (
     type.startsWith('text/') ||
-    type === 'application/msword' ||
-    type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    /\.(txt|md|csv|doc|docx|rtf)$/i.test(name)
+    isWordDocument(file) ||
+    type.includes('pdf') ||
+    /\.(txt|md|csv|rtf|pdf)$/i.test(name)
   );
 }
 
 async function readDocumentText(file: File): Promise<string> {
-  const name = file.name.toLowerCase();
-  if (/\.(doc|docx)$/i.test(name) || file.type.includes('word')) {
-    throw new Error(
-      'Word (.doc/.docx) files are not supported yet. Please upload a .txt file.',
-    );
+  if (file.type.includes('pdf') || /\.pdf$/i.test(file.name)) {
+    const { extractTextFromPdfFile } = await import('./termsOcr');
+    const pages = await extractTextFromPdfFile(file, 'mixed');
+    const text = pages.join('\n\n').trim();
+    if (!text) throw new Error('No text was found in the PDF.');
+    return text;
+  }
+  if (isWordDocument(file)) {
+    return readWordDocumentText(file);
   }
   const text = (await file.text()).trim();
   if (!text) throw new Error('The selected file is empty.');
@@ -143,7 +148,9 @@ export function TermsDocumentField({
     setError('');
     try {
       if (!isTextFile(file)) {
-        throw new Error('Please select a text or document file (.txt, .md, .rtf).');
+        throw new Error(
+          'Please select a Word, Pages, OpenDocument, PDF, or text file (.docx, .doc, .pages, .odt, .pdf, .rtf, .txt).',
+        );
       }
       const text = await readDocumentText(file);
       onChange(joinPages(valueRef.current, [text]));
@@ -183,7 +190,7 @@ export function TermsDocumentField({
           <input
             ref={fileRef}
             type="file"
-            accept=".txt,.md,.csv,.rtf,text/plain,text/markdown,text/csv,text/rtf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".txt,.md,.csv,.rtf,.pdf,.doc,.docx,.docm,.dotx,.odt,.pages,text/plain,text/rtf,application/pdf,application/msword,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/vnd.apple.pages"
             hidden
             onChange={(e) => void handleFile(e.target.files)}
           />

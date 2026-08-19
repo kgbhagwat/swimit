@@ -4,6 +4,7 @@ import { pool } from '../db/pool.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { pageKeysForPackage, sanitizeFeatureKeys } from '../packageFeatures.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
+import { isValidPersonName, NAME_INVALID_MSG } from '../nameValidation.js';
 import { isEmailDeliveryConfigured, sendTempPasswordEmail } from '../email.js';
 import {
   hashPassword,
@@ -138,6 +139,7 @@ function normalizeEmail(value: unknown) {
 function validate(body: AccountBody, { requireCode = true } = {}) {
   if (!body.accountName?.trim()) return 'Account / pool name is required';
   if (!body.contactName?.trim()) return 'Contact name is required';
+  if (!isValidPersonName(body.contactName)) return NAME_INVALID_MSG;
   const mobile = sanitizeMobile(body.mobile);
   if (!isValidMobile(mobile)) return MOBILE_INVALID_MSG;
   const email = normalizeEmail(body.email);

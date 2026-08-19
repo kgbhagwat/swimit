@@ -78,13 +78,18 @@ def marketing(name: str, body: str, example_row: list[str], language: str = "en"
 
 TEMPLATES = [
     marketing(
+        "swimit_login_ready",
+        "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nUser: {{4}}\nPassword: {{5}}\nThis sign-in information sent on email as well.\nPlease update it after first sign-in",
+        ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "admin", "Ab12cd34"],
+    ),
+    marketing(
         "swimit_login_info",
-        "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nUser: {{4}}\nYour temporary sign-in key was sent to email. Please update it after first sign-in.",
-        ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "admin"],
+        "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nUser: {{4}}\nPassword: {{5}}\nThis sign-in information sent on email as well.\nPlease update it after first sign-in",
+        ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "admin", "Ab12cd34"],
     ),
     utility(
         "swimit_login_creds",
-        "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nUser: {{4}}\nTemporary password: {{5}}\nPlease update it after first sign-in.",
+        "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nUser: {{4}}\nPassword: {{5}}\nThis sign-in information sent on email as well.\nPlease update it after first sign-in",
         ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "admin", "Ab12cd34"],
     ),
     utility(
@@ -111,6 +116,11 @@ TEMPLATES = [
         "swimit_sub_expiring",
         "Hello {{1}}, your SwimIT subscription for {{2}} expires on {{3}}. Renew here: {{4}}. After paying, send the screenshot on this chat.",
         ["Bipin", "SMPool", "16 Sep 2026", "https://staging.swimit.co.in/smpool/renew-payment"],
+    ),
+    utility(
+        "swimit_open_form_desk",
+        "{{1}} registration form for {{2}} is ready. Open: {{3}}",
+        ["Swimmer", "SMPool", "https://staging.swimit.co.in/smpool/open/register"],
     ),
     utility(
         "swimit_open_form",

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { FilePreview } from './FilePreview';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
@@ -557,7 +558,7 @@ export function RenewPayment() {
                     </p>
                   </>
                 ) : uploadUrl(payment.paymentQrPath) ? (
-                  <img
+                  <FilePreview
                     src={uploadUrl(payment.paymentQrPath)!}
                     alt={t('SwimIT SaaS payment QR code')}
                     className="online-payment-qr"

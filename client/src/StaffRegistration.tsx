@@ -2,8 +2,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useT } from './i18n';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
-import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, mobileHint, sanitizeMobileInput } from './formValidation';
+import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, isValidPersonName, mobileHint, nameHint, sanitizeMobileInput, sanitizeNameInput } from './formValidation';
 import { PlatformPage } from './PlatformPage';
+import { IdentityCaptureFields } from './IdentityCaptureFields';
+import { identityNumberError } from './identityNumber';
 import { MultiCertificateField, RegistrationPhotoField } from './RegistrationPhotoField';
 import { TermsModal } from './TermsModal';
 import { getSampleStaffDetail, SAMPLE_STAFF_BATCHES } from './sampleStaff';
@@ -366,7 +368,7 @@ export function StaffRegistration() {
     const fields = new Set<string>();
 
     if (!form.registrationFor) fields.add('registrationFor');
-    if (!form.fullName.trim()) fields.add('fullName');
+    if (!form.fullName.trim() || !isValidPersonName(form.fullName)) fields.add('fullName');
     if (!form.fullAddress.trim()) fields.add('fullAddress');
     if (!form.whatsappMobile.trim() || !isValidMobile(form.whatsappMobile)) {
       fields.add('whatsappMobile');
@@ -383,7 +385,7 @@ export function StaffRegistration() {
     if (!form.sex) fields.add('sex');
     if (!form.bloodGroup) fields.add('bloodGroup');
 
-    if (!form.emergencyName.trim()) fields.add('emergencyName');
+    if (!form.emergencyName.trim() || !isValidPersonName(form.emergencyName)) fields.add('emergencyName');
     if (!form.emergencyRelation) fields.add('emergencyRelation');
     if (!form.emergencyMobile.trim() || !isValidMobile(form.emergencyMobile)) {
       fields.add('emergencyMobile');
@@ -405,9 +407,7 @@ export function StaffRegistration() {
     }
 
     if (!form.identityDocument) fields.add('identityDocument');
-    if (form.identityNumber.trim().replace(/\s+/g, '').length < 4) {
-      fields.add('identityNumber');
-    }
+    if (identityNumberError(form.identityNumber)) fields.add('identityNumber');
     if (!isSampleEdit) {
       if (!identityPhoto && !existingPhotos.identity) fields.add('identityPhoto');
       if (!staffPhoto && !existingPhotos.staff) fields.add('staffPhoto');
@@ -655,11 +655,16 @@ export function StaffRegistration() {
               <Label required>{t("Full name")}</Label>
               <input
                 value={form.fullName}
-                onChange={(e) => setField('fullName', e.target.value)}
+                onChange={(e) => setField('fullName', sanitizeNameInput(e.target.value))}
                 placeholder={t("As per identity document")}
+                autoCapitalize="words"
+                autoComplete="name"
                 required
-                aria-invalid={isInvalid('fullName')}
+                aria-invalid={isInvalid('fullName') || Boolean(nameHint(form.fullName))}
               />
+              {nameHint(form.fullName) ? (
+                <span className="field-error">{t(nameHint(form.fullName))}</span>
+              ) : null}
             </label>
             <label className="field field-beside">
               <Label required>{t("Full address")}</Label>
@@ -777,11 +782,16 @@ export function StaffRegistration() {
               <Label required>{t("Emergency contact name")}</Label>
               <input
                 value={form.emergencyName}
-                onChange={(e) => setField('emergencyName', e.target.value)}
+                onChange={(e) => setField('emergencyName', sanitizeNameInput(e.target.value))}
                 placeholder={t("Contact person name")}
+                autoCapitalize="words"
+                autoComplete="name"
                 required
-                aria-invalid={isInvalid('emergencyName')}
+                aria-invalid={isInvalid('emergencyName') || Boolean(nameHint(form.emergencyName))}
               />
+              {nameHint(form.emergencyName) ? (
+                <span className="field-error">{t(nameHint(form.emergencyName))}</span>
+              ) : null}
             </label>
             <label className="field field-beside">
               <Label required>{t("Relation")}</Label>
@@ -884,68 +894,28 @@ export function StaffRegistration() {
 
         <section className="registration-section">
           <h2>{t("Identity & photo")}</h2>
-          <div className="registration-identity-row">
-            <label
-              className={`field field-beside registration-identity-doc${
-                isInvalid('identityDocument') ? ' field-box-invalid' : ''
-              }`}
-            >
-              <Label required>{t("Identity document")}</Label>
-              <select
-                className="field-control-sm registration-identity-doc-select"
-                value={form.identityDocument}
-                onChange={(e) => setField('identityDocument', e.target.value)}
-                required
-                aria-invalid={isInvalid('identityDocument')}
-              >
-                <option value="">{t("Select document type")}</option>
-                <option value="Aadhaar">{t("Aadhaar card")}</option>
-                <option value="PAN">{t("PAN card")}</option>
-                <option value="Passport">{t("Passport")}</option>
-                <option value="Driving Licence">{t("Driving licence")}</option>
-                <option value="School ID">{t("School / college ID")}</option>
-              </select>
-            </label>
-            <label
-              className={`field field-beside registration-identity-number${
-                isInvalid('identityNumber') ? ' field-box-invalid' : ''
-              }`}
-            >
-              <Label required>{t('Identity number')}</Label>
-              <input
-                className="field-control-sm"
-                value={form.identityNumber}
-                onChange={(e) => setField('identityNumber', e.target.value)}
-                placeholder={t('Enter document number')}
-                autoComplete="off"
-                required
-                aria-invalid={isInvalid('identityNumber')}
-              />
-            </label>
-            <RegistrationPhotoField
-              label={t("Photo of identity proof")}
-              hint={t("Max 200 KB — upload or take a photo of your identity proof")}
-              required
-              hideLabel
-              protectFromCapture
-              identityNumberToMask={form.identityNumber}
-              file={identityPhoto}
-              preview={identityPreview}
-              existingUrl={existingPhotos.identity}
-              takeLabel={t("Take photo")}
-              uploadLabel={t("Upload")}
-              invalid={isInvalid('identityPhoto')}
-              onClearExisting={() =>
-                setExistingPhotos((prev) => ({ ...prev, identity: null }))
-              }
-              onPick={(file) => {
-                clearInvalid('identityPhoto');
-                setIdentityPhoto(file);
-              }}
-            />
+          <IdentityCaptureFields
+            document={form.identityDocument}
+            number={form.identityNumber}
+            onDocumentChange={(value) => setField('identityDocument', value)}
+            onNumberChange={(value) => setField('identityNumber', value)}
+            documentInvalid={isInvalid('identityDocument')}
+            numberInvalid={isInvalid('identityNumber')}
+            proofFile={identityPhoto}
+            proofPreview={identityPreview}
+            proofExistingUrl={existingPhotos.identity}
+            proofInvalid={isInvalid('identityPhoto')}
+            onClearProofExisting={() =>
+              setExistingPhotos((prev) => ({ ...prev, identity: null }))
+            }
+            onPickProof={(file) => {
+              clearInvalid('identityPhoto');
+              setIdentityPhoto(file);
+            }}
+          >
             <RegistrationPhotoField
               label={t("Photo")}
-              hint={t("Max 200 KB — recent passport-size photo for identification")}
+              hint={t("Image (max 200 KB) or PDF (max 2 MB) — recent passport-size photo for identification")}
               required
               protectFromCapture
               file={staffPhoto}
@@ -960,7 +930,7 @@ export function StaffRegistration() {
                 setStaffPhoto(file);
               }}
             />
-          </div>
+          </IdentityCaptureFields>
         </section>
 
         {form.registrationFor === 'Coach' ? (
@@ -1052,7 +1022,8 @@ export function StaffRegistration() {
                 <div className="achievements-cert-uploads">
                   <MultiCertificateField
                     label={t("Certificates")}
-                    hint={t("Optional — upload up to 3 certificate photos (max 200 KB each)")}
+                    hint={t("Optional — upload up to 3 certificate photos or PDFs (images max 200 KB; PDFs max 2 MB)")}
+                    cameraFacing="environment"
                     files={certPhotos}
                     previews={certPreviews}
                     existingUrls={existingPhotos.certs}
@@ -1155,8 +1126,9 @@ export function StaffRegistration() {
                   <div className="lifeguard-photo-inline">
                     <RegistrationPhotoField
                       label={t("Certificate")}
-                      hint={t("Max 200 KB — upload or take a clear photo of the Life Guard certificate")}
+                      hint={t("Image (max 200 KB) or PDF (max 2 MB) — upload or take a clear photo of the Life Guard certificate")}
                       required
+                      cameraFacing="environment"
                       file={lifeguardPhoto}
                       preview={lifeguardPreview}
                       existingUrl={existingPhotos.lifeguard}

@@ -79,7 +79,18 @@ export function TermsModal({ open, onClose, onAccept, variant = 'swimmer' }: Ter
       onClick={onClose}
     >
       <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-        <h2 id="terms-title">{t('Terms & Conditions')}</h2>
+        <div className="pass-popup-panel-head">
+          <h2 id="terms-title">{t('Terms & Conditions')}</h2>
+          <button
+            type="button"
+            className="pass-popup-close-x"
+            onClick={onClose}
+            aria-label={t('Close')}
+            title={t('Close')}
+          >
+            ×
+          </button>
+        </div>
         <p className="modal-intro">{t('Please read carefully before submitting your registration.')}</p>
 
         <div className="modal-scroll">
@@ -87,6 +98,9 @@ export function TermsModal({ open, onClose, onAccept, variant = 'swimmer' }: Ter
         </div>
 
         <div className="modal-footer">
+          <button type="button" className="ghost-btn" onClick={onClose}>
+            {t('Close')}
+          </button>
           <button
             type="button"
             className="submit"

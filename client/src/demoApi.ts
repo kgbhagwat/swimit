@@ -875,6 +875,11 @@ export async function handleDemoApiRequest(
       closingBalance: 0,
     });
   }
+  if (pathname === '/api/dashboard/details') {
+    const asOf = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
+    const kind = String(searchParams.get('kind') ?? '').trim();
+    return jsonResponse(buildDemoDashboardDetails(store, kind, asOf));
+  }
   if (pathname === '/api/dashboard') {
     const asOf = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
     return jsonResponse(buildDemoDashboard(store, asOf));
@@ -892,6 +897,134 @@ function countBy(rows: Array<Record<string, unknown>>, key: string) {
   return [...map.entries()]
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+const SAMPLE_DASHBOARD_PEOPLE = [
+  { fullName: 'Aarav Patil', mobile: '9876543210', batch: 'Morning A — Mixed — 06:00 to 07:00', coach: 'Riya Kulkarni', passType: 'Monthly Swim' },
+  { fullName: 'Sana Joshi', mobile: '9123456780', batch: 'Evening B — Ladies — 17:00 to 18:00', coach: 'Amit Shah', passType: 'Quarterly Swim' },
+  { fullName: 'Vihaan Kulkarni', mobile: '9988776655', batch: 'Afternoon C — Mixed — 14:00 to 15:00', coach: 'Riya Kulkarni', passType: 'Monthly Swim' },
+  { fullName: 'Anaya Deshmukh', mobile: '9001122334', batch: 'Morning A — Mixed — 06:00 to 07:00', coach: 'Amit Shah', passType: 'Trial Pass' },
+  { fullName: 'Kabir Mehta', mobile: '9812345670', batch: 'Evening B — Ladies — 17:00 to 18:00', coach: 'Riya Kulkarni', passType: 'Monthly Swim' },
+  { fullName: 'Isha Sharma', mobile: '9765432109', batch: 'Afternoon C — Mixed — 14:00 to 15:00', coach: 'Amit Shah', passType: 'Quarterly Swim' },
+];
+
+function sampleCountForKind(kind: string, asOf: string) {
+  const seed = Number(String(asOf).replace(/\D/g, '')) || 1;
+  if (kind === 'present') return 12 + (seed % 17);
+  if (kind === 'admissions') return 1 + (seed % 5);
+  if (kind === 'expiring') return 2 + (seed % 8);
+  if (kind === 'users') return 4;
+  return 36 + (seed % 20);
+}
+
+function mapDemoSwimmerDetail(row: Record<string, unknown>, index: number) {
+  const until = String(row.pass_valid_until ?? row.passValidUntil ?? '').slice(0, 10);
+  return {
+    id: Number(row.id ?? index + 1) || index + 1,
+    fullName: String(row.full_name ?? row.fullName ?? '').trim() || '—',
+    mobile: String(row.whatsapp_mobile ?? row.whatsappMobile ?? row.mobile ?? '').trim(),
+    batch: String(row.batch ?? '').trim() || '—',
+    coach: String(row.coach ?? '').trim() || '—',
+    passType: String(row.pass_type ?? row.passType ?? '').trim() || '—',
+    passValidUntil: until || null,
+    createdAt: String(row.created_at ?? row.createdAt ?? '').slice(0, 10) || null,
+  };
+}
+
+function fakeDetailRows(kind: string, asOf: string, count: number) {
+  const n = Math.max(0, count);
+  if (kind === 'users') {
+    const users = [
+      { userName: 'pooladmin', mobile: '9000000001', email: 'admin@example.com', isAccountAdmin: true },
+      { userName: 'riya.k', mobile: '9000000002', email: 'riya@example.com', isAccountAdmin: false },
+      { userName: 'amit.s', mobile: '9000000003', email: 'amit@example.com', isAccountAdmin: false },
+      { userName: 'front.desk', mobile: '9000000004', email: 'desk@example.com', isAccountAdmin: false },
+    ];
+    return users.slice(0, n).map((row, index) => ({
+      id: index + 1,
+      ...row,
+      createdAt: asOf,
+    }));
+  }
+  return Array.from({ length: n }, (_, index) => {
+    const sample = SAMPLE_DASHBOARD_PEOPLE[index % SAMPLE_DASHBOARD_PEOPLE.length];
+    const until = new Date(`${asOf}T12:00:00`);
+    until.setDate(until.getDate() + (kind === 'expiring' ? 1 + (index % 3) : 12 + (index % 20)));
+    return {
+      id: index + 1,
+      fullName: sample.fullName,
+      mobile: sample.mobile,
+      batch: sample.batch,
+      coach: sample.coach,
+      passType: sample.passType,
+      passValidUntil: until.toISOString().slice(0, 10),
+      createdAt: asOf,
+    };
+  });
+}
+
+function buildDemoDashboardDetails(store: DemoStore, kind: string, asOfRaw?: string) {
+  const asOf =
+    asOfRaw && /^\d{4}-\d{2}-\d{2}$/.test(asOfRaw)
+      ? asOfRaw
+      : new Date().toISOString().slice(0, 10);
+  const noticeDays = Number(store.poolCoreInfo.passExpiryNoticeDays ?? 3) || 3;
+  const noticeEnd = new Date(`${asOf}T12:00:00`);
+  noticeEnd.setDate(noticeEnd.getDate() + noticeDays);
+  const noticeEndIso = noticeEnd.toISOString().slice(0, 10);
+
+  if (kind === 'users') {
+    const users = store.users.filter((row) => {
+      const created = String(row.createdAt ?? row.created_at ?? '').slice(0, 10);
+      return Boolean(String(row.mobile ?? '').trim()) && (!created || created <= asOf);
+    });
+    if (!users.length) {
+      return { kind, asOf, rows: fakeDetailRows('users', asOf, sampleCountForKind('users', asOf)) };
+    }
+    return {
+      kind,
+      asOf,
+      rows: users.map((row, index) => ({
+        id: Number(row.id ?? index + 1) || index + 1,
+        userName: String(row.userName ?? row.user_name ?? '').trim() || '—',
+        mobile: String(row.mobile ?? '').trim(),
+        email: String(row.email ?? '').trim(),
+        isAccountAdmin: row.isAccountAdmin === true || row.is_account_admin === true,
+        createdAt: String(row.createdAt ?? row.created_at ?? '').slice(0, 10) || null,
+      })),
+    };
+  }
+
+  const active = store.registrations.filter((row) => row.is_active !== false && row.isActive !== false);
+  let selected: Array<Record<string, unknown>> = active;
+  if (kind === 'present') {
+    const presentIds = new Set(
+      store.attendance
+        .filter((row) => String(row.attendance_date ?? row.attendanceDate ?? '').slice(0, 10) === asOf)
+        .map((row) => Number(row.registration_id ?? row.registrationId ?? 0)),
+    );
+    selected = active.filter((row) => presentIds.has(Number(row.id)));
+  } else if (kind === 'expiring') {
+    selected = active.filter((row) => {
+      const until = String(row.pass_valid_until ?? row.passValidUntil ?? '').slice(0, 10);
+      return until && until >= asOf && until <= noticeEndIso;
+    });
+  } else if (kind === 'admissions') {
+    selected = store.registrations.filter((row) => {
+      const created = String(row.created_at ?? row.createdAt ?? '').slice(0, 10);
+      return created === asOf;
+    });
+  }
+
+  if (!store.registrations.length) {
+    return { kind, asOf, rows: fakeDetailRows(kind, asOf, sampleCountForKind(kind, asOf)) };
+  }
+
+  return {
+    kind,
+    asOf,
+    rows: selected.map((row, index) => mapDemoSwimmerDetail(row, index)),
+  };
 }
 
 function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {

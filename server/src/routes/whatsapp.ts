@@ -490,8 +490,12 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
       saasAccountId: accountId,
     });
 
+    const path =
+      form === 'staff' ? `/${accountCode}/open/staff-register` : `/${accountCode}/open/register`;
+    const formUrl = `${getWhatsAppConfig().publicAppUrl || ''}${path}`;
+
     if (!result.ok) {
-      res.status(502).json({ error: result.error, ok: false });
+      res.status(502).json({ error: result.error, ok: false, formUrl, mobile });
       return;
     }
     if (result.skipped) {
@@ -499,17 +503,17 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
         error: 'WhatsApp is not configured on the server',
         ok: false,
         skipped: true,
+        formUrl,
+        mobile,
       });
       return;
     }
 
-    const path =
-      form === 'staff' ? `/${accountCode}/open/staff-register` : `/${accountCode}/open/register`;
     res.json({
       ok: true,
       form,
       mobile,
-      formUrl: `${getWhatsAppConfig().publicAppUrl || ''}${path}`,
+      formUrl,
       messageId: result.messageId,
     });
   } catch (err) {

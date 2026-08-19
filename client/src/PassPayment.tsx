@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { FilePreview } from './FilePreview';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { canEditPage } from './pageAccess';
@@ -1390,7 +1391,7 @@ export function PassPayment() {
                         </a>
                       </>
                     ) : onlineQrUrl ? (
-                      <img
+                      <FilePreview
                         src={onlineQrUrl}
                         alt={t('Payment QR code')}
                         className="online-payment-qr"
