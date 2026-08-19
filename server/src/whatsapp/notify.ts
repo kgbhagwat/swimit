@@ -67,7 +67,9 @@ async function sendTemplateInKnownLanguages(params: {
   headerImage?: { id?: string; link?: string };
 }) {
   const preferred = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en').trim() || 'en';
-  const languages = [...new Set([preferred, 'en', 'en_US'])];
+  // SwimIT templates were created as `en`. 132001 means that language has no translation,
+  // so keep trying the other codes instead of stopping on the first miss.
+  const languages = [...new Set(['en', preferred, 'en_US'])];
   let lastError = 'Template failed';
   for (const lang of languages) {
     try {
@@ -84,9 +86,6 @@ async function sendTemplateInKnownLanguages(params: {
       if (!sent.skipped) return sent;
     } catch (err) {
       lastError = err instanceof Error ? err.message : 'Template failed';
-      if (/does not exist|#132001|template not found|not found for this language/i.test(lastError)) {
-        break;
-      }
     }
   }
   throw new Error(lastError);

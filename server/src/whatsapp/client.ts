@@ -31,12 +31,21 @@ export function formatWhatsAppUserError(raw: string, mobile?: string) {
     );
   }
 
+  // Template / recipient Graph errors are often typed OAuthException even when the token is fine.
+  if (
+    lower.includes('(#132001)') ||
+    lower.includes('does not exist in the translation') ||
+    lower.includes('code 132001')
+  ) {
+    return message;
+  }
+
   if (
     lower.includes('authenticat') ||
     lower.includes('access token') ||
     lower.includes('session has expired') ||
     lower.includes('invalid oauth') ||
-    (lower.includes('oauth') && !lower.includes('131030'))
+    (lower.includes('oauth') && !lower.includes('131030') && !lower.includes('132'))
   ) {
     return `${message}. The token in server .env is invalid or expired. Paste a fresh WHATSAPP_TOKEN, then run: docker compose -f docker-compose.lightsail.yml up -d --force-recreate app`;
   }
