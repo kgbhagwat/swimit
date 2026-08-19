@@ -539,6 +539,7 @@ CREATE TABLE IF NOT EXISTS pass_payment_intents (
   detected_amount NUMERIC(12, 2),
   transaction_id TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
+  share_token TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   verified_at TIMESTAMPTZ,
   CHECK (expected_amount >= 0),
@@ -549,6 +550,10 @@ CREATE INDEX IF NOT EXISTS idx_pass_payment_intents_pending
   ON pass_payment_intents (saas_account_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_pass_payment_intents_reg
   ON pass_payment_intents (registration_id, status);
+ALTER TABLE pass_payment_intents ADD COLUMN IF NOT EXISTS share_token TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS pass_payment_intents_share_token_uidx
+  ON pass_payment_intents (share_token)
+  WHERE share_token IS NOT NULL AND TRIM(share_token) <> '';
 
 CREATE UNIQUE INDEX IF NOT EXISTS saas_accounts_email_lower_uidx
   ON saas_accounts (LOWER(TRIM(email)))

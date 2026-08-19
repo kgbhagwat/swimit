@@ -16,6 +16,7 @@ import {
   notifyRegistrationConfirmation,
 } from '../whatsapp/notify.js';
 import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
+import { newPaymentShareToken, whatsAppPayShareUrl } from '../upiPayQr.js';
 import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
 import {
   guessImageContentType,
@@ -1108,12 +1109,13 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
       [id],
     );
 
+    const shareToken = newPaymentShareToken();
     const { rows: intentRows } = await pool.query(
       `INSERT INTO pass_payment_intents
        (saas_account_id, registration_id, from_mobile, pass_type, batch, coach,
-        pass_valid_until, expected_amount, pass_charges, coaching_charges, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, 'pending')
-       RETURNING id, created_at`,
+        pass_valid_until, expected_amount, pass_charges, coaching_charges, status, share_token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, 'pending', $11)
+       RETURNING id, created_at, share_token`,
       [
         accountId,
         id,
@@ -1125,9 +1127,14 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
         expectedAmount,
         passCharges,
         coachingCharges,
+        shareToken,
       ],
     );
 
+    const shareUrl = whatsAppPayShareUrl(
+      String(intentRows[0].share_token ?? shareToken),
+      String(req.get('origin') ?? ''),
+    );
     const notify = await notifyPassPaymentRequest({
       mobile,
       fullName: String(regRows[0].full_name),
@@ -1138,6 +1145,7 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
       paymentQrPath,
       saasAccountId: accountId,
       poolName: poolName || undefined,
+      shareUrl,
     });
 
     void maybeNotifyBatchCoachOverLimit({
@@ -1160,6 +1168,8 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
         createdAt: intentRows[0].created_at,
       },
       payment: { upiId, paymentQrPath },
+      message: notify.message,
+      payLink: notify.payLink,
       whatsapp: notify,
     });
   } catch (err) {

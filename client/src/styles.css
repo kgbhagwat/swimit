@@ -7288,6 +7288,67 @@ button.coach-payment-back {
   color: #122849;
 }
 
+.payment-request-preview {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.15rem 0 0.35rem;
+  min-width: 0;
+}
+
+.payment-request-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.payment-request-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.payment-request-preview-head .csv-btn,
+.payment-request-preview-actions .csv-btn {
+  flex: 0 0 auto;
+}
+
+.payment-request-preview-body {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f4f7fb;
+  border: 1px solid #d5deea;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #1a3568;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.payment-request-preview-body .wa-chat-upi-link {
+  display: inline;
+  word-break: break-all;
+}
+
+.payment-request-preview-qr {
+  display: block;
+  width: 180px;
+  height: 180px;
+  margin: 0.85rem 0 0.15rem;
+  background: #fff;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+}
+
+.payment-request-pay-link {
+  justify-self: start;
+}
+
 .online-payment-details {
   display: contents;
 }

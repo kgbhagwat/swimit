@@ -87,6 +87,18 @@ function parseMaxSwimmersInput(value: string): number | null | 'invalid' {
   return num;
 }
 
+async function readApiError(res: Response, fallback: string) {
+  const raw = await res.text();
+  let body: { error?: unknown } = {};
+  try {
+    body = raw ? (JSON.parse(raw) as { error?: unknown }) : {};
+  } catch {
+    /* HTML / empty proxy error */
+  }
+  if (typeof body.error === 'string' && body.error.trim()) return body.error.trim();
+  return res.status ? `${fallback} (${res.status})` : fallback;
+}
+
 function EditIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -280,7 +292,16 @@ export function PassTypePage() {
     }
     const passCharges = Number(form.passCharges);
     const coachingCharges = Number(form.coachingCharges || 0);
-    if (!Number.isNaN(passCharges) && !Number.isNaN(coachingCharges) && coachingCharges >= passCharges) {
+    if (Number.isNaN(passCharges) || passCharges < 0) {
+      setError('Pass charges are required');
+      return;
+    }
+    if (
+      form.coach !== 'Not Required' &&
+      !Number.isNaN(coachingCharges) &&
+      coachingCharges >= passCharges &&
+      !(passCharges === 0 && coachingCharges === 0)
+    ) {
       setError('Coaching charges must be less than pass charges');
       return;
     }
@@ -293,7 +314,7 @@ export function PassTypePage() {
         prerequisite: 'None',
         duration: `${form.durationValue} ${form.durationUnit}`,
         passCharges,
-        coachingCharges,
+        coachingCharges: form.coach === 'Not Required' ? 0 : coachingCharges,
         coach: form.coach.trim() || 'Not Required',
         maxSwimmersPerCoach: maxSwimmers,
         exceedingLimitAllowed: form.exceedingLimitAllowed === 'Yes',
@@ -303,8 +324,7 @@ export function PassTypePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Failed to save');
+      if (!res.ok) throw new Error(await readApiError(res, 'Failed to save'));
       closeForm();
       await load();
     } catch (err) {
@@ -320,8 +340,7 @@ export function PassTypePage() {
     try {
       const res = await fetch(`/api/pass-types/${id}`, { method: 'DELETE' });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? 'Failed to delete');
+        throw new Error(await readApiError(res, 'Failed to delete'));
       }
       if (editingId === id) closeForm();
       await load();

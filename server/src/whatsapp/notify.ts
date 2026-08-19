@@ -950,7 +950,8 @@ export async function notifyPackageRenewalPayment(params: {
     hasAmountQr
       ? 'Scan the payment QR below, or tap the link to open your UPI app.'
       : 'Please pay the mentioned amount using the QR code shown.',
-    payLink ? `Pay now: ${payLink}` : '',
+    payLink ? 'Pay now:' : '',
+    payLink,
     params.upiId
       ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
       : 'After paying, send the payment screenshot on WhatsApp.',
@@ -1019,7 +1020,8 @@ export async function notifyPassPaymentRequest(params: {
   paymentQrPath?: string | null;
   saasAccountId: number;
   poolName?: string;
-}): Promise<NotifyCredentialsResult> {
+  shareUrl?: string;
+}): Promise<NotifyCredentialsResult & { message: string; payLink: string }> {
   const cfg = getWhatsAppConfig();
   const amountLabel = `₹${params.amount.toLocaleString('en-IN', {
     minimumFractionDigits: 0,
@@ -1027,22 +1029,9 @@ export async function notifyPassPaymentRequest(params: {
   })}`;
   const hasAmountQr = Boolean(String(params.upiId ?? '').trim()) && params.amount > 0;
   const payeeName = String(params.poolName ?? 'SwimIT').trim() || 'SwimIT';
-  const payNote = `Pass ${params.passType}`.slice(0, 80);
-  const payLink = hasAmountQr
-    ? buildUpiHttpsLaunchUrl({
-        publicAppUrl: cfg.publicAppUrl,
-        upiId: params.upiId,
-        amount: params.amount,
-        payeeName,
-        note: payNote,
-      }) ||
-      buildUpiPayUri({
-        upiId: params.upiId,
-        amount: params.amount,
-        payeeName,
-        note: payNote,
-      })
-    : '';
+  const shareUrl = String(params.shareUrl ?? '').trim();
+  const payLink =
+    hasAmountQr && shareUrl.startsWith('https://') && !shareUrl.includes('@') ? shareUrl : '';
   const body = [
     `Hello ${params.fullName},`,
     '',
@@ -1052,9 +1041,11 @@ export async function notifyPassPaymentRequest(params: {
     `Valid until: ${params.passValidUntil}`,
     '',
     hasAmountQr
-      ? 'Scan the payment QR below, or tap the link to open your UPI app.'
+      ? payLink
+        ? 'Scan the payment QR below, or tap the link to open your UPI app.'
+        : 'Copy the payment QR and attach it in this chat so they can scan it.'
       : 'Pay using the pool QR code / UPI shown.',
-    payLink ? `Pay now: ${payLink}` : '',
+    payLink ? `Pay now:\n\n${payLink}` : '',
     params.upiId
       ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
       : 'After paying, send the payment screenshot on WhatsApp.',
@@ -1077,7 +1068,7 @@ export async function notifyPassPaymentRequest(params: {
     ],
     fallbackBody: body,
   });
-  if (!sent.ok || sent.skipped) return sent;
+  if (!sent.ok || sent.skipped) return { ...sent, message: body, payLink };
 
   const caption = `Pay ${amountLabel} for ${params.passType}`;
   let amountQrSent = false;
@@ -1109,7 +1100,7 @@ export async function notifyPassPaymentRequest(params: {
     }
   }
 
-  return sent;
+  return { ...sent, message: body, payLink };
 }
 
 export async function notifyAccountAdminBatchOverLimit(params: {

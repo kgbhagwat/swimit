@@ -59,25 +59,58 @@ function mapRow(row: {
   };
 }
 
+function isBlankAmount(value: unknown) {
+  return value === undefined || value === null || value === '';
+}
+
+function coachIsRequired(value: unknown) {
+  const coach = String(value ?? '').trim() || 'Not Required';
+  return coach !== 'Not Required';
+}
+
 function validate(body: PassBody) {
   if (!body.passName?.trim()) return 'Pass name is required';
   if (!body.forAudience?.trim()) return 'For is required';
   if (!body.duration?.trim()) return 'Duration is required';
-  if (body.passCharges === undefined || Number.isNaN(Number(body.passCharges))) {
+  if (isBlankAmount(body.passCharges) || Number.isNaN(Number(body.passCharges))) {
     return 'Pass charges are required';
   }
   const passCharges = Number(body.passCharges);
+  if (passCharges < 0) return 'Pass charges must be a valid amount';
+  const coachRequired = coachIsRequired(body.coach);
   const coachingCharges = Number(body.coachingCharges || 0);
   if (Number.isNaN(coachingCharges) || coachingCharges < 0) {
     return 'Coaching charges must be a valid amount';
   }
-  if (coachingCharges >= passCharges) {
+  if (coachRequired && coachingCharges >= passCharges && !(passCharges === 0 && coachingCharges === 0)) {
     return 'Coaching charges must be less than pass charges';
   }
   if (parseMaxSwimmers(body.maxSwimmersPerCoach) === 'invalid') {
     return 'Max swimmers must be a positive number or No Limit';
   }
   return null;
+}
+
+function writeErrorMessage(err: unknown, fallback: string) {
+  const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: string }).code) : '';
+  if (code === '23505') return 'A pass type with this name already exists';
+  if (code === '42703') return 'Could not save this pass type. Please try again.';
+  if (code === '23502' || code === '23514') return 'Could not save this pass type. Please check the values and try again.';
+  if (code === '23503') return 'Could not save this pass type (account not found).';
+  return fallback;
+}
+
+async function passNameTaken(accountId: number, passName: string, exceptId?: number) {
+  const { rows } = await pool.query(
+    `SELECT id
+       FROM pass_types
+      WHERE saas_account_id = $1
+        AND LOWER(TRIM(pass_name)) = LOWER(TRIM($2))
+        AND ($3::int IS NULL OR id <> $3)
+      LIMIT 1`,
+    [accountId, passName, exceptId ?? null],
+  );
+  return Boolean(rows[0]);
 }
 
 export const passTypesRouter = Router();
@@ -158,16 +191,21 @@ passTypesRouter.put('/verification', async (req, res) => {
 });
 
 passTypesRouter.get('/', async (req, res) => {
-  const accountId = tenantId(req);
-  const { rows } = await pool.query(
-    `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-            max_swimmers_per_coach, exceeding_limit_allowed, verification_mode
-     FROM pass_types
-     WHERE saas_account_id = $1
-     ORDER BY id ASC`,
-    [accountId],
-  );
-  res.json(rows.map(mapRow));
+  try {
+    const accountId = tenantId(req);
+    const { rows } = await pool.query(
+      `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
+              max_swimmers_per_coach, exceeding_limit_allowed, verification_mode
+       FROM pass_types
+       WHERE saas_account_id = $1
+       ORDER BY id ASC`,
+      [accountId],
+    );
+    res.json(rows.map(mapRow));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: writeErrorMessage(err, 'Failed to load pass types') });
+  }
 });
 
 passTypesRouter.post('/', async (req, res) => {
@@ -180,6 +218,13 @@ passTypesRouter.post('/', async (req, res) => {
       return;
     }
 
+    const passName = body.passName!.trim();
+    if (await passNameTaken(accountId, passName)) {
+      res.status(400).json({ error: 'A pass type with this name already exists' });
+      return;
+    }
+
+    const coach = body.coach?.trim() || 'Not Required';
     const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
     const verificationMode = parseVerificationMode(body.verificationMode);
@@ -192,13 +237,13 @@ passTypesRouter.post('/', async (req, res) => {
                  max_swimmers_per_coach, exceeding_limit_allowed, verification_mode`,
       [
         accountId,
-        body.passName!.trim(),
+        passName,
         body.forAudience!.trim(),
         body.prerequisite?.trim() || 'None',
         body.duration!.trim(),
         Number(body.passCharges),
-        Number(body.coachingCharges || 0),
-        body.coach?.trim() || null,
+        coachIsRequired(coach) ? Number(body.coachingCharges || 0) : 0,
+        coach,
         maxSwimmers === 'invalid' ? null : maxSwimmers,
         exceedingAllowed,
         verificationMode,
@@ -216,7 +261,7 @@ passTypesRouter.post('/', async (req, res) => {
     res.status(201).json(created);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to create pass type' });
+    res.status(500).json({ error: writeErrorMessage(err, 'Failed to create pass type') });
   }
 });
 
@@ -231,6 +276,13 @@ passTypesRouter.put('/:id', async (req, res) => {
       return;
     }
 
+    const passName = body.passName!.trim();
+    if (await passNameTaken(accountId, passName, id)) {
+      res.status(400).json({ error: 'A pass type with this name already exists' });
+      return;
+    }
+
+    const coach = body.coach?.trim() || 'Not Required';
     const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
     const verificationMode = parseVerificationMode(body.verificationMode);
@@ -251,13 +303,13 @@ passTypesRouter.put('/:id', async (req, res) => {
        RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
                  max_swimmers_per_coach, exceeding_limit_allowed, verification_mode`,
       [
-        body.passName!.trim(),
+        passName,
         body.forAudience!.trim(),
         body.prerequisite?.trim() || 'None',
         body.duration!.trim(),
         Number(body.passCharges),
-        Number(body.coachingCharges || 0),
-        body.coach?.trim() || null,
+        coachIsRequired(coach) ? Number(body.coachingCharges || 0) : 0,
+        coach,
         maxSwimmers === 'invalid' ? null : maxSwimmers,
         exceedingAllowed,
         verificationMode,
@@ -282,7 +334,7 @@ passTypesRouter.put('/:id', async (req, res) => {
     res.json(updated);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to update pass type' });
+    res.status(500).json({ error: writeErrorMessage(err, 'Failed to update pass type') });
   }
 });
 

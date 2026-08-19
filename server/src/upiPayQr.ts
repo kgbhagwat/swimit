@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { randomBytes } from 'node:crypto';
 
 /**
  * UPI apps reject application/x-www-form-urlencoded query strings
@@ -70,6 +71,22 @@ export function buildUpiHttpsLaunchUrl(params: {
   const pa = normalizeVpa(params.upiId);
   const amount = Number(params.amount);
   if (!base || !pa || !Number.isFinite(amount) || amount <= 0) return '';
+  try {
+    const parsed = new URL(base);
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host === '0.0.0.0' ||
+      host.endsWith('.local') ||
+      !host.includes('.')
+    ) {
+      return '';
+    }
+  } catch {
+    return '';
+  }
   const q = new URLSearchParams();
   q.set('pa', pa);
   q.set('pn', sanitizePayeeName(params.payeeName ?? 'SwimIT') || 'SwimIT');
@@ -78,6 +95,53 @@ export function buildUpiHttpsLaunchUrl(params: {
   const note = sanitizePayeeName(params.note ?? '').slice(0, 80);
   if (note) q.set('tn', note);
   return `${base}/open/upi-pay?${q.toString()}`;
+}
+
+export function newPaymentShareToken() {
+  return randomBytes(12).toString('base64url');
+}
+
+function isPublicDnsHost(host: string) {
+  const h = String(host ?? '').toLowerCase();
+  if (!h.includes('.') || h === 'localhost' || h.endsWith('.local')) return false;
+  if (h === '127.0.0.1' || h === '0.0.0.0' || h === '::1') return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return false;
+  if (h.includes(':')) return false;
+  return true;
+}
+
+function httpsOriginIfPublic(raw?: string | null) {
+  const base = String(raw ?? '').trim().replace(/\/$/, '');
+  if (!base) return '';
+  try {
+    const parsed = new URL(base.includes('://') ? base : `https://${base}`);
+    if (!isPublicDnsHost(parsed.hostname)) return '';
+    return `https://${parsed.host}`;
+  } catch {
+    return '';
+  }
+}
+
+/** Origin WhatsApp will auto-link (https + real domain, never localhost / @). */
+export function publicHttpsAppUrl(preferred?: string | null) {
+  for (const raw of [preferred, process.env.PUBLIC_APP_URL, process.env.CORS_ORIGIN]) {
+    const origin = httpsOriginIfPublic(raw);
+    if (origin) return origin;
+  }
+  return '';
+}
+
+/** Short https pay page — no @ in the URL, so WhatsApp keeps it tappable. */
+export function whatsAppPayShareUrl(token: string, preferredBase?: string | null) {
+  const shareToken = String(token ?? '').trim();
+  if (!shareToken) return '';
+  const fromRequest = httpsOriginIfPublic(preferredBase);
+  if (fromRequest) return `${fromRequest}/open/upi-pay?t=${encodeURIComponent(shareToken)}`;
+  // Operator is on localhost: a staging PUBLIC_APP_URL would be tappable but 404.
+  if (String(preferredBase ?? '').trim()) return '';
+  const fromEnv = publicHttpsAppUrl();
+  if (!fromEnv) return '';
+  return `${fromEnv}/open/upi-pay?t=${encodeURIComponent(shareToken)}`;
 }
 
 export async function renderUpiPayQrPng(params: {

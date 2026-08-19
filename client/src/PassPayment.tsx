@@ -1,14 +1,16 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FilePreview } from './FilePreview';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
 import { QrImage } from './QrImage';
+import QRCode from 'qrcode';
 import {
   getSamplePassPaymentQueue,
   isApplicationDemo,
+  isApplicationDemoPath,
   markSampleSwimmerPaid,
 } from './applicationDemo';
 import { SAMPLE_STAFF_BATCHES } from './sampleStaff';
@@ -18,7 +20,7 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
-import { buildUpiPayUri, openUpiPay } from './upiPay';
+import { buildPassPaymentRequestMessage, buildUpiPayUri, extractPayLaunchHref, openUpiPay } from './upiPay';
 
 type PendingSwimmer = {
   id: number;
@@ -153,6 +155,171 @@ const SAMPLE_PAYMENT_QR_URL =
 
 function isSamplePendingId(id: number) {
   return id < 0;
+}
+
+function PaymentRequestPreview({ text, qrValue }: { text: string; qrValue: string }) {
+  const t = useT();
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const [copied, setCopied] = useState('');
+  const [qrSrc, setQrSrc] = useState('');
+  const payHref = extractPayLaunchHref(text);
+  const chunks = String(text ?? '').split(/(upi:\/\/pay\?[^\s]+|https?:\/\/[^\s]+)/gi);
+
+  useEffect(() => {
+    const value = String(qrValue ?? '').trim();
+    if (!value) {
+      setQrSrc('');
+      return;
+    }
+    let cancelled = false;
+    void QRCode.toDataURL(value, { width: 360, margin: 1, errorCorrectionLevel: 'M' }).then(
+      (url) => {
+        if (!cancelled) setQrSrc(url);
+      },
+      () => {
+        if (!cancelled) setQrSrc('');
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [qrValue]);
+
+  async function copyMessage() {
+    const value = String(text ?? '');
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const el = areaRef.current;
+      if (!el) return;
+      el.focus();
+      el.select();
+      document.execCommand('copy');
+    }
+    setCopied('text');
+    window.setTimeout(() => setCopied(''), 2000);
+  }
+
+  async function copyQr() {
+    if (!qrSrc) return;
+    try {
+      const blob = await (await fetch(qrSrc)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      setCopied('qr');
+      window.setTimeout(() => setCopied(''), 2000);
+    } catch {
+      downloadQr();
+    }
+  }
+
+  function downloadQr() {
+    if (!qrSrc) return;
+    const link = document.createElement('a');
+    link.href = qrSrc;
+    link.download = 'swimit-pass-payment-qr.png';
+    link.click();
+    setCopied('qr');
+    window.setTimeout(() => setCopied(''), 2000);
+  }
+
+  return (
+    <div className="payment-request-preview">
+      <div className="payment-request-preview-head">
+        <span className="label">{t('Request message')}</span>
+        <div className="payment-request-preview-actions">
+          <button type="button" className="csv-btn" onClick={() => void copyMessage()}>
+            {copied === 'text' ? t('Copied') : t('Copy message')}
+          </button>
+          {qrSrc ? (
+            <button type="button" className="csv-btn" onClick={() => void copyQr()}>
+              {copied === 'qr' ? t('Copied') : t('Copy QR')}
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <p className="muted payment-request-copy-hint">
+        {/^https:\/\//i.test(payHref)
+          ? t('Paste this message in WhatsApp, then Copy QR and attach the image.')
+          : t(
+              'WhatsApp will not make UPI text tappable. Copy the QR and attach it in the same chat.',
+            )}
+      </p>
+      <textarea
+        ref={areaRef}
+        className="visually-hidden"
+        readOnly
+        value={text}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+      <div className="payment-request-preview-body">
+        {chunks.map((chunk, index) => {
+          if (/^upi:\/\/pay\?/i.test(chunk)) {
+            return (
+              <a
+                key={`upi-${index}`}
+                className="wa-chat-upi-link"
+                href={chunk}
+                onClick={(event) => {
+                  event.preventDefault();
+                  openUpiPay(chunk);
+                }}
+              >
+                {chunk}
+              </a>
+            );
+          }
+          if (/^https?:\/\//i.test(chunk)) {
+            return (
+              <a
+                key={`http-${index}`}
+                className="wa-chat-upi-link"
+                href={chunk}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {chunk}
+              </a>
+            );
+          }
+          return <span key={`t-${index}`}>{chunk}</span>;
+        })}
+        {qrSrc ? (
+          <img
+            className="payment-request-preview-qr"
+            src={qrSrc}
+            alt={t('Payment QR code')}
+            width={180}
+            height={180}
+          />
+        ) : null}
+      </div>
+      {payHref || qrSrc ? (
+        <div className="payment-request-preview-actions">
+          {payHref ? (
+            <a
+              className="csv-btn payment-request-pay-link"
+              href={payHref}
+              target={payHref.toLowerCase().startsWith('upi:') ? undefined : '_blank'}
+              rel={payHref.toLowerCase().startsWith('upi:') ? undefined : 'noreferrer'}
+              onClick={(event) => {
+                if (!payHref.toLowerCase().startsWith('upi:')) return;
+                event.preventDefault();
+                openUpiPay(payHref);
+              }}
+            >
+              {t('Pay now')}
+            </a>
+          ) : null}
+          {qrSrc ? (
+            <button type="button" className="csv-btn" onClick={downloadQr}>
+              {t('Download QR')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function sampleProfileFromRow(row: PendingSwimmer): SwimmerProfile {
@@ -309,6 +476,8 @@ function holidaysInPassPeriod(
 export function PassPayment() {
   const t = useT();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const demoMode = isApplicationDemo() && isApplicationDemoPath(pathname);
   const canEdit = canEditPage('swimmers');
   const [rows, setRows] = useState<PendingSwimmer[]>([]);
   const [passTypes, setPassTypes] = useState<PassTypeOption[]>([]);
@@ -334,6 +503,7 @@ export function PassPayment() {
   const [holidayRecords, setHolidayRecords] = useState<HolidayRecord[]>([]);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
   const [waRequesting, setWaRequesting] = useState(false);
+  const [waRequestMessage, setWaRequestMessage] = useState('');
   const [assignmentCount, setAssignmentCount] = useState<number | null>(null);
   const [assignmentCountLoading, setAssignmentCountLoading] = useState(false);
   const [swimmerProfile, setSwimmerProfile] = useState<SwimmerProfile | null>(null);
@@ -466,6 +636,7 @@ export function PassPayment() {
     setError('');
     setMissingFields([]);
     setSuccessMessage('');
+    setWaRequestMessage('');
     clearIssueCloseTimer();
     setIssueSuccessMessage('');
     setDetailsConfirmed(false);
@@ -511,6 +682,7 @@ export function PassPayment() {
     setMissingFields([]);
     setSuccessMessage('');
     setIssueSuccessMessage('');
+    setWaRequestMessage('');
   }
 
   function scheduleCloseAfterIssue(afterClose?: () => void) {
@@ -809,7 +981,33 @@ export function PassPayment() {
   }
 
   async function onRequestWhatsAppPayment() {
-    if (samplePaying) return;
+    const preview = (payLink?: string) => {
+      if (!paying || !selectedPass) return '';
+      const amount =
+        Math.round(
+          (Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0)) * 100,
+        ) / 100;
+      return buildPassPaymentRequestMessage({
+        fullName: paying.fullName,
+        passType: selectedPass.passName,
+        amount,
+        passValidUntil,
+        upiId: samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails,
+        payLink,
+      }).body;
+    };
+
+    if (samplePaying) {
+      const missing = collectSharedMissing();
+      if (missing.length) {
+        showMissing(missing);
+        return;
+      }
+      setError('');
+      setMissingFields([]);
+      setWaRequestMessage(preview());
+      return;
+    }
     const missing = collectSharedMissing();
     if (missing.length) {
       showMissing(missing);
@@ -824,6 +1022,7 @@ export function PassPayment() {
     setWaRequesting(true);
     setError('');
     setMissingFields([]);
+    setWaRequestMessage('');
     try {
       const assignedCoach = !coachingRequired
         ? null
@@ -841,16 +1040,20 @@ export function PassPayment() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to send payment request');
 
+      setWaRequestMessage(String(body.message ?? '').trim() || preview(body.payLink));
+
       if (body.whatsapp?.ok === false) {
         setError(
           `${t('Payment request saved, but WhatsApp failed')}: ${
             body.whatsapp.error || t('send failed')
           }. ${t('Swimmer can still send the screenshot to the business number.')}`,
         );
+      } else if (body.whatsapp?.skipped) {
+        setError('');
       }
-      await load();
     } catch (err) {
       setMissingFields([]);
+      setWaRequestMessage(preview());
       setError(err instanceof Error ? err.message : 'Failed to send payment request');
     } finally {
       setWaRequesting(false);
@@ -939,7 +1142,7 @@ export function PassPayment() {
         )
       : '';
 
-  const queuedSamplePayments = isApplicationDemo()
+  const queuedSamplePayments = demoMode
     ? getSamplePassPaymentQueue()
         .filter((row) => !dismissedSampleIds.includes(row.id))
         .map(
@@ -956,7 +1159,7 @@ export function PassPayment() {
         )
     : [];
 
-  const samplePreview = isApplicationDemo() || (!loading && rows.length === 0 && !paying);
+  const samplePreview = demoMode;
   const displayRows = samplePreview
     ? [
         ...queuedSamplePayments,
@@ -1016,6 +1219,8 @@ export function PassPayment() {
           </div>
           {loading ? (
             <p className="pass-empty">{t('Loading…')}</p>
+          ) : displayRows.length === 0 ? (
+            <p className="pass-empty">{t('No swimmers pending payment.')}</p>
           ) : (
             <div className="pass-table-body">
               {displayRows.map((row, index) => (
@@ -1348,6 +1553,9 @@ export function PassPayment() {
                           </button>
                         </>
                       )}
+                      {waRequestMessage ? (
+                        <PaymentRequestPreview text={waRequestMessage} qrValue={amountLockedUpiQr} />
+                      ) : null}
                     </div>
                   ) : null}
 

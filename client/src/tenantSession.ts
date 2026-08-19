@@ -9,6 +9,7 @@ const PLATFORM_API_PREFIXES = [
   '/api/saas-accounts',
   '/api/service-packages',
   '/api/health',
+  '/api/open/',
 ];
 
 export function setActiveTenant(account: { id: number; accountCode: string } | null) {

@@ -23,6 +23,7 @@ import { webauthnRouter } from './routes/webauthn.js';
 import { whatsappRouter } from './routes/whatsapp.js';
 import { platformPaymentRouter } from './routes/platformPayment.js';
 import { dashboardRouter } from './routes/dashboard.js';
+import { openUpiPayRouter } from './routes/openUpiPay.js';
 import { supportRouter } from './routes/support.js';
 import { auditLogRouter } from './routes/auditLog.js';
 import { captchaRouter } from './routes/captcha.js';
@@ -88,6 +89,7 @@ app.use('/api/saas-accounts', webauthnRouter);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/platform-payment', platformPaymentRouter);
 app.use('/api/support', supportRouter);
+app.use('/api/open/upi-pay', openUpiPayRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

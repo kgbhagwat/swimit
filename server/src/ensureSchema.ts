@@ -27,4 +27,35 @@ export async function ensureSchema() {
       END IF;
     END $$;
   `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.pass_types') IS NULL THEN
+        RETURN;
+      END IF;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS max_swimmers_per_coach INT;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok';
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS saas_account_id INT;
+      UPDATE pass_types
+         SET verification_mode = 'ok_not_ok'
+       WHERE verification_mode IS NULL OR TRIM(verification_mode) = '';
+    END $$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.pass_payment_intents') IS NULL THEN
+        RETURN;
+      END IF;
+      ALTER TABLE pass_payment_intents ADD COLUMN IF NOT EXISTS share_token TEXT;
+    END $$;
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS pass_payment_intents_share_token_uidx
+      ON pass_payment_intents (share_token)
+      WHERE share_token IS NOT NULL AND TRIM(share_token) <> '';
+  `);
 }
