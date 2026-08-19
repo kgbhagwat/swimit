@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import sharp from 'sharp';
 import { createWorker, PSM } from 'tesseract.js';
 
@@ -174,6 +175,10 @@ async function preparePaymentOcrImages(absolutePath: string): Promise<Buffer[]> 
 export async function ocrImageForAmount(absolutePath: string): Promise<string> {
   const run = async () => {
     try {
+      if (!fs.existsSync(absolutePath)) {
+        console.warn('[payment-ocr] image missing', absolutePath);
+        return '';
+      }
       const worker = await getSharedOcrWorker();
       await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
       const first = await worker.recognize(absolutePath);
@@ -203,7 +208,7 @@ export async function ocrImageForAmount(absolutePath: string): Promise<string> {
 }
 
 export function uploadAbsolutePath(relativeUploadPath: string) {
-  const uploadsRoot = path.resolve(__dirname, '../../uploads');
+  const uploadsRoot = path.resolve(__dirname, '../uploads');
   return path.join(uploadsRoot, relativeUploadPath.replace(/^[/\\]+/, ''));
 }
 
