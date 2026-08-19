@@ -293,33 +293,6 @@ function useWebcamCapture(initialFacing: CameraFacing) {
   return { bindVideo, live, ready, error, facing, flipping, start, stop, flip, capture };
 }
 
-  const capture = useCallback(async (frame: 'face' | 'document' = 'document') => {
-    const video = videoRef.current;
-    if (!video || video.videoWidth < 2) return null;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    if (frame === 'face') {
-      const { sx, sy, sw, sh } = faceCropRect(video.videoWidth, video.videoHeight);
-      const outH = 960;
-      const outW = Math.round(outH * (3 / 4));
-      canvas.width = outW;
-      canvas.height = outH;
-      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
-    } else {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-    }
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-    if (!blob) return null;
-    stop();
-    return new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
-  }, [stop]);
-
-  return { bindVideo, live, ready, error, facing, flipping, start, stop, flip, capture };
-}
-
 type PhotoPickerButtonsProps = {
   disabled?: boolean;
   takeLabel: string;
