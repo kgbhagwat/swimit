@@ -87,6 +87,7 @@ export function buildUpiPayUri(params: {
     ['pn', pn],
     ['am', am],
     ['cu', 'INR'],
+    ['mode', '00'],
   ];
   if (note) fields.push(['tn', note]);
   return `upi://pay?${upiQuery(fields)}`;

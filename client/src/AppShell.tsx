@@ -18,6 +18,7 @@ import { LanguageSwitcher, useT } from './i18n';
 import { MENU_ITEMS, MenuTiles, type MenuItem } from './menuItems';
 import { pageKeysForPackage } from './packageFeatures';
 import { PassPopupOverlay } from './PassPopupOverlay';
+import { SidebarRelease } from './SidebarRelease';
 import { WorkflowDiagram } from './WorkflowDiagram';
 import { passwordPolicyError } from './passwordPolicy';
 import { PlatformNav } from './PlatformNav';
@@ -877,6 +878,7 @@ export function AppShell({
             );
           })}
         </ul>
+        <SidebarRelease />
       </nav>
 
       <div className="platform-main-topbar">

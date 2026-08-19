@@ -8,6 +8,7 @@ import {
   isMobileUpiClient,
   openUpiAppChoice,
   openUpiPay,
+  upiAppLaunchHref,
   upiPayQuery,
 } from './upiPay';
 
@@ -41,7 +42,7 @@ export function UpiAppPicker({
             key={app.id}
             type="button"
             className="upi-app-choice"
-            onClick={() => openUpiAppChoice(app.href(query))}
+            onClick={() => openUpiAppChoice(upiAppLaunchHref(app.id, query))}
           >
             {t(app.label)}
           </button>

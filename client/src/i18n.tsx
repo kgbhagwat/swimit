@@ -23,6 +23,7 @@ const mr: Record<string, string> = {
   'Hide menu': 'मेनू लपवा',
   'Show menu': 'मेनू दाखवा',
   'Close menu': 'मेनू बंद करा',
+  Release: 'रिलीझ',
   'Sign out': 'साइन आउट',
   Login: 'लॉगिन',
   'Forgot password?': 'पासवर्ड विसरलात?',
@@ -568,6 +569,7 @@ const mr: Record<string, string> = {
     'WhatsApp UPI मजकूर टॅप करता येणारा करत नाही. QR कॉपी करून त्याच चॅटमध्ये अटॅच करा.',
   'Scan this QR to pay, or tap to open your UPI app.':
     'पेमेंटसाठी हा QR स्कॅन करा, किंवा UPI अॅप उघडण्यासाठी टॅप करा.',
+  'Tap the QR to choose a payment app.': 'पेमेंट अॅप निवडण्यासाठी QR टॅप करा.',
   'When amount and UPI match, your package is upgraded automatically and a confirmation is shown here.':
     'रक्कम आणि UPI जुळले की पॅकेज आपोआप अपग्रेड होते आणि येथे पुष्टीकरण दिसते.',
   "After payment, the pool operator can send the payment screenshot on WhatsApp to SwimIT for confirmation.": "पेमेंटनंतर पूल चालवणारा पुष्टीसाठी पेमेंट स्क्रीनशॉट WhatsApp वर SwimIT ला पाठवू शकतो.",

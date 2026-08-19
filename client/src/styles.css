@@ -3161,7 +3161,7 @@ button.platform-rail-link {
   background: rgba(255, 255, 255, 0.96);
   color: var(--ink);
   border-right: 1px solid rgba(47, 111, 237, 0.1);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .platform-sidebar-brand {
@@ -3170,6 +3170,7 @@ button.platform-rail-link {
   display: flex;
   justify-content: center;
   align-items: center;
+  flex: 0 0 auto;
 }
 
 .platform-sidebar-brand-link {
@@ -3200,6 +3201,21 @@ button.platform-rail-link {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.platform-sidebar-release {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.55rem 0.85rem 0.75rem;
+  border-top: 1px solid rgba(47, 111, 237, 0.08);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: #5b6b80;
+  letter-spacing: 0.02em;
+  word-break: break-all;
 }
 
 .platform-sidebar-link {
@@ -17357,6 +17373,11 @@ html[data-theme='dark'] .platform-sidebar {
 
 html[data-theme='dark'] .platform-sidebar-brand {
   border-bottom-color: rgba(75, 132, 245, 0.14);
+}
+
+html[data-theme='dark'] .platform-sidebar-release {
+  border-top-color: rgba(75, 132, 245, 0.14);
+  color: #8aa0b8;
 }
 
 html[data-theme='dark'] .platform-sidebar-link {

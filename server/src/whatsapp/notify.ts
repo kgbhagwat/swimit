@@ -1045,7 +1045,9 @@ export async function notifyPackageRenewalPayment(params: {
   });
   if (!sent.ok || sent.skipped) return sent;
 
-  const caption = `Pay ${amountLabel} for ${params.packageName}`;
+  const caption = [`Pay ${amountLabel} for ${params.packageName}`, payLink.startsWith('https://') ? payLink : '']
+    .filter(Boolean)
+    .join('\n');
   let amountQrSent = false;
   if (hasAmountQr) {
     try {
@@ -1102,6 +1104,17 @@ export async function notifyPassPaymentRequest(params: {
   const shareUrl = String(params.shareUrl ?? '').trim();
   const payLink =
     hasAmountQr && shareUrl.startsWith('https://') && !shareUrl.includes('@') ? shareUrl : '';
+  const qrPayUrl =
+    payLink ||
+    (hasAmountQr
+      ? buildUpiHttpsLaunchUrl({
+          publicAppUrl: cfg.publicAppUrl,
+          upiId: params.upiId,
+          amount: params.amount,
+          payeeName,
+          note: `Pass ${params.passType}`.slice(0, 80),
+        })
+      : '');
   const body = [
     `Hello ${params.fullName},`,
     '',
@@ -1131,7 +1144,9 @@ export async function notifyPassPaymentRequest(params: {
     templateText(params.passValidUntil),
     templateText(payLink || params.upiId || 'pool desk', 400),
   ];
-  const caption = `Pay ${amountLabel} for ${params.passType}`;
+  const caption = [`Pay ${amountLabel} for ${params.passType}`, payLink || qrPayUrl]
+    .filter(Boolean)
+    .join('\n');
 
   let mediaId = '';
   if (hasAmountQr) {
@@ -1141,7 +1156,7 @@ export async function notifyPassPaymentRequest(params: {
         amount: params.amount,
         payeeName,
         note: `Pass ${params.passType}`.slice(0, 80),
-        qrContent: payLink || undefined,
+        qrContent: qrPayUrl.startsWith('https://') ? qrPayUrl : undefined,
       });
       mediaId = await uploadWhatsAppMedia({
         buffer: qrPng,

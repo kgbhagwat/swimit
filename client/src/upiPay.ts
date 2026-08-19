@@ -74,6 +74,7 @@ export function buildUpiPayUri(upiId: string, amount: number, note = '', payeeNa
     ['pn', pn],
     ['am', am],
     ['cu', 'INR'],
+    ['mode', '00'],
   ];
   if (tn) fields.push(['tn', tn]);
   return `upi://pay?${upiQuery(fields)}`;
@@ -101,11 +102,40 @@ export function upiPayQuery(upiUri: string) {
 }
 
 export const UPI_APP_CHOICES = [
-  { id: 'gpay', label: 'Google Pay', href: (query: string) => `tez://upi/pay?${query}` },
-  { id: 'phonepe', label: 'PhonePe', href: (query: string) => `phonepe://pay?${query}` },
-  { id: 'paytm', label: 'Paytm', href: (query: string) => `paytmmp://pay?${query}` },
-  { id: 'bhim', label: 'BHIM', href: (query: string) => `bhim://pay?${query}` },
+  { id: 'gpay', label: 'Google Pay' },
+  { id: 'phonepe', label: 'PhonePe' },
+  { id: 'paytm', label: 'Paytm' },
+  { id: 'bhim', label: 'BHIM' },
 ] as const;
+
+export type UpiAppId = (typeof UPI_APP_CHOICES)[number]['id'];
+
+const UPI_APP_ANDROID_PACKAGE: Record<UpiAppId, string> = {
+  gpay: 'com.google.android.apps.nbu.paisa.user',
+  phonepe: 'com.phonepe.app',
+  paytm: 'net.one97.paytm',
+  bhim: 'in.org.npci.upiapp',
+};
+
+/** tez:// is rejected by current GPay as "This request type is not supported". */
+function withUpiLaunchParams(query: string) {
+  const raw = String(query ?? '').replace(/^[?&]+/, '');
+  const parts = [raw];
+  if (!/(?:^|&)mode=/.test(raw)) parts.push('mode=00');
+  if (!/(?:^|&)tr=/.test(raw)) parts.push(`tr=SW${Date.now().toString(36)}`);
+  return parts.filter(Boolean).join('&');
+}
+
+export function upiAppLaunchHref(appId: UpiAppId, query: string) {
+  const q = withUpiLaunchParams(query);
+  if (isAndroidDevice()) {
+    return `intent://pay?${q}#Intent;scheme=upi;package=${UPI_APP_ANDROID_PACKAGE[appId]};end`;
+  }
+  if (appId === 'gpay') return `gpay://upi/pay?${q}`;
+  if (appId === 'phonepe') return `phonepe://upi/pay?${q}`;
+  if (appId === 'paytm') return `paytmmp://pay?${q}`;
+  return `bhim://upi/pay?${q}`;
+}
 
 /** Chrome encodes upi:// hrefs; Android intent:// keeps @ in the VPA and shows the app chooser. */
 export function toAndroidUpiIntent(upiUri: string) {
@@ -131,11 +161,12 @@ export function chromeHttpsIntent(httpsUrl: string) {
 export function openUpiPay(upiUri: string) {
   const uri = String(upiUri ?? '').trim();
   if (!uri || typeof window === 'undefined') return;
+  const launch = uri.includes('mode=') ? uri : `${uri}${uri.includes('?') ? '&' : '?'}mode=00`;
   if (isAndroidDevice()) {
-    window.location.assign(toAndroidUpiIntent(uri));
+    window.location.assign(toAndroidUpiIntent(launch));
     return;
   }
-  window.location.assign(uri);
+  window.location.assign(launch);
 }
 
 export function openUpiAppChoice(href: string) {
@@ -153,6 +184,24 @@ export function extractPayLaunchHref(text: string) {
   const https = String(text ?? '').match(/https?:\/\/[^\s]*\/open\/upi-pay\?[^\s]+/i);
   if (https) return https[0];
   return extractUpiPayUri(text);
+}
+
+export function isPayLaunchValue(value: string) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return false;
+  return /^upi:\/\/pay\?/i.test(raw) || /\/open\/upi-pay(\?|$)/i.test(raw);
+}
+
+/** QR payload that opens the same app-picker page as Pay now (https when the host is public). */
+export function paymentQrPayload(value: string) {
+  const raw = String(value ?? '').trim();
+  if (!isPayLaunchValue(raw)) return raw;
+  if (/^https:\/\//i.test(raw)) return raw;
+  const path = upiUriToLaunchPath(raw);
+  if (!path || typeof window === 'undefined') return raw;
+  const origin = window.location.origin.replace(/\/$/, '');
+  if (!/^https:\/\//i.test(origin) || isLocalAppHost(origin)) return raw;
+  return `${origin}${path}`;
 }
 
 export function upiUriToLaunchPath(upiUri: string) {

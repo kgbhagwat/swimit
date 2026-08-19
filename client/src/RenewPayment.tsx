@@ -555,7 +555,7 @@ export function RenewPayment() {
                       {t('Pay with UPI app')}
                     </UpiPayAppButton>
                     <p className="hint" style={{ marginTop: 0 }}>
-                      {t('Scan this QR to pay, or tap to open your UPI app.')}
+                      {t('Tap the QR to choose a payment app.')}
                     </p>
                   </>
                 ) : uploadUrl(payment.paymentQrPath) ? (

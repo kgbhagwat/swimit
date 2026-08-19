@@ -11,6 +11,7 @@ import { passwordPolicyError } from './passwordPolicy';
 import { PlatformLoginModal, type PlatformLoginFormState } from './PlatformLoginModal';
 import { ThemeToggle, useTheme } from './theme';
 import { setActiveTenant } from './tenantSession';
+import { SidebarRelease } from './SidebarRelease';
 
 function PasswordEyeButton({
   visible,
@@ -197,6 +198,7 @@ export function PlatformNav({
             );
           })}
         </ul>
+        <SidebarRelease />
       </nav>
 
       <div className="platform-main-topbar">

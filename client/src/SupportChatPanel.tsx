@@ -384,16 +384,13 @@ export function SupportChatPanel({
                   isImageMime(msg.attachmentMime, msg.attachmentName || msg.attachmentUrl) ? (
                     (() => {
                       const payHref = extractPayLaunchHref(msg.body);
-                      const isUpi = payHref.toLowerCase().startsWith('upi:');
                       return (
                         <a
                           className="wa-chat-attach-image"
                           href={payHref || msg.attachmentUrl}
-                          target={payHref && !isUpi ? '_blank' : undefined}
-                          rel={payHref && !isUpi ? 'noreferrer' : undefined}
-                          title={payHref ? t('Open UPI payment app') : t('Attachment')}
+                          title={payHref ? t('Choose a payment app') : t('Attachment')}
                           onClick={(event) => {
-                            if (!isUpi) return;
+                            if (!payHref) return;
                             event.preventDefault();
                             openPayLaunch(payHref);
                           }}

@@ -20,7 +20,7 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
-import { buildPassPaymentRequestMessage, buildUpiPayUri, extractPayLaunchHref, openPayLaunch } from './upiPay';
+import { buildPassPaymentRequestMessage, buildUpiPayUri, extractPayLaunchHref, openPayLaunch, paymentQrPayload } from './upiPay';
 import { UpiPayAppButton } from './UpiAppPicker';
 
 type PendingSwimmer = {
@@ -167,7 +167,9 @@ function PaymentRequestPreview({ text, qrValue }: { text: string; qrValue: strin
   const chunks = String(text ?? '').split(/(upi:\/\/pay\?[^\s]+|https?:\/\/[^\s]+)/gi);
 
   useEffect(() => {
-    const value = String(qrValue ?? '').trim();
+    const value =
+      (/^https:\/\//i.test(payHref) ? payHref : paymentQrPayload(String(qrValue ?? '').trim())) ||
+      String(qrValue ?? '').trim();
     if (!value) {
       setQrSrc('');
       return;
@@ -184,7 +186,7 @@ function PaymentRequestPreview({ text, qrValue }: { text: string; qrValue: strin
     return () => {
       cancelled = true;
     };
-  }, [qrValue]);
+  }, [qrValue, payHref]);
 
   async function copyMessage() {
     const value = String(text ?? '');
@@ -286,12 +288,12 @@ function PaymentRequestPreview({ text, qrValue }: { text: string; qrValue: strin
           return <span key={`t-${index}`}>{chunk}</span>;
         })}
         {qrSrc ? (
-          <img
-            className="payment-request-preview-qr"
-            src={qrSrc}
+          <QrImage
+            value={qrValue}
+            encodeValue={/^https:\/\//i.test(payHref) ? payHref : undefined}
             alt={t('Payment QR code')}
-            width={180}
-            height={180}
+            className="payment-request-preview-qr"
+            size={180}
           />
         ) : null}
       </div>
@@ -1601,6 +1603,9 @@ export function PassPayment() {
                           className="online-payment-qr"
                           size={220}
                         />
+                        <p className="hint" style={{ marginTop: '0.4rem' }}>
+                          {t('Tap the QR to choose a payment app.')}
+                        </p>
                         <UpiPayAppButton uri={amountLockedUpiQr} className="csv-btn qr-pay-app-btn">
                           {t('Pay with UPI app')}
                         </UpiPayAppButton>

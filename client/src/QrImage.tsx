@@ -1,17 +1,20 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import QRCode from 'qrcode';
 import { UpiAppPicker } from './UpiAppPicker';
-import { isMobileUpiClient, openUpiPay } from './upiPay';
+import { isPayLaunchValue, openPayLaunch, paymentQrPayload } from './upiPay';
 
 export function QrImage({
   value,
+  encodeValue,
   alt = 'QR code',
   className = 'pass-qr-image',
   size = 180,
-  /** When true (default for upi:// values), tap opens UPI app chooser on mobile. */
+  /** When true (default for payment QRs), tap opens the UPI app picker. */
   openOnClick,
 }: {
   value: string;
+  /** Encoded into the QR. Payment QRs use the same https pay page as the Pay now link. */
+  encodeValue?: string;
   alt?: string;
   className?: string;
   size?: number;
@@ -19,16 +22,20 @@ export function QrImage({
 }) {
   const [src, setSrc] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
-  const isUpi = value.trim().toLowerCase().startsWith('upi://');
-  const clickable = openOnClick ?? isUpi;
+  const raw = String(value ?? '').trim();
+  const encoded = String(encodeValue ?? '').trim();
+  const payQr = isPayLaunchValue(raw) || isPayLaunchValue(encoded);
+  const qrValue = payQr ? paymentQrPayload(encoded || raw) : encoded || raw;
+  const clickable = openOnClick ?? payQr;
+  const pickerUri = /^upi:\/\/pay\?/i.test(raw) ? raw : '';
 
   useEffect(() => {
     let cancelled = false;
-    if (!value) {
+    if (!qrValue) {
       setSrc('');
       return;
     }
-    QRCode.toDataURL(value, {
+    QRCode.toDataURL(qrValue, {
       width: size,
       margin: 1,
       errorCorrectionLevel: 'M',
@@ -42,36 +49,36 @@ export function QrImage({
     return () => {
       cancelled = true;
     };
-  }, [value, size]);
+  }, [qrValue, size]);
 
   if (!src) return <div className={`${className} pass-qr-fallback`}>QR unavailable</div>;
 
   const image = <img src={src} alt={alt} className={className} width={size} height={size} />;
-  if (!clickable || !value) return image;
+  if (!clickable || !qrValue) return image;
 
   function onOpen(event: MouseEvent<HTMLAnchorElement>) {
-    if (!isUpi) return;
+    if (!payQr) return;
     event.preventDefault();
-    if (isMobileUpiClient()) {
+    if (pickerUri) {
       setPickerOpen(true);
       return;
     }
-    openUpiPay(value);
+    openPayLaunch(encoded || raw);
   }
 
   return (
     <>
       <a
         className="qr-pay-link"
-        href={value}
-        title={isUpi ? 'Choose a payment app' : alt}
-        aria-label={isUpi ? 'Choose a payment app' : alt}
+        href={payQr ? qrValue : raw}
+        title={payQr ? 'Choose a payment app' : alt}
+        aria-label={payQr ? 'Choose a payment app' : alt}
         onClick={onOpen}
       >
         {image}
       </a>
-      {pickerOpen ? (
-        <UpiAppPicker uri={value} variant="sheet" onClose={() => setPickerOpen(false)} />
+      {pickerOpen && pickerUri ? (
+        <UpiAppPicker uri={pickerUri} variant="sheet" onClose={() => setPickerOpen(false)} />
       ) : null}
     </>
   );
