@@ -11,6 +11,7 @@ export const WA_TEMPLATES = {
   subExpiring: 'swimit_sub_expiring',
   openForm: 'swimit_open_form',
   openFormDesk: 'swimit_open_form_desk',
+  openFormQr: 'swimit_form_qr',
   renewPay: 'swimit_renew_pay',
   passPay: 'swimit_pass_pay',
   batchLimit: 'swimit_batch_limit',

@@ -45,6 +45,17 @@ export function formatWhatsAppUserError(raw: string, mobile?: string) {
     return `${message}. Add${m} under Meta → WhatsApp → API Setup → Recipient / allow list.`;
   }
 
+  if (
+    lower.includes('(#131047)') ||
+    lower.includes('re-engagement') ||
+    lower.includes('more than 24 hours')
+  ) {
+    return (
+      `${message}. WhatsApp will not deliver a follow-up QR image unless this chat is already open. ` +
+      `Use the QR shown on the page, or wait for the utility form-QR template to be approved.`
+    );
+  }
+
   return message;
 }
 
@@ -185,7 +196,7 @@ export async function sendWhatsAppTemplateWithBody(
   templateName: string,
   languageCode: string,
   bodyTexts: string[],
-  options?: { copyCodeButton?: boolean },
+  options?: { copyCodeButton?: boolean; headerImage?: { id?: string; link?: string } },
 ) {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -197,6 +208,23 @@ export async function sendWhatsAppTemplateWithBody(
 
   const code = bodyTexts[0] ?? '';
   const copyCodeButton = options?.copyCodeButton === true && Boolean(code);
+  const headerImage = options?.headerImage;
+  const headerComponent =
+    headerImage?.id || headerImage?.link
+      ? [
+          {
+            type: 'header' as const,
+            parameters: [
+              {
+                type: 'image' as const,
+                image: headerImage.id
+                  ? { id: headerImage.id }
+                  : { link: String(headerImage.link) },
+              },
+            ],
+          },
+        ]
+      : [];
   const result = await graphPost(`${cfg.phoneNumberId}/messages`, {
     messaging_product: 'whatsapp',
     to,
@@ -205,6 +233,7 @@ export async function sendWhatsAppTemplateWithBody(
       name: templateName,
       language: { code: languageCode },
       components: [
+        ...headerComponent,
         {
           type: 'body',
           parameters: bodyTexts.map((text) => ({ type: 'text' as const, text })),

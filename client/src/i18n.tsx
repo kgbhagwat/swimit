@@ -394,6 +394,7 @@ const mr: Record<string, string> = {
   Close: 'बंद करा',
   Help: 'मदत',
   Download: 'डाउनलोड',
+  'Download QR': 'QR डाउनलोड करा',
   Search: 'शोधा',
   Filter: 'फिल्टर',
   Month: 'महिना',
@@ -803,6 +804,8 @@ const mr: Record<string, string> = {
   "Failed to send payment request": "पेमेंट विनंती पाठवता आली नाही",
   "Failed to send QR": "QR पाठवता आला नाही",
   "Failed to send QR on WhatsApp": "WhatsApp वर QR पाठवता आला नाही",
+  "Form link sent on WhatsApp": "फॉर्म लिंक WhatsApp वर पाठवली",
+  "Form QR": "फॉर्म QR",
   "Failed to update": "अपडेट झाले नाही",
   "Failed to update account": "खाते अपडेट झाले नाही",
   "Failed to update status": "स्थिती अपडेट झाली नाही",
@@ -1104,6 +1107,10 @@ const mr: Record<string, string> = {
   "Sample layout — select a coach to preview payment details.": "नमुना लेआउट — पेमेंट तपशील पाहण्यासाठी प्रशिक्षक निवडा.",
   "Sample: registration form link + QR would be sent on WhatsApp": "नमुना: नोंदणी फॉर्म लिंक + QR WhatsApp वर पाठवला जाईल",
   "Sample: staff form link + QR would be sent on WhatsApp": "नमुना: स्टाफ फॉर्म लिंक + QR WhatsApp वर पाठवला जाईल",
+  "Save or share the QR below — WhatsApp did not deliver the image yet.":
+    "खालील QR जतन करा किंवा शेअर करा — WhatsApp ने प्रतिमा अद्याप पाठवली नाही.",
+  "Print or share this QR if the WhatsApp image does not arrive.":
+    "WhatsApp वर प्रतिमा न आल्यास हा QR प्रिंट करा किंवा शेअर करा.",
   "Saturday": "शनिवार",
   "Save access": "एक्सेस जतन करा",
   "Save Batches": "बॅचेस जतन करा",
@@ -1138,6 +1145,10 @@ const mr: Record<string, string> = {
   "selected": "निवडले",
   "Send as": "पाठवा म्हणून",
   "Send QR": "QR पाठवा",
+  "Sends to your WhatsApp": "तुमच्या WhatsApp वर पाठवते",
+  "Sign in to send the form QR to your WhatsApp.": "फॉर्म QR तुमच्या WhatsApp वर पाठवण्यासाठी साइन इन करा.",
+  "Your user profile has no WhatsApp mobile. Ask an admin to add it in User Management.":
+    "तुमच्या वापरकर्ता प्रोफाइलवर WhatsApp मोबाईल नाही. एडमिनला User Management मध्ये जोडण्यास सांगा.",
   "Send open form link + QR on WhatsApp so anyone can register without login":
     "लॉगिनशिवाय नोंदणी करता यावी म्हणून खुला फॉर्म लिंक + QR WhatsApp वर पाठवा",
   "Send broadcast": "ब्रॉडकास्ट पाठवा",

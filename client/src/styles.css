@@ -4259,6 +4259,13 @@ html[data-theme='dark'] .biometric-offer-title {
   position: relative;
 }
 
+.send-form-qr-to {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #5b6b84;
+  font-weight: 600;
+}
+
 .send-form-qr-btn {
   margin: 0;
 }
@@ -4290,6 +4297,36 @@ html[data-theme='dark'] .biometric-offer-title {
   max-width: 22rem;
   margin-left: auto;
   word-break: break-all;
+}
+
+.send-form-qr-preview {
+  flex: 1 0 100%;
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.send-form-qr-image {
+  width: 9.5rem;
+  height: 9.5rem;
+  background: #fff;
+  border: 1px solid #d7e2f5;
+  border-radius: 10px;
+  padding: 0.35rem;
+  box-sizing: border-box;
+}
+
+.send-form-qr-download {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.send-form-qr-hint {
+  margin: 0;
+  max-width: 22rem;
+  text-align: right;
+  font-size: 0.78rem;
 }
 
 .menu-tile {
@@ -18341,6 +18378,10 @@ html[data-theme='dark'] .registration-form .staff-role-top .radio-option,
 html[data-theme='dark'] .registration-form .label,
 html[data-theme='dark'] .role-label {
   color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .send-form-qr-to {
+  color: #9bb0c9;
 }
 
 html[data-theme='dark'] .photo-btn,

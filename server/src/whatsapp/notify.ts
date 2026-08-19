@@ -2,6 +2,7 @@ import { pool } from '../db/pool.js';
 import { renderPassCardPng, renderPassQrPng, renderUrlQrPng } from '../passCardImage.js';
 import { buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
+import { ensureFormQrTemplates, formQrTemplateStatus } from './ensureFormQrTemplate.js';
 import { WA_TEMPLATES } from './templateCatalog.js';
 import {
   formatWhatsAppUserError,
@@ -63,6 +64,7 @@ async function sendTemplateInKnownLanguages(params: {
   templateName: string;
   bodyTexts: string[];
   copyCodeButton?: boolean;
+  headerImage?: { id?: string; link?: string };
 }) {
   const preferred = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en').trim() || 'en';
   const languages = [...new Set([preferred, 'en', 'en_US'])];
@@ -74,11 +76,17 @@ async function sendTemplateInKnownLanguages(params: {
         params.templateName,
         lang,
         params.bodyTexts,
-        { copyCodeButton: params.copyCodeButton === true },
+        {
+          copyCodeButton: params.copyCodeButton === true,
+          headerImage: params.headerImage,
+        },
       );
       if (!sent.skipped) return sent;
     } catch (err) {
       lastError = err instanceof Error ? err.message : 'Template failed';
+      if (/does not exist|#132001|template not found|not found for this language/i.test(lastError)) {
+        break;
+      }
     }
   }
   throw new Error(lastError);
@@ -100,6 +108,7 @@ async function deliverNotice(params: {
   fallbackBody: string;
   /** Session text is not delivered unless the person already chatted with the business. */
   allowTextFallback?: boolean;
+  headerImage?: { id?: string; link?: string };
 }): Promise<NotifyCredentialsResult> {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -120,6 +129,7 @@ async function deliverNotice(params: {
       templateName: params.templateName,
       bodyTexts: params.bodyTexts,
       copyCodeButton: false,
+      headerImage: params.headerImage,
     });
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -776,7 +786,7 @@ export async function notifyOpenFormQr(params: {
   poolName?: string;
   poolAddress?: string;
   saasAccountId: number;
-}): Promise<NotifyCredentialsResult> {
+}): Promise<NotifyCredentialsResult & { qrSent?: boolean }> {
   const cfg = getWhatsAppConfig();
   const path =
     params.form === 'staff'
@@ -807,9 +817,23 @@ export async function notifyOpenFormQr(params: {
     templateText(formUrl, 200),
   ];
 
-  let sent: NotifyCredentialsResult | null = null;
-  for (const templateName of [WA_TEMPLATES.openFormDesk, WA_TEMPLATES.openForm]) {
-    sent = await deliverNotice({
+  const qrPngPromise = renderUrlQrPng(formUrl);
+  await ensureFormQrTemplates();
+  const [qrPng, statuses] = await Promise.all([qrPngPromise, formQrTemplateStatus()]);
+  let mediaId = '';
+  try {
+    mediaId = await uploadWhatsAppMedia({
+      buffer: qrPng,
+      mimeType: 'image/png',
+      filename: 'form-qr.png',
+    });
+  } catch (err) {
+    console.warn('[whatsapp] form QR media upload failed', err);
+  }
+  const headerImage = mediaId ? { id: mediaId } : undefined;
+
+  async function sendNamedTemplate(templateName: string, withHeader: boolean) {
+    return deliverNotice({
       mobile: params.mobile,
       saasAccountId: params.saasAccountId,
       kind: 'open_form_qr',
@@ -817,31 +841,48 @@ export async function notifyOpenFormQr(params: {
       bodyTexts,
       fallbackBody: body,
       allowTextFallback: false,
+      headerImage: withHeader ? headerImage : undefined,
     });
-    if (sent.ok && !sent.skipped) break;
-    if (!sent.ok && templateName === WA_TEMPLATES.openFormDesk) continue;
-    break;
-  }
-  if (!sent) return { ok: false, error: 'Failed to send form link on WhatsApp' };
-  if (!sent.ok || sent.skipped) return sent;
-
-  try {
-    const qrPng = await renderUrlQrPng(formUrl);
-    const mediaId = await uploadWhatsAppMedia({
-      buffer: qrPng,
-      mimeType: 'image/png',
-      filename: 'form-qr.png',
-    });
-    await sendWhatsAppImageByMediaId(
-      params.mobile,
-      mediaId,
-      params.poolName ? `${params.poolName} — ${title}\n${formUrl}` : `${title}\n${formUrl}`,
-    );
-  } catch (qrErr) {
-    console.warn('[whatsapp] form QR image send failed', qrErr);
   }
 
-  return sent;
+  const attempts: Array<{ name: string; withHeader: boolean; followUpImage: boolean }> = [];
+  if (statuses.qr === 'APPROVED') {
+    attempts.push({ name: WA_TEMPLATES.openFormQr, withHeader: true, followUpImage: false });
+  }
+  if (statuses.desk === 'APPROVED') {
+    attempts.push({ name: WA_TEMPLATES.openFormDesk, withHeader: false, followUpImage: true });
+  }
+  attempts.push({ name: WA_TEMPLATES.openForm, withHeader: false, followUpImage: true });
+
+  let sent: (NotifyCredentialsResult & { qrSent?: boolean }) | null = null;
+  for (const attempt of attempts) {
+    if (attempt.withHeader && !headerImage) continue;
+    try {
+      sent = await sendNamedTemplate(attempt.name, attempt.withHeader);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Template failed';
+      sent = { ok: false, error: formatWhatsAppUserError(message, params.mobile) };
+    }
+    if (sent.ok && sent.skipped) return sent;
+    if (!sent.ok) continue;
+
+    let qrSent = attempt.withHeader && Boolean(headerImage);
+    if (!qrSent && attempt.followUpImage && mediaId) {
+      try {
+        await sendWhatsAppImageByMediaId(
+          params.mobile,
+          mediaId,
+          params.poolName ? `${params.poolName} — ${title}\n${formUrl}` : `${title}\n${formUrl}`,
+        );
+        qrSent = true;
+      } catch (qrErr) {
+        console.warn('[whatsapp] form QR image send failed', qrErr);
+      }
+    }
+    return { ...sent, qrSent };
+  }
+
+  return sent ?? { ok: false, error: 'Failed to send form link on WhatsApp' };
 }
 
 export async function sendBroadcast(params: {

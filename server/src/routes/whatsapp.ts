@@ -460,9 +460,23 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
       res.status(400).json({ error: 'form must be swimmer or staff' });
       return;
     }
-    const mobile = sanitizeMobile(body.mobile);
+
+    const requesterId = Number(req.header('x-user-id'));
+    if (!Number.isFinite(requesterId) || requesterId <= 0) {
+      res.status(401).json({ error: 'Sign in to send the form QR to your WhatsApp.' });
+      return;
+    }
+    const requester = await pool.query<{ mobile: string; user_name: string }>(
+      `SELECT mobile, user_name FROM app_users
+       WHERE id = $1 AND saas_account_id = $2`,
+      [requesterId, accountId],
+    );
+    const mobile = sanitizeMobile(requester.rows[0]?.mobile);
     if (!isValidMobile(mobile)) {
-      res.status(400).json({ error: MOBILE_INVALID_MSG });
+      res.status(400).json({
+        error:
+          'Your user profile has no WhatsApp mobile. Ask an admin to add it in User Management.',
+      });
       return;
     }
 
@@ -495,7 +509,7 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
     const formUrl = `${getWhatsAppConfig().publicAppUrl || ''}${path}`;
 
     if (!result.ok) {
-      res.status(502).json({ error: result.error, ok: false, formUrl, mobile });
+      res.status(502).json({ error: result.error, ok: false, formUrl, mobile, qrSent: false });
       return;
     }
     if (result.skipped) {
@@ -505,6 +519,7 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
         skipped: true,
         formUrl,
         mobile,
+        qrSent: false,
       });
       return;
     }
@@ -514,6 +529,7 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
       form,
       mobile,
       formUrl,
+      qrSent: result.qrSent === true,
       messageId: result.messageId,
     });
   } catch (err) {
