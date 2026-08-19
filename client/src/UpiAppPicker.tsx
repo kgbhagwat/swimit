@@ -3,11 +3,13 @@ import { useT } from './i18n';
 import {
   UPI_APP_CHOICES,
   chromeHttpsIntent,
+  copyUpiPayee,
   isAndroidDevice,
   isInAppBrowser,
   isMobileUpiClient,
   openUpiAppChoice,
   openUpiPay,
+  parseUpiPayFields,
   upiAppLaunchHref,
   upiPayQuery,
 } from './upiPay';
@@ -23,9 +25,26 @@ export function UpiAppPicker({
 }) {
   const t = useT();
   const query = upiPayQuery(uri);
+  const fields = parseUpiPayFields(uri);
+  const [copied, setCopied] = useState(false);
   if (!uri || !query) return null;
 
+  async function copyPayee() {
+    const ok = await copyUpiPayee(uri);
+    if (ok) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    }
+    return ok;
+  }
+
+  async function openApp(appId: (typeof UPI_APP_CHOICES)[number]['id']) {
+    await copyPayee();
+    openUpiAppChoice(upiAppLaunchHref(appId, query));
+  }
+
   function openNativeChooser() {
+    void copyPayee();
     if (isAndroidDevice() && isInAppBrowser()) {
       openUpiAppChoice(chromeHttpsIntent(window.location.href));
       return;
@@ -36,13 +55,31 @@ export function UpiAppPicker({
   const list = (
     <div className="upi-app-picker">
       <p className="upi-app-picker-title">{t('Choose a payment app')}</p>
+      <div className="upi-pay-summary">
+        {fields.am ? (
+          <p className="upi-pay-summary-amount">
+            {t('Amount to pay')}: <strong>₹{fields.am}</strong>
+          </p>
+        ) : null}
+        {fields.pa ? (
+          <p className="upi-pay-summary-vpa">
+            {t('UPI ID')}: <strong>{fields.pa}</strong>
+          </p>
+        ) : null}
+        <p className="upi-pay-summary-hint">
+          {t('Open the app, enter this amount, and complete payment to the UPI ID.')}
+        </p>
+        <button type="button" className="upi-pay-copy" onClick={() => void copyPayee()}>
+          {copied ? t('Copied') : t('Copy UPI ID')}
+        </button>
+      </div>
       <div className="upi-app-picker-grid">
         {UPI_APP_CHOICES.map((app) => (
           <button
             key={app.id}
             type="button"
             className="upi-app-choice"
-            onClick={() => openUpiAppChoice(upiAppLaunchHref(app.id, query))}
+            onClick={() => void openApp(app.id)}
           >
             {t(app.label)}
           </button>

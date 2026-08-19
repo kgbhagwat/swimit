@@ -26,7 +26,6 @@ export function UpiPayLaunch() {
         return;
       }
       setUri(next);
-      // Inside WhatsApp, upi:// opens WhatsApp Pay instead of the app list.
       if (autoChooser && isAndroidDevice() && !isInAppBrowser()) {
         openUpiPay(next);
       }
@@ -76,7 +75,7 @@ export function UpiPayLaunch() {
         <p className="error">{t(error)}</p>
       ) : (
         <>
-          <p className="muted">{t('Select an installed UPI app to pay.')}</p>
+          <p className="muted">{t('Open the app, enter this amount, and complete payment to the UPI ID.')}</p>
           {uri ? <UpiAppPicker uri={uri} variant="page" /> : <p className="muted">{t('Opening UPI app…')}</p>}
         </>
       )}

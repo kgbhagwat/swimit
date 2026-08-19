@@ -101,6 +101,25 @@ export function upiPayQuery(upiUri: string) {
   return q >= 0 ? raw.slice(q + 1) : '';
 }
 
+export function parseUpiPayFields(upiUri: string) {
+  const params = new URLSearchParams(upiPayQuery(upiUri));
+  return {
+    pa: normalizeVpa(params.get('pa') ?? ''),
+    pn: sanitizePayeeName(params.get('pn') ?? '') || 'SwimIT',
+    am: String(params.get('am') ?? '').trim(),
+  };
+}
+
+/** Payee only — user types the amount in the UPI app (GPay rejects pre-filled collect). */
+export function upiPayeeOnlyUri(upiUri: string) {
+  const { pa, pn } = parseUpiPayFields(upiUri);
+  if (!pa) return '';
+  return `upi://pay?${upiQuery([
+    ['pa', pa],
+    ['pn', pn],
+  ])}`;
+}
+
 export const UPI_APP_CHOICES = [
   { id: 'gpay', label: 'Google Pay' },
   { id: 'phonepe', label: 'PhonePe' },
@@ -117,24 +136,35 @@ const UPI_APP_ANDROID_PACKAGE: Record<UpiAppId, string> = {
   bhim: 'in.org.npci.upiapp',
 };
 
-/** tez:// is rejected by current GPay as "This request type is not supported". */
-function withUpiLaunchParams(query: string) {
-  const raw = String(query ?? '').replace(/^[?&]+/, '');
-  const parts = [raw];
-  if (!/(?:^|&)mode=/.test(raw)) parts.push('mode=00');
-  if (!/(?:^|&)tr=/.test(raw)) parts.push(`tr=SW${Date.now().toString(36)}`);
-  return parts.filter(Boolean).join('&');
+function androidOpenApp(packageName: string) {
+  return `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${packageName};end`;
 }
 
+/** Open the app so the user can enter the amount. Do not send a pre-filled collect. */
 export function upiAppLaunchHref(appId: UpiAppId, query: string) {
-  const q = withUpiLaunchParams(query);
+  const payee = upiPayeeOnlyUri(`upi://pay?${query}`);
   if (isAndroidDevice()) {
-    return `intent://pay?${q}#Intent;scheme=upi;package=${UPI_APP_ANDROID_PACKAGE[appId]};end`;
+    if (appId === 'gpay') return androidOpenApp(UPI_APP_ANDROID_PACKAGE.gpay);
+    if (payee) {
+      return `intent://pay?${upiPayQuery(payee)}#Intent;scheme=upi;package=${UPI_APP_ANDROID_PACKAGE[appId]};end`;
+    }
+    return androidOpenApp(UPI_APP_ANDROID_PACKAGE[appId]);
   }
-  if (appId === 'gpay') return `gpay://upi/pay?${q}`;
-  if (appId === 'phonepe') return `phonepe://upi/pay?${q}`;
-  if (appId === 'paytm') return `paytmmp://pay?${q}`;
-  return `bhim://upi/pay?${q}`;
+  if (appId === 'gpay') return payee ? `gpay://upi/pay?${upiPayQuery(payee)}` : 'gpay://';
+  if (appId === 'phonepe') return payee ? `phonepe://upi/pay?${upiPayQuery(payee)}` : 'phonepe://';
+  if (appId === 'paytm') return payee ? `paytmmp://pay?${upiPayQuery(payee)}` : 'paytmmp://';
+  return payee ? `bhim://upi/pay?${upiPayQuery(payee)}` : 'bhim://';
+}
+
+export async function copyUpiPayee(upiUri: string) {
+  const { pa } = parseUpiPayFields(upiUri);
+  if (!pa || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
+  try {
+    await navigator.clipboard.writeText(pa);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Chrome encodes upi:// hrefs; Android intent:// keeps @ in the VPA and shows the app chooser. */
@@ -159,14 +189,13 @@ export function chromeHttpsIntent(httpsUrl: string) {
 }
 
 export function openUpiPay(upiUri: string) {
-  const uri = String(upiUri ?? '').trim();
+  const uri = upiPayeeOnlyUri(upiUri) || String(upiUri ?? '').trim();
   if (!uri || typeof window === 'undefined') return;
-  const launch = uri.includes('mode=') ? uri : `${uri}${uri.includes('?') ? '&' : '?'}mode=00`;
   if (isAndroidDevice()) {
-    window.location.assign(toAndroidUpiIntent(launch));
+    window.location.assign(toAndroidUpiIntent(uri));
     return;
   }
-  window.location.assign(launch);
+  window.location.assign(uri);
 }
 
 export function openUpiAppChoice(href: string) {

@@ -122,6 +122,40 @@ a {
   font-size: 1.05rem;
 }
 
+.upi-pay-summary {
+  margin: 0 0 0.9rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid #9ec9e8;
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+}
+
+.upi-pay-summary-amount,
+.upi-pay-summary-vpa {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.upi-pay-summary-hint {
+  margin: 0.45rem 0 0.65rem;
+  font-size: 0.85rem;
+  color: #4a6274;
+}
+
+.upi-pay-copy {
+  appearance: none;
+  border: 1px solid #9ec9e8;
+  border-radius: 999px;
+  background: #eef7fd;
+  color: #0b3d5c;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+}
+
 .upi-app-picker-grid {
   display: grid;
   gap: 0.55rem;
