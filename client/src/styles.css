@@ -10664,6 +10664,11 @@ button.coach-payment-back {
   z-index: 40;
 }
 
+.inpage-select.is-dropup .inpage-select-menu {
+  top: auto;
+  bottom: calc(100% + 0.25rem);
+}
+
 .inpage-select-menu {
   position: absolute;
   left: 0;
@@ -10680,8 +10685,9 @@ button.coach-payment-back {
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 12px 28px rgba(15, 35, 70, 0.18);
-  width: 100%;
-  max-width: min(100%, calc(100vw - 1.25rem));
+  width: max-content;
+  min-width: 100%;
+  max-width: min(24rem, calc(100vw - 1.25rem));
   box-sizing: border-box;
 }
 
@@ -10695,9 +10701,7 @@ button.coach-payment-back {
   text-align: left;
   padding: 0.65rem 0.7rem;
   cursor: pointer;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .inpage-select-option:hover,
@@ -11927,7 +11931,13 @@ button.menu-link {
   gap: 0.65rem 1rem;
   margin-top: 0.15rem;
   padding: 0.35rem 0 0.55rem;
-  overflow-x: auto;
+  overflow: visible;
+}
+
+.pass-charges-row:has(.inpage-select.is-open),
+.pass-coach-row:has(.inpage-select.is-open) {
+  position: relative;
+  z-index: 20;
 }
 
 .pass-coach-row {
@@ -12056,10 +12066,16 @@ button.menu-link {
 
 .duration-inputs {
   display: grid;
-  grid-template-columns: 3.4rem minmax(4.6rem, 1fr);
+  grid-template-columns: 3.4rem 6.75rem;
   gap: 0.35rem;
   min-width: 0;
   max-width: 100%;
+  overflow: visible;
+}
+
+.duration-inputs:has(.inpage-select.is-open) {
+  z-index: 30;
+  position: relative;
 }
 
 .pass-inline-field input,
@@ -12118,12 +12134,22 @@ button.menu-link {
   box-shadow: none;
 }
 
+.pass-form-card:has(.inpage-select.is-open),
+.pass-form-card.pool-core-form:has(.inpage-select.is-open) {
+  overflow: visible;
+}
+
 @media (max-width: 900px) {
   .pass-form-card,
   .pass-form-card.pool-core-form {
     overflow-x: hidden;
     padding-left: 0.7rem;
     padding-right: 0.7rem;
+  }
+
+  .pass-form-card:has(.inpage-select.is-open),
+  .pass-form-card.pool-core-form:has(.inpage-select.is-open) {
+    overflow: visible;
   }
 
   .pass-coach-row,
@@ -12181,7 +12207,7 @@ button.menu-link {
     width: auto;
     max-width: 100%;
     flex: 0 0 auto;
-    grid-template-columns: 3.6rem 6.5rem;
+    grid-template-columns: 3.6rem 6.75rem;
   }
 
   .pass-inline-field .money-input {

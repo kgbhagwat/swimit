@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useT } from './i18n';
 
 export type InPageSelectOption = {
@@ -39,7 +39,9 @@ export function InPageSelect({
   const resolvedPlaceholder = placeholder ?? t('Select…');
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [dropUp, setDropUp] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const selected = options.find((option) => option.value === value);
@@ -78,6 +80,46 @@ export function InPageSelect({
     inputRef.current?.focus();
   }, [open, searchable]);
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setDropUp(false);
+      return;
+    }
+    const root = rootRef.current;
+    if (!root) return;
+
+    function clipBottom(node: HTMLElement) {
+      let current = node.parentElement;
+      let bottom = window.innerHeight;
+      let top = 0;
+      while (current) {
+        const { overflowY } = getComputedStyle(current);
+        if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+          const clip = current.getBoundingClientRect();
+          bottom = Math.min(bottom, clip.bottom);
+          top = Math.max(top, clip.top);
+        }
+        current = current.parentElement;
+      }
+      return { top, bottom };
+    }
+
+    function update() {
+      const el = rootRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const { top, bottom } = clipBottom(el);
+      const menuHeight = menuRef.current?.offsetHeight ?? 180;
+      const spaceBelow = bottom - rect.bottom;
+      const spaceAbove = rect.top - top;
+      setDropUp(spaceBelow < menuHeight + 8 && spaceAbove > spaceBelow);
+    }
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [open, visibleOptions.length]);
+
   function choose(next: string) {
     onChange(next);
     setQuery('');
@@ -86,9 +128,9 @@ export function InPageSelect({
 
   return (
     <div
-      className={`inpage-select${open ? ' is-open' : ''}${disabled ? ' is-disabled' : ''}${
-        searchable ? ' inpage-select--searchable' : ''
-      }`}
+      className={`inpage-select${open ? ' is-open' : ''}${dropUp ? ' is-dropup' : ''}${
+        disabled ? ' is-disabled' : ''
+      }${searchable ? ' inpage-select--searchable' : ''}`}
       ref={rootRef}
     >
       {searchable ? (
@@ -144,7 +186,7 @@ export function InPageSelect({
         </button>
       )}
       {open ? (
-        <ul className="inpage-select-menu" role="listbox" id={listId}>
+        <ul className="inpage-select-menu" role="listbox" id={listId} ref={menuRef}>
           {!required && !(searchable && needle) ? (
             <li role="option" aria-selected={!value}>
               <button
