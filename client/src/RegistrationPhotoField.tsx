@@ -214,6 +214,7 @@ export function RegistrationPhotoField({
                 takeLabel={resolvedTake}
                 uploadLabel={resolvedUpload}
                 facing={cameraFacing}
+                guide={cameraFacing === 'user' ? 'face' : 'document'}
                 onPickFile={(file) => void handleDraftFile(file)}
               />
               {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
@@ -424,6 +425,7 @@ export function MultiCertificateField({
                 takeLabel={resolvedTake}
                 uploadLabel={resolvedUpload}
                 facing={cameraFacing}
+                guide="document"
                 onPickFile={(file) => void addFiles([file])}
                 onPickFiles={(files) => void addFiles(files)}
                 multiple

@@ -5,7 +5,8 @@ import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import { QrImage } from './QrImage';
-import { buildUpiPayUri, openUpiPay } from './upiPay';
+import { buildUpiPayUri } from './upiPay';
+import { UpiPayAppButton } from './UpiAppPicker';
 
 type ServicePackage = {
   id: number;
@@ -543,26 +544,16 @@ export function RenewPayment() {
                       className="online-payment-qr"
                       size={220}
                     />
-                    <a
-                      className="csv-btn qr-pay-app-btn"
-                      href={buildUpiPayUri(
+                    <UpiPayAppButton
+                      uri={buildUpiPayUri(
                         payment.upiId,
                         pending.expectedAmount,
                         `SwimIT renew ${pending.renewPackageName}`,
                       )}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        openUpiPay(
-                          buildUpiPayUri(
-                            payment.upiId,
-                            pending.expectedAmount,
-                            `SwimIT renew ${pending.renewPackageName}`,
-                          ),
-                        );
-                      }}
+                      className="csv-btn qr-pay-app-btn"
                     >
                       {t('Pay with UPI app')}
-                    </a>
+                    </UpiPayAppButton>
                     <p className="hint" style={{ marginTop: 0 }}>
                       {t('Scan this QR to pay, or tap to open your UPI app.')}
                     </p>

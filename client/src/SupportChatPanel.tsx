@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from './i18n';
-import { extractPayLaunchHref, openUpiPay } from './upiPay';
+import { extractPayLaunchHref, openPayLaunch } from './upiPay';
 
 export const SUPPORT_INBOX_CHANGED = 'swimIT.supportInboxChanged';
 
@@ -83,7 +83,7 @@ function ChatMessageBody({ text }: { text: string }) {
               title="Open UPI payment app"
               onClick={(event) => {
                 event.preventDefault();
-                openUpiPay(chunk);
+                openPayLaunch(chunk);
               }}
             >
               {chunk}
@@ -395,7 +395,7 @@ export function SupportChatPanel({
                           onClick={(event) => {
                             if (!isUpi) return;
                             event.preventDefault();
-                            openUpiPay(payHref);
+                            openPayLaunch(payHref);
                           }}
                         >
                           <img

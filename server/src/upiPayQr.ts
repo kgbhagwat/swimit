@@ -43,6 +43,13 @@ function sanitizePayeeName(name: string) {
   return cleaned || 'SwimIT';
 }
 
+/** Whole rupees only — GPay rejects am=10.00 for some collect requests. */
+function formatUpiAmount(amount: number) {
+  const rupees = Math.round(Number(amount));
+  if (!Number.isFinite(rupees) || rupees <= 0) return '';
+  return String(rupees);
+}
+
 function upiQuery(fields: Array<[string, string]>) {
   return fields
     .filter(([, value]) => value !== '')
@@ -69,10 +76,10 @@ export function buildUpiPayUri(params: {
   const pa = normalizeVpa(params.upiId);
   if (!pa) throw new Error('UPI ID is required to create a payment QR');
   const amount = Number(params.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const am = formatUpiAmount(amount);
+  if (!am) {
     throw new Error('Payment amount must be greater than zero');
   }
-  const am = (Math.round(amount * 100) / 100).toFixed(2);
   const pn = sanitizePayeeName(params.payeeName ?? 'SwimIT') || 'SwimIT';
   const note = sanitizePayeeName(params.note ?? '').slice(0, 80);
   const fields: Array<[string, string]> = [
@@ -95,8 +102,8 @@ export function buildUpiHttpsLaunchUrl(params: {
 }) {
   const base = String(params.publicAppUrl ?? '').trim().replace(/\/$/, '');
   const pa = normalizeVpa(params.upiId);
-  const amount = Number(params.amount);
-  if (!base || !pa || !Number.isFinite(amount) || amount <= 0) return '';
+  const am = formatUpiAmount(params.amount);
+  if (!base || !pa || !am) return '';
   try {
     const parsed = new URL(base);
     const host = parsed.hostname.toLowerCase();
@@ -116,7 +123,7 @@ export function buildUpiHttpsLaunchUrl(params: {
   const q = new URLSearchParams();
   q.set('pa', pa);
   q.set('pn', sanitizePayeeName(params.payeeName ?? 'SwimIT') || 'SwimIT');
-  q.set('am', (Math.round(amount * 100) / 100).toFixed(2));
+  q.set('am', am);
   q.set('cu', 'INR');
   const note = sanitizePayeeName(params.note ?? '').slice(0, 80);
   if (note) q.set('tn', note);
@@ -175,8 +182,10 @@ export async function renderUpiPayQrPng(params: {
   amount: number;
   payeeName?: string;
   note?: string;
+  /** Encode this instead of upi:// so WhatsApp does not open WhatsApp Pay. */
+  qrContent?: string;
 }): Promise<Buffer> {
-  const uri = buildUpiPayUri(params);
+  const uri = String(params.qrContent ?? '').trim() || buildUpiPayUri(params);
   return QRCode.toBuffer(uri, {
     type: 'png',
     width: 640,

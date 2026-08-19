@@ -406,6 +406,7 @@ async function startPaidRenewal(params: {
     amount: params.totalAmount,
     payeeName: 'SwimIT',
     note: `SwimIT renew ${params.quote.packageName}`.slice(0, 80),
+    qrContent: payLink.startsWith('https://') ? payLink : undefined,
   });
   await postPlatformChatImage(params.accountId, {
     body: [

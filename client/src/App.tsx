@@ -10,6 +10,8 @@ import { TermsModal } from './TermsModal';
 import { IdentityCaptureFields } from './IdentityCaptureFields';
 import { identityNumberError } from './identityNumber';
 import { RegistrationPhotoField } from './RegistrationPhotoField';
+import { BirthDateField, ageYearsAsOfToday } from './BirthDateField';
+import { clearFormDraft, mergeDraft, readFormDraft, useFormDraft } from './formDraft';
 import { useObjectUrl } from './useObjectUrl';
 
 
@@ -70,17 +72,12 @@ function Label({ children, required }: { children: string; required?: boolean })
   );
 }
 
+const SWIMMER_FORM_DRAFT = 'swimmer-registration';
+
+type SwimmerDraft = { form: FormState; parentOnly: boolean };
+
 function getAgeYears(birthdate: string) {
-  if (!birthdate) return null;
-  const born = new Date(`${birthdate}T00:00:00`);
-  if (Number.isNaN(born.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - born.getFullYear();
-  const monthDiff = today.getMonth() - born.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
-    age -= 1;
-  }
-  return age;
+  return ageYearsAsOfToday(birthdate);
 }
 
 export function App() {
@@ -91,7 +88,8 @@ export function App() {
   const location = useLocation();
 
   const t = useT();
-  const [form, setForm] = useState<FormState>(initialForm);
+  const savedDraft = !isEdit ? readFormDraft<SwimmerDraft>(SWIMMER_FORM_DRAFT) : null;
+  const [form, setForm] = useState<FormState>(() => mergeDraft(initialForm, savedDraft?.form));
   const [identityPhoto, setIdentityPhoto] = useState<File | null>(null);
   const [swimmerPhoto, setSwimmerPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -101,11 +99,13 @@ export function App() {
   const [missingLabels, setMissingLabels] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
-  const [parentOnly, setParentOnly] = useState(false);
+  const [parentOnly, setParentOnly] = useState(() => Boolean(savedDraft?.parentOnly));
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
   const [loadError, setLoadError] = useState('');
   const [existingIdentityUrl, setExistingIdentityUrl] = useState<string | null>(null);
   const [existingSwimmerUrl, setExistingSwimmerUrl] = useState<string | null>(null);
+
+  useFormDraft(SWIMMER_FORM_DRAFT, { form, parentOnly }, !isEdit && !submitted);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -362,6 +362,7 @@ export function App() {
       setParentOnly(false);
       setIdentityPhoto(null);
       setSwimmerPhoto(null);
+      clearFormDraft(SWIMMER_FORM_DRAFT);
       setError('');
       setErrorCount(0);
       setMissingLabels([]);
@@ -516,13 +517,12 @@ export function App() {
           <div className="grid-3 registration-align-3">
             <label className="field field-beside">
               <Label required>{t("Birth Date")}</Label>
-              <input
-                type="date"
+              <BirthDateField
                 className="field-control-sm"
                 value={form.birthdate}
-                onChange={(e) => onBirthdateChange(e.target.value)}
+                onChange={onBirthdateChange}
                 required
-                aria-invalid={isInvalid('birthdate')}
+                invalid={isInvalid('birthdate')}
               />
             </label>
             <label className="field field-beside">

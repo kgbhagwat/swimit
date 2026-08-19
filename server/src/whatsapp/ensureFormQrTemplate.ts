@@ -212,3 +212,81 @@ export async function ensurePassPayQrTemplate() {
 export async function passPayQrTemplateStatus() {
   return templateStatus(WA_TEMPLATES.passPayQr);
 }
+
+async function deleteTemplate(name: string) {
+  await graphJson(`${wabaId()}/message_templates?name=${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+}
+
+const REGISTRATION_HI_BODY =
+  'Hello {{1}}, your registration at SwimIT has been submitted. Please respond Hi To this message';
+
+const REGISTRATION_HI_URL_BUTTONS = {
+  type: 'BUTTONS',
+  buttons: [
+    {
+      type: 'URL',
+      text: 'Hi',
+      url: 'https://wa.me/{{1}}',
+      example: ['919876543210?text=Hi'],
+    },
+  ],
+};
+
+const REGISTRATION_HI_QUICK_REPLY_BUTTONS = {
+  type: 'BUTTONS',
+  buttons: [{ type: 'QUICK_REPLY', text: 'Hi' }],
+};
+
+/** Submit the post-registration Hi template if it is missing (approval can take a while). */
+export async function ensureRegistrationHiTemplate() {
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) return;
+  const name = WA_TEMPLATES.registrationSayHi;
+  try {
+    let status = await templateStatus(name);
+    let skipUrlButton = false;
+    if (status === 'APPROVED' || status === 'PENDING' || status === 'PAUSED') return;
+    if (status === 'REJECTED') {
+      try {
+        await deleteTemplate(name);
+      } catch (err) {
+        console.warn('[whatsapp] could not delete rejected template', name, err);
+        return;
+      }
+      skipUrlButton = true;
+    }
+
+    const bodyComponent = {
+      type: 'BODY',
+      text: REGISTRATION_HI_BODY,
+      example: { body_text: [['Kishor']] },
+    };
+
+    if (!skipUrlButton) {
+      try {
+        await createTemplate({
+          name,
+          language: 'en',
+          category: 'UTILITY',
+          components: [bodyComponent, REGISTRATION_HI_URL_BUTTONS],
+        });
+        console.info('[whatsapp] submitted template', name, 'url-button');
+        return;
+      } catch (urlErr) {
+        console.warn('[whatsapp] url-button template failed, trying quick reply', name, urlErr);
+      }
+    }
+
+    await createTemplate({
+      name,
+      language: 'en',
+      category: 'UTILITY',
+      components: [bodyComponent, REGISTRATION_HI_QUICK_REPLY_BUTTONS],
+    });
+    console.info('[whatsapp] submitted template', name, 'quick-reply');
+  } catch (err) {
+    console.warn('[whatsapp] could not ensure', name, err);
+  }
+}

@@ -163,6 +163,17 @@ function csvEscape(value: string) {
   return value;
 }
 
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 function downloadCsv(rows: SwimmerRow[]) {
   const header = ['Swimmer', 'Contact', 'Email', 'Pass type', 'Batch', 'Coach', 'Status'];
   const lines = [
@@ -365,6 +376,7 @@ export function SwimmerList() {
   const [viewLoading, setViewLoading] = useState(false);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [success, setSuccess] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
@@ -700,6 +712,40 @@ export function SwimmerList() {
     setViewing(null);
     setViewProfile(null);
     setViewLoading(false);
+  }
+
+  async function deleteSwimmer(row: SwimmerRow) {
+    if (!canToggleActive || deletingId === row.id) return;
+    if (!window.confirm(`${t('Delete this swimmer?')}\n${row.swimmer}`)) return;
+    setError('');
+    setSuccess('');
+    if (sampleMode || row.id < 0) {
+      setRows((prev) => prev.filter((item) => item.id !== row.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+      return;
+    }
+    setDeletingId(row.id);
+    try {
+      const res = await fetch(`/api/registrations/${row.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to delete swimmer');
+      }
+      setRows((prev) => prev.filter((item) => item.id !== row.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete swimmer');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function openEdit(row: SwimmerRow) {
@@ -1064,6 +1110,18 @@ export function SwimmerList() {
                               <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
                               <path d="M13.5 6.5l3 3" />
                             </svg>
+                          </button>
+                        ) : null}
+                        {status === 'inactive' && canToggleActive ? (
+                          <button
+                            type="button"
+                            className="icon-action icon-action-danger"
+                            onClick={() => void deleteSwimmer(row)}
+                            disabled={deletingId === row.id}
+                            aria-label={`${t('Delete')} ${row.swimmer}`}
+                            title={t('Delete')}
+                          >
+                            <DeleteIcon />
                           </button>
                         ) : null}
                       </span>

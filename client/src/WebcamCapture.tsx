@@ -301,6 +301,8 @@ type PhotoPickerButtonsProps = {
   onPickFiles?: (files: FileList | null) => void;
   multiple?: boolean;
   facing?: CameraFacing;
+  /** Face oval is only for portraits. Documents/IDs never show it, even after flip. */
+  guide?: 'face' | 'document';
 };
 
 /** Take photo opens the webcam in the page. Upload is the only control that opens a file picker. */
@@ -312,6 +314,7 @@ export function PhotoPickerButtons({
   onPickFiles,
   multiple = false,
   facing = 'user',
+  guide,
 }: PhotoPickerButtonsProps) {
   const t = useT();
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -319,7 +322,7 @@ export function PhotoPickerButtons({
   const startingRef = useRef(false);
   const webcam = useWebcamCapture(facing);
   const phone = prefersPhoneCapture();
-  const faceFrame = webcam.facing === 'user';
+  const faceFrame = (guide ?? (facing === 'user' ? 'face' : 'document')) === 'face';
 
   async function onTakePhoto() {
     if (startingRef.current) return;
@@ -363,7 +366,8 @@ export function PhotoPickerButtons({
             playsInline
             muted
           />
-          {faceFrame ? <span className="webcam-face-guide" aria-hidden /> : null}
+          {webcam.live && faceFrame ? <span className="webcam-face-guide" aria-hidden /> : null}
+          {webcam.live && !faceFrame ? <span className="webcam-document-guide" aria-hidden /> : null}
           <button
             type="button"
             className="webcam-flip-btn"
@@ -381,7 +385,7 @@ export function PhotoPickerButtons({
             : webcam.ready
               ? faceFrame
                 ? t('Keep your full face inside the oval, then press Capture photo.')
-                : t('Allow camera access, then press Capture photo.')
+                : t('Fill the frame with the document, then press Capture photo.')
               : t('Starting camera…')}
         </p>
         <div className="webcam-capture-toolbar">

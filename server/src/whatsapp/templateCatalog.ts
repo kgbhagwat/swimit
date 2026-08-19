@@ -6,6 +6,7 @@ export const WA_TEMPLATES = {
   accountLoginWithPassword: 'swimit_login_creds',
   accountLoginReady: 'swimit_login_ready',
   registrationOk: 'swimit_registration_ok',
+  registrationSayHi: 'swimit_reg_say_hi',
   passReady: 'swimit_pass_ready',
   passExpiring: 'swimit_pass_expiring',
   subExpiring: 'swimit_sub_expiring',

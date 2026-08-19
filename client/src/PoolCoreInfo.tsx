@@ -182,6 +182,7 @@ function ImageField({
                 takeLabel={t('Take photo')}
                 uploadLabel={t('Upload')}
                 facing="environment"
+                guide="document"
                 onPickFile={(file) => void handleDraftFile(file)}
               />
               {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}

@@ -118,6 +118,7 @@ function ImageField({
             takeLabel={t('Take photo')}
             uploadLabel={t('Upload')}
             facing="environment"
+            guide="document"
             onPickFile={(file) => void handleFile(file)}
           />
           {file ? (

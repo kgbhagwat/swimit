@@ -11,6 +11,8 @@ import { TermsModal } from './TermsModal';
 import { getSampleStaffDetail, SAMPLE_STAFF_BATCHES } from './sampleStaff';
 import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
+import { BirthDateField, ageYearsAsOfToday } from './BirthDateField';
+import { clearFormDraft, mergeDraft, readFormDraft, useFormDraft } from './formDraft';
 import { useObjectUrl, useObjectUrls } from './useObjectUrl';
 
 
@@ -90,28 +92,10 @@ const initialForm: FormState = {
   acceptedTerms: false,
 };
 
-function getAgeYears(birthdate: string) {
-  if (!birthdate) return null;
-  const born = new Date(`${birthdate}T00:00:00`);
-  if (Number.isNaN(born.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - born.getFullYear();
-  const monthDiff = today.getMonth() - born.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
-    age -= 1;
-  }
-  return age;
-}
+const STAFF_FORM_DRAFT = 'staff-registration';
 
-/** Latest birthdate allowed so the person is over 18 years old. */
-function maxBirthdateForOver18() {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - 18);
-  d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+function getAgeYears(birthdate: string) {
+  return ageYearsAsOfToday(birthdate);
 }
 
 function Label({ children, required }: { children: string; required?: boolean }) {
@@ -138,7 +122,8 @@ export function StaffRegistration() {
     (editId !== null && Number.isFinite(editId) && editId > 0) || isSampleEdit;
 
   const t = useT();
-  const [form, setForm] = useState<FormState>(initialForm);
+  const savedDraft = !isEdit ? readFormDraft<FormState>(STAFF_FORM_DRAFT) : null;
+  const [form, setForm] = useState<FormState>(() => mergeDraft(initialForm, savedDraft));
   const [isActive, setIsActive] = useState(true);
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
   const [identityPhoto, setIdentityPhoto] = useState<File | null>(null);
@@ -158,6 +143,7 @@ export function StaffRegistration() {
   const [success, setSuccess] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  useFormDraft(STAFF_FORM_DRAFT, form, !isEdit && !submitted);
   const [availableBatches, setAvailableBatches] = useState<AvailableBatch[]>([]);
   const [batchesLoading, setBatchesLoading] = useState(false);
 
@@ -530,6 +516,7 @@ export function StaffRegistration() {
         setStaffPhoto(null);
         setLifeguardPhoto(null);
         setCertPhotos([null, null, null]);
+        clearFormDraft(STAFF_FORM_DRAFT);
         setExistingPhotos({
           identity: null,
           staff: null,
@@ -725,14 +712,12 @@ export function StaffRegistration() {
           <div className="grid-3 registration-align-3">
             <label className="field field-beside">
               <Label required>{t("Birth Date")}</Label>
-              <input
-                type="date"
+              <BirthDateField
                 className="field-control-sm"
                 value={form.birthdate}
-                max={maxBirthdateForOver18()}
-                onChange={(e) => setField('birthdate', e.target.value)}
+                onChange={(iso) => setField('birthdate', iso)}
                 required
-                aria-invalid={isInvalid('birthdate')}
+                invalid={isInvalid('birthdate')}
               />
               {form.birthdate &&
               getAgeYears(form.birthdate) !== null &&

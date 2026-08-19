@@ -83,15 +83,20 @@ export function normalizeBirthdate(value: unknown): string {
   return raw;
 }
 
-export function isAdultBirthdate(isoDate: string): boolean {
-  const birth = new Date(`${String(isoDate).slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(birth.getTime())) return false;
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age -= 1;
-  }
+export function isAdultBirthdate(isoDate: string, now = new Date()): boolean {
+  const birth = String(isoDate ?? '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birth)) return false;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (birth > today) return false;
+  const by = Number(birth.slice(0, 4));
+  const bm = Number(birth.slice(5, 7));
+  const bd = Number(birth.slice(8, 10));
+  const ty = now.getFullYear();
+  const tm = now.getMonth() + 1;
+  const td = now.getDate();
+  let age = ty - by;
+  if (tm < bm || (tm === bm && td < bd)) age -= 1;
   return age >= 18;
 }
 

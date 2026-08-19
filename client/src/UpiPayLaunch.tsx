@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { UpiAppPicker } from './UpiAppPicker';
 import { useT } from './i18n';
-import { buildUpiPayUri, openUpiPay } from './upiPay';
+import { buildUpiPayUri, isAndroidDevice, isInAppBrowser, openUpiPay } from './upiPay';
 
-/** Public page: WhatsApp https link → open UPI intent without encoding @ as %40. */
+/** Public page: WhatsApp https link → choose a UPI app without WhatsApp Pay intercepting. */
 export function UpiPayLaunch() {
   const t = useT();
   const [params] = useSearchParams();
@@ -14,6 +15,7 @@ export function UpiPayLaunch() {
   const am = params.get('am') ?? '';
   const pn = params.get('pn') ?? 'SwimIT';
   const tn = params.get('tn') ?? '';
+  const autoChooser = params.get('chooser') === '1';
 
   useEffect(() => {
     let cancelled = false;
@@ -24,7 +26,10 @@ export function UpiPayLaunch() {
         return;
       }
       setUri(next);
-      openUpiPay(next);
+      // Inside WhatsApp, upi:// opens WhatsApp Pay instead of the app list.
+      if (autoChooser && isAndroidDevice() && !isInAppBrowser()) {
+        openUpiPay(next);
+      }
     }
 
     async function run() {
@@ -63,7 +68,7 @@ export function UpiPayLaunch() {
     return () => {
       cancelled = true;
     };
-  }, [token, pa, am, pn, tn]);
+  }, [token, pa, am, pn, tn, autoChooser]);
 
   return (
     <div className="route-fallback upi-pay-launch">
@@ -71,10 +76,8 @@ export function UpiPayLaunch() {
         <p className="error">{t(error)}</p>
       ) : (
         <>
-          <p className="muted">{t('Opening UPI app…')}</p>
-          <button type="button" className="submit" onClick={() => uri && openUpiPay(uri)}>
-            {t('Open UPI payment app')}
-          </button>
+          <p className="muted">{t('Select an installed UPI app to pay.')}</p>
+          {uri ? <UpiAppPicker uri={uri} variant="page" /> : <p className="muted">{t('Opening UPI app…')}</p>}
         </>
       )}
     </div>

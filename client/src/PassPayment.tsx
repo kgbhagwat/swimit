@@ -20,7 +20,8 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
-import { buildPassPaymentRequestMessage, buildUpiPayUri, extractPayLaunchHref, openUpiPay } from './upiPay';
+import { buildPassPaymentRequestMessage, buildUpiPayUri, extractPayLaunchHref, openPayLaunch } from './upiPay';
+import { UpiPayAppButton } from './UpiAppPicker';
 
 type PendingSwimmer = {
   id: number;
@@ -262,7 +263,7 @@ function PaymentRequestPreview({ text, qrValue }: { text: string; qrValue: strin
                 href={chunk}
                 onClick={(event) => {
                   event.preventDefault();
-                  openUpiPay(chunk);
+                  openPayLaunch(chunk);
                 }}
               >
                 {chunk}
@@ -305,7 +306,7 @@ function PaymentRequestPreview({ text, qrValue }: { text: string; qrValue: strin
               onClick={(event) => {
                 if (!payHref.toLowerCase().startsWith('upi:')) return;
                 event.preventDefault();
-                openUpiPay(payHref);
+                openPayLaunch(payHref);
               }}
             >
               {t('Pay now')}
@@ -1600,16 +1601,9 @@ export function PassPayment() {
                           className="online-payment-qr"
                           size={220}
                         />
-                        <a
-                          className="csv-btn qr-pay-app-btn"
-                          href={amountLockedUpiQr}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            openUpiPay(amountLockedUpiQr);
-                          }}
-                        >
+                        <UpiPayAppButton uri={amountLockedUpiQr} className="csv-btn qr-pay-app-btn">
                           {t('Pay with UPI app')}
-                        </a>
+                        </UpiPayAppButton>
                       </>
                     ) : onlineQrUrl ? (
                       <FilePreview

@@ -111,6 +111,79 @@ a {
   text-align: center;
 }
 
+.upi-app-picker {
+  width: min(22rem, 100%);
+  margin: 0 auto;
+}
+
+.upi-app-picker-title {
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.upi-app-picker-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.upi-app-choice {
+  appearance: none;
+  width: 100%;
+  border: 1px solid #9ec9e8;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b3d5c;
+  font: inherit;
+  font-weight: 650;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+
+.upi-app-choice:hover,
+.upi-app-choice:focus-visible {
+  border-color: #027eb5;
+  outline: 2px solid #027eb5;
+  outline-offset: 1px;
+}
+
+.upi-app-choice-more {
+  background: #027eb5;
+  border-color: #027eb5;
+  color: #fff;
+}
+
+.upi-app-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(8, 24, 38, 0.45);
+  display: grid;
+  align-items: end;
+  justify-items: center;
+}
+
+.upi-app-sheet {
+  width: min(26rem, 100%);
+  background: #fff;
+  border-radius: 1.1rem 1.1rem 0 0;
+  padding: 1.15rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 28px rgba(8, 24, 38, 0.18);
+}
+
+.upi-app-sheet-cancel {
+  appearance: none;
+  width: 100%;
+  margin-top: 0.75rem;
+  border: 0;
+  background: transparent;
+  color: #35556a;
+  font: inherit;
+  font-weight: 650;
+  padding: 0.65rem;
+  cursor: pointer;
+}
+
 .accounts-page {
   width: min(1180px, calc(100% - 1.25rem));
   padding: 1.15rem 1.1rem 1.6rem;
@@ -598,8 +671,21 @@ h1 {
   max-width: 9.75rem;
 }
 
-.field.field-beside > input.field-control-sm[type='date'] {
-  max-width: 10rem;
+.field.field-beside > input.field-control-sm[type='date'],
+.field.field-beside > input.field-control-sm[inputmode='numeric'] {
+  max-width: 10.5rem;
+}
+
+.birthdate-field-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.birthdate-age {
+  font-size: 0.78rem;
 }
 
 .field.field-beside > select.field-control-sm {
@@ -1266,6 +1352,15 @@ html[data-theme='dark'] .pdf-preview {
   border-radius: 50% 50% 46% 46%;
   pointer-events: none;
   box-shadow: 0 0 0 999px rgba(5, 12, 22, 0.38);
+}
+
+.webcam-document-guide {
+  position: absolute;
+  inset: 7% 5%;
+  border: 2px dashed rgba(255, 255, 255, 0.88);
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 0 999px rgba(5, 12, 22, 0.28);
 }
 
 .webcam-flip-btn {
@@ -15486,6 +15581,11 @@ button.dashboard-kpi {
   display: inline-flex;
   margin-top: 0.55rem;
   text-decoration: none;
+}
+
+button.qr-pay-app-btn {
+  cursor: pointer;
+  font: inherit;
 }
 
 .wa-chat-bubble time {

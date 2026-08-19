@@ -84,6 +84,17 @@ function csvEscape(value: string) {
   return value;
 }
 
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 function downloadCsv(filename: string, header: string[], rows: string[][]) {
   const lines = [header.join(','), ...rows.map((row) => row.map(csvEscape).join(','))];
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -104,6 +115,7 @@ export function CoachList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [sampleMode, setSampleMode] = useState(false);
   const [openCoachFilter, setOpenCoachFilter] = useState<CoachColKey | null>(null);
   const [coachSelected, setCoachSelected] = useState<
@@ -346,6 +358,33 @@ export function CoachList() {
     }
   }
 
+  async function deleteStaff(id: number, name: string) {
+    if (!canEdit || deletingId === id) return;
+    if (!window.confirm(`${t('Delete this staff member?')}\n${name}`)) return;
+    setError('');
+    if (sampleMode || id < 0) {
+      setCoaches((prev) => prev.filter((row) => row.id !== id));
+      setLifeguards((prev) => prev.filter((row) => row.id !== id));
+      setOthers((prev) => prev.filter((row) => row.id !== id));
+      return;
+    }
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/staff-registrations/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to delete staff');
+      }
+      setCoaches((prev) => prev.filter((row) => row.id !== id));
+      setLifeguards((prev) => prev.filter((row) => row.id !== id));
+      setOthers((prev) => prev.filter((row) => row.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete staff');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   function CoachActiveToggle({ coach }: { coach: CoachRow }) {
     const busy = approvingId === coach.id;
     const canToggle = sampleMode || canEditPage('coaches');
@@ -488,6 +527,18 @@ export function CoachList() {
                       />
                     ) : null}
                     <CoachActiveToggle coach={coach} />
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="icon-action icon-action-danger"
+                        onClick={() => void deleteStaff(coach.id, coach.fullName)}
+                        disabled={deletingId === coach.id}
+                        aria-label={`${t('Delete')} ${coach.fullName}`}
+                        title={t('Delete')}
+                      >
+                        <DeleteIcon />
+                      </button>
+                    ) : null}
                   </span>
                 </div>
               ))}
@@ -561,6 +612,18 @@ export function CoachList() {
                         to={tenantPath(`/staff-register/${staff.id}`)}
                         label={`Edit ${staff.fullName}`}
                       />
+                    ) : null}
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="icon-action icon-action-danger"
+                        onClick={() => void deleteStaff(staff.id, staff.fullName)}
+                        disabled={deletingId === staff.id}
+                        aria-label={`${t('Delete')} ${staff.fullName}`}
+                        title={t('Delete')}
+                      >
+                        <DeleteIcon />
+                      </button>
                     ) : null}
                   </span>
                 </div>

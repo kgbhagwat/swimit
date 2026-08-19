@@ -435,6 +435,63 @@ registrationsRouter.get('/:id/identity-photo', async (req, res) => {
   }
 });
 
+function registrationHasCurrentPass(passType: string | null | undefined, passValidUntil: string | null) {
+  const type = String(passType ?? '').trim();
+  if (!type || type === '—') return false;
+  if (!passValidUntil) return true;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 3);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+  return passValidUntil.slice(0, 10) >= cutoffIso;
+}
+
+registrationsRouter.delete('/:id', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid swimmer id' });
+      return;
+    }
+
+    const existing = await pool.query(
+      `SELECT id, full_name, is_active, pass_type, pass_valid_until
+       FROM registrations
+       WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    const row = existing.rows[0];
+    if (!row) {
+      res.status(404).json({ error: 'Swimmer not found' });
+      return;
+    }
+
+    const isActive = row.is_active !== false;
+    const until = formatPlainDate(row.pass_valid_until) || null;
+    const onActiveList = isActive && registrationHasCurrentPass(row.pass_type, until);
+    if (onActiveList) {
+      res.status(400).json({ error: 'Deactivate the swimmer before deleting' });
+      return;
+    }
+
+    await pool.query(`DELETE FROM registrations WHERE id = $1 AND saas_account_id = $2`, [
+      id,
+      accountId,
+    ]);
+    await recordAudit(req, {
+      action: 'delete',
+      entityType: 'swimmer',
+      entityId: row.id,
+      entityLabel: String(row.full_name ?? ''),
+      summary: 'Deleted inactive swimmer',
+    });
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete swimmer' });
+  }
+});
+
 registrationsRouter.patch('/:id', async (req, res) => {
   try {
     const accountId = tenantId(req);

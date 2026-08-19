@@ -143,7 +143,11 @@ export async function probeWhatsAppAuth() {
   }
 }
 
-export async function sendWhatsAppText(toMobile: string, body: string) {
+export async function sendWhatsAppText(
+  toMobile: string,
+  body: string,
+  options?: { previewUrl?: boolean },
+) {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
     console.info('[whatsapp] skipped (not configured):', body.slice(0, 80));
@@ -156,7 +160,7 @@ export async function sendWhatsAppText(toMobile: string, body: string) {
     messaging_product: 'whatsapp',
     to,
     type: 'text',
-    text: { preview_url: false, body },
+    text: { preview_url: options?.previewUrl === true, body },
   });
   const messages = Array.isArray(result.messages) ? result.messages : [];
   const messageId = String((messages[0] as { id?: string } | undefined)?.id ?? '');
@@ -205,7 +209,11 @@ export async function sendWhatsAppTemplateWithBody(
   templateName: string,
   languageCode: string,
   bodyTexts: string[],
-  options?: { copyCodeButton?: boolean; headerImage?: { id?: string; link?: string } },
+  options?: {
+    copyCodeButton?: boolean;
+    headerImage?: { id?: string; link?: string };
+    urlButtonSuffix?: string;
+  },
 ) {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -217,6 +225,7 @@ export async function sendWhatsAppTemplateWithBody(
 
   const code = bodyTexts[0] ?? '';
   const copyCodeButton = options?.copyCodeButton === true && Boolean(code);
+  const urlButtonSuffix = String(options?.urlButtonSuffix ?? '').trim();
   const headerImage = options?.headerImage;
   const headerComponent =
     headerImage?.id || headerImage?.link
@@ -256,7 +265,16 @@ export async function sendWhatsAppTemplateWithBody(
                 parameters: [{ type: 'text' as const, text: code }],
               },
             ]
-          : []),
+          : urlButtonSuffix
+            ? [
+                {
+                  type: 'button',
+                  sub_type: 'url',
+                  index: '0',
+                  parameters: [{ type: 'text' as const, text: urlButtonSuffix }],
+                },
+              ]
+            : []),
       ],
     },
   });

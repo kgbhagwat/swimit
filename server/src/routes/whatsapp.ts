@@ -9,7 +9,7 @@ import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileVali
 import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { BROADCAST_RATE_INR } from '../renewBilling.js';
-import { notifyPassExpiring, notifyOpenFormQr, sendBroadcast } from '../whatsapp/notify.js';
+import { notifyPassExpiring, notifyOpenFormQr, replyIfRegistrationHi, sendBroadcast } from '../whatsapp/notify.js';
 import { processPackageRenewalInbound } from '../packageRenewal.js';
 import { processPassPaymentInbound } from '../passPaymentVerify.js';
 
@@ -158,6 +158,45 @@ async function resolveInboundAccount(fromMobile: string): Promise<{
   return null;
 }
 
+function inboundMessageText(msg: {
+  type?: string;
+  text?: { body?: string };
+  button?: { text?: string; payload?: string };
+  interactive?: { button_reply?: { title?: string } };
+}) {
+  if (msg.type === 'text') return String(msg.text?.body ?? '').trim();
+  if (msg.type === 'button') {
+    return String(msg.button?.text || msg.button?.payload || '').trim();
+  }
+  if (msg.type === 'interactive') {
+    return String(msg.interactive?.button_reply?.title ?? '').trim();
+  }
+  return '';
+}
+
+async function saveInboundText(params: {
+  text: string;
+  waMessageId?: string;
+  resolved: { last10: string; saasAccountId: number; registrationId: number | null };
+}) {
+  try {
+    await pool.query(
+      `INSERT INTO whatsapp_inbound
+       (saas_account_id, registration_id, from_mobile, wa_message_id, kind, caption, status)
+       VALUES ($1, $2, $3, $4, 'text', $5, 'received')`,
+      [
+        params.resolved.saasAccountId,
+        params.resolved.registrationId,
+        params.resolved.last10,
+        params.waMessageId ?? null,
+        params.text,
+      ],
+    );
+  } catch (err) {
+    console.error('[whatsapp] failed to log inbound text', err);
+  }
+}
+
 async function saveInboundMedia(params: {
   fromMobile: string;
   mediaId: string;
@@ -264,6 +303,11 @@ whatsappRouter.post('/webhook', async (req, res) => {
               from?: string;
               type?: string;
               text?: { body?: string };
+              button?: { text?: string; payload?: string };
+              interactive?: {
+                type?: string;
+                button_reply?: { id?: string; title?: string };
+              };
               image?: { id?: string; caption?: string; mime_type?: string; url?: string };
               document?: {
                 id?: string;
@@ -294,13 +338,13 @@ whatsappRouter.post('/webhook', async (req, res) => {
           const from = String(msg.from ?? '');
           if (!from) continue;
 
+          const resolved = await resolveInboundAccount(from);
           // Only registered swimmer / staff / user mobiles
-          if (!(await resolveInboundAccount(from))) {
+          if (!resolved) {
             console.info('[whatsapp] ignored message from unregistered mobile', from);
             continue;
           }
 
-          // Only images (optional caption text). Plain text, PDF, audio, etc. are ignored.
           if (msg.type === 'image' && msg.image?.id) {
             await saveInboundMedia({
               fromMobile: from,
@@ -310,12 +354,33 @@ whatsappRouter.post('/webhook', async (req, res) => {
               waMessageId: msg.id,
               mediaUrl: msg.image.url,
             });
-          } else {
-            console.info(
-              '[whatsapp] ignored non-image inbound',
-              JSON.stringify({ from, type: msg.type ?? null }),
-            );
+            continue;
           }
+
+          const inboundText = inboundMessageText(msg);
+          if (inboundText) {
+            await saveInboundText({
+              text: inboundText,
+              waMessageId: msg.id,
+              resolved,
+            });
+            try {
+              await replyIfRegistrationHi({
+                fromMobileLast10: resolved.last10,
+                saasAccountId: resolved.saasAccountId,
+                registrationId: resolved.registrationId,
+                text: inboundText,
+              });
+            } catch (err) {
+              console.error('[whatsapp] registration Hi reply failed', err);
+            }
+            continue;
+          }
+
+          console.info(
+            '[whatsapp] ignored non-image inbound',
+            JSON.stringify({ from, type: msg.type ?? null }),
+          );
         }
       }
     }

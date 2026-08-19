@@ -2,10 +2,11 @@ import { pool } from '../db/pool.js';
 import { renderPassCardPng, renderPassQrPng, renderUrlQrPng } from '../passCardImage.js';
 import { buildUpiHttpsLaunchUrl, buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
-import { ensureFormQrTemplates, ensurePassPayQrTemplate, formQrTemplateStatus, passPayQrTemplateStatus } from './ensureFormQrTemplate.js';
+import { ensureFormQrTemplates, ensurePassPayQrTemplate, ensureRegistrationHiTemplate, formQrTemplateStatus, passPayQrTemplateStatus } from './ensureFormQrTemplate.js';
 import { WA_TEMPLATES } from './templateCatalog.js';
 import {
   formatWhatsAppUserError,
+  probeWhatsAppAuth,
   sendWhatsAppImage,
   sendWhatsAppImageByMediaId,
   sendWhatsAppTemplateWithBody,
@@ -65,27 +66,34 @@ async function sendTemplateInKnownLanguages(params: {
   bodyTexts: string[];
   copyCodeButton?: boolean;
   headerImage?: { id?: string; link?: string };
+  urlButtonSuffix?: string;
 }) {
   const preferred = String(process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en').trim() || 'en';
   // SwimIT templates were created as `en`. 132001 means that language has no translation,
   // so keep trying the other codes instead of stopping on the first miss.
   const languages = [...new Set(['en', preferred, 'en_US'])];
   let lastError = 'Template failed';
-  for (const lang of languages) {
-    try {
-      const sent = await sendWhatsAppTemplateWithBody(
-        params.mobile,
-        params.templateName,
-        lang,
-        params.bodyTexts,
-        {
-          copyCodeButton: params.copyCodeButton === true,
-          headerImage: params.headerImage,
-        },
-      );
-      if (!sent.skipped) return sent;
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : 'Template failed';
+  const attempts = params.urlButtonSuffix
+    ? [{ urlButtonSuffix: params.urlButtonSuffix }, { urlButtonSuffix: undefined }]
+    : [{ urlButtonSuffix: undefined }];
+  for (const attempt of attempts) {
+    for (const lang of languages) {
+      try {
+        const sent = await sendWhatsAppTemplateWithBody(
+          params.mobile,
+          params.templateName,
+          lang,
+          params.bodyTexts,
+          {
+            copyCodeButton: params.copyCodeButton === true,
+            headerImage: params.headerImage,
+            urlButtonSuffix: attempt.urlButtonSuffix,
+          },
+        );
+        if (!sent.skipped) return sent;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : 'Template failed';
+      }
     }
   }
   throw new Error(lastError);
@@ -108,6 +116,8 @@ async function deliverNotice(params: {
   /** Session text is not delivered unless the person already chatted with the business. */
   allowTextFallback?: boolean;
   headerImage?: { id?: string; link?: string };
+  urlButtonSuffix?: string;
+  previewUrl?: boolean;
 }): Promise<NotifyCredentialsResult> {
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -129,6 +139,7 @@ async function deliverNotice(params: {
       bodyTexts: params.bodyTexts,
       copyCodeButton: false,
       headerImage: params.headerImage,
+      urlButtonSuffix: params.urlButtonSuffix,
     });
     await logOutbound({
       saasAccountId: params.saasAccountId,
@@ -160,7 +171,9 @@ async function deliverNotice(params: {
   }
 
   try {
-    const result = await sendWhatsAppText(params.mobile, params.fallbackBody);
+    const result = await sendWhatsAppText(params.mobile, params.fallbackBody, {
+      previewUrl: params.previewUrl === true,
+    });
     await logOutbound({
       saasAccountId: params.saasAccountId,
       toMobile: params.mobile,
@@ -474,29 +487,105 @@ export async function notifySignupOtp(params: {
   }
 }
 
+const REGISTRATION_HI_REPLY = 'Please visit payment desk for batch selection and payment.';
+
+function businessWaMeDigits() {
+  return String(process.env.WHATSAPP_DISPLAY_PHONE ?? '')
+    .replace(/\D/g, '')
+    .trim();
+}
+
+function waMeHiUrl(digits: string) {
+  return digits ? `https://wa.me/${digits}?text=Hi` : '';
+}
+
+function isRegistrationHiText(text: string) {
+  return /^(hi+|hii+|hello|hey)[\s!.]*$/i.test(String(text ?? '').trim());
+}
+
 export async function notifyRegistrationConfirmation(params: {
   mobile: string;
   fullName: string;
   saasAccountId: number;
   poolName?: string;
 }) {
-  const atPool = params.poolName ? ` at ${params.poolName}` : '';
-  const body = [
-    `Hello ${params.fullName},`,
-    '',
-    `Your registration form${atPool} has been successfully submitted.`,
-    '',
-    'After online payment, please send the payment screenshot here.',
-  ].join('\n');
+  await ensureRegistrationHiTemplate();
+  const probe = await probeWhatsAppAuth();
+  const digits =
+    String(probe.displayPhoneNumber ?? '')
+      .replace(/\D/g, '')
+      .trim() || businessWaMeDigits();
+  const hiLink = waMeHiUrl(digits);
+  const body = `Hello ${params.fullName}, your registration at SwimIT has been submitted. Please respond Hi To this message`;
+  const fallbackBody = hiLink ? `${body}\n${hiLink}` : body;
 
   return deliverNotice({
     mobile: params.mobile,
     saasAccountId: params.saasAccountId,
     kind: 'registration_confirmation',
-    templateName: WA_TEMPLATES.registrationOk,
-    bodyTexts: [templateText(params.fullName), templateText(params.poolName || 'SwimIT')],
-    fallbackBody: body,
+    templateName: WA_TEMPLATES.registrationSayHi,
+    bodyTexts: [templateText(params.fullName)],
+    urlButtonSuffix: digits ? `${digits}?text=Hi` : undefined,
+    fallbackBody,
+    previewUrl: Boolean(hiLink),
   });
+}
+
+/** After a new unpaid swimmer sends Hi, reply with the payment-desk instruction. */
+export async function replyIfRegistrationHi(params: {
+  fromMobileLast10: string;
+  saasAccountId: number;
+  registrationId: number | null;
+  text: string;
+}) {
+  if (!isRegistrationHiText(params.text)) return false;
+  if (params.registrationId == null) return false;
+
+  const swimmer = await pool.query<{ id: number; pass_valid_until: string | null }>(
+    `SELECT id, pass_valid_until
+     FROM registrations
+     WHERE id = $1 AND saas_account_id = $2
+     LIMIT 1`,
+    [params.registrationId, params.saasAccountId],
+  );
+  const row = swimmer.rows[0];
+  if (!row || row.pass_valid_until != null) return false;
+
+  const recent = await pool.query(
+    `SELECT 1
+     FROM whatsapp_outbound
+     WHERE saas_account_id = $1
+       AND RIGHT(regexp_replace(to_mobile, '\\D', '', 'g'), 10) = $2
+       AND kind = 'registration_hi_reply'
+       AND status = 'sent'
+       AND created_at > NOW() - INTERVAL '1 day'
+     LIMIT 1`,
+    [params.saasAccountId, params.fromMobileLast10],
+  );
+  if (recent.rows[0]) return false;
+
+  try {
+    const result = await sendWhatsAppText(params.fromMobileLast10, REGISTRATION_HI_REPLY);
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.fromMobileLast10,
+      kind: 'registration_hi_reply',
+      body: REGISTRATION_HI_REPLY,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+    return !result.skipped;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.fromMobileLast10,
+      kind: 'registration_hi_reply',
+      body: REGISTRATION_HI_REPLY,
+      status: 'failed',
+      error: message,
+    });
+    return false;
+  }
 }
 
 export async function notifyPassIssued(params: {
@@ -985,6 +1074,7 @@ export async function notifyPackageRenewalPayment(params: {
         amount: params.amount,
         payeeName: 'SwimIT',
         note: `SwimIT renew ${params.packageName}`.slice(0, 80),
+        qrContent: payLink.startsWith('https://') ? payLink : undefined,
       });
       const mediaId = await uploadWhatsAppMedia({
         buffer: qrPng,
@@ -1071,6 +1161,7 @@ export async function notifyPassPaymentRequest(params: {
         amount: params.amount,
         payeeName,
         note: `Pass ${params.passType}`.slice(0, 80),
+        qrContent: payLink || undefined,
       });
       mediaId = await uploadWhatsAppMedia({
         buffer: qrPng,

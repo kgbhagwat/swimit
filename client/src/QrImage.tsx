@@ -1,6 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import QRCode from 'qrcode';
-import { openUpiPay } from './upiPay';
+import { UpiAppPicker } from './UpiAppPicker';
+import { isMobileUpiClient, openUpiPay } from './upiPay';
 
 export function QrImage({
   value,
@@ -17,6 +18,7 @@ export function QrImage({
   openOnClick?: boolean;
 }) {
   const [src, setSrc] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const isUpi = value.trim().toLowerCase().startsWith('upi://');
   const clickable = openOnClick ?? isUpi;
 
@@ -50,18 +52,27 @@ export function QrImage({
   function onOpen(event: MouseEvent<HTMLAnchorElement>) {
     if (!isUpi) return;
     event.preventDefault();
+    if (isMobileUpiClient()) {
+      setPickerOpen(true);
+      return;
+    }
     openUpiPay(value);
   }
 
   return (
-    <a
-      className="qr-pay-link"
-      href={value}
-      title={isUpi ? 'Open UPI payment app' : alt}
-      aria-label={isUpi ? 'Open UPI payment app' : alt}
-      onClick={onOpen}
-    >
-      {image}
-    </a>
+    <>
+      <a
+        className="qr-pay-link"
+        href={value}
+        title={isUpi ? 'Choose a payment app' : alt}
+        aria-label={isUpi ? 'Choose a payment app' : alt}
+        onClick={onOpen}
+      >
+        {image}
+      </a>
+      {pickerOpen ? (
+        <UpiAppPicker uri={value} variant="sheet" onClose={() => setPickerOpen(false)} />
+      ) : null}
+    </>
   );
 }

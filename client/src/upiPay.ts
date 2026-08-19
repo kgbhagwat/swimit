@@ -40,6 +40,13 @@ function sanitizePayeeName(name: string) {
   return cleaned || 'SwimIT';
 }
 
+/** Whole rupees only — GPay rejects am=10.00 for some collect requests. */
+function formatUpiAmount(amount: number) {
+  const rupees = Math.round(Number(amount));
+  if (!Number.isFinite(rupees) || rupees <= 0) return '';
+  return String(rupees);
+}
+
 function upiQuery(fields: Array<[string, string]>) {
   return fields
     .filter(([, value]) => value !== '')
@@ -58,9 +65,9 @@ function upiQuery(fields: Array<[string, string]>) {
 /** UPI intent URI with amount pre-filled (opens app chooser on mobile). */
 export function buildUpiPayUri(upiId: string, amount: number, note = '', payeeName = 'SwimIT') {
   const pa = normalizeVpa(upiId);
-  if (!pa || !(Number(amount) > 0)) return '';
+  const am = formatUpiAmount(amount);
+  if (!pa || !am) return '';
   const pn = sanitizePayeeName(payeeName) || 'SwimIT';
-  const am = (Math.round(Number(amount) * 100) / 100).toFixed(2);
   const tn = sanitizePayeeName(note).slice(0, 80);
   const fields: Array<[string, string]> = [
     ['pa', pa],
@@ -72,20 +79,69 @@ export function buildUpiPayUri(upiId: string, amount: number, note = '', payeeNa
   return `upi://pay?${upiQuery(fields)}`;
 }
 
-/** Chrome encodes upi:// hrefs; Android intent:// keeps @ in the VPA. */
+export function isAndroidDevice() {
+  return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+}
+
+/** WhatsApp / Instagram / Facebook in-app browsers intercept upi:// as WhatsApp Pay. */
+export function isInAppBrowser() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /WhatsApp|FBAN|FBAV|Instagram|Line\/|; wv\)/i.test(ua);
+}
+
+export function isMobileUpiClient() {
+  return typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+export function upiPayQuery(upiUri: string) {
+  const raw = String(upiUri ?? '').trim();
+  const q = raw.indexOf('?');
+  return q >= 0 ? raw.slice(q + 1) : '';
+}
+
+export const UPI_APP_CHOICES = [
+  { id: 'gpay', label: 'Google Pay', href: (query: string) => `tez://upi/pay?${query}` },
+  { id: 'phonepe', label: 'PhonePe', href: (query: string) => `phonepe://pay?${query}` },
+  { id: 'paytm', label: 'Paytm', href: (query: string) => `paytmmp://pay?${query}` },
+  { id: 'bhim', label: 'BHIM', href: (query: string) => `bhim://pay?${query}` },
+] as const;
+
+/** Chrome encodes upi:// hrefs; Android intent:// keeps @ in the VPA and shows the app chooser. */
 export function toAndroidUpiIntent(upiUri: string) {
   const raw = String(upiUri ?? '').trim();
   if (!raw.toLowerCase().startsWith('upi:')) return raw;
   const rest = raw.slice(raw.indexOf(':') + 1); // //pay?...
-  const withMode = /[?&]mode=/.test(rest) ? rest : `${rest}&mode=02`;
-  return `intent:${withMode}#Intent;scheme=upi;action=android.intent.action.VIEW;end`;
+  return `intent:${rest}#Intent;scheme=upi;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;launchFlags=0x10000000;end`;
+}
+
+/** Open the current https pay page in Chrome so Android can show the system UPI app list. */
+export function chromeHttpsIntent(httpsUrl: string) {
+  try {
+    const u = new URL(httpsUrl);
+    u.searchParams.set('chooser', '1');
+    const dest = u.toString();
+    const path = `${u.host}${u.pathname}${u.search}`;
+    return `intent://${path}#Intent;scheme=${u.protocol.replace(':', '')};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(dest)};end`;
+  } catch {
+    return httpsUrl;
+  }
 }
 
 export function openUpiPay(upiUri: string) {
   const uri = String(upiUri ?? '').trim();
   if (!uri || typeof window === 'undefined') return;
-  const android = /Android/i.test(navigator.userAgent);
-  window.location.assign(android ? toAndroidUpiIntent(uri) : uri);
+  if (isAndroidDevice()) {
+    window.location.assign(toAndroidUpiIntent(uri));
+    return;
+  }
+  window.location.assign(uri);
+}
+
+export function openUpiAppChoice(href: string) {
+  const next = String(href ?? '').trim();
+  if (!next || typeof window === 'undefined') return;
+  window.location.assign(next);
 }
 
 export function extractUpiPayUri(text: string) {
@@ -97,6 +153,44 @@ export function extractPayLaunchHref(text: string) {
   const https = String(text ?? '').match(/https?:\/\/[^\s]*\/open\/upi-pay\?[^\s]+/i);
   if (https) return https[0];
   return extractUpiPayUri(text);
+}
+
+export function upiUriToLaunchPath(upiUri: string) {
+  const raw = String(upiUri ?? '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('/open/upi-pay')) return raw;
+  if (/^https?:\/\//i.test(raw) && /\/open\/upi-pay\?/i.test(raw)) {
+    try {
+      const u = new URL(raw);
+      return `${u.pathname}${u.search}`;
+    } catch {
+      return raw;
+    }
+  }
+  if (!raw.toLowerCase().startsWith('upi://pay?')) return '';
+  const incoming = new URLSearchParams(raw.slice(raw.indexOf('?') + 1));
+  const q = new URLSearchParams();
+  for (const key of ['pa', 'pn', 'am', 'cu', 'tn']) {
+    const value = incoming.get(key);
+    if (value) q.set(key, value);
+  }
+  return q.get('pa') && q.get('am') ? `/open/upi-pay?${q.toString()}` : '';
+}
+
+/** Open the https pay page (app picker) instead of handing UPI to WhatsApp. */
+export function openPayLaunch(href: string) {
+  const raw = String(href ?? '').trim();
+  if (!raw || typeof window === 'undefined') return;
+  const path = upiUriToLaunchPath(raw);
+  if (path) {
+    window.location.assign(path);
+    return;
+  }
+  if (/^https?:\/\//i.test(raw)) {
+    window.location.assign(raw);
+    return;
+  }
+  openUpiPay(raw);
 }
 
 /** WhatsApp does not auto-link localhost / LAN hosts. */
@@ -144,12 +238,12 @@ export function buildUpiHttpsLaunchUrl(params: {
 }) {
   const base = String(params.publicAppUrl ?? '').trim().replace(/\/$/, '');
   const pa = normalizeVpa(params.upiId);
-  const amount = Number(params.amount);
-  if (!base || !pa || !Number.isFinite(amount) || amount <= 0) return '';
+  const am = formatUpiAmount(params.amount);
+  if (!base || !pa || !am) return '';
   const q = new URLSearchParams();
   q.set('pa', pa);
   q.set('pn', sanitizePayeeName(params.payeeName ?? 'SwimIT') || 'SwimIT');
-  q.set('am', (Math.round(amount * 100) / 100).toFixed(2));
+  q.set('am', am);
   q.set('cu', 'INR');
   const note = sanitizePayeeName(params.note ?? '').slice(0, 80);
   if (note) q.set('tn', note);
