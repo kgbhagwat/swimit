@@ -14,6 +14,7 @@ export const WA_TEMPLATES = {
   openFormQr: 'swimit_form_qr',
   renewPay: 'swimit_renew_pay',
   passPay: 'swimit_pass_pay',
+  passPayQr: 'swimit_pass_pay_qr',
   batchLimit: 'swimit_batch_limit',
   remoteLogin: 'swimit_remote_login',
   capacity: 'swimit_capacity',

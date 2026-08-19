@@ -555,6 +555,8 @@ const mr: Record<string, string> = {
   'Failed to open payment link': 'पेमेंट लिंक उघडता आली नाही.',
   'Paste this message in WhatsApp, then Copy QR and attach the image.':
     'हा संदेश WhatsApp मध्ये पेस्ट करा, नंतर QR कॉपी करून त्याच चॅटमध्ये अटॅच करा.',
+  'WhatsApp message sent without the QR. Copy QR and attach it in the same chat.':
+    'WhatsApp संदेश QR शिवाय गेला. QR कॉपी करून त्याच चॅटमध्ये अटॅच करा.',
   'WhatsApp will not make UPI text tappable. Copy the QR and attach it in the same chat.':
     'WhatsApp UPI मजकूर टॅप करता येणारा करत नाही. QR कॉपी करून त्याच चॅटमध्ये अटॅच करा.',
   'Scan this QR to pay, or tap to open your UPI app.':

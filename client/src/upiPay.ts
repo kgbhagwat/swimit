@@ -1,7 +1,8 @@
 /**
  * UPI apps reject application/x-www-form-urlencoded query strings
  * (URLSearchParams / Chrome <a href> turns @ into %40 and spaces into +).
- * GPay then shows "This request type is not supported".
+ * GPay then shows "This request type is not supported". Keep @ in the VPA.
+ * Never percent-encode the payee name — GPay shows "SPM%20swimming%20pool".
  */
 function normalizeVpa(upiId: string) {
   let pa = String(upiId ?? '').trim();
@@ -13,19 +14,43 @@ function normalizeVpa(upiId: string) {
   return pa.replace(/\s+/g, '');
 }
 
+function decodePercentName(name: string) {
+  let value = String(name ?? '').trim();
+  for (let i = 0; i < 3; i += 1) {
+    if (!/%[0-9A-Fa-f]{2}/.test(value) && !value.includes('+')) break;
+    try {
+      const next = decodeURIComponent(value.replace(/\+/g, '%20'));
+      if (next === value) break;
+      value = next;
+    } catch {
+      break;
+    }
+  }
+  return value.replace(/\+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** GPay-safe payee / note: ASCII, hyphens instead of spaces, never %20. */
 function sanitizePayeeName(name: string) {
-  return String(name ?? '')
-    .replace(/\+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const cleaned = decodePercentName(name)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
+  return cleaned || 'SwimIT';
 }
 
 function upiQuery(fields: Array<[string, string]>) {
   return fields
     .filter(([, value]) => value !== '')
     .map(([key, value]) => {
-      const encoded = encodeURIComponent(value);
-      return `${key}=${key === 'pa' ? encoded.replace(/%40/g, '@') : encoded}`;
+      if (key === 'pa') {
+        return `${key}=${encodeURIComponent(value).replace(/%40/g, '@')}`;
+      }
+      if (key === 'pn' || key === 'tn') {
+        return `${key}=${value}`;
+      }
+      return `${key}=${encodeURIComponent(value)}`;
     })
     .join('&');
 }

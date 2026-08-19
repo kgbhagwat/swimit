@@ -166,3 +166,49 @@ export async function formQrTemplateStatus() {
   ]);
   return { qr, desk, open };
 }
+
+const PASS_PAY_QR_BODY =
+  'Hello {{1}}, please pay {{2}} for your {{3}} pass (valid until {{4}}). Pay now: {{5}}';
+const PASS_PAY_QR_EXAMPLE = [
+  'Abhiram',
+  'Rs 10',
+  'General',
+  '18 Sep 2026',
+  'https://staging.swimit.co.in/open/upi-pay?t=sample',
+];
+
+/** Create IMAGE-header pass-pay template so the QR can go in the first WhatsApp message. */
+export async function ensurePassPayQrTemplate() {
+  const cfg = getWhatsAppConfig();
+  if (!cfg.enabled) return;
+  try {
+    const status = await templateStatus(WA_TEMPLATES.passPayQr);
+    if (status !== 'MISSING') return;
+    const samplePng = await renderUrlQrPng(PASS_PAY_QR_EXAMPLE[4]);
+    const headerHandle = await uploadTemplateHeaderHandle(samplePng);
+    await createTemplate({
+      name: WA_TEMPLATES.passPayQr,
+      language: 'en',
+      category: 'UTILITY',
+      components: [
+        {
+          type: 'HEADER',
+          format: 'IMAGE',
+          example: { header_handle: [headerHandle] },
+        },
+        {
+          type: 'BODY',
+          text: PASS_PAY_QR_BODY,
+          example: { body_text: [PASS_PAY_QR_EXAMPLE] },
+        },
+      ],
+    });
+    console.info('[whatsapp] submitted template', WA_TEMPLATES.passPayQr);
+  } catch (err) {
+    console.warn('[whatsapp] could not ensure', WA_TEMPLATES.passPayQr, err);
+  }
+}
+
+export async function passPayQrTemplateStatus() {
+  return templateStatus(WA_TEMPLATES.passPayQr);
+}

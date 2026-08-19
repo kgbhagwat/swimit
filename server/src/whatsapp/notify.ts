@@ -2,7 +2,7 @@ import { pool } from '../db/pool.js';
 import { renderPassCardPng, renderPassQrPng, renderUrlQrPng } from '../passCardImage.js';
 import { buildUpiHttpsLaunchUrl, buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
-import { ensureFormQrTemplates, formQrTemplateStatus } from './ensureFormQrTemplate.js';
+import { ensureFormQrTemplates, ensurePassPayQrTemplate, formQrTemplateStatus, passPayQrTemplateStatus } from './ensureFormQrTemplate.js';
 import { WA_TEMPLATES } from './templateCatalog.js';
 import {
   formatWhatsAppUserError,
@@ -1021,7 +1021,7 @@ export async function notifyPassPaymentRequest(params: {
   saasAccountId: number;
   poolName?: string;
   shareUrl?: string;
-}): Promise<NotifyCredentialsResult & { message: string; payLink: string }> {
+}): Promise<NotifyCredentialsResult & { message: string; payLink: string; qrSent?: boolean }> {
   const cfg = getWhatsAppConfig();
   const amountLabel = `₹${params.amount.toLocaleString('en-IN', {
     minimumFractionDigits: 0,
@@ -1054,24 +1054,16 @@ export async function notifyPassPaymentRequest(params: {
     .filter(Boolean)
     .join('\n');
 
-  const sent = await deliverNotice({
-    mobile: params.mobile,
-    saasAccountId: params.saasAccountId,
-    kind: 'pass_payment_request',
-    templateName: WA_TEMPLATES.passPay,
-    bodyTexts: [
-      templateText(params.fullName),
-      templateText(amountLabel),
-      templateText(params.passType),
-      templateText(params.passValidUntil),
-      templateText(payLink || params.upiId || 'pool desk', 400),
-    ],
-    fallbackBody: body,
-  });
-  if (!sent.ok || sent.skipped) return { ...sent, message: body, payLink };
-
+  const bodyTexts = [
+    templateText(params.fullName),
+    templateText(amountLabel),
+    templateText(params.passType),
+    templateText(params.passValidUntil),
+    templateText(payLink || params.upiId || 'pool desk', 400),
+  ];
   const caption = `Pay ${amountLabel} for ${params.passType}`;
-  let amountQrSent = false;
+
+  let mediaId = '';
   if (hasAmountQr) {
     try {
       const qrPng = await renderUpiPayQrPng({
@@ -1080,27 +1072,76 @@ export async function notifyPassPaymentRequest(params: {
         payeeName,
         note: `Pass ${params.passType}`.slice(0, 80),
       });
-      const mediaId = await uploadWhatsAppMedia({
+      mediaId = await uploadWhatsAppMedia({
         buffer: qrPng,
         mimeType: 'image/png',
         filename: `pass-pay-${params.saasAccountId}.png`,
       });
+    } catch (qrErr) {
+      console.warn('[whatsapp] pass payment QR upload failed', qrErr);
+    }
+  }
+
+  await ensurePassPayQrTemplate();
+  const qrTemplateStatus = mediaId ? await passPayQrTemplateStatus() : 'MISSING';
+  const headerImage = mediaId ? { id: mediaId } : undefined;
+
+  let sent: NotifyCredentialsResult;
+  let qrSent = false;
+  if (qrTemplateStatus === 'APPROVED' && headerImage) {
+    sent = await deliverNotice({
+      mobile: params.mobile,
+      saasAccountId: params.saasAccountId,
+      kind: 'pass_payment_request',
+      templateName: WA_TEMPLATES.passPayQr,
+      bodyTexts,
+      fallbackBody: body,
+      headerImage,
+      allowTextFallback: false,
+    });
+    qrSent = Boolean(sent.ok && !sent.skipped);
+    if (!sent.ok) {
+      sent = await deliverNotice({
+        mobile: params.mobile,
+        saasAccountId: params.saasAccountId,
+        kind: 'pass_payment_request',
+        templateName: WA_TEMPLATES.passPay,
+        bodyTexts,
+        fallbackBody: body,
+      });
+      qrSent = false;
+    }
+  } else {
+    sent = await deliverNotice({
+      mobile: params.mobile,
+      saasAccountId: params.saasAccountId,
+      kind: 'pass_payment_request',
+      templateName: WA_TEMPLATES.passPay,
+      bodyTexts,
+      fallbackBody: body,
+    });
+  }
+  if (!sent.ok || sent.skipped) return { ...sent, message: body, payLink, qrSent };
+
+  if (!qrSent && mediaId) {
+    try {
       await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
-      amountQrSent = true;
+      qrSent = true;
     } catch (qrErr) {
       console.warn('[whatsapp] amount-locked pass payment QR failed', qrErr);
     }
   }
-  if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
+  if (!qrSent && cfg.publicAppUrl && params.paymentQrPath) {
     const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
     try {
       await sendWhatsAppImage(params.mobile, qrUrl, caption);
+      qrSent = true;
     } catch (qrErr) {
       console.warn('[whatsapp] pass payment QR send failed', qrErr);
     }
   }
 
-  return { ...sent, message: body, payLink };
+  return { ...sent, message: body, payLink, qrSent };
 }
 
 export async function notifyAccountAdminBatchOverLimit(params: {

@@ -1048,6 +1048,10 @@ export function PassPayment() {
             body.whatsapp.error || t('send failed')
           }. ${t('Swimmer can still send the screenshot to the business number.')}`,
         );
+      } else if (body.whatsapp?.ok && body.whatsapp?.qrSent === false) {
+        setError(
+          t('WhatsApp message sent without the QR. Copy QR and attach it in the same chat.'),
+        );
       } else if (body.whatsapp?.skipped) {
         setError('');
       }
