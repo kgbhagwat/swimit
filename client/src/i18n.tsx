@@ -1285,6 +1285,9 @@ const mr: Record<string, string> = {
   "Switching camera…": "कॅमेरा बदलत आहे…",
   "Close camera": "कॅमेरा बंद करा",
   "Flip camera": "कॅमेरा फिरवा",
+  "Document orientation": "कागदपत्राची दिशा",
+  Landscape: "आडवे",
+  Portrait: "उभे",
   "Could not switch camera.": "कॅमेरा बदलता आला नाही.",
   "Could not open the camera. Allow camera permission, or use Upload.":
     "कॅमेरा उघडता आला नाही. कॅमेरा परवानगी द्या, किंवा अपलोड वापरा.",

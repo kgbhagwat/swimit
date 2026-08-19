@@ -89,7 +89,6 @@ export function BirthDateField({
 }: BirthDateFieldProps) {
   const t = useT();
   const [text, setText] = useState(() => isoToDisplay(value));
-  const age = ageYearsAsOfToday(value);
 
   useEffect(() => {
     if (!value) {
@@ -118,11 +117,6 @@ export function BirthDateField({
           onChange(parseBirthdateInput(next));
         }}
       />
-      {age !== null ? (
-        <span className="hint birthdate-age">
-          {t('Age')}: {age} {t('years')} ({t('as of today')})
-        </span>
-      ) : null}
     </span>
   );
 }

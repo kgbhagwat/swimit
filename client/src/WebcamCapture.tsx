@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from './i18n';
-import { CameraActionIcon, FlipCameraIcon, UploadActionIcon } from './PhotoActionIcons';
+import { CameraActionIcon, FlipCameraIcon, LandscapePageIcon, PortraitPageIcon, UploadActionIcon } from './PhotoActionIcons';
 import { ACCEPT_IMAGE_OR_PDF } from './uploadFile';
-import { cropImageToPortraitFace } from './compressImage';
+import { cropImageToDocument, cropImageToPortraitFace } from './compressImage';
 
 export type CameraFacing = 'user' | 'environment';
 
@@ -146,6 +146,34 @@ function faceCropRect(videoWidth: number, videoHeight: number) {
   return { sx: 0, sy: extra * 0.22, sw: videoWidth, sh };
 }
 
+/** Source rectangle matching object-fit:cover into a landscape (4:3) preview. */
+function coverCropRect(videoWidth: number, videoHeight: number, targetRatio: number) {
+  const video = videoWidth / Math.max(1, videoHeight);
+  if (video > targetRatio) {
+    const sw = videoHeight * targetRatio;
+    return { sx: (videoWidth - sw) / 2, sy: 0, sw, sh: videoHeight };
+  }
+  const sh = videoWidth / targetRatio;
+  return { sx: 0, sy: (videoHeight - sh) / 2, sw: videoWidth, sh };
+}
+
+/** Match the dashed document guide: cover crop, then inset 5% / 7%. */
+function documentCropRect(
+  videoWidth: number,
+  videoHeight: number,
+  orientation: 'landscape' | 'portrait',
+) {
+  const cover = coverCropRect(videoWidth, videoHeight, orientation === 'portrait' ? 3 / 4 : 4 / 3);
+  const padX = cover.sw * 0.05;
+  const padY = cover.sh * 0.07;
+  return {
+    sx: cover.sx + padX,
+    sy: cover.sy + padY,
+    sw: Math.max(1, cover.sw - padX * 2),
+    sh: Math.max(1, cover.sh - padY * 2),
+  };
+}
+
 function useWebcamCapture(initialFacing: CameraFacing) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -266,7 +294,10 @@ function useWebcamCapture(initialFacing: CameraFacing) {
     }
   }, [applyStream, stopTracks]);
 
-  const capture = useCallback(async (frame: 'face' | 'document' = 'document') => {
+  const capture = useCallback(async (
+    frame: 'face' | 'document' = 'document',
+    orientation: 'landscape' | 'portrait' = 'landscape',
+  ) => {
     const video = videoRef.current;
     if (!video || video.videoWidth < 2) return null;
     const canvas = document.createElement('canvas');
@@ -280,9 +311,16 @@ function useWebcamCapture(initialFacing: CameraFacing) {
       canvas.height = outH;
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
     } else {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
+      const { sx, sy, sw, sh } = documentCropRect(
+        video.videoWidth,
+        video.videoHeight,
+        orientation,
+      );
+      const outW = orientation === 'portrait' ? 720 : 1280;
+      const outH = Math.max(1, Math.round(outW * (sh / sw)));
+      canvas.width = outW;
+      canvas.height = outH;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
     }
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
     if (!blob) return null;
@@ -323,11 +361,12 @@ export function PhotoPickerButtons({
   const webcam = useWebcamCapture(facing);
   const phone = prefersPhoneCapture();
   const faceFrame = (guide ?? (facing === 'user' ? 'face' : 'document')) === 'face';
+  const [page, setPage] = useState<'landscape' | 'portrait'>('landscape');
 
   async function onTakePhoto() {
     if (startingRef.current) return;
     if (webcam.live) {
-      const file = await webcam.capture(faceFrame ? 'face' : 'document');
+      const file = await webcam.capture(faceFrame ? 'face' : 'document', page);
       if (file) onPickFile(file);
       return;
     }
@@ -357,7 +396,7 @@ export function PhotoPickerButtons({
           {uploadLabel}
         </button>
       </div>
-      <div className={`webcam-capture${webcam.live ? '' : ' webcam-capture--idle'}${faceFrame ? ' webcam-capture--face' : ''}`}>
+      <div className={`webcam-capture${webcam.live ? '' : ' webcam-capture--idle'}${faceFrame ? ' webcam-capture--face' : ` webcam-capture--document webcam-capture--${page}`}`}>
         <div className="webcam-capture-stage">
           <video
             ref={webcam.bindVideo}
@@ -368,6 +407,30 @@ export function PhotoPickerButtons({
           />
           {webcam.live && faceFrame ? <span className="webcam-face-guide" aria-hidden /> : null}
           {webcam.live && !faceFrame ? <span className="webcam-document-guide" aria-hidden /> : null}
+          {webcam.live && !faceFrame ? (
+            <div className="webcam-page-toggle" role="group" aria-label={t('Document orientation')}>
+              <button
+                type="button"
+                className={`webcam-page-btn${page === 'landscape' ? ' is-selected' : ''}`}
+                onClick={() => setPage('landscape')}
+                aria-pressed={page === 'landscape'}
+                aria-label={t('Landscape')}
+                title={t('Landscape')}
+              >
+                <LandscapePageIcon />
+              </button>
+              <button
+                type="button"
+                className={`webcam-page-btn${page === 'portrait' ? ' is-selected' : ''}`}
+                onClick={() => setPage('portrait')}
+                aria-pressed={page === 'portrait'}
+                aria-label={t('Portrait')}
+                title={t('Portrait')}
+              >
+                <PortraitPageIcon />
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             className="webcam-flip-btn"
@@ -412,13 +475,13 @@ export function PhotoPickerButtons({
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) {
-            if (faceFrame) {
-              void cropImageToPortraitFace(file).then(onPickFile).catch(() => onPickFile(file));
-            } else {
-              onPickFile(file);
+            if (file) {
+              if (faceFrame) {
+                void cropImageToPortraitFace(file).then(onPickFile).catch(() => onPickFile(file));
+              } else {
+                void cropImageToDocument(file, page).then(onPickFile).catch(() => onPickFile(file));
+              }
             }
-          }
           e.target.value = '';
         }}
       />

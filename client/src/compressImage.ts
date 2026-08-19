@@ -70,6 +70,43 @@ export async function cropImageToPortraitFace(file: File): Promise<File> {
   });
 }
 
+/** Crop a camera photo to 4:3 landscape or 3:4 portrait so a document fills the frame. */
+export async function cropImageToDocument(
+  file: File,
+  orientation: 'landscape' | 'portrait',
+): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  const img = await loadImage(file);
+  const target = orientation === 'portrait' ? 3 / 4 : 4 / 3;
+  const ratio = img.width / Math.max(1, img.height);
+  if (orientation === 'landscape' && ratio >= 1.2) return file;
+  if (orientation === 'portrait' && ratio <= 0.82 && ratio >= 0.68) return file;
+  let sx = 0;
+  let sy = 0;
+  let sw = img.width;
+  let sh = img.height;
+  if (ratio > target) {
+    sw = img.height * target;
+    sx = (img.width - sw) / 2;
+  } else {
+    sh = img.width / target;
+    sy = (img.height - sh) / 2;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = orientation === 'portrait' ? 720 : 1280;
+  canvas.height = orientation === 'portrait' ? 960 : 960;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const blob = await canvasToBlob(canvas, 0.92);
+  if (!blob) return file;
+  const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo';
+  return new File([blob], `${baseName}.jpg`, {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
+  });
+}
+
 /**
  * If the image is over maxBytes, compress/resize it to fit under the limit.
  * Non-image files or already-small images are returned unchanged.

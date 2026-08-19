@@ -6,7 +6,6 @@ import { ensureFormQrTemplates, ensurePassPayQrTemplate, ensureRegistrationHiTem
 import { WA_TEMPLATES } from './templateCatalog.js';
 import {
   formatWhatsAppUserError,
-  probeWhatsAppAuth,
   sendWhatsAppImage,
   sendWhatsAppImageByMediaId,
   sendWhatsAppTemplateWithBody,
@@ -489,16 +488,6 @@ export async function notifySignupOtp(params: {
 
 const REGISTRATION_HI_REPLY = 'Please visit payment desk for batch selection and payment.';
 
-function businessWaMeDigits() {
-  return String(process.env.WHATSAPP_DISPLAY_PHONE ?? '')
-    .replace(/\D/g, '')
-    .trim();
-}
-
-function waMeHiUrl(digits: string) {
-  return digits ? `https://wa.me/${digits}?text=Hi` : '';
-}
-
 function isRegistrationHiText(text: string) {
   return /^(hi+|hii+|hello|hey)[\s!.]*$/i.test(String(text ?? '').trim());
 }
@@ -510,14 +499,7 @@ export async function notifyRegistrationConfirmation(params: {
   poolName?: string;
 }) {
   await ensureRegistrationHiTemplate();
-  const probe = await probeWhatsAppAuth();
-  const digits =
-    String(probe.displayPhoneNumber ?? '')
-      .replace(/\D/g, '')
-      .trim() || businessWaMeDigits();
-  const hiLink = waMeHiUrl(digits);
   const body = `Hello ${params.fullName}, your registration at SwimIT has been submitted. Please respond Hi To this message`;
-  const fallbackBody = hiLink ? `${body}\n${hiLink}` : body;
 
   return deliverNotice({
     mobile: params.mobile,
@@ -525,9 +507,7 @@ export async function notifyRegistrationConfirmation(params: {
     kind: 'registration_confirmation',
     templateName: WA_TEMPLATES.registrationSayHi,
     bodyTexts: [templateText(params.fullName)],
-    urlButtonSuffix: digits ? `${digits}?text=Hi` : undefined,
-    fallbackBody,
-    previewUrl: Boolean(hiLink),
+    fallbackBody: body,
   });
 }
 

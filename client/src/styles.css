@@ -1345,6 +1345,70 @@ html[data-theme='dark'] .pdf-preview {
   object-position: center 22%;
 }
 
+.webcam-capture--document .webcam-capture-stage {
+  width: min(100%, 22rem);
+  margin-inline: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0b1728;
+}
+
+.webcam-capture--document .webcam-capture-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+.webcam-capture--document.webcam-capture--portrait .webcam-capture-stage {
+  width: min(100%, 16.5rem);
+  aspect-ratio: 3 / 4;
+}
+
+.webcam-page-toggle {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.15rem;
+  border-radius: 999px;
+  background: rgba(5, 12, 22, 0.68);
+}
+
+.webcam-page-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #d7e6f5;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.webcam-page-btn .icon {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.webcam-page-btn.is-selected {
+  background: #fff;
+  color: #0b3d5c;
+}
+
+.webcam-page-btn:hover:not(.is-selected) {
+  color: #fff;
+}
+
 .webcam-face-guide {
   position: absolute;
   inset: 11% 14% 16%;

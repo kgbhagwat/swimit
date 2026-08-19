@@ -70,24 +70,6 @@ def utility(name: str, body: str, example_row: list[str], language: str = "en") 
     }
 
 
-def utility_with_hi_button(name: str, body: str, example_row: list[str], language: str = "en") -> dict:
-    spec = utility(name, body, example_row, language)
-    spec["components"].append(
-        {
-            "type": "BUTTONS",
-            "buttons": [
-                {
-                    "type": "URL",
-                    "text": "Hi",
-                    "url": "https://wa.me/{{1}}",
-                    "example": ["919876543210?text=Hi"],
-                }
-            ],
-        }
-    )
-    return spec
-
-
 def marketing(name: str, body: str, example_row: list[str], language: str = "en") -> dict:
     spec = utility(name, body, example_row, language)
     spec["category"] = "MARKETING"
@@ -120,7 +102,7 @@ TEMPLATES = [
         "Hello {{1}}, your registration at {{2}} has been submitted. After online payment, please send the payment screenshot on this chat.",
         ["Anita", "SMPool"],
     ),
-    utility_with_hi_button(
+    utility(
         "swimit_reg_say_hi",
         "Hello {{1}}, your registration at SwimIT has been submitted. Please respond Hi To this message",
         ["Kishor"],

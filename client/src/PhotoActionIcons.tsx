@@ -30,6 +30,22 @@ export function FlipCameraIcon({ className = 'icon' }: { className?: string }) {
   );
 }
 
+export function LandscapePageIcon({ className = 'icon' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="3" y="7" width="18" height="12" rx="2" />
+    </svg>
+  );
+}
+
+export function PortraitPageIcon({ className = 'icon' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="7" y="3" width="10" height="18" rx="2" />
+    </svg>
+  );
+}
+
 export function UploadActionIcon({ className = 'icon' }: { className?: string }) {
   return (
     <svg className={`${className} photo-icon-upload`} viewBox="0 0 24 24" aria-hidden>
