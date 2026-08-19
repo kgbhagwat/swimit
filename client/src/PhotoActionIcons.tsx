@@ -14,6 +14,22 @@ export function CameraActionIcon({ className = 'icon' }: { className?: string })
   );
 }
 
+export function FlipCameraIcon({ className = 'icon' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path
+        d="M7 8h2.2L11 6h2l1.8 2H17v9H7V8z"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12.5" r="2.2" />
+      <path d="M8 3.2A9 9 0 0 0 4.4 9" strokeLinecap="round" />
+      <path d="M6.1 2.6 8 3.2 7.2 5.1" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 20.8A9 9 0 0 0 19.6 15" strokeLinecap="round" />
+      <path d="M17.9 21.4 16 20.8 16.8 18.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function UploadActionIcon({ className = 'icon' }: { className?: string }) {
   return (
     <svg className={`${className} photo-icon-upload`} viewBox="0 0 24 24" aria-hidden>

@@ -1322,7 +1322,7 @@ export function PassPayment() {
                             disabled={waRequesting}
                             onClick={() => void onRequestWhatsAppPayment()}
                           >
-                            {waRequesting ? t('Sending…') : t('Send WhatsApp payment request')}
+                            {waRequesting ? t('Sending…') : t('Send payment request')}
                           </button>
                         </>
                       ) : (
@@ -1342,7 +1342,7 @@ export function PassPayment() {
                             disabled={waRequesting}
                             onClick={() => void onRequestWhatsAppPayment()}
                           >
-                            {waRequesting ? t('Sending…') : t('Send WhatsApp payment request')}
+                            {waRequesting ? t('Sending…') : t('Send payment request')}
                           </button>
                         </>
                       )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from './i18n';
-import { CameraActionIcon, UploadActionIcon } from './PhotoActionIcons';
+import { CameraActionIcon, FlipCameraIcon, UploadActionIcon } from './PhotoActionIcons';
 import { ACCEPT_IMAGE_OR_PDF } from './uploadFile';
 import { cropImageToPortraitFace } from './compressImage';
 
@@ -58,28 +58,74 @@ function cameraErrorMessage(err: unknown): string {
   return 'Could not open the camera. Allow camera permission, or use Upload.';
 }
 
-async function openCameraStream(facing: CameraFacing): Promise<MediaStream> {
+function streamDeviceId(stream: MediaStream | null): string | undefined {
+  return stream?.getVideoTracks()[0]?.getSettings().deviceId;
+}
+
+async function listVideoInputs(): Promise<MediaDeviceInfo[]> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return [];
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter((device) => device.kind === 'videoinput' && device.deviceId);
+  } catch {
+    return [];
+  }
+}
+
+function labelMatchesFacing(label: string, facing: CameraFacing) {
+  const text = label.toLowerCase();
+  if (facing === 'user') return /front|user|face|facetime/.test(text);
+  return /back|rear|environment|world|wide|ultra/.test(text);
+}
+
+async function openCameraStream(
+  facing: CameraFacing,
+  options: { switching?: boolean; previousDeviceId?: string } = {},
+): Promise<MediaStream> {
   const gum = getUserMediaFn();
   if (!gum) throw new Error('unavailable');
 
-  // Simplest constraint first so the click still counts as a user gesture
-  // (a failed facingMode attempt can consume the permission prompt on Windows).
-  const attempts: MediaStreamConstraints[] = [
-    { audio: false, video: true },
-    {
-      audio: false,
-      video: {
-        facingMode: { ideal: facing },
-        width: { ideal: facing === 'user' ? 720 : 1280 },
-        height: { ideal: facing === 'user' ? 960 : 720 },
-      },
-    },
-  ];
+  const facingVideo: MediaTrackConstraints = {
+    facingMode: { ideal: facing },
+    width: { ideal: facing === 'user' ? 720 : 1280 },
+    height: { ideal: facing === 'user' ? 960 : 720 },
+  };
+
+  const attempts: MediaStreamConstraints[] = [];
+
+  if (options.switching) {
+    const cameras = await listVideoInputs();
+    const byLabel = cameras.find(
+      (device) =>
+        device.deviceId !== options.previousDeviceId && labelMatchesFacing(device.label, facing),
+    );
+    const others = cameras.filter((device) => device.deviceId !== options.previousDeviceId);
+    const nextDevice = byLabel ?? others[0];
+    if (nextDevice) {
+      attempts.push({ audio: false, video: { deviceId: { exact: nextDevice.deviceId } } });
+    }
+    attempts.push({ audio: false, video: { facingMode: { exact: facing } } });
+    attempts.push({ audio: false, video: facingVideo });
+  } else {
+    // Simplest constraint first so the click still counts as a user gesture
+    // (a failed facingMode attempt can consume the permission prompt on Windows).
+    attempts.push({ audio: false, video: true });
+    attempts.push({ audio: false, video: facingVideo });
+  }
 
   let lastError: unknown;
   for (const constraints of attempts) {
     try {
-      return await gum(constraints);
+      const stream = await gum(constraints);
+      if (
+        options.switching &&
+        options.previousDeviceId &&
+        streamDeviceId(stream) === options.previousDeviceId
+      ) {
+        stream.getTracks().forEach((track) => track.stop());
+        continue;
+      }
+      return stream;
     } catch (err) {
       lastError = err;
     }
@@ -100,11 +146,17 @@ function faceCropRect(videoWidth: number, videoHeight: number) {
   return { sx: 0, sy: extra * 0.22, sw: videoWidth, sh };
 }
 
-function useWebcamCapture(facing: CameraFacing) {
+function useWebcamCapture(initialFacing: CameraFacing) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const facingRef = useRef<CameraFacing>(initialFacing);
+  const initialFacingRef = useRef(initialFacing);
+  const flippingRef = useRef(false);
+  initialFacingRef.current = initialFacing;
+  const [facing, setFacing] = useState<CameraFacing>(initialFacing);
   const [live, setLive] = useState(false);
   const [ready, setReady] = useState(false);
+  const [flipping, setFlipping] = useState(false);
   const [error, setError] = useState('');
 
   const attachStream = useCallback((video: HTMLVideoElement | null, stream: MediaStream | null) => {
@@ -126,13 +178,21 @@ function useWebcamCapture(facing: CameraFacing) {
     [attachStream],
   );
 
-  const stop = useCallback(() => {
+  const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  const stop = useCallback(() => {
+    stopTracks();
+    facingRef.current = initialFacingRef.current;
+    flippingRef.current = false;
+    setFacing(initialFacingRef.current);
+    setFlipping(false);
     setReady(false);
     setLive(false);
-  }, []);
+  }, [stopTracks]);
 
   useEffect(() => () => stop(), [stop]);
 
@@ -140,6 +200,19 @@ function useWebcamCapture(facing: CameraFacing) {
     if (!live) return;
     attachStream(videoRef.current, streamRef.current);
   }, [attachStream, live]);
+
+  const applyStream = useCallback(
+    (stream: MediaStream, nextFacing: CameraFacing) => {
+      streamRef.current = stream;
+      facingRef.current = nextFacing;
+      setFacing(nextFacing);
+      setError('');
+      setReady(false);
+      setLive(true);
+      attachStream(videoRef.current, stream);
+    },
+    [attachStream],
+  );
 
   const start = useCallback(async () => {
     if (typeof window !== 'undefined' && !window.isSecureContext) {
@@ -151,19 +224,47 @@ function useWebcamCapture(facing: CameraFacing) {
       return false;
     }
     try {
-      const stream = await openCameraStream(facing);
-      streamRef.current = stream;
-      setError('');
-      setReady(false);
-      setLive(true);
-      attachStream(videoRef.current, stream);
+      const nextFacing = facingRef.current;
+      const stream = await openCameraStream(nextFacing);
+      applyStream(stream, nextFacing);
       return true;
     } catch (err) {
       setLive(false);
       setError(cameraErrorMessage(err));
       return false;
     }
-  }, [attachStream, facing]);
+  }, [applyStream]);
+
+  const flip = useCallback(async () => {
+    if (!streamRef.current || flippingRef.current) return;
+    flippingRef.current = true;
+    const previousId = streamDeviceId(streamRef.current);
+    const previousFacing = facingRef.current;
+    const nextFacing: CameraFacing = previousFacing === 'user' ? 'environment' : 'user';
+    setFlipping(true);
+    setReady(false);
+    setError('');
+    stopTracks();
+    try {
+      const stream = await openCameraStream(nextFacing, {
+        switching: true,
+        previousDeviceId: previousId,
+      });
+      applyStream(stream, nextFacing);
+    } catch {
+      try {
+        const restored = await openCameraStream(previousFacing);
+        applyStream(restored, previousFacing);
+        setError('Could not switch camera.');
+      } catch (err) {
+        setLive(false);
+        setError(cameraErrorMessage(err));
+      }
+    } finally {
+      flippingRef.current = false;
+      setFlipping(false);
+    }
+  }, [applyStream, stopTracks]);
 
   const capture = useCallback(async (frame: 'face' | 'document' = 'document') => {
     const video = videoRef.current;
@@ -189,7 +290,34 @@ function useWebcamCapture(facing: CameraFacing) {
     return new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
   }, [stop]);
 
-  return { bindVideo, live, ready, error, start, stop, capture };
+  return { bindVideo, live, ready, error, facing, flipping, start, stop, flip, capture };
+}
+
+  const capture = useCallback(async (frame: 'face' | 'document' = 'document') => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth < 2) return null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    if (frame === 'face') {
+      const { sx, sy, sw, sh } = faceCropRect(video.videoWidth, video.videoHeight);
+      const outH = 960;
+      const outW = Math.round(outH * (3 / 4));
+      canvas.width = outW;
+      canvas.height = outH;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+    } else {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+    }
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) return null;
+    stop();
+    return new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
+  }, [stop]);
+
+  return { bindVideo, live, ready, error, facing, flipping, start, stop, flip, capture };
 }
 
 type PhotoPickerButtonsProps = {
@@ -218,7 +346,7 @@ export function PhotoPickerButtons({
   const startingRef = useRef(false);
   const webcam = useWebcamCapture(facing);
   const phone = prefersPhoneCapture();
-  const faceFrame = facing === 'user';
+  const faceFrame = webcam.facing === 'user';
 
   async function onTakePhoto() {
     if (startingRef.current) return;
@@ -263,24 +391,47 @@ export function PhotoPickerButtons({
             muted
           />
           {faceFrame ? <span className="webcam-face-guide" aria-hidden /> : null}
+          <button
+            type="button"
+            className="webcam-flip-btn"
+            disabled={disabled || webcam.flipping || !webcam.live}
+            onClick={() => void webcam.flip()}
+            aria-label={t('Flip camera')}
+            title={t('Flip camera')}
+          >
+            <FlipCameraIcon />
+          </button>
         </div>
         <p className="hint">
-          {webcam.ready
-            ? faceFrame
-              ? t('Keep your full face inside the oval, then press Capture photo.')
-              : t('Allow camera access, then press Capture photo.')
-            : t('Starting camera…')}
+          {webcam.flipping
+            ? t('Switching camera…')
+            : webcam.ready
+              ? faceFrame
+                ? t('Keep your full face inside the oval, then press Capture photo.')
+                : t('Allow camera access, then press Capture photo.')
+              : t('Starting camera…')}
         </p>
-        <button type="button" className="linkish" onClick={() => webcam.stop()}>
-          {t('Close camera')}
-        </button>
+        <div className="webcam-capture-toolbar">
+          <button
+            type="button"
+            className="photo-btn webcam-flip-text-btn"
+            disabled={disabled || webcam.flipping || !webcam.live}
+            onClick={() => void webcam.flip()}
+          >
+            <FlipCameraIcon />
+            {t('Flip camera')}
+          </button>
+          <button type="button" className="linkish" onClick={() => webcam.stop()}>
+            {t('Close camera')}
+          </button>
+        </div>
       </div>
       {webcam.error ? <p className="field-error">{t(webcam.error)}</p> : null}
       <input
         ref={cameraRef}
         type="file"
         accept="image/*"
-        capture={facing === 'user' ? 'user' : 'environment'}
+        capture={webcam.facing === 'user' ? 'user' : 'environment'}
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0];

@@ -1262,6 +1262,49 @@ html[data-theme='dark'] .pdf-preview {
   box-shadow: 0 0 0 999px rgba(5, 12, 22, 0.38);
 }
 
+.webcam-flip-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  width: 2.55rem;
+  height: 2.55rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(5, 12, 22, 0.68);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.webcam-flip-btn .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.webcam-flip-btn:hover:not(:disabled) {
+  background: rgba(5, 12, 22, 0.86);
+}
+
+.webcam-flip-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.webcam-capture-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.9rem;
+}
+
+.webcam-flip-text-btn {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.9rem;
+}
+
 .photo-btn:disabled .photo-icon-camera,
 .photo-btn:disabled .photo-icon-upload {
   opacity: 0.55;
@@ -5373,9 +5416,14 @@ html[data-theme='dark'] .biometric-offer-title {
   text-align: center;
 }
 
-.scanner-viewport {
+.scanner-viewport-wrap {
+  position: relative;
   width: min(420px, 100%);
   margin: 0 auto;
+}
+
+.scanner-viewport {
+  width: 100%;
   overflow: hidden;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -7257,7 +7305,7 @@ button.coach-payment-back {
 }
 
 .online-payment-details .payment-received-check {
-  grid-column: 2;
+  grid-column: 1 / -1;
   margin: 0.1rem 0 0;
   justify-self: start;
 }
@@ -7306,20 +7354,31 @@ button.coach-payment-back {
   }
 
   .payment-mode-left {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .payment-mode-field > .label,
+  .online-payment-upi-heading,
+  .online-payment-details .field.transaction-id-field > .label {
+    grid-column: 1;
+  }
+
   .payment-mode-choices,
   .payment-mode-left > .payment-received-check--cash,
-  .online-payment-upi-heading,
   .online-payment-upi-value,
   .payment-wa-request-btn,
   .payment-mode-online-muted,
-  .online-payment-details .field.transaction-id-field > .label,
-  .online-payment-details .field.transaction-id-field input,
+  .online-payment-details .field.transaction-id-field input {
+    grid-column: 2;
+    min-width: 0;
+  }
+
   .online-payment-details .payment-received-check {
-    grid-column: 1;
+    grid-column: 1 / -1;
+  }
+
+  .online-payment-details .field.transaction-id-field input {
+    max-width: 100%;
   }
 }
 

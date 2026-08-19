@@ -3,6 +3,7 @@ import type { Html5Qrcode } from 'html5-qrcode';
 import { IdCard, fetchPoolBrand, type PoolBrand } from './IdCard';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
+import { FlipCameraIcon } from './PhotoActionIcons';
 
 type ScannedSwimmer = {
   id: number;
@@ -44,6 +45,8 @@ export function PassScanner() {
   const [faceVerified, setFaceVerified] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handlingRef = useRef(false);
+  const cameraFacingRef = useRef<'user' | 'environment'>('environment');
+  const [flippingCamera, setFlippingCamera] = useState(false);
   const scannerElementId = 'pass-qr-reader';
 
   useEffect(() => {
@@ -94,28 +97,57 @@ export function PassScanner() {
     }
   }
 
+  async function openQrCamera(facing: 'user' | 'environment') {
+    await stopScanner();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const { Html5Qrcode } = await import('html5-qrcode');
+    const scanner = new Html5Qrcode(scannerElementId);
+    scannerRef.current = scanner;
+    await scanner.start(
+      { facingMode: facing },
+      { fps: 8, qrbox: { width: 240, height: 240 } },
+      (decoded) => {
+        void lookupCode(decoded, 'scanning');
+      },
+      () => undefined,
+    );
+    cameraFacingRef.current = facing;
+  }
+
   async function startScanner() {
     setError('');
     setInfo('');
     setSwimmer(null);
+    cameraFacingRef.current = 'environment';
     setView('scanning');
     await new Promise((resolve) => setTimeout(resolve, 50));
     try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode(scannerElementId);
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 8, qrbox: { width: 240, height: 240 } },
-        (decoded) => {
-          void lookupCode(decoded, 'scanning');
-        },
-        () => undefined,
-      );
+      await openQrCamera('environment');
     } catch {
       setView('idle');
       setError('Unable to open camera for QR scanning');
       await stopScanner();
+    }
+  }
+
+  async function flipScannerCamera() {
+    if (flippingCamera) return;
+    const next: 'user' | 'environment' = cameraFacingRef.current === 'user' ? 'environment' : 'user';
+    setFlippingCamera(true);
+    setError('');
+    try {
+      await openQrCamera(next);
+    } catch {
+      try {
+        await openQrCamera(cameraFacingRef.current);
+        setError('Could not switch camera.');
+      } catch {
+        setView('idle');
+        setError('Unable to open camera for QR scanning');
+        await stopScanner();
+      }
+    } finally {
+      setFlippingCamera(false);
     }
   }
 
@@ -156,6 +188,8 @@ export function PassScanner() {
     setSwimmer(null);
     setPassNo('');
     setFaceVerified(false);
+    setFlippingCamera(false);
+    cameraFacingRef.current = 'environment';
     setError('');
     setInfo('');
     handlingRef.current = false;
@@ -219,12 +253,39 @@ export function PassScanner() {
 
         {view === 'scanning' ? (
           <section className="scanner-panel">
-            <div id={scannerElementId} className="scanner-viewport" />
+            <div className="scanner-viewport-wrap">
+              <div id={scannerElementId} className="scanner-viewport" />
+              <button
+                type="button"
+                className="webcam-flip-btn"
+                disabled={flippingCamera || lookingUp}
+                onClick={() => void flipScannerCamera()}
+                aria-label={t('Flip camera')}
+                title={t('Flip camera')}
+              >
+                <FlipCameraIcon />
+              </button>
+            </div>
             {lookingUp ? <p className="scanner-hint">{t('Looking up swimmer…')}</p> : null}
-            <p className="scanner-hint">{t('Point the camera at the swimmer QR code on their pass.')}</p>
-            <button type="button" className="pass-cancel" onClick={onReset}>
-              {t('Cancel')}
-            </button>
+            <p className="scanner-hint">
+              {flippingCamera
+                ? t('Switching camera…')
+                : t('Point the camera at the swimmer QR code on their pass.')}
+            </p>
+            <div className="webcam-capture-toolbar">
+              <button
+                type="button"
+                className="photo-btn webcam-flip-text-btn"
+                disabled={flippingCamera || lookingUp}
+                onClick={() => void flipScannerCamera()}
+              >
+                <FlipCameraIcon />
+                {t('Flip camera')}
+              </button>
+              <button type="button" className="pass-cancel" onClick={onReset}>
+                {t('Cancel')}
+              </button>
+            </div>
           </section>
         ) : null}
 

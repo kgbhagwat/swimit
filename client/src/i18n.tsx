@@ -1155,7 +1155,7 @@ const mr: Record<string, string> = {
   "Send broadcast messages on WhatsApp to active swimmers or staff.": "सक्रिय पोहणारे किंवा कर्मचाऱ्यांना WhatsApp वर ब्रॉडकास्ट संदेश पाठवा.",
   "send failed": "पाठवणे अयशस्वी",
   "Send test message": "चाचणी संदेश पाठवा",
-  "Send WhatsApp payment request": "WhatsApp पेमेंट विनंती पाठवा",
+  "Send payment request": "पेमेंट विनंती पाठवा",
   "Sending…": "पाठवत आहे…",
   "sent": "पाठवले",
   "Service package created.": "सेवा पॅकेज तयार झाले.",
@@ -1237,7 +1237,10 @@ const mr: Record<string, string> = {
   "Keep your full face inside the oval, then press Capture photo.":
     "संपूर्ण चेहरा ओव्हलमध्ये ठेवा, नंतर Capture photo दाबा.",
   "Starting camera…": "कॅमेरा सुरू होत आहे…",
+  "Switching camera…": "कॅमेरा बदलत आहे…",
   "Close camera": "कॅमेरा बंद करा",
+  "Flip camera": "कॅमेरा फिरवा",
+  "Could not switch camera.": "कॅमेरा बदलता आला नाही.",
   "Could not open the camera. Allow camera permission, or use Upload.":
     "कॅमेरा उघडता आला नाही. कॅमेरा परवानगी द्या, किंवा अपलोड वापरा.",
   "Camera needs http://localhost or https. This page is not secure.":
