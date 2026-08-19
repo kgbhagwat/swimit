@@ -1,6 +1,6 @@
 import { pool } from '../db/pool.js';
 import { renderPassCardPng, renderPassQrPng, renderUrlQrPng } from '../passCardImage.js';
-import { buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
+import { buildUpiHttpsLaunchUrl, buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
 import { ensureFormQrTemplates, formQrTemplateStatus } from './ensureFormQrTemplate.js';
 import { WA_TEMPLATES } from './templateCatalog.js';
@@ -925,8 +925,15 @@ export async function notifyPackageRenewalPayment(params: {
     maximumFractionDigits: 2,
   })}`;
   const hasAmountQr = Boolean(String(params.upiId ?? '').trim());
-  const upiPayUri = hasAmountQr
-    ? buildUpiPayUri({
+  const payLink = hasAmountQr
+    ? buildUpiHttpsLaunchUrl({
+        publicAppUrl: cfg.publicAppUrl,
+        upiId: params.upiId,
+        amount: params.amount,
+        payeeName: 'SwimIT',
+        note: `SwimIT renew ${params.packageName}`.slice(0, 80),
+      }) ||
+      buildUpiPayUri({
         upiId: params.upiId,
         amount: params.amount,
         payeeName: 'SwimIT',
@@ -943,7 +950,7 @@ export async function notifyPackageRenewalPayment(params: {
     hasAmountQr
       ? 'Scan the payment QR below, or tap the link to open your UPI app.'
       : 'Please pay the mentioned amount using the QR code shown.',
-    upiPayUri ? `Pay now: ${upiPayUri}` : '',
+    payLink ? `Pay now: ${payLink}` : '',
     params.upiId
       ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
       : 'After paying, send the payment screenshot on WhatsApp.',
@@ -962,7 +969,7 @@ export async function notifyPackageRenewalPayment(params: {
       templateText(params.packageName),
       templateText(`${params.months} month${params.months === 1 ? '' : 's'}`),
       templateText(amountLabel),
-      templateText(upiPayUri || params.upiId || 'pool desk', 200),
+      templateText(payLink || params.upiId || 'pool desk', 400),
     ],
     fallbackBody: body,
   });
@@ -1020,12 +1027,20 @@ export async function notifyPassPaymentRequest(params: {
   })}`;
   const hasAmountQr = Boolean(String(params.upiId ?? '').trim()) && params.amount > 0;
   const payeeName = String(params.poolName ?? 'SwimIT').trim() || 'SwimIT';
-  const upiPayUri = hasAmountQr
-    ? buildUpiPayUri({
+  const payNote = `Pass ${params.passType}`.slice(0, 80);
+  const payLink = hasAmountQr
+    ? buildUpiHttpsLaunchUrl({
+        publicAppUrl: cfg.publicAppUrl,
         upiId: params.upiId,
         amount: params.amount,
         payeeName,
-        note: `Pass ${params.passType}`.slice(0, 80),
+        note: payNote,
+      }) ||
+      buildUpiPayUri({
+        upiId: params.upiId,
+        amount: params.amount,
+        payeeName,
+        note: payNote,
       })
     : '';
   const body = [
@@ -1039,7 +1054,7 @@ export async function notifyPassPaymentRequest(params: {
     hasAmountQr
       ? 'Scan the payment QR below, or tap the link to open your UPI app.'
       : 'Pay using the pool QR code / UPI shown.',
-    upiPayUri ? `Pay now: ${upiPayUri}` : '',
+    payLink ? `Pay now: ${payLink}` : '',
     params.upiId
       ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
       : 'After paying, send the payment screenshot on WhatsApp.',
@@ -1058,7 +1073,7 @@ export async function notifyPassPaymentRequest(params: {
       templateText(amountLabel),
       templateText(params.passType),
       templateText(params.passValidUntil),
-      templateText(upiPayUri || params.upiId || 'pool desk', 200),
+      templateText(payLink || params.upiId || 'pool desk', 400),
     ],
     fallbackBody: body,
   });

@@ -18,7 +18,7 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
-import { buildUpiPayUri } from './upiPay';
+import { buildUpiPayUri, openUpiPay } from './upiPay';
 
 type PendingSwimmer = {
   id: number;
@@ -1126,6 +1126,7 @@ export function PassPayment() {
                   aria-label={t('Pass')}
                   value={passTypeId}
                   placeholder={t('Select pass')}
+                  searchable
                   onChange={(next) => {
                     setPassTypeId(next);
                     setCoach('');
@@ -1134,6 +1135,7 @@ export function PassPayment() {
                   options={activePassTypes.map((pass) => ({
                     value: String(pass.id),
                     label: `${pass.passName} · ${pass.duration} · ${formatMoney(pass.passCharges)}`,
+                    searchText: pass.passName,
                   }))}
                 />
               </label>
@@ -1386,7 +1388,14 @@ export function PassPayment() {
                           className="online-payment-qr"
                           size={220}
                         />
-                        <a className="csv-btn qr-pay-app-btn" href={amountLockedUpiQr}>
+                        <a
+                          className="csv-btn qr-pay-app-btn"
+                          href={amountLockedUpiQr}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            openUpiPay(amountLockedUpiQr);
+                          }}
+                        >
                           {t('Pay with UPI app')}
                         </a>
                       </>

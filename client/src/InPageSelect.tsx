@@ -1,10 +1,20 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useT } from './i18n';
 
 export type InPageSelectOption = {
   value: string;
   label: string;
+  /** When searchable, match against this instead of the full label (e.g. pass name). */
+  searchText?: string;
 };
+
+function optionMatches(option: InPageSelectOption, needle: string) {
+  if (!needle) return true;
+  const haystack = String(option.searchText ?? option.label)
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return haystack.includes(needle);
+}
 
 export function InPageSelect({
   value,
@@ -13,6 +23,7 @@ export function InPageSelect({
   placeholder,
   required,
   disabled,
+  searchable = false,
   'aria-label': ariaLabel,
 }: {
   value: string;
@@ -21,17 +32,28 @@ export function InPageSelect({
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
+  searchable?: boolean;
   'aria-label'?: string;
 }) {
   const t = useT();
   const resolvedPlaceholder = placeholder ?? t('Select…');
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const selected = options.find((option) => option.value === value);
+  const needle = query.trim().toLowerCase().replace(/\s+/g, ' ');
+  const visibleOptions = useMemo(
+    () => (searchable && needle ? options.filter((option) => optionMatches(option, needle)) : options),
+    [needle, options, searchable],
+  );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setQuery('');
+      return;
+    }
     function onPointerDown(event: MouseEvent | TouchEvent) {
       const target = event.target as Node | null;
       if (target && rootRef.current && !rootRef.current.contains(target)) {
@@ -51,61 +73,107 @@ export function InPageSelect({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !searchable) return;
+    inputRef.current?.focus();
+  }, [open, searchable]);
+
+  function choose(next: string) {
+    onChange(next);
+    setQuery('');
+    setOpen(false);
+  }
+
   return (
     <div
-      className={`inpage-select${open ? ' is-open' : ''}${disabled ? ' is-disabled' : ''}`}
+      className={`inpage-select${open ? ' is-open' : ''}${disabled ? ' is-disabled' : ''}${
+        searchable ? ' inpage-select--searchable' : ''
+      }`}
       ref={rootRef}
     >
-      <button
-        type="button"
-        className="inpage-select-trigger"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        <span className={selected ? undefined : 'inpage-select-placeholder'}>
-          {selected?.label ?? resolvedPlaceholder}
-        </span>
-        <span className="inpage-select-caret" aria-hidden>
-          ▾
-        </span>
-      </button>
+      {searchable ? (
+        <div className="inpage-select-trigger inpage-select-trigger--search">
+          <input
+            ref={inputRef}
+            className={`inpage-select-search${open || selected ? '' : ' inpage-select-placeholder'}`}
+            value={open ? query : selected?.label ?? ''}
+            placeholder={open && selected ? selected.label : resolvedPlaceholder}
+            disabled={disabled}
+            autoComplete="off"
+            spellCheck={false}
+            role="combobox"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-label={ariaLabel}
+            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setOpen(true);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                if (visibleOptions.length === 1) choose(visibleOptions[0].value);
+              }
+            }}
+          />
+          <span className="inpage-select-caret" aria-hidden>
+            ▾
+          </span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="inpage-select-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-label={ariaLabel}
+          disabled={disabled}
+          onClick={() => setOpen((prev) => !prev)}
+        >
+          <span className={selected ? undefined : 'inpage-select-placeholder'}>
+            {selected?.label ?? resolvedPlaceholder}
+          </span>
+          <span className="inpage-select-caret" aria-hidden>
+            ▾
+          </span>
+        </button>
+      )}
       {open ? (
         <ul className="inpage-select-menu" role="listbox" id={listId}>
-          {!required ? (
+          {!required && !(searchable && needle) ? (
             <li role="option" aria-selected={!value}>
               <button
                 type="button"
                 className={`inpage-select-option${!value ? ' is-selected' : ''}`}
-                onClick={() => {
-                  onChange('');
-                  setOpen(false);
-                }}
+                onClick={() => choose('')}
               >
                 {resolvedPlaceholder}
               </button>
             </li>
           ) : null}
-          {options.map((option) => {
-            const isSelected = option.value === value;
-            return (
-              <li key={option.value} role="option" aria-selected={isSelected}>
-                <button
-                  type="button"
-                  className={`inpage-select-option${isSelected ? ' is-selected' : ''}`}
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                >
-                  {option.label}
-                </button>
-              </li>
-            );
-          })}
+          {visibleOptions.length === 0 ? (
+            <li className="inpage-select-empty">{t('No matching passes')}</li>
+          ) : (
+            visibleOptions.map((option) => {
+              const isSelected = option.value === value;
+              return (
+                <li key={option.value} role="option" aria-selected={isSelected}>
+                  <button
+                    type="button"
+                    className={`inpage-select-option${isSelected ? ' is-selected' : ''}`}
+                    onClick={() => choose(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                </li>
+              );
+            })
+          )}
         </ul>
       ) : null}
     </div>

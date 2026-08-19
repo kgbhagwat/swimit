@@ -105,6 +105,12 @@ a {
   background: #e5f2fd;
 }
 
+.upi-pay-launch {
+  gap: 0.85rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
 .accounts-page {
   width: min(1180px, calc(100% - 1.25rem));
   padding: 1.15rem 1.1rem 1.6rem;
@@ -10330,6 +10336,32 @@ button.coach-payment-back {
   white-space: nowrap;
 }
 
+.inpage-select-trigger--search {
+  padding: 0.28rem 0.55rem 0.28rem 0.7rem;
+}
+
+.inpage-select-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0.4rem 0;
+  outline: none;
+}
+
+.inpage-select-search::placeholder {
+  color: var(--muted);
+}
+
+.inpage-select-empty {
+  padding: 0.65rem 0.7rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .inpage-select-placeholder {
   color: var(--muted);
 }
@@ -17306,6 +17338,18 @@ html[data-theme='dark'] .inpage-select-option {
   background: transparent !important;
   color: #e8f0fa !important;
   border-color: transparent !important;
+}
+
+html[data-theme='dark'] .inpage-select-search {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .inpage-select-search::placeholder,
+html[data-theme='dark'] .inpage-select-empty {
+  color: #8aa0b8 !important;
 }
 
 html[data-theme='dark'] .inpage-select-placeholder,

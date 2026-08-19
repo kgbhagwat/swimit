@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import QRCode from 'qrcode';
+import { openUpiPay } from './upiPay';
 
 export function QrImage({
   value,
@@ -46,12 +47,19 @@ export function QrImage({
   const image = <img src={src} alt={alt} className={className} width={size} height={size} />;
   if (!clickable || !value) return image;
 
+  function onOpen(event: MouseEvent<HTMLAnchorElement>) {
+    if (!isUpi) return;
+    event.preventDefault();
+    openUpiPay(value);
+  }
+
   return (
     <a
       className="qr-pay-link"
       href={value}
       title={isUpi ? 'Open UPI payment app' : alt}
       aria-label={isUpi ? 'Open UPI payment app' : alt}
+      onClick={onOpen}
     >
       {image}
     </a>

@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from './i18n';
-import { extractUpiPayUri } from './upiPay';
+import { extractPayLaunchHref, openUpiPay } from './upiPay';
 
 export const SUPPORT_INBOX_CHANGED = 'swimIT.supportInboxChanged';
 
@@ -81,6 +81,10 @@ function ChatMessageBody({ text }: { text: string }) {
               className="wa-chat-upi-link"
               href={chunk}
               title="Open UPI payment app"
+              onClick={(event) => {
+                event.preventDefault();
+                openUpiPay(chunk);
+              }}
             >
               {chunk}
             </a>
@@ -379,14 +383,20 @@ export function SupportChatPanel({
                   {msg.attachmentUrl &&
                   isImageMime(msg.attachmentMime, msg.attachmentName || msg.attachmentUrl) ? (
                     (() => {
-                      const upiHref = extractUpiPayUri(msg.body);
+                      const payHref = extractPayLaunchHref(msg.body);
+                      const isUpi = payHref.toLowerCase().startsWith('upi:');
                       return (
                         <a
                           className="wa-chat-attach-image"
-                          href={upiHref || msg.attachmentUrl}
-                          target={upiHref ? undefined : '_blank'}
-                          rel={upiHref ? undefined : 'noreferrer'}
-                          title={upiHref ? t('Open UPI payment app') : t('Attachment')}
+                          href={payHref || msg.attachmentUrl}
+                          target={payHref && !isUpi ? '_blank' : undefined}
+                          rel={payHref && !isUpi ? 'noreferrer' : undefined}
+                          title={payHref ? t('Open UPI payment app') : t('Attachment')}
+                          onClick={(event) => {
+                            if (!isUpi) return;
+                            event.preventDefault();
+                            openUpiPay(payHref);
+                          }}
                         >
                           <img
                             src={msg.attachmentUrl}

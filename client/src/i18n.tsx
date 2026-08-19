@@ -549,6 +549,8 @@ const mr: Record<string, string> = {
     'या चॅटमधील सर्व संदेश साफ करायचे? हे पूर्ववत करता येणार नाही.',
   'Failed to clear chat': 'चॅट साफ करता आली नाही',
   'Open UPI payment app': 'UPI पेमेंट अॅप उघडा',
+  'Opening UPI app…': 'UPI अॅप उघडत आहे…',
+  'Payment link is incomplete.': 'पेमेंट लिंक अपूर्ण आहे.',
   'Scan this QR to pay, or tap to open your UPI app.':
     'पेमेंटसाठी हा QR स्कॅन करा, किंवा UPI अॅप उघडण्यासाठी टॅप करा.',
   'When amount and UPI match, your package is upgraded automatically and a confirmation is shown here.':
@@ -1138,6 +1140,7 @@ const mr: Record<string, string> = {
   "Select one or more suitable batch slots": "एक किंवा अधिक योग्य बॅच स्लॉट निवडा",
   "Select package": "पॅकेज निवडा",
   "Select pass": "पास निवडा",
+  "No matching passes": "जुळणारे पास नाहीत",
   "Select relation": "नाते निवडा",
   "Select relationship": "नाते निवडा",
   "Select sex": "लिंग निवडा",

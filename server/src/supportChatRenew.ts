@@ -11,8 +11,9 @@ import {
   listPaidPackages,
   type RenewQuote,
 } from './renewBilling.js';
-import { buildUpiPayUri, renderUpiPayQrPng } from './upiPayQr.js';
+import { buildUpiHttpsLaunchUrl, buildUpiPayUri, renderUpiPayQrPng } from './upiPayQr.js';
 import { notifyPackageRenewalPayment } from './whatsapp/notify.js';
+import { getWhatsAppConfig } from './whatsapp/config.js';
 
 /** Same folder Express serves at /uploads/support (server/uploads/support). */
 const supportUploadDir = path.resolve(
@@ -392,6 +393,14 @@ async function startPaidRenewal(params: {
     payeeName: 'SwimIT',
     note: `SwimIT renew ${params.quote.packageName}`.slice(0, 80),
   });
+  const payLink =
+    buildUpiHttpsLaunchUrl({
+      publicAppUrl: getWhatsAppConfig().publicAppUrl,
+      upiId,
+      amount: params.totalAmount,
+      payeeName: 'SwimIT',
+      note: `SwimIT renew ${params.quote.packageName}`.slice(0, 80),
+    }) || upiPayUri;
   const qrPng = await renderUpiPayQrPng({
     upiId,
     amount: params.totalAmount,
@@ -404,7 +413,7 @@ async function startPaidRenewal(params: {
       `Total payable: *${formatInrAmount(params.totalAmount)}*`,
       '',
       'Scan this QR to pay, or tap it / the link to open your UPI app.',
-      `Pay now: ${upiPayUri}`,
+      `Pay now: ${payLink}`,
       `UPI: *${upiId}*`,
       `After paying, send the screenshot with visible *${upiId}* on WhatsApp.`,
     ].join('\n'),

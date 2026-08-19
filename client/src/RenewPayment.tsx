@@ -5,7 +5,7 @@ import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
 import { QrImage } from './QrImage';
-import { buildUpiPayUri } from './upiPay';
+import { buildUpiPayUri, openUpiPay } from './upiPay';
 
 type ServicePackage = {
   id: number;
@@ -550,6 +550,16 @@ export function RenewPayment() {
                         pending.expectedAmount,
                         `SwimIT renew ${pending.renewPackageName}`,
                       )}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        openUpiPay(
+                          buildUpiPayUri(
+                            payment.upiId,
+                            pending.expectedAmount,
+                            `SwimIT renew ${pending.renewPackageName}`,
+                          ),
+                        );
+                      }}
                     >
                       {t('Pay with UPI app')}
                     </a>

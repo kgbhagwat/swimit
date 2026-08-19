@@ -90,6 +90,9 @@ const PlatformPayment = lazy(() =>
 const PublicOpenForm = lazy(() =>
   import('./PublicOpenForm').then((m) => ({ default: m.PublicOpenForm })),
 );
+const UpiPayLaunch = lazy(() =>
+  import('./UpiPayLaunch').then((m) => ({ default: m.UpiPayLaunch })),
+);
 const RemoteAccessPage = lazy(() =>
   import('./RemoteAccessPage').then((m) => ({ default: m.RemoteAccessPage })),
 );
@@ -213,6 +216,7 @@ createRoot(document.getElementById('root')!).render(
                 {appFeatureRoutes()}
               </Route>
               {legacyFeatureRedirects}
+              <Route path="/open/upi-pay" element={<UpiPayLaunch />} />
               <Route path="/:accountCode/open/register" element={<PublicOpenForm kind="swimmer" />} />
               <Route
                 path="/:accountCode/open/staff-register"

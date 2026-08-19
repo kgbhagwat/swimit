@@ -8,11 +8,18 @@ import QRCode from 'qrcode';
 function normalizeVpa(upiId: string) {
   let pa = String(upiId ?? '').trim();
   try {
-    pa = decodeURIComponent(pa);
+    pa = decodeURIComponent(pa.replace(/\+/g, '%20'));
   } catch {
-    // keep the trimmed value
+    pa = pa.replace(/\+/g, '');
   }
   return pa.replace(/\s+/g, '');
+}
+
+function sanitizePayeeName(name: string) {
+  return String(name ?? '')
+    .replace(/\+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function upiQuery(fields: Array<[string, string]>) {
@@ -39,8 +46,8 @@ export function buildUpiPayUri(params: {
     throw new Error('Payment amount must be greater than zero');
   }
   const am = (Math.round(amount * 100) / 100).toFixed(2);
-  const pn = String(params.payeeName ?? 'SwimIT').trim() || 'SwimIT';
-  const note = String(params.note ?? '').trim().slice(0, 80);
+  const pn = sanitizePayeeName(params.payeeName ?? 'SwimIT') || 'SwimIT';
+  const note = sanitizePayeeName(params.note ?? '').slice(0, 80);
   const fields: Array<[string, string]> = [
     ['pa', pa],
     ['pn', pn],
@@ -49,6 +56,28 @@ export function buildUpiPayUri(params: {
   ];
   if (note) fields.push(['tn', note]);
   return `upi://pay?${upiQuery(fields)}`;
+}
+
+/** https link for WhatsApp — landing page opens UPI without Chrome encoding the VPA. */
+export function buildUpiHttpsLaunchUrl(params: {
+  publicAppUrl?: string;
+  upiId: string;
+  amount: number;
+  payeeName?: string;
+  note?: string;
+}) {
+  const base = String(params.publicAppUrl ?? '').trim().replace(/\/$/, '');
+  const pa = normalizeVpa(params.upiId);
+  const amount = Number(params.amount);
+  if (!base || !pa || !Number.isFinite(amount) || amount <= 0) return '';
+  const q = new URLSearchParams();
+  q.set('pa', pa);
+  q.set('pn', sanitizePayeeName(params.payeeName ?? 'SwimIT') || 'SwimIT');
+  q.set('am', (Math.round(amount * 100) / 100).toFixed(2));
+  q.set('cu', 'INR');
+  const note = sanitizePayeeName(params.note ?? '').slice(0, 80);
+  if (note) q.set('tn', note);
+  return `${base}/open/upi-pay?${q.toString()}`;
 }
 
 export async function renderUpiPayQrPng(params: {
