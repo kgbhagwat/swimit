@@ -2539,17 +2539,6 @@ html[data-theme='dark'] .image-crop-actions .csv-btn {
   border-color: #1f69c9;
 }
 
-.tenant-saas-payment-qr {
-  display: block;
-  width: 9.5rem;
-  max-width: 100%;
-  height: auto;
-  margin: 0.45rem 0 0.35rem;
-  border-radius: 0.5rem;
-  border: 1px solid #d5deeb;
-  background: #fff;
-}
-
 .tenant-profile-btn {
   display: inline-flex;
   align-items: center;
@@ -2709,18 +2698,6 @@ html[data-theme='dark'] .image-crop-actions .csv-btn {
   gap: 0.45rem 0.7rem;
 }
 
-.tenant-profile-upgrade {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: #2f7fe8;
-  text-decoration: none;
-}
-
-.tenant-profile-upgrade:hover {
-  color: #1a5fbf;
-  text-decoration: underline;
-}
-
 .tenant-profile-actions {
   margin-top: 0.75rem;
   padding-top: 0.7rem;
@@ -2739,6 +2716,10 @@ html[data-theme='dark'] .image-crop-actions .csv-btn {
   color: #2f7fe8;
   text-align: left;
   cursor: pointer;
+}
+
+.tenant-profile-action:is(a) {
+  text-decoration: none;
 }
 
 .tenant-profile-action:hover {
@@ -3315,6 +3296,45 @@ button.platform-rail-link {
   justify-content: flex-end;
   gap: 0.55rem;
   margin-left: auto;
+}
+
+.platform-mirror-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 0;
+  margin-left: 0.35rem;
+  padding: 0.38rem 0.75rem;
+  border: 1px solid #f0a52b;
+  border-radius: 999px;
+  background: #fff4d6;
+  color: #7a4100;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  box-shadow: 0 2px 8px rgba(151, 90, 0, 0.14);
+}
+
+.platform-mirror-badge-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #e06b00;
+  box-shadow: 0 0 0 3px rgba(224, 107, 0, 0.16);
+}
+
+@media (max-width: 700px) {
+  .platform-mirror-badge {
+    max-width: 42vw;
+    padding-inline: 0.55rem;
+  }
+
+  .platform-mirror-badge span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .lang-switcher {
@@ -7837,10 +7857,6 @@ button.coach-payment-back {
   padding: 0;
   box-sizing: border-box;
   align-self: center;
-}
-
-.cropped-payment-qr-pending {
-  background: #f4f7fb;
 }
 
 @media (max-width: 700px) {
@@ -13314,6 +13330,15 @@ button.menu-link {
   color: #2f6fed;
 }
 
+.accounts-icon-enter {
+  color: #087e8b;
+}
+
+.accounts-icon-enter:hover:not(:disabled) {
+  color: #05606a;
+  background: transparent;
+}
+
 .accounts-icon-edit:hover {
   color: #1a4fb8;
   background: transparent;
@@ -17838,6 +17863,13 @@ html[data-theme='dark'] .platform-main-topbar {
   color: var(--ink);
 }
 
+html[data-theme='dark'] .platform-mirror-badge {
+  border-color: #d79228;
+  background: #4a3517;
+  color: #ffd98a;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.24);
+}
+
 html[data-theme='dark'] .app-preview-topbar-note {
   color: #c5d6eb;
 }
@@ -18456,14 +18488,6 @@ html[data-theme='dark'] .tenant-profile-action {
 
 html[data-theme='dark'] .tenant-profile-action:hover {
   color: #a8c9ff !important;
-}
-
-html[data-theme='dark'] .tenant-profile-upgrade {
-  color: #7eb0ff;
-}
-
-html[data-theme='dark'] .tenant-profile-upgrade:hover {
-  color: #a8c9ff;
 }
 
 html[data-theme='dark'] .tenant-menu input,

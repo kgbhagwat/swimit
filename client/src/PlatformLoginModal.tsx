@@ -202,6 +202,7 @@ export function PlatformLoginModal({
         menuAccess: Array.isArray(body.user.menuAccess)
           ? body.user.menuAccess.map(String)
           : [],
+        csrfToken: String(body.csrfToken ?? ''),
       };
       sessionStorage.setItem(sessionKey(code), JSON.stringify(user));
       exitApplicationDemo();
@@ -216,6 +217,7 @@ export function PlatformLoginModal({
           userName: user.userName,
           menuAccess: user.menuAccess,
           isAccountAdmin: user.isAccountAdmin,
+          csrfToken: user.csrfToken,
         });
         onClose();
         navigate('/accounts');

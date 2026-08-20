@@ -57,7 +57,7 @@ remoteLoginRouter.post('/decide', async (req, res) => {
 });
 
 async function canDecideAsAdmin(req: Request, targetAccountId: number) {
-  const rawUserId = Number(req.header('x-user-id'));
+  const rawUserId = Number(req.auth?.actorUserId);
   if (!Number.isFinite(rawUserId) || rawUserId <= 0) return false;
 
   const { rows } = await pool.query<{

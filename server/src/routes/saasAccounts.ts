@@ -28,6 +28,11 @@ import {
 } from '../paymentAmount.js';
 import { consumeCaptcha } from '../captcha.js';
 import { enforceLoginLocation } from '../remoteLogin.js';
+import {
+  createAuthSession,
+  createPublicAccessToken,
+  setSessionCookie,
+} from '../authSessions.js';
 
 function isValidEmailAddress(value: string) {
   const email = value.trim();
@@ -277,7 +282,18 @@ saasAccountsRouter.get('/by-code/:code', async (req, res) => {
       res.status(404).json({ error: 'Account not found' });
       return;
     }
-    res.json(mapRow(rows[0]));
+    const account = mapRow(rows[0]);
+    res.json({
+      id: account.id,
+      accountName: account.accountName,
+      accountCode: account.accountCode,
+      status: account.status,
+      packageName: account.packageName,
+      modules: account.modules,
+      featureKeys: account.featureKeys,
+      loginSessionTimeoutMinutes: account.loginSessionTimeoutMinutes,
+      publicAccessToken: createPublicAccessToken(account.id, account.accountCode),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load account' });
@@ -782,6 +798,11 @@ saasAccountsRouter.post('/:id/resend-credentials', async (req, res) => {
          WHERE id = $2 AND saas_account_id = $3`,
         [passwordHash, Number(admin.rows[0].id), id],
       );
+      await pool.query(
+        `UPDATE auth_sessions SET revoked_at = NOW()
+         WHERE user_id = $1 AND revoked_at IS NULL`,
+        [Number(admin.rows[0].id)],
+      );
       admin = await pool.query(
         `SELECT id, user_name, mobile, email FROM app_users WHERE id = $1`,
         [Number(admin.rows[0].id)],
@@ -1121,6 +1142,12 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
       return;
     }
 
+    const authSession = await createAuthSession({
+      accountId,
+      userId: Number(userRows[0].id),
+      kind: code === 'swimit' ? 'platform' : 'account',
+    });
+    setSessionCookie(res, authSession.token, authSession.expiresAt, authSession.csrfToken);
     res.json({
       account: {
         id: accountId,
@@ -1141,6 +1168,7 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
       },
       locationStatus: locationGate.locationStatus,
       distanceKm: locationGate.distanceKm,
+      csrfToken: authSession.csrfToken,
     });
   } catch (err) {
     console.error(err);
@@ -1221,6 +1249,11 @@ saasAccountsRouter.post('/by-code/:code/forgot-password', async (req, res) => {
        SET password_hash = $1, must_change_password = TRUE
        WHERE id = $2 AND saas_account_id = $3`,
       [passwordHash, Number(userRows[0].id), accountId],
+    );
+    await pool.query(
+      `UPDATE auth_sessions SET revoked_at = NOW()
+       WHERE user_id = $1 AND revoked_at IS NULL`,
+      [Number(userRows[0].id)],
     );
 
     const loginOrigin = String(
@@ -1308,6 +1341,10 @@ saasAccountsRouter.post('/by-code/:code/change-password', async (req, res) => {
       res.status(400).json({ error: 'Invalid user' });
       return;
     }
+    if (req.auth?.userId !== userId || req.auth.accountCode.toLowerCase() !== code) {
+      res.status(403).json({ error: 'You can only change your own password' });
+      return;
+    }
     const policyError = passwordPolicyError(newPassword);
     if (policyError) {
       res.status(400).json({ error: policyError });
@@ -1356,6 +1393,17 @@ saasAccountsRouter.post('/by-code/:code/change-password', async (req, res) => {
        RETURNING id, user_name, mobile, menu_access, must_change_password, is_account_admin`,
       [passwordHash, userId],
     );
+    await pool.query(
+      `UPDATE auth_sessions SET revoked_at = NOW()
+       WHERE user_id = $1 AND revoked_at IS NULL`,
+      [userId],
+    );
+    const authSession = await createAuthSession({
+      accountId: Number(accountRows[0].id),
+      userId,
+      kind: code === 'swimit' ? 'platform' : 'account',
+    });
+    setSessionCookie(res, authSession.token, authSession.expiresAt, authSession.csrfToken);
 
     res.json({
       ok: true,
@@ -1367,6 +1415,7 @@ saasAccountsRouter.post('/by-code/:code/change-password', async (req, res) => {
         isAccountAdmin: rows[0].is_account_admin === true,
         menuAccess: Array.isArray(rows[0].menu_access) ? rows[0].menu_access.map(String) : [],
       },
+      csrfToken: authSession.csrfToken,
     });
   } catch (err) {
     console.error(err);
@@ -1379,6 +1428,13 @@ saasAccountsRouter.get('/by-code/:code/renew/pending', async (req, res) => {
     const code = normalizeAccountCode(req.params.code);
     if (!ACCOUNT_CODE_RE.test(code)) {
       res.status(400).json({ error: 'Invalid account code' });
+      return;
+    }
+    if (
+      req.auth?.accountCode.toLowerCase() !== code ||
+      !req.auth.isAccountAdmin
+    ) {
+      res.status(403).json({ error: 'Only this account administrator can view renewal details' });
       return;
     }
     const { rows: accountRows } = await pool.query(
@@ -1459,12 +1515,12 @@ saasAccountsRouter.post('/by-code/:code/renew', async (req, res) => {
       renewPackageId?: number | string;
       months?: number | string;
     };
-    const userId = Number(body.userId);
+    const userId = Number(req.auth?.userId);
     const renewPackageId = Number(body.renewPackageId);
     const months = Math.floor(Number(body.months));
 
     if (!Number.isFinite(userId) || userId <= 0) {
-      res.status(400).json({ error: 'Invalid user' });
+      res.status(403).json({ error: 'Only the signed-in account admin can renew the package' });
       return;
     }
     if (!Number.isFinite(renewPackageId) || renewPackageId <= 0) {
@@ -1485,6 +1541,14 @@ saasAccountsRouter.post('/by-code/:code/renew', async (req, res) => {
       return;
     }
     const account = mapRow(accountRows[0]);
+    if (
+      req.auth?.accountId !== account.id ||
+      req.auth.accountCode.toLowerCase() !== code ||
+      !req.auth.isAccountAdmin
+    ) {
+      res.status(403).json({ error: 'Only this account administrator can renew the package' });
+      return;
+    }
 
     const { rows: userRows } = await pool.query(
       `SELECT id, mobile, is_account_admin, user_name

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { App } from './App';
 import { StaffRegistration } from './StaffRegistration';
-import { setActiveTenant } from './tenantSession';
+import { setActiveTenant, setPublicAccessToken } from './tenantSession';
 
 type PoolInfo = {
   poolName: string;
@@ -51,6 +51,7 @@ export function PublicOpenForm({ kind }: { kind: 'swimmer' | 'staff' }) {
         const accountCodeValue = String(accBody.accountCode ?? code);
         setAccountName(String(accBody.accountName ?? ''));
         setActiveTenant({ id, accountCode: accountCodeValue });
+        setPublicAccessToken(String(accBody.publicAccessToken ?? ''));
 
         const poolRes = await fetch('/api/pool-core-info');
         const poolBody = await poolRes.json().catch(() => ({}));

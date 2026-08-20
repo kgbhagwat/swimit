@@ -1,7 +1,9 @@
 import { pool } from './db/pool.js';
+import { ensureAuthSessionsTable } from './authSessions.js';
 
 /** Lightweight boot migrations so new columns work without a manual db:init. */
 export async function ensureSchema() {
+  await ensureAuthSessionsTable();
   await pool.query(`
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS remote_access_until TIMESTAMPTZ;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_geo_mode TEXT NOT NULL DEFAULT 'pool_only';

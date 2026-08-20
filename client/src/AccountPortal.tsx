@@ -13,7 +13,14 @@ import {
 import { MobileField } from './MobileField';
 import { passwordPolicyError } from './passwordPolicy';
 import { isSaasManagementCode, setPlatformSession } from './platformSession';
-import { setActiveTenant, SESSION_TIMEOUT_EVENT, touchSessionActivity, readSessionActivityAt, clearSessionActivity } from './tenantSession';
+import {
+  clearPlatformImpersonation,
+  setActiveTenant,
+  SESSION_TIMEOUT_EVENT,
+  touchSessionActivity,
+  readSessionActivityAt,
+  clearSessionActivity,
+} from './tenantSession';
 import {
   canUseBiometricLogin,
   enrollBiometricLogin,
@@ -41,6 +48,8 @@ type SessionUser = {
   mustChangePassword: boolean;
   isAccountAdmin: boolean;
   menuAccess?: string[];
+  isPlatformImpersonation?: boolean;
+  csrfToken?: string;
 };
 
 const ACCOUNT_CODE_RE = /^[a-z0-9]{6}$/;
@@ -200,7 +209,27 @@ export function AccountPortal() {
           return;
         }
         setAccount(info);
-        setSessionUser(readSession(code));
+        const storedUser = readSession(code);
+        if (storedUser) {
+          const sessionRes = await fetch('/api/auth/session');
+          const sessionBody = await sessionRes.json().catch(() => ({}));
+          if (
+            sessionRes.ok &&
+            String(sessionBody.auth?.accountCode ?? '').toLowerCase() === code
+          ) {
+            const refreshed = {
+              ...storedUser,
+              csrfToken: String(sessionBody.csrfToken ?? storedUser.csrfToken ?? ''),
+            };
+            writeSession(code, refreshed);
+            setSessionUser(refreshed);
+          } else {
+            clearSession(code);
+            setSessionUser(null);
+          }
+        } else {
+          setSessionUser(null);
+        }
       } catch (err) {
         if (!cancelled) {
           setAccount(null);
@@ -228,6 +257,7 @@ export function AccountPortal() {
           userName: sessionUser.userName,
           menuAccess: sessionUser.menuAccess ?? [],
           isAccountAdmin: Boolean(sessionUser.isAccountAdmin),
+          csrfToken: sessionUser.csrfToken ?? '',
         });
       } else {
         setActiveTenant({ id: account.id, accountCode: account.accountCode || code });
@@ -277,8 +307,10 @@ export function AccountPortal() {
     }
 
     const expireSession = () => {
+      void fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
       clearSession(code);
       clearSessionActivity(code);
+      if (sessionUser.isPlatformImpersonation) clearPlatformImpersonation();
       setActiveTenant(null);
       setSessionUser(null);
       setLoginPassword('');
@@ -325,6 +357,7 @@ export function AccountPortal() {
   }, [account, sessionUser, code, t]);
 
   function finishAuthenticatedSession(user: SessionUser, opts?: { offerBiometric?: boolean }) {
+    if (!user.isPlatformImpersonation) clearPlatformImpersonation();
     writeSession(code, user);
     touchSessionActivity(code);
     setSessionUser(user);
@@ -367,6 +400,7 @@ export function AccountPortal() {
           userName: user.userName,
           menuAccess: user.menuAccess ?? [],
           isAccountAdmin: Boolean(user.isAccountAdmin),
+          csrfToken: user.csrfToken ?? '',
         });
       }
       return;
@@ -434,6 +468,7 @@ export function AccountPortal() {
           mustChangePassword: result.user.mustChangePassword,
           isAccountAdmin: result.user.isAccountAdmin,
           menuAccess: result.user.menuAccess,
+          csrfToken: result.csrfToken,
         };
         setBiometricPref({
           credentialId: result.credentialId,
@@ -480,6 +515,7 @@ export function AccountPortal() {
         menuAccess: Array.isArray(body.user.menuAccess)
           ? body.user.menuAccess.map(String)
           : [],
+        csrfToken: String(body.csrfToken ?? ''),
       };
       if (body.account?.loginSessionTimeoutMinutes != null) {
         const minutes = Number(body.account.loginSessionTimeoutMinutes);
@@ -603,6 +639,7 @@ export function AccountPortal() {
         menuAccess: Array.isArray(body.user?.menuAccess)
           ? body.user.menuAccess.map(String)
           : sessionUser.menuAccess,
+        csrfToken: String(body.csrfToken ?? sessionUser.csrfToken ?? ''),
       };
       finishAuthenticatedSession(user, { offerBiometric: true });
       setPasswordSuccess(
@@ -617,13 +654,29 @@ export function AccountPortal() {
     }
   }
 
-  function onLogout() {
+  async function onLogout() {
+    const returnToPlatform = Boolean(sessionUser?.isPlatformImpersonation);
+    if (returnToPlatform) {
+      try {
+        const res = await fetch('/api/auth/impersonation/exit', { method: 'POST' });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? 'Failed to return to platform');
+        setPlatformSession(body.platform);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to return to platform');
+        return;
+      }
+    } else {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    }
     clearSession(code);
     clearSessionActivity(code);
+    if (returnToPlatform) clearPlatformImpersonation();
     setActiveTenant(null);
     setSessionUser(null);
     setLoginPassword('');
     setError('');
+    if (returnToPlatform) navigate('/accounts', { replace: true });
   }
 
   if (!ACCOUNT_CODE_RE.test(code)) {

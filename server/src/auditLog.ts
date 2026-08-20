@@ -39,7 +39,7 @@ async function lookupPlatformAccountId() {
   return rows[0] ? Number(rows[0].id) : null;
 }
 
-/** Resolve signed-in user from X-User-Id against the given account. */
+/** Resolve the signed-in actor from the validated server session. */
 export async function resolveActor(req: Request, accountId?: number) {
   const tenant = accountId ?? req.saasAccountId;
   if (!tenant) {
@@ -56,22 +56,13 @@ export async function resolveActor(req: Request, accountId?: number) {
   }
   req.actorUserId = null;
   req.actorUserName = null;
-  const raw = req.header('x-user-id');
-  const id = Number(raw);
-  if (!Number.isFinite(id) || id <= 0) return;
-  try {
-    const { rows } = await pool.query<{ id: number; user_name: string }>(
-      `SELECT id, user_name
-       FROM app_users
-       WHERE id = $1 AND saas_account_id = $2`,
-      [id, tenant],
-    );
-    if (rows[0]) {
-      req.actorUserId = Number(rows[0].id);
-      req.actorUserName = String(rows[0].user_name ?? '');
-    }
-  } catch (err) {
-    console.error('Failed to resolve audit actor', err);
+  if (req.auth?.actorUserId) {
+    req.actorUserId = req.auth.actorUserId;
+    req.actorUserName =
+      req.auth.kind === 'impersonation'
+        ? `${req.auth.actorUserName} (Platform)`
+        : req.auth.actorUserName;
+    return;
   }
 }
 

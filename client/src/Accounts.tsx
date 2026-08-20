@@ -5,6 +5,7 @@ import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
 import { hasPlatformAccess } from './platformAccess';
 import { getPlatformSession } from './platformSession';
+import { startPlatformImpersonation } from './tenantSession';
 import {
   PlatformActivityLogPanel,
   type ActivityLogTarget,
@@ -115,6 +116,15 @@ function ActivityLogIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path d="M5 4.5h14v15H5z" />
       <path d="M8 8h8M8 12h8M8 16h5" />
+    </svg>
+  );
+}
+
+function EnterAccountIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 4h10v16H4z" />
+      <path d="M10 12h10M17 9l3 3-3 3" />
     </svg>
   );
 }
@@ -294,6 +304,20 @@ export function Accounts() {
       status: account.status?.trim() || 'Active',
       subscriptionExpiresAt: toDateInput(account.subscriptionExpiresAt),
     });
+  }
+
+  async function enterAccount(account: Account) {
+    if (!account.accountCode || String(account.accountCode).toLowerCase() === 'swimit') return;
+    try {
+      const path = await startPlatformImpersonation({
+        id: account.id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+      });
+      window.location.assign(path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open account');
+    }
   }
 
   function cancelEdit() {
@@ -622,6 +646,18 @@ export function Accounts() {
                                   </>
                                 ) : (
                                   <>
+                                    {!isPlatform && item.accountCode ? (
+                                      <button
+                                        type="button"
+                                        className="accounts-icon-btn accounts-icon-enter"
+                                        disabled={editingId != null || busy}
+                                        onClick={() => void enterAccount(item)}
+                                        aria-label={`${t('Enter account')} ${item.accountName}`}
+                                        title={t('Enter account')}
+                                      >
+                                        <EnterAccountIcon />
+                                      </button>
+                                    ) : null}
                                     <button
                                       type="button"
                                       className="accounts-icon-btn accounts-icon-edit"
@@ -839,6 +875,18 @@ export function Accounts() {
                                 </>
                               ) : (
                                 <>
+                                  {!isPlatform && item.accountCode ? (
+                                    <button
+                                      type="button"
+                                      className="accounts-icon-btn accounts-icon-enter"
+                                      disabled={editingId != null || busy}
+                                      onClick={() => void enterAccount(item)}
+                                      aria-label={`${t('Enter account')} ${item.accountName}`}
+                                      title={t('Enter account')}
+                                    >
+                                      <EnterAccountIcon />
+                                    </button>
+                                  ) : null}
                                   <button
                                     type="button"
                                     className="accounts-icon-btn accounts-icon-edit"

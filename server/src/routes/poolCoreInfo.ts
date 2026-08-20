@@ -7,7 +7,11 @@ import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { parseGoogleMapsLocation } from '../googleMapsLocation.js';
 import { tenantId } from '../middleware/tenant.js';
-import { imageOrPdfFileFilter, UPLOAD_MAX_BYTES } from '../uploadFilter.js';
+import {
+  imageOrPdfFileFilter,
+  randomUploadFilename,
+  UPLOAD_MAX_BYTES,
+} from '../uploadFilter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../uploads');
@@ -19,8 +23,11 @@ if (!fs.existsSync(uploadDir)) {
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `${Date.now()}-${safe}`);
+    try {
+      cb(null, randomUploadFilename(file));
+    } catch (err) {
+      cb(err instanceof Error ? err : new Error('Unsupported upload file type'), '');
+    }
   },
 });
 

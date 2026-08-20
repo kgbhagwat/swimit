@@ -526,7 +526,7 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
       return;
     }
 
-    const requesterId = Number(req.header('x-user-id'));
+    const requesterId = Number(req.auth?.userId);
     if (!Number.isFinite(requesterId) || requesterId <= 0) {
       res.status(401).json({ error: 'Sign in to send the form QR to your WhatsApp.' });
       return;
@@ -785,7 +785,7 @@ whatsappRouter.put('/pass-expiry-notice', requireTenant, async (req, res) => {
       body.acceptCharges === true || enabled === true || broadcastEnabled === true;
 
     if (acceptCharges) {
-      const actorId = Number(req.header('x-user-id'));
+      const actorId = Number(req.auth?.actorUserId);
       await pool.query(
         `UPDATE pool_core_info
          SET whatsapp_paid_messages_accepted = TRUE,

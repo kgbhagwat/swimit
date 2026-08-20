@@ -178,7 +178,7 @@ auditLogRouter.get('/', async (req, res) => {
 
 /**
  * Platform staff: view a pool account's activity log.
- * Session tenant must be swimit (X-Saas-Account-Id); target is query targetAccountId.
+ * Validated session tenant must be swimit; target is query targetAccountId.
  */
 auditLogRouter.get('/platform', async (req: Request, res: Response) => {
   try {

@@ -1,4 +1,5 @@
 import { pool } from './pool.js';
+import { allowlistedSqlIdentifier } from './sqlSafety.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { defaultFeatureKeysForModules } from '../packageFeatures.js';
 
@@ -331,6 +332,25 @@ CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user
   ON webauthn_credentials (user_id);
 CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_account
   ON webauthn_credentials (saas_account_id);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id UUID PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  csrf_hash TEXT NOT NULL,
+  saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  user_id INT REFERENCES app_users(id) ON DELETE CASCADE,
+  actor_user_id INT REFERENCES app_users(id) ON DELETE CASCADE,
+  session_kind TEXT NOT NULL DEFAULT 'account',
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (session_kind IN ('account', 'platform', 'impersonation'))
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_token
+  ON auth_sessions (token_hash) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user
+  ON auth_sessions (user_id, expires_at DESC);
 
 CREATE TABLE IF NOT EXISTS whatsapp_outbound (
   id SERIAL PRIMARY KEY,
@@ -748,8 +768,9 @@ async function assignOrphanRowsToAccount(accountId: number) {
     'pass_payments',
     'pool_core_info',
     'holiday_settings',
-  ];
-  for (const table of tables) {
+  ] as const;
+  for (const tableName of tables) {
+    const table = allowlistedSqlIdentifier(tableName, tables);
     await pool.query(
       `UPDATE ${table} SET saas_account_id = $1 WHERE saas_account_id IS NULL`,
       [accountId],
@@ -1217,7 +1238,9 @@ async function migrateSensitivePiiColumns() {
     return;
   }
 
-  for (const table of ['registrations', 'staff_registrations'] as const) {
+  const piiTables = ['registrations', 'staff_registrations'] as const;
+  for (const tableName of piiTables) {
+    const table = allowlistedSqlIdentifier(tableName, piiTables);
     const { rows } = await pool.query<{
       id: number;
       birthdate: string;

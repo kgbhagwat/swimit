@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { pool } from '../db/pool.js';
+import { loadAuth, verifyPublicAccessToken } from '../authSessions.js';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -7,23 +8,35 @@ declare module 'express-serve-static-core' {
   }
 }
 
-/** Resolve and validate X-Saas-Account-Id for tenant-scoped APIs. */
+/** Resolve tenant only from a server session or restricted public-form token. */
 export async function requireTenant(req: Request, res: Response, next: NextFunction) {
-  // Header is preferred; query fallback supports <img src> for sealed identity photos.
-  // Do not use query.accountId on /api/support/platform/* — that param is the pool
-  // being chatted with, not the SwimIT staff tenant.
   const path = String(req.originalUrl || req.url || '');
-  const allowQueryAccountId = !path.includes('/api/support/platform');
-  const raw =
-    req.header('x-saas-account-id') ??
-    (allowQueryAccountId && typeof req.query.accountId === 'string'
-      ? req.query.accountId
-      : undefined) ??
-    (typeof req.query.saasAccountId === 'string' ? req.query.saasAccountId : undefined);
-  const id = Number(raw);
+  let id = 0;
+  try {
+    const publicToken = verifyPublicAccessToken(String(req.header('x-public-access-token') ?? ''));
+    const publicRoute =
+      (req.method === 'GET' &&
+        (path.startsWith('/api/pool-core-info') || path.startsWith('/api/batches'))) ||
+      (req.method === 'POST' &&
+        (path === '/api/registrations' ||
+          path.startsWith('/api/registrations?') ||
+          path === '/api/staff-registrations' ||
+          path.startsWith('/api/staff-registrations?')));
+    if (publicToken && publicRoute) {
+      id = publicToken.accountId;
+      req.publicTenantAccess = true;
+    } else {
+      const auth = await loadAuth(req);
+      if (auth) id = auth.accountId;
+    }
+  } catch (err) {
+    console.error('Failed to validate account session', err);
+    res.status(500).json({ error: 'Failed to validate account session' });
+    return;
+  }
   if (!Number.isFinite(id) || id <= 0) {
-    res.status(400).json({
-      error: 'Account context required. Sign in via your account login URL (e.g. /srktnk).',
+    res.status(401).json({
+      error: 'A valid account session is required.',
     });
     return;
   }
@@ -37,7 +50,7 @@ export async function requireTenant(req: Request, res: Response, next: NextFunct
       res.status(404).json({ error: 'Account not found' });
       return;
     }
-    if (rows[0].status === 'Suspended') {
+    if (rows[0].status === 'Suspended' && req.auth?.kind !== 'impersonation') {
       res.status(403).json({ error: 'This account is suspended' });
       return;
     }

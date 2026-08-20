@@ -42,6 +42,7 @@ export type TenantUserInfo = {
   mobile?: string;
   menuAccess?: string[];
   isAccountAdmin?: boolean;
+  isPlatformImpersonation?: boolean;
 };
 
 function PasswordEyeIcon({ visible }: { visible: boolean }) {
@@ -256,7 +257,7 @@ function TenantUserBar({
               {t('Package')}: <strong>{account.packageName}</strong>
             </p>
           ) : null}
-          {user.isAccountAdmin ? (
+          {user.isAccountAdmin && !user.isPlatformImpersonation ? (
             <div className="tenant-saas-payment">
               <Link
                 className="tenant-profile-renew"
@@ -268,7 +269,20 @@ function TenantUserBar({
             </div>
           ) : null}
 
-          {!changingPassword ? (
+          {user.isPlatformImpersonation ? (
+            <div className="tenant-profile-actions">
+              <button
+                type="button"
+                className="tenant-profile-action"
+                onClick={() => {
+                  void onLogout?.();
+                  setOpen(false);
+                }}
+              >
+                {t('Return to Platform')}
+              </button>
+            </div>
+          ) : !changingPassword ? (
             <div className="tenant-profile-actions">
               <button
                 type="button"
@@ -500,6 +514,7 @@ export function AppShell({
 
   const allowedKeys = useMemo<Set<MenuPageKey>>(() => {
     if (!tenantAccount || !tenantUser) return new Set<MenuPageKey>();
+    if (tenantUser.isPlatformImpersonation) return new Set<MenuPageKey>(ALL_PAGE_KEYS);
     const packageKeys = new Set(
       pageKeysForPackage({
         modules: tenantAccount.modules,
@@ -846,6 +861,14 @@ export function AppShell({
           <span className="platform-sidebar-toggle-bar" />
           <span className="platform-sidebar-toggle-bar" />
         </button>
+        {tenantAccount && tenantUser?.isPlatformImpersonation ? (
+          <div className="platform-mirror-badge" role="status">
+            <span className="platform-mirror-badge-dot" aria-hidden />
+            <strong>{t('Mirrored session')}</strong>
+            <span aria-hidden>·</span>
+            <span>{tenantAccount.accountName}</span>
+          </div>
+        ) : null}
         <div className="platform-main-topbar-actions">
           {tenantAccount && tenantUser?.isAccountAdmin && tenantUser.id ? (
             <SupportInboxButton

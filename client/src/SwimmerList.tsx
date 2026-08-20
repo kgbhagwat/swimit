@@ -730,7 +730,13 @@ export function SwimmerList() {
 
   async function deleteSwimmer(row: SwimmerRow) {
     if (!canToggleActive || deletingId === row.id || deletingSelected) return;
-    if (!window.confirm(`${t('Delete this swimmer?')}\n${row.swimmer}`)) return;
+    if (
+      !window.confirm(
+        `${t('Warning: Deleted swimmer records cannot be recovered.')}\n\n${t('Delete this swimmer?')}\n${row.swimmer}`,
+      )
+    ) {
+      return;
+    }
     setError('');
     setSuccess('');
     if (sampleMode || row.id < 0) {
@@ -761,8 +767,8 @@ export function SwimmerList() {
     }
     const confirmMsg =
       targets.length === 1
-        ? `${t('Delete this swimmer?')}\n${targets[0].swimmer}`
-        : `${t('Delete selected swimmers?')}\n${targets.map((row) => row.swimmer).join('\n')}`;
+        ? `${t('Warning: Deleted swimmer records cannot be recovered.')}\n\n${t('Delete this swimmer?')}\n${targets[0].swimmer}`
+        : `${t('Warning: Deleted swimmer records cannot be recovered.')}\n\n${t('Delete selected swimmers?')}\n${targets.map((row) => row.swimmer).join('\n')}`;
     if (!window.confirm(confirmMsg)) return;
     setError('');
     setSuccess('');
@@ -889,7 +895,7 @@ export function SwimmerList() {
                 title={
                   selectedPrintable.length === 0
                     ? t('Select swimmers with a pass to print.')
-                    : t('Print pass / QR')
+                    : t('Print pass')
                 }
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -901,8 +907,8 @@ export function SwimmerList() {
                   {printing
                     ? t('Preparing PDF…')
                     : selectedPrintable.length
-                      ? `${t('Print pass / QR')} (${selectedPrintable.length})`
-                      : t('Print pass / QR')}
+                      ? `${t('Print pass')} (${selectedPrintable.length})`
+                      : t('Print pass')}
                 </span>
               </button>
             )}
@@ -1146,13 +1152,6 @@ export function SwimmerList() {
                         ) : null}
                         {showPassActions ? (
                           <>
-                            <button
-                              type="button"
-                              className="terms-link"
-                              onClick={() => openPassPopup('qr', row.id)}
-                            >
-                              {t('Pass QR')}
-                            </button>
                             <button
                               type="button"
                               className="terms-link"

@@ -17,6 +17,7 @@ import {
   storeChallenge,
   takeChallenge,
 } from '../webauthn.js';
+import { createAuthSession, setSessionCookie } from '../authSessions.js';
 
 const ACCOUNT_CODE_RE = /^[a-z0-9]{6}$/;
 
@@ -481,6 +482,12 @@ webauthnRouter.post('/by-code/:code/webauthn/login/verify', async (req, res) => 
       return;
     }
 
+    const authSession = await createAuthSession({
+      accountId: account.id,
+      userId: Number(userRows[0].id),
+      kind: String(account.account_code).toLowerCase() === 'swimit' ? 'platform' : 'account',
+    });
+    setSessionCookie(res, authSession.token, authSession.expiresAt, authSession.csrfToken);
     res.json({
       account: {
         id: account.id,
@@ -492,6 +499,7 @@ webauthnRouter.post('/by-code/:code/webauthn/login/verify', async (req, res) => 
       credentialId: cred.credential_id,
       locationStatus: locationGate.locationStatus,
       distanceKm: locationGate.distanceKm,
+      csrfToken: authSession.csrfToken,
     });
   } catch (err) {
     console.error(err);

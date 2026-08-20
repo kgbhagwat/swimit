@@ -140,6 +140,7 @@ export async function loginWithBiometric(opts: {
     menuAccess: string[];
   };
   credentialId: string;
+  csrfToken: string;
 }> {
   const optionsRes = await fetch(
     `/api/saas-accounts/by-code/${encodeURIComponent(opts.accountCode)}/webauthn/login/options`,
@@ -213,6 +214,7 @@ export async function loginWithBiometric(opts: {
         : [],
     },
     credentialId,
+    csrfToken: String(verifyBody.csrfToken ?? ''),
   };
 }
 

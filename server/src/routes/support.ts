@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
+import { randomUploadFilename } from '../uploadFilter.js';
 import {
   ensureRenewSessionTable,
   getRenewChoicesForAccount,
@@ -25,25 +26,34 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const SUPPORT_MIME_EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'application/pdf': '.pdf',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'text/plain': '.txt',
+};
+
 const supportUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
     filename: (_req, file, cb) => {
-      const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-      cb(null, `${Date.now()}-${safe}`);
+      try {
+        cb(null, randomUploadFilename(file, SUPPORT_MIME_EXTENSIONS));
+      } catch (err) {
+        cb(err instanceof Error ? err : new Error('Unsupported upload file type'), '');
+      }
     },
   }),
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const mime = String(file.mimetype || '').toLowerCase();
-    const ok =
-      mime.startsWith('image/') ||
-      mime === 'application/pdf' ||
-      mime === 'application/msword' ||
-      mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      mime === 'application/vnd.ms-excel' ||
-      mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      mime === 'text/plain';
+    const ok = Object.hasOwn(SUPPORT_MIME_EXTENSIONS, mime);
     if (!ok) {
       cb(new Error('Only images, PDF, Word, Excel, or text files are allowed'));
       return;

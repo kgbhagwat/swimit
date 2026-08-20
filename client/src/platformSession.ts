@@ -11,6 +11,7 @@ export type PlatformSession = {
   userName: string;
   menuAccess: string[];
   isAccountAdmin: boolean;
+  csrfToken: string;
 };
 
 export function isSaasManagementCode(code: string) {
@@ -27,6 +28,7 @@ export function getPlatformSession(): PlatformSession | null {
       ...parsed,
       menuAccess: Array.isArray(parsed.menuAccess) ? parsed.menuAccess.map(String) : [],
       isAccountAdmin: Boolean(parsed.isAccountAdmin),
+      csrfToken: String(parsed.csrfToken ?? ''),
     };
   } catch {
     return null;
