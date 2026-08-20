@@ -1008,10 +1008,10 @@ export async function notifyPackageRenewalPayment(params: {
       : 'Please pay the mentioned amount using the QR code shown.',
     payLink ? 'Pay now:' : '',
     payLink,
+    params.upiId ? `UPI ID: *${params.upiId}*` : '',
     params.upiId
       ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
       : 'After paying, send the payment screenshot on WhatsApp.',
-    params.upiId ? `UPI ID: *${params.upiId}*` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -1026,17 +1026,34 @@ export async function notifyPackageRenewalPayment(params: {
       templateText(params.packageName),
       templateText(`${params.months} month${params.months === 1 ? '' : 's'}`),
       templateText(amountLabel),
-      templateText(payLink || params.upiId || 'pool desk', 400),
+      templateText(
+        [payLink, params.upiId ? `UPI ID: ${params.upiId}` : ''].filter(Boolean).join(' | ') ||
+          'pool desk',
+        400,
+      ),
     ],
     fallbackBody: body,
   });
   if (!sent.ok || sent.skipped) return sent;
 
-  const caption = [`Pay ${amountLabel} for ${params.packageName}`, payLink.startsWith('https://') ? payLink : '']
+  const caption = [
+    `Pay ${amountLabel} for ${params.packageName}`,
+    params.upiId ? `UPI ID: ${params.upiId}` : '',
+    payLink.startsWith('https://') ? payLink : '',
+  ]
     .filter(Boolean)
     .join('\n');
-  let amountQrSent = false;
-  if (hasAmountQr) {
+  let qrSent = false;
+  if (cfg.publicAppUrl && params.paymentQrPath) {
+    const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+    try {
+      await sendWhatsAppImage(params.mobile, qrUrl, caption);
+      qrSent = true;
+    } catch (qrErr) {
+      console.warn('[whatsapp] uploaded renewal QR image send failed', qrErr);
+    }
+  }
+  if (!qrSent && hasAmountQr) {
     try {
       const qrPng = await renderUpiPayQrPng({
         upiId: params.upiId,
@@ -1051,17 +1068,9 @@ export async function notifyPackageRenewalPayment(params: {
         filename: `renew-pay-${params.saasAccountId}.png`,
       });
       await sendWhatsAppImageByMediaId(params.mobile, mediaId, caption);
-      amountQrSent = true;
+      qrSent = true;
     } catch (qrErr) {
       console.warn('[whatsapp] amount-locked renewal QR failed', qrErr);
-    }
-  }
-  if (!amountQrSent && cfg.publicAppUrl && params.paymentQrPath) {
-    const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
-    try {
-      await sendWhatsAppImage(params.mobile, qrUrl, caption);
-    } catch (qrErr) {
-      console.warn('[whatsapp] renewal QR image send failed', qrErr);
     }
   }
 
