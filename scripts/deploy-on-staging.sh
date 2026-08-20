@@ -33,6 +33,12 @@ npm run build
 
 echo "==> ensure DB schema / seed"
 if [ -f "$APP_DIR/server/.env" ]; then
+  if ! grep -q '^AUTH_SESSION_SECRET=.\+' "$APP_DIR/server/.env"; then
+    echo "==> generating AUTH_SESSION_SECRET"
+    printf '\nAUTH_SESSION_SECRET=%s\n' "$(openssl rand -hex 32)" |
+      sudo tee -a "$APP_DIR/server/.env" >/dev/null
+    sudo chmod 600 "$APP_DIR/server/.env"
+  fi
   set -a
   # shellcheck disable=SC1091
   source "$APP_DIR/server/.env"

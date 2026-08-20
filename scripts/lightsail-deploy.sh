@@ -41,6 +41,7 @@ env_get() {
 DOMAIN="$(env_get DOMAIN)"
 POSTGRES_PASSWORD="$(env_get POSTGRES_PASSWORD)"
 CORS_ORIGIN="$(env_get CORS_ORIGIN)"
+AUTH_SESSION_SECRET="$(env_get AUTH_SESSION_SECRET)"
 
 if [ -z "${DOMAIN}" ] || [ -z "${POSTGRES_PASSWORD}" ] || [ -z "${CORS_ORIGIN}" ]; then
   echo "ERROR: .env must contain DOMAIN, POSTGRES_PASSWORD, and CORS_ORIGIN"
@@ -58,6 +59,13 @@ POSTGRES_DB=swimit
 CORS_ORIGIN=https://staging.swimit.co.in
 EOF
   exit 1
+fi
+
+if [ -z "${AUTH_SESSION_SECRET}" ]; then
+  echo "==> generating AUTH_SESSION_SECRET in .env"
+  AUTH_SESSION_SECRET="$(openssl rand -hex 32)"
+  printf '\nAUTH_SESSION_SECRET=%s\n' "${AUTH_SESSION_SECRET}" >> .env
+  chmod 600 .env
 fi
 
 if [ -d .git ]; then

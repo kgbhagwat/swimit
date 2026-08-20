@@ -16,6 +16,8 @@ services:
         value: production
       - key: CORS_ORIGIN
         value: https://swimit.co.in
+      - key: AUTH_SESSION_SECRET
+        generateValue: true
       - key: DATABASE_URL
         fromDatabase:
           name: swimit-db

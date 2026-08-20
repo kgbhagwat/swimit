@@ -46,10 +46,12 @@ SQL
 ENV_FILE="$APP_DIR/server/.env"
 if [ ! -f "$ENV_FILE" ]; then
   echo "==> writing $ENV_FILE"
+  AUTH_SESSION_SECRET="$(openssl rand -hex 32)"
   cat > "$ENV_FILE" <<EOF
 PORT=${STAGING_PORT}
 DATABASE_URL=postgresql://${STAGING_DB_USER}:${STAGING_DB_PASS}@127.0.0.1:5432/${STAGING_DB}
 CORS_ORIGIN=https://${STAGING_HOST}
+AUTH_SESSION_SECRET=${AUTH_SESSION_SECRET}
 EOF
   chmod 600 "$ENV_FILE"
 else
