@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { CroppedPaymentQr } from './CroppedPaymentQr';
 import { FilePreview } from './FilePreview';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
@@ -20,6 +19,9 @@ import {
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
 import { isPdfUrl } from './uploadFile';
+import { useObjectUrl } from './useObjectUrl';
+import { PhotoPickerButtons } from './WebcamCapture';
+import { readSampleSwimmerProfile } from './sampleSwimmerEdit';
 
 type PendingSwimmer = {
   id: number;
@@ -152,8 +154,40 @@ const SAMPLE_PAYMENT_QR_URL =
   <text x="90" y="98" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#64748b">SAMPLE</text>
 </svg>`);
 
+const SAMPLE_IDENTITY_PROOF_URL =
+  'data:image/svg+xml,' +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="720" height="450" viewBox="0 0 720 450">
+  <rect width="720" height="450" rx="28" fill="#eef4fb"/>
+  <rect x="24" y="24" width="672" height="402" rx="20" fill="#fff" stroke="#9fb4cf" stroke-width="3"/>
+  <circle cx="145" cy="205" r="70" fill="#d8e4f2"/>
+  <circle cx="145" cy="183" r="27" fill="#7187a3"/>
+  <path d="M95 267c12-42 88-42 100 0" fill="#7187a3"/>
+  <text x="255" y="145" font-family="sans-serif" font-size="30" font-weight="700" fill="#193b68">SAMPLE IDENTITY PROOF</text>
+  <text x="255" y="205" font-family="sans-serif" font-size="23" fill="#506987">Aarav Patil</text>
+  <text x="255" y="252" font-family="sans-serif" font-size="21" fill="#506987">Document no. •••• •••• 1234</text>
+  <text x="360" y="385" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#8aa0ba">For demonstration only</text>
+</svg>`);
+
+const SAMPLE_SWIMMER_PHOTO_URL =
+  'data:image/svg+xml,' +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="640" viewBox="0 0 480 640">
+  <rect width="480" height="640" fill="#dceafa"/>
+  <circle cx="240" cy="230" r="105" fill="#8098b5"/>
+  <path d="M75 610c18-160 104-235 165-235s147 75 165 235" fill="#607b9e"/>
+  <text x="240" y="70" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#24466f">SAMPLE PHOTO</text>
+</svg>`);
+
 function isSamplePendingId(id: number) {
   return id < 0;
+}
+
+function fileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 function sampleProfileFromRow(row: PendingSwimmer): SwimmerProfile {
@@ -178,8 +212,8 @@ function sampleProfileFromRow(row: PendingSwimmer): SwimmerProfile {
     doctorName: '',
     doctorNo: '',
     identityDocument: 'Aadhaar',
-    identityPhotoUrl: null,
-    photoUrl: null,
+    identityPhotoUrl: SAMPLE_IDENTITY_PROOF_URL,
+    photoUrl: SAMPLE_SWIMMER_PHOTO_URL,
   };
 }
 
@@ -341,6 +375,9 @@ export function PassPayment() {
   const [swimmerProfile, setSwimmerProfile] = useState<SwimmerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [detailsConfirmed, setDetailsConfirmed] = useState(false);
+  const [sampleEditProfile, setSampleEditProfile] = useState<SwimmerProfile | null>(null);
+  const [sampleIdentityFile, setSampleIdentityFile] = useState<File | null>(null);
+  const [samplePhotoFile, setSamplePhotoFile] = useState<File | null>(null);
   const [issueSuccessMessage, setIssueSuccessMessage] = useState('');
   const [dismissedSampleIds, setDismissedSampleIds] = useState<number[]>([]);
   const issueCloseTimerRef = useRef<number | null>(null);
@@ -451,9 +488,29 @@ export function PassPayment() {
 
   function openPay(row: PendingSwimmer) {
     const sample = isSamplePendingId(row.id);
+    const defaultSampleProfile = sample ? sampleProfileFromRow(row) : null;
+    const storedSampleProfile = sample ? readSampleSwimmerProfile(row.id) : null;
+    const savedSampleProfile =
+      storedSampleProfile && defaultSampleProfile
+        ? {
+            ...defaultSampleProfile,
+            ...storedSampleProfile,
+            identityPhotoUrl:
+              storedSampleProfile.identityPhotoUrl ?? defaultSampleProfile.identityPhotoUrl,
+            photoUrl: storedSampleProfile.photoUrl ?? defaultSampleProfile.photoUrl,
+          }
+        : null;
+    const effectiveRow = savedSampleProfile
+      ? {
+          ...row,
+          fullName: savedSampleProfile.fullName,
+          contact: savedSampleProfile.whatsappMobile,
+          email: savedSampleProfile.email,
+        }
+      : row;
     const activePassTypes = sample ? SAMPLE_PASS_TYPES : passTypes;
     const activeBatches = sample ? SAMPLE_BATCHES : batches;
-    setPaying(row);
+    setPaying(effectiveRow);
     const matched = activePassTypes.find((pass) => pass.passName === row.passType);
     setPassTypeId(matched ? String(matched.id) : '');
     setBatch(resolveBatchValue(row.batch || '', activeBatches));
@@ -472,7 +529,7 @@ export function PassPayment() {
     setIssueSuccessMessage('');
     setDetailsConfirmed(false);
     if (sample) {
-      setSwimmerProfile(sampleProfileFromRow(row));
+      setSwimmerProfile(savedSampleProfile ?? defaultSampleProfile);
       setProfileLoading(false);
       setHolidayRecords([]);
       setHolidaysLoading(false);
@@ -525,9 +582,62 @@ export function PassPayment() {
   }
 
   const samplePaying = Boolean(paying && isSamplePendingId(paying.id));
+  const sampleIdentityPreview = useObjectUrl(sampleIdentityFile);
+  const samplePhotoPreview = useObjectUrl(samplePhotoFile);
   const activePassTypes = samplePaying ? SAMPLE_PASS_TYPES : passTypes;
   const activeBatches = samplePaying ? SAMPLE_BATCHES : batches;
   const activeCoaches = samplePaying ? SAMPLE_COACHES : coaches;
+
+  function openSwimmerEdit() {
+    if (!paying || !swimmerProfile) return;
+    if (samplePaying) {
+      navigate(tenantPath(`/register/${paying.id}`), {
+        state: {
+          returnTo: tenantPath('/pass-payment'),
+          sampleProfile: swimmerProfile,
+        },
+      });
+      return;
+    }
+    navigate(tenantPath(`/register/${paying.id}`), {
+      state: { returnTo: tenantPath('/pass-payment') },
+    });
+  }
+
+  function closeSampleSwimmerEdit() {
+    setSampleEditProfile(null);
+    setSampleIdentityFile(null);
+    setSamplePhotoFile(null);
+  }
+
+  async function saveSampleSwimmerEdit() {
+    if (!sampleEditProfile) return;
+    const identityPhotoUrl = sampleIdentityFile
+      ? await fileAsDataUrl(sampleIdentityFile)
+      : sampleEditProfile.identityPhotoUrl;
+    const photoUrl = samplePhotoFile
+      ? await fileAsDataUrl(samplePhotoFile)
+      : sampleEditProfile.photoUrl;
+    setSwimmerProfile({
+      ...sampleEditProfile,
+      identityPhotoUrl,
+      photoUrl,
+    });
+    setPaying((current) =>
+      current
+        ? {
+            ...current,
+            fullName: sampleEditProfile.fullName,
+            contact: sampleEditProfile.whatsappMobile,
+            email: sampleEditProfile.email,
+          }
+        : current,
+    );
+    setDetailsConfirmed(false);
+    setSampleEditProfile(null);
+    setSampleIdentityFile(null);
+    setSamplePhotoFile(null);
+  }
 
   const selectedPass = activePassTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
   const coachingRequired = Boolean(selectedPass && selectedPass.coach !== 'Not Required');
@@ -1126,15 +1236,11 @@ export function PassPayment() {
             loading={profileLoading}
             title={t('Confirm swimmer details')}
             actions={
-              canEdit && swimmerProfile && !samplePaying ? (
+              canEdit && swimmerProfile ? (
                 <button
                   type="button"
                   className="submit"
-                  onClick={() =>
-                    navigate(tenantPath(`/register/${paying.id}`), {
-                      state: { returnTo: tenantPath('/pass-payment') },
-                    })
-                  }
+                  onClick={openSwimmerEdit}
                 >
                   {t('Edit')}
                 </button>
@@ -1426,7 +1532,7 @@ export function PassPayment() {
                           className="online-payment-qr"
                         />
                       ) : (
-                        <CroppedPaymentQr
+                        <FilePreview
                           src={onlineQrUrl}
                           alt={t('Payment QR code')}
                           className="online-payment-qr"
@@ -1481,6 +1587,286 @@ export function PassPayment() {
         )}
 
         {error && !paying ? <p className="error">{t(error)}</p> : null}
+        {sampleEditProfile ? (
+          <div className="modal-backdrop" onMouseDown={closeSampleSwimmerEdit}>
+            <form
+              className="modal-panel sample-swimmer-edit-modal"
+              aria-labelledby="sample-swimmer-edit-title"
+              onMouseDown={(event) => event.stopPropagation()}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveSampleSwimmerEdit();
+              }}
+            >
+              <h2 id="sample-swimmer-edit-title">{t('Edit swimmer')}</h2>
+              <p className="modal-intro">{t('Update the swimmer details and save your changes.')}</p>
+              <div className="modal-scroll">
+                <div className="grid-2 sample-swimmer-edit-grid">
+                  <label className="field">
+                    <span className="label">{t('Full name')}</span>
+                    <input
+                      value={sampleEditProfile.fullName}
+                      onChange={(event) =>
+                        setSampleEditProfile({ ...sampleEditProfile, fullName: event.target.value })
+                      }
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Birth date')}</span>
+                    <input
+                      type="date"
+                      value={sampleEditProfile.birthdate}
+                      onChange={(event) =>
+                        setSampleEditProfile({ ...sampleEditProfile, birthdate: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="field sample-swimmer-edit-wide">
+                    <span className="label">{t('Full address')}</span>
+                    <textarea
+                      value={sampleEditProfile.fullAddress}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          fullAddress: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('WhatsApp mobile')}</span>
+                    <input
+                      value={sampleEditProfile.whatsappMobile}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          whatsappMobile: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Other mobile')}</span>
+                    <input
+                      value={sampleEditProfile.otherMobile}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          otherMobile: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Email')}</span>
+                    <input
+                      type="email"
+                      value={sampleEditProfile.email}
+                      onChange={(event) =>
+                        setSampleEditProfile({ ...sampleEditProfile, email: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Sex')}</span>
+                    <select
+                      value={sampleEditProfile.sex}
+                      onChange={(event) =>
+                        setSampleEditProfile({ ...sampleEditProfile, sex: event.target.value })
+                      }
+                    >
+                      <option value="Male">{t('Male')}</option>
+                      <option value="Female">{t('Female')}</option>
+                      <option value="Other">{t('Other')}</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Blood group')}</span>
+                    <input
+                      value={sampleEditProfile.bloodGroup}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          bloodGroup: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Parent name')}</span>
+                    <input
+                      value={sampleEditProfile.parentName}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          parentName: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Parent relation')}</span>
+                    <input
+                      value={sampleEditProfile.parentRelation}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          parentRelation: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Parent contact')}</span>
+                    <input
+                      value={sampleEditProfile.parentMobile}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          parentMobile: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Emergency name')}</span>
+                    <input
+                      value={sampleEditProfile.emergencyName}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          emergencyName: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Emergency relation')}</span>
+                    <input
+                      value={sampleEditProfile.emergencyRelation}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          emergencyRelation: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Emergency mobile')}</span>
+                    <input
+                      value={sampleEditProfile.emergencyMobile}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          emergencyMobile: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Health issue')}</span>
+                    <select
+                      value={sampleEditProfile.hasHealthIssue}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          hasHealthIssue: event.target.value,
+                        })
+                      }
+                    >
+                      <option value="No">{t('No')}</option>
+                      <option value="Yes">{t('Yes')}</option>
+                    </select>
+                  </label>
+                  {sampleEditProfile.hasHealthIssue === 'Yes' ? (
+                    <label className="field">
+                      <span className="label">{t('Health issue details')}</span>
+                      <input
+                        value={sampleEditProfile.healthIssueDetails}
+                        onChange={(event) =>
+                          setSampleEditProfile({
+                            ...sampleEditProfile,
+                            healthIssueDetails: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  ) : null}
+                  <label className="field">
+                    <span className="label">{t('Identity document')}</span>
+                    <input
+                      value={sampleEditProfile.identityDocument}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          identityDocument: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="label">{t('Identity number')}</span>
+                    <input
+                      value={sampleEditProfile.identityNumber ?? ''}
+                      onChange={(event) =>
+                        setSampleEditProfile({
+                          ...sampleEditProfile,
+                          identityNumber: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="photo-field sample-swimmer-edit-wide">
+                    <span className="label">{t('Photo of identity proof')}</span>
+                    <PhotoPickerButtons
+                      takeLabel={t('Take photo')}
+                      uploadLabel={t('Upload')}
+                      facing="environment"
+                      guide="document"
+                      onPickFile={setSampleIdentityFile}
+                    />
+                    <FilePreview
+                      src={sampleIdentityPreview ?? sampleEditProfile.identityPhotoUrl}
+                      file={sampleIdentityFile}
+                      alt={t('Identity proof preview')}
+                      className="preview pool-core-preview"
+                    />
+                  </div>
+                  <div className="photo-field sample-swimmer-edit-wide">
+                    <span className="label">{t('Swimmer photo')}</span>
+                    <PhotoPickerButtons
+                      takeLabel={t('Take photo')}
+                      uploadLabel={t('Upload')}
+                      facing="user"
+                      guide="face"
+                      onPickFile={setSamplePhotoFile}
+                    />
+                    <FilePreview
+                      src={samplePhotoPreview ?? sampleEditProfile.photoUrl}
+                      file={samplePhotoFile}
+                      alt={t('Swimmer photo preview')}
+                      className="preview pool-core-preview"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={closeSampleSwimmerEdit}
+                >
+                  {t('Cancel')}
+                </button>
+                <button type="submit" className="submit">
+                  {t('Save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
     </PlatformPage>
   );
 }

@@ -532,7 +532,13 @@ export function RenewPayment() {
               </p>
 
               <div className="online-payment-details">
-                {payment.upiId && pending.expectedAmount > 0 ? (
+                {uploadUrl(payment.paymentQrPath) ? (
+                  <FilePreview
+                    src={uploadUrl(payment.paymentQrPath)!}
+                    alt={t('SwimIT SaaS payment QR code')}
+                    className="online-payment-qr"
+                  />
+                ) : payment.upiId && pending.expectedAmount > 0 ? (
                   <>
                     <QrImage
                       value={buildUpiPayUri(
@@ -558,12 +564,6 @@ export function RenewPayment() {
                       {t('Tap the QR to choose a payment app.')}
                     </p>
                   </>
-                ) : uploadUrl(payment.paymentQrPath) ? (
-                  <FilePreview
-                    src={uploadUrl(payment.paymentQrPath)!}
-                    alt={t('SwimIT SaaS payment QR code')}
-                    className="online-payment-qr"
-                  />
                 ) : (
                   <p className="muted">{t('No SaaS payment QR configured yet.')}</p>
                 )}

@@ -215,13 +215,26 @@ export async function cropPaymentQrFromUrl(src: string): Promise<Blob | null> {
   if (sw < 40 || sh < 40) return null;
 
   const side = Math.max(sw, sh);
+  // QR readers require a clear quiet zone around all four sides. The finder
+  // crop deliberately locates the printed QR edge, so add that margin back.
+  const quietZone = Math.max(12, Math.round(side * 0.09));
   const out = document.createElement('canvas');
-  out.width = side;
-  out.height = side;
+  out.width = side + quietZone * 2;
+  out.height = side + quietZone * 2;
   const outCtx = out.getContext('2d');
   if (!outCtx) return null;
   outCtx.fillStyle = '#fff';
-  outCtx.fillRect(0, 0, side, side);
-  outCtx.drawImage(img, sx, sy, sw, sh, Math.floor((side - sw) / 2), Math.floor((side - sh) / 2), sw, sh);
+  outCtx.fillRect(0, 0, out.width, out.height);
+  outCtx.drawImage(
+    img,
+    sx,
+    sy,
+    sw,
+    sh,
+    quietZone + Math.floor((side - sw) / 2),
+    quietZone + Math.floor((side - sh) / 2),
+    sw,
+    sh,
+  );
   return canvasToPng(out);
 }

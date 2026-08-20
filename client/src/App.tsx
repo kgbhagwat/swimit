@@ -13,6 +13,8 @@ import { RegistrationPhotoField } from './RegistrationPhotoField';
 import { BirthDateField, ageYearsAsOfToday } from './BirthDateField';
 import { clearFormDraft, mergeDraft, readFormDraft, useFormDraft } from './formDraft';
 import { useObjectUrl } from './useObjectUrl';
+import type { SwimmerProfile } from './SwimmerProfileReview';
+import { fileAsDataUrl, saveSampleSwimmerProfile } from './sampleSwimmerEdit';
 
 
 type FormState = {
@@ -72,6 +74,17 @@ function Label({ children, required }: { children: string; required?: boolean })
   );
 }
 
+function FieldValidationError({
+  show,
+  message = 'This field is required.',
+}: {
+  show: boolean;
+  message?: string;
+}) {
+  const t = useT();
+  return show ? <span className="field-error">{t(message)}</span> : null;
+}
+
 const SWIMMER_FORM_DRAFT = 'swimmer-registration';
 
 type SwimmerDraft = { form: FormState; parentOnly: boolean };
@@ -80,12 +93,77 @@ function getAgeYears(birthdate: string) {
   return ageYearsAsOfToday(birthdate);
 }
 
+function profileToForm(data: SwimmerProfile): FormState {
+  return {
+    fullName: data.fullName ?? '',
+    fullAddress: data.fullAddress ?? '',
+    whatsappMobile: data.whatsappMobile ?? '',
+    otherMobile: data.otherMobile ?? '',
+    email: data.email ?? '',
+    birthdate: data.birthdate ?? '',
+    sex: data.sex ?? '',
+    bloodGroup: data.bloodGroup ?? '',
+    parentName: data.parentName ?? '',
+    parentRelation: data.parentRelation ?? '',
+    parentMobile: data.parentMobile ?? '',
+    emergencyName: data.emergencyName ?? '',
+    emergencyRelation: data.emergencyRelation ?? '',
+    emergencyMobile: data.emergencyMobile ?? '',
+    hasHealthIssue: data.hasHealthIssue ?? 'No',
+    healthIssueDetails: data.healthIssueDetails ?? '',
+    doctorName: data.doctorName ?? '',
+    doctorNo: data.doctorNo ?? '',
+    identityDocument: data.identityDocument ?? '',
+    identityNumber: data.identityNumber ?? '',
+    acceptedTerms: true,
+  };
+}
+
+function formToProfile(
+  form: FormState,
+  base: SwimmerProfile,
+  identityPhotoUrl: string | null,
+  photoUrl: string | null,
+): SwimmerProfile {
+  return {
+    ...base,
+    fullName: form.fullName,
+    fullAddress: form.fullAddress,
+    whatsappMobile: form.whatsappMobile,
+    otherMobile: form.otherMobile,
+    email: form.email,
+    birthdate: form.birthdate,
+    sex: form.sex,
+    bloodGroup: form.bloodGroup,
+    parentName: form.parentName,
+    parentRelation: form.parentRelation,
+    parentMobile: form.parentMobile,
+    emergencyName: form.emergencyName,
+    emergencyRelation: form.emergencyRelation,
+    emergencyMobile: form.emergencyMobile,
+    hasHealthIssue: form.hasHealthIssue,
+    healthIssueDetails: form.healthIssueDetails,
+    doctorName: form.doctorName,
+    doctorNo: form.doctorNo,
+    identityDocument: form.identityDocument,
+    identityNumber: form.identityNumber,
+    identityPhotoUrl,
+    photoUrl,
+  };
+}
+
 export function App() {
   const { id: editIdParam } = useParams();
   const editId = Number(editIdParam);
-  const isEdit = Number.isFinite(editId) && editId > 0;
   const navigate = useNavigate();
   const location = useLocation();
+  const locationState = location.state as {
+    returnTo?: string;
+    sampleProfile?: SwimmerProfile;
+  } | null;
+  const sampleProfile = locationState?.sampleProfile ?? null;
+  const isSampleEdit = Boolean(sampleProfile && editId < 0);
+  const isEdit = (Number.isFinite(editId) && editId > 0) || isSampleEdit;
 
   const t = useT();
   const savedDraft = !isEdit ? readFormDraft<SwimmerDraft>(SWIMMER_FORM_DRAFT) : null;
@@ -96,7 +174,6 @@ export function App() {
   const [error, setError] = useState('');
   const [errorCount, setErrorCount] = useState(0);
   const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
-  const [missingLabels, setMissingLabels] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [parentOnly, setParentOnly] = useState(() => Boolean(savedDraft?.parentOnly));
@@ -109,6 +186,13 @@ export function App() {
 
   useEffect(() => {
     if (!isEdit) return;
+    if (isSampleEdit && sampleProfile) {
+      setForm(profileToForm(sampleProfile));
+      setExistingIdentityUrl(sampleProfile.identityPhotoUrl ?? null);
+      setExistingSwimmerUrl(sampleProfile.photoUrl ?? null);
+      setLoadingEdit(false);
+      return;
+    }
     if (!canEditPage('swimmers')) {
       setLoadError('You do not have permission to edit swimmers');
       setLoadingEdit(false);
@@ -125,41 +209,23 @@ export function App() {
         return res.json();
       })
       .then((data) => {
-        setForm({
-          fullName: data.fullName ?? '',
-          fullAddress: data.fullAddress ?? '',
-          whatsappMobile: data.whatsappMobile ?? '',
-          otherMobile: data.otherMobile ?? '',
-          email: data.email ?? '',
-          birthdate: data.birthdate ?? '',
-          sex: data.sex ?? '',
-          bloodGroup: data.bloodGroup ?? '',
-          parentName: data.parentName ?? '',
-          parentRelation: data.parentRelation ?? '',
-          parentMobile: data.parentMobile ?? '',
-          emergencyName: data.emergencyName ?? '',
-          emergencyRelation: data.emergencyRelation ?? '',
-          emergencyMobile: data.emergencyMobile ?? '',
-          hasHealthIssue: data.hasHealthIssue ?? 'No',
-          healthIssueDetails: data.healthIssueDetails ?? '',
-          doctorName: data.doctorName ?? '',
-          doctorNo: data.doctorNo ?? '',
-          identityDocument: data.identityDocument ?? '',
-          identityNumber: data.identityNumber ?? '',
-          acceptedTerms: true,
-        });
+        setForm(profileToForm(data as SwimmerProfile));
         setExistingIdentityUrl(data.identityPhotoUrl ?? null);
         setExistingSwimmerUrl(data.photoUrl ?? null);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load swimmer'))
       .finally(() => setLoadingEdit(false));
-  }, [editId, isEdit]);
+  }, [editId, isEdit, isSampleEdit, sampleProfile]);
 
   const ageYears = useMemo(() => getAgeYears(form.birthdate), [form.birthdate]);
   const needsParentInfo = ageYears !== null && ageYears < 18;
 
   const identityPreview = useObjectUrl(identityPhoto);
   const swimmerPreview = useObjectUrl(swimmerPhoto);
+
+  function cancelEdit() {
+    navigate(locationState?.returnTo || tenantPath('/swimmers'));
+  }
 
   function mapParentRelationToEmergency(relation: string) {
     if (relation === 'Father' || relation === 'Mother') return 'Parent';
@@ -177,44 +243,12 @@ export function App() {
     };
   }
 
-  function fieldLabel(key: string) {
-    const labels: Record<string, string> = {
-      fullName: t("Full name"),
-      fullAddress: t("Full address"),
-      whatsappMobile: t("WhatsApp mobile no."),
-      otherMobile: t("Another mobile no."),
-      email: t("Email"),
-      birthdate: t("Birth Date"),
-      sex: t("Sex"),
-      bloodGroup: t("Blood group"),
-      parentName: t("Name"),
-      parentRelation: t("Relationship"),
-      parentMobile: t("Contact no."),
-      emergencyName: t("Emergency contact name"),
-      emergencyRelation: t("Relation"),
-      emergencyMobile: t("Emergency contact no."),
-      healthIssueDetails: t("Disease / health issue"),
-      doctorNo: t("Doctor no."),
-      identityDocument: t("Identity document"),
-      identityNumber: t('Identity number'),
-      identityPhoto: t("Photo of identity proof"),
-      swimmerPhoto: t("Swimmer photo"),
-      acceptedTerms: t("Terms & Conditions"),
-    };
-    return labels[key] ?? key;
-  }
-
-  function labelsForFields(fields: Set<string>) {
-    return [...fields].map((key) => fieldLabel(key));
-  }
-
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setInvalidFields((prev) => {
       if (!prev.has(String(key))) return prev;
       const next = new Set(prev);
       next.delete(String(key));
       setErrorCount(next.size);
-      setMissingLabels(labelsForFields(next));
       if (next.size === 0) setError('');
       return next;
     });
@@ -236,6 +270,8 @@ export function App() {
       if (!prev.has('birthdate')) return prev;
       const next = new Set(prev);
       next.delete('birthdate');
+      setErrorCount(next.size);
+      if (next.size === 0) setError('');
       return next;
     });
     const age = getAgeYears(value);
@@ -326,13 +362,30 @@ export function App() {
     e.preventDefault();
     setError('');
     setErrorCount(0);
-    setMissingLabels([]);
 
     const fields = collectInvalidFields();
     setInvalidFields(fields);
     if (fields.size > 0) {
       setErrorCount(fields.size);
-      setMissingLabels(labelsForFields(fields));
+      return;
+    }
+
+    if (isSampleEdit && sampleProfile) {
+      setSubmitting(true);
+      try {
+        const identityPhotoUrl = identityPhoto
+          ? await fileAsDataUrl(identityPhoto)
+          : existingIdentityUrl;
+        const photoUrl = swimmerPhoto ? await fileAsDataUrl(swimmerPhoto) : existingSwimmerUrl;
+        saveSampleSwimmerProfile(
+          formToProfile(form, sampleProfile, identityPhotoUrl, photoUrl),
+        );
+        navigate(locationState?.returnTo || tenantPath('/pass-payment'));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Update failed');
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
@@ -354,7 +407,7 @@ export function App() {
         throw new Error(payload.error ?? (isEdit ? 'Update failed' : 'Registration failed'));
       }
       if (isEdit) {
-        const returnTo = (location.state as { returnTo?: string } | null)?.returnTo;
+        const returnTo = locationState?.returnTo;
         navigate(typeof returnTo === 'string' && returnTo ? returnTo : tenantPath('/swimmers'));
         return;
       }
@@ -365,13 +418,11 @@ export function App() {
       clearFormDraft(SWIMMER_FORM_DRAFT);
       setError('');
       setErrorCount(0);
-      setMissingLabels([]);
       setInvalidFields(new Set());
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setErrorCount(1);
-      setMissingLabels([]);
       setError(err instanceof Error ? err.message : isEdit ? 'Update failed' : 'Registration failed');
     } finally {
       setSubmitting(false);
@@ -382,7 +433,6 @@ export function App() {
     setSubmitted(false);
     setError('');
     setErrorCount(0);
-    setMissingLabels([]);
     setInvalidFields(new Set());
   }
 
@@ -454,6 +504,9 @@ export function App() {
               {nameHint(form.fullName) ? (
                 <span className="field-error">{t(nameHint(form.fullName))}</span>
               ) : null}
+              <FieldValidationError
+                show={isInvalid('fullName') && !Boolean(nameHint(form.fullName))}
+              />
             </label>
 
             <label className="field field-beside">
@@ -466,6 +519,7 @@ export function App() {
                 required
                 aria-invalid={isInvalid('fullAddress')}
               />
+              <FieldValidationError show={isInvalid('fullAddress')} />
             </label>
           </div>
 
@@ -484,6 +538,9 @@ export function App() {
               {mobileHint(form.whatsappMobile) ? (
                 <span className="field-error">{mobileHint(form.whatsappMobile)}</span>
               ) : null}
+              <FieldValidationError
+                show={isInvalid('whatsappMobile') && !Boolean(mobileHint(form.whatsappMobile))}
+              />
             </label>
             <label className="field field-beside">
               <Label>{t("Another mobile no.")}</Label>
@@ -524,6 +581,10 @@ export function App() {
                 required
                 invalid={isInvalid('birthdate')}
               />
+              <FieldValidationError
+                show={isInvalid('birthdate')}
+                message="Enter a valid birth date."
+              />
             </label>
             <label className="field field-beside">
               <Label required>{t("Sex")}</Label>
@@ -539,6 +600,7 @@ export function App() {
                 <option value="Female">{t("Female")}</option>
                 <option value="Other">{t("Other")}</option>
               </select>
+              <FieldValidationError show={isInvalid('sex')} />
             </label>
             <label className="field field-beside">
               <Label required>{t("Blood group")}</Label>
@@ -556,6 +618,7 @@ export function App() {
                   </option>
                 ))}
               </select>
+              <FieldValidationError show={isInvalid('bloodGroup')} />
             </label>
           </div>
         </section>
@@ -578,6 +641,9 @@ export function App() {
                 {nameHint(form.parentName) ? (
                   <span className="field-error">{t(nameHint(form.parentName))}</span>
                 ) : null}
+                <FieldValidationError
+                  show={isInvalid('parentName') && !Boolean(nameHint(form.parentName))}
+                />
               </label>
               <label className="field field-beside">
                 <Label required>{t("Relationship")}</Label>
@@ -594,6 +660,7 @@ export function App() {
                   <option value="Guardian">{t("Guardian")}</option>
                   <option value="Other">{t("Other")}</option>
                 </select>
+                <FieldValidationError show={isInvalid('parentRelation')} />
               </label>
               <label className="field field-beside">
                 <Label required>{t("Contact no.")}</Label>
@@ -611,6 +678,9 @@ export function App() {
                 {mobileHint(form.parentMobile) ? (
                   <span className="field-error">{mobileHint(form.parentMobile)}</span>
                 ) : null}
+                <FieldValidationError
+                  show={isInvalid('parentMobile') && !Boolean(mobileHint(form.parentMobile))}
+                />
               </label>
             </div>
           </section>
@@ -644,6 +714,9 @@ export function App() {
               {nameHint(form.emergencyName) ? (
                 <span className="field-error">{t(nameHint(form.emergencyName))}</span>
               ) : null}
+              <FieldValidationError
+                show={isInvalid('emergencyName') && !Boolean(nameHint(form.emergencyName))}
+              />
             </label>
             <label className="field field-beside">
               <Label required>{t("Relation")}</Label>
@@ -663,6 +736,7 @@ export function App() {
                 <option value="Guardian">{t("Guardian")}</option>
                 <option value="Other">{t("Other")}</option>
               </select>
+              <FieldValidationError show={isInvalid('emergencyRelation')} />
             </label>
             <label className="field field-beside">
               <Label required>{t("Emergency contact no.")}</Label>
@@ -688,6 +762,17 @@ export function App() {
                 }) ? (
                 <span className="field-error">{t("Emergency contact number cannot be the same as the applicant mobile number")}</span>
               ) : null}
+              <FieldValidationError
+                show={
+                  isInvalid('emergencyMobile') &&
+                  !Boolean(mobileHint(form.emergencyMobile)) &&
+                  !emergencyMatchesApplicant({
+                    emergencyMobile: form.emergencyMobile,
+                    whatsappMobile: form.whatsappMobile,
+                    otherMobile: form.otherMobile,
+                  })
+                }
+              />
             </label>
           </div>
         </section>
@@ -718,6 +803,7 @@ export function App() {
                   required
                   aria-invalid={isInvalid('healthIssueDetails')}
                 />
+                <FieldValidationError show={isInvalid('healthIssueDetails')} />
               </label>
               <div className="medical-doctor-col">
                 <label className="field field-beside">
@@ -802,21 +888,27 @@ export function App() {
           {isEdit ? (
             <span />
           ) : (
-            <label className={`terms${isInvalid('acceptedTerms') ? ' field-box-invalid' : ''}`}>
-              <input
-                type="checkbox"
-                checked={form.acceptedTerms}
-                onChange={(e) => setField('acceptedTerms', e.target.checked)}
-                required
-                aria-invalid={isInvalid('acceptedTerms')}
+            <div>
+              <label className={`terms${isInvalid('acceptedTerms') ? ' field-box-invalid' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={form.acceptedTerms}
+                  onChange={(e) => setField('acceptedTerms', e.target.checked)}
+                  required
+                  aria-invalid={isInvalid('acceptedTerms')}
+                />
+                <span>
+                  {t("I accept the")}{' '}
+                  <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
+                    {t("Terms & Conditions")}
+                  </button>
+                </span>
+              </label>
+              <FieldValidationError
+                show={isInvalid('acceptedTerms')}
+                message="Please accept the Terms & Conditions."
               />
-              <span>
-                {t("I accept the")}{' '}
-                <button type="button" className="terms-link" onClick={() => setTermsOpen(true)}>
-                  {t("Terms & Conditions")}
-                </button>
-              </span>
-            </label>
+            </div>
           )}
           <div className="submit-wrap">
             {errorCount > 0 ? (
@@ -827,14 +919,17 @@ export function App() {
                     : t("{count} errors").replace('{count}', String(errorCount))}
                 </p>
                 {error ? <p className="error submit-error-detail">{error}</p> : null}
-                {missingLabels.length > 0 ? (
-                  <ul className="submit-error-list">
-                    {missingLabels.map((label) => (
-                      <li key={label}>{label}</li>
-                    ))}
-                  </ul>
-                ) : null}
               </div>
+            ) : null}
+            {isEdit ? (
+              <button
+                className="ghost-btn"
+                type="button"
+                disabled={submitting}
+                onClick={cancelEdit}
+              >
+                {t('Cancel')}
+              </button>
             ) : null}
             <button className="submit" type="submit" disabled={submitting}>
               {submitting ? t("Submitting…") : isEdit ? t("Save changes") : t("Submit")}

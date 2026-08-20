@@ -1,0 +1,33 @@
+---
+description: Prefer the lowest-cost suitable agent path for every task
+alwaysApply: true
+---
+
+# Cost-efficient agent usage
+
+Keep work lean. Use the cheapest approach that can correctly finish the task.
+
+## Default approach
+
+1. Handle the task directly when a few reads, greps, or a small edit are enough.
+2. Prefer targeted tools over broad exploration.
+3. Avoid subagents unless delegation clearly saves time or needs parallel work.
+
+## When delegating (Task tool)
+
+- Use `explore` with `"quick"` for narrow lookups; use `"medium"` only when needed.
+- Use `model: "inherit"` unless the user asks for a specific model.
+- Do not launch heavy subagents (Bugbot, security-review, best-of-n) unless explicitly requested.
+- Do not run multiple subagents in parallel unless the user asks or the task truly requires it.
+
+## When to use more capacity
+
+Only escalate (broader search, more files, subagents) when:
+- the codebase location is unknown after a quick check
+- the change touches many systems
+- debugging needs runtime or CI evidence across multiple areas
+
+## Response style
+
+- Stay concise; skip optional follow-ups and over-engineering.
+- Minimize diff scope; do not refactor unrelated code.

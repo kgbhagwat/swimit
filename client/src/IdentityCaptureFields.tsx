@@ -83,6 +83,9 @@ export function IdentityCaptureFields({
             </option>
           ))}
         </select>
+        {documentInvalid ? (
+          <span className="field-error">{t('This field is required.')}</span>
+        ) : null}
       </label>
       <label
         className={`field field-beside registration-identity-number${

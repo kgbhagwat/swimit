@@ -154,6 +154,7 @@ export function RegistrationPhotoField({
           {resolvedUpload}
         </button>
       </div>
+      {invalid ? <span className="field-error">{t('This field is required.')}</span> : null}
       {display ? (
         <SensitiveSurface
           className="photo-field-sensitive"

@@ -1358,6 +1358,10 @@ html[data-theme='dark'] .pdf-preview {
   object-fit: cover;
 }
 
+.webcam-capture-video--mirrored {
+  transform: scaleX(-1);
+}
+
 .webcam-capture-stage {
   position: relative;
 }
@@ -1501,6 +1505,172 @@ html[data-theme='dark'] .pdf-preview {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem 0.9rem;
+}
+
+.image-crop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(4, 12, 24, 0.78);
+  backdrop-filter: blur(3px);
+}
+
+.image-crop-panel {
+  width: min(42rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: 1rem;
+  border: 1px solid #d4deeb;
+  border-radius: 16px;
+  background: #fff;
+  color: #18283f;
+  box-shadow: 0 24px 70px rgba(3, 10, 22, 0.42);
+}
+
+.image-crop-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.image-crop-head h2 {
+  margin: 0;
+  color: #16335c;
+  font-size: 1.2rem;
+}
+
+.image-crop-head p {
+  margin: 0.25rem 0 0;
+  color: #607089;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.image-crop-head > button {
+  flex: 0 0 auto;
+  width: 2.3rem;
+  height: 2.3rem;
+  border: 1px solid #cbd6e5;
+  border-radius: 999px;
+  background: #f5f8fc;
+  color: #314866;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.image-crop-stage {
+  position: relative;
+  width: min(100%, 34rem);
+  max-height: 58dvh;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #07111f;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.image-crop-stage:active {
+  cursor: grabbing;
+}
+
+.image-crop-stage img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.image-crop-frame {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(5, 18, 34, 0.35);
+}
+
+.image-crop-zoom {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+  width: min(100%, 34rem);
+  margin: 0.9rem auto 0;
+  color: #3c506d;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.image-crop-zoom input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.image-crop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+html[data-theme='dark'] .image-crop-panel {
+  border-color: #3a5578;
+  background: #11243a;
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] .image-crop-head h2 {
+  color: #f2f7fd;
+}
+
+html[data-theme='dark'] .image-crop-head p,
+html[data-theme='dark'] .image-crop-zoom {
+  color: #adc0d8;
+}
+
+html[data-theme='dark'] .image-crop-head > button,
+html[data-theme='dark'] .image-crop-actions .csv-btn {
+  border-color: #3a5578;
+  background: #1a3452;
+  color: #e8f0fa;
+}
+
+@media (max-width: 520px) {
+  .image-crop-backdrop {
+    padding: 0;
+  }
+
+  .image-crop-panel {
+    width: 100%;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    padding: 0.85rem;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .image-crop-stage {
+    max-height: calc(100dvh - 14rem);
+  }
+
+  .image-crop-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .image-crop-actions .submit {
+    grid-column: 1 / -1;
+  }
 }
 
 .webcam-flip-text-btn {
@@ -2348,6 +2518,27 @@ html[data-theme='dark'] .pdf-preview {
   border-top: 1px solid #e2e8f0;
 }
 
+.tenant-profile-renew {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #2f7fe8;
+  border-radius: 8px;
+  background: #2f7fe8;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tenant-profile-renew:hover {
+  background: #1f69c9;
+  border-color: #1f69c9;
+}
+
 .tenant-saas-payment-qr {
   display: block;
   width: 9.5rem;
@@ -2795,6 +2986,27 @@ button.platform-rail-link {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.sample-swimmer-edit-modal {
+  width: min(760px, 100%);
+}
+
+.sample-swimmer-edit-grid {
+  padding-top: 0.9rem;
+}
+
+.sample-swimmer-edit-grid .field {
+  margin: 0;
+}
+
+.sample-swimmer-edit-wide {
+  grid-column: 1 / -1;
+}
+
+.sample-swimmer-edit-wide textarea {
+  min-height: 4.5rem;
+  resize: vertical;
 }
 
 .modal-panel h2 {
@@ -7613,7 +7825,7 @@ button.coach-payment-back {
 .online-payment-qr {
   flex: 0 0 auto;
   width: 100%;
-  max-width: 240px;
+  max-width: 280px;
   aspect-ratio: 1;
   height: auto;
   min-height: 0;
@@ -17886,6 +18098,29 @@ html[data-theme='dark'] .table-col-filter-menu input {
   border-color: #3a5578 !important;
 }
 
+html[data-theme='dark'] .table-col-filter-list {
+  background: #172a42 !important;
+  border-top-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .table-col-filter-sort-arrows button {
+  background: #12263d !important;
+  border-color: #3a5578 !important;
+  color: #9bb0c9 !important;
+}
+
+html[data-theme='dark'] .table-col-filter-sort-arrows button:hover,
+html[data-theme='dark'] .table-col-filter-sort-arrows button.selected {
+  background: #203d5c !important;
+  border-color: #7eb0ff !important;
+  color: #9ec0ff !important;
+}
+
+html[data-theme='dark'] .table-col-filter-clear {
+  background: #143528 !important;
+  color: #8fefb8 !important;
+}
+
 html[data-theme='dark'] .table-col-filter-item,
 html[data-theme='dark'] .table-col-filter-item span,
 html[data-theme='dark'] .table-col-filter-label,
@@ -19013,6 +19248,29 @@ html[data-theme='dark'] .terms input[type='checkbox'] {
   color-scheme: dark;
 }
 
+html[data-theme='dark'] .batch-option {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .batch-option:hover {
+  background: #203d5c !important;
+  border-color: #5682bd !important;
+}
+
+html[data-theme='dark'] .batch-option.selected {
+  background: #1d3b5d !important;
+  border-color: #7eb0ff !important;
+}
+
+html[data-theme='dark'] .batch-option.disabled,
+html[data-theme='dark'] .batch-option.disabled:hover {
+  background: #152538 !important;
+  border-color: #304966 !important;
+  color: #9bb0c9 !important;
+}
+
 html[data-theme='dark'] .batch-option.invalid,
 html[data-theme='dark'] .batch-option.selected.invalid {
   background: #2a1a1e !important;
@@ -19162,6 +19420,155 @@ html[data-theme='dark'] .swimmer-review-card {
 html[data-theme='dark'] .swimmer-review-card h3,
 html[data-theme='dark'] .swimmer-review-section {
   color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .swimmer-review-grid {
+  background: #3a5578;
+  border-color: #3a5578;
+}
+
+html[data-theme='dark'] .swimmer-review-grid > div,
+html[data-theme='dark'] .swimmer-review-identity-type,
+html[data-theme='dark'] .swimmer-review-photo img,
+html[data-theme='dark'] .swimmer-review-photo-empty {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .swimmer-review-label,
+html[data-theme='dark'] .swimmer-review-photo figcaption {
+  color: #9bb0c9 !important;
+}
+
+html[data-theme='dark'] .swimmer-review-grid strong,
+html[data-theme='dark'] .swimmer-review-grid span:not(.swimmer-review-label),
+html[data-theme='dark'] .swimmer-review-identity-type > span:not(.swimmer-review-label) {
+  color: #e8f0fa !important;
+}
+
+/* Dark theme: shared inner panels used across operational pages */
+html[data-theme='dark'] .payment-summary,
+html[data-theme='dark'] .payment-info-table,
+html[data-theme='dark'] .attendance-swimmer-block,
+html[data-theme='dark'] .swimmer-filter-row,
+html[data-theme='dark'] .upi-pay-summary,
+html[data-theme='dark'] .upi-app-sheet {
+  background: #152538 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-summary-cell,
+html[data-theme='dark'] .payment-info-table th,
+html[data-theme='dark'] .payment-info-table td {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-info-table thead th,
+html[data-theme='dark'] .attendance-swimmer-block-head {
+  background: #1a3452 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-info-table tbody tr:hover td {
+  background: #203d5c !important;
+}
+
+html[data-theme='dark'] .payment-summary-label {
+  color: #9bb0c9 !important;
+}
+
+html[data-theme='dark'] .payment-summary-value,
+html[data-theme='dark'] .payment-swimmer-name,
+html[data-theme='dark'] .upi-pay-summary-amount,
+html[data-theme='dark'] .upi-pay-summary-vpa {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-summary .hint,
+html[data-theme='dark'] .payment-summary-holidays,
+html[data-theme='dark'] .upi-pay-summary-hint {
+  color: #9bb0c9 !important;
+}
+
+html[data-theme='dark'] .upi-app-choice,
+html[data-theme='dark'] .upi-pay-copy {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .upi-app-choice:hover,
+html[data-theme='dark'] .upi-app-choice:focus-visible,
+html[data-theme='dark'] .upi-pay-copy:hover {
+  background: #203d5c !important;
+  border-color: #7eb0ff !important;
+}
+
+html[data-theme='dark'] .upi-app-choice-more {
+  background: #1d5fa7 !important;
+  border-color: #7eb0ff !important;
+  color: #fff !important;
+}
+
+html[data-theme='dark'] .payment-missing-box {
+  background: #2a1a1e !important;
+  border-color: #e07070 !important;
+  color: #ffb4ae !important;
+}
+
+html[data-theme='dark'] .accounts-page .accounts-block,
+html[data-theme='dark'] .accounts-block,
+html[data-theme='dark'] .accounts-block-tone-0,
+html[data-theme='dark'] .accounts-block-tone-1,
+html[data-theme='dark'] .accounts-block-tone-2,
+html[data-theme='dark'] .accounts-block-tone-3 {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .accounts-block-row + .accounts-block-row {
+  border-top-color: #3a5578 !important;
+}
+
+html[data-theme='dark'] .accounts-block-field::before,
+html[data-theme='dark'] .accounts-block-field .accounts-sub {
+  color: #9bb0c9 !important;
+}
+
+html[data-theme='dark'] .support-ticket-item {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .support-ticket-item:hover,
+html[data-theme='dark'] .support-ticket-item.is-active,
+html[data-theme='dark'] .support-center-page.platform-page .support-ticket-item.is-active {
+  background: #203d5c !important;
+  border-color: #7eb0ff !important;
+}
+
+html[data-theme='dark'] .support-message,
+html[data-theme='dark'] .support-center-page.platform-page .support-message {
+  background: #172a42 !important;
+  border-color: #3a5578 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .support-message--mine,
+html[data-theme='dark'] .support-center-page.platform-page .support-message--mine {
+  background: #1d3b5d !important;
+  border-color: #5682bd !important;
+}
+
+html[data-theme='dark'] .support-ticket-preview,
+html[data-theme='dark'] .support-ticket-meta,
+html[data-theme='dark'] .support-message time {
+  color: #9bb0c9 !important;
 }
 
 html[data-theme='dark'] .remote-access-card {

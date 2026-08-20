@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from './i18n';
+import { ImageCropper } from './ImageCropper';
 import { CameraActionIcon, FlipCameraIcon, LandscapePageIcon, PortraitPageIcon, UploadActionIcon } from './PhotoActionIcons';
 import { ACCEPT_IMAGE_OR_PDF } from './uploadFile';
-import { cropImageToDocument, cropImageToPortraitFace } from './compressImage';
 
 export type CameraFacing = 'user' | 'environment';
 
@@ -362,12 +362,24 @@ export function PhotoPickerButtons({
   const phone = prefersPhoneCapture();
   const faceFrame = (guide ?? (facing === 'user' ? 'face' : 'document')) === 'face';
   const [page, setPage] = useState<'landscape' | 'portrait'>('landscape');
+  const [cropRequest, setCropRequest] = useState<{ file: File; aspect: number } | null>(null);
+
+  function pickOrCrop(file: File) {
+    if (!file.type.startsWith('image/')) {
+      onPickFile(file);
+      return;
+    }
+    setCropRequest({
+      file,
+      aspect: faceFrame || page === 'portrait' ? 3 / 4 : 4 / 3,
+    });
+  }
 
   async function onTakePhoto() {
     if (startingRef.current) return;
     if (webcam.live) {
       const file = await webcam.capture(faceFrame ? 'face' : 'document', page);
-      if (file) onPickFile(file);
+      if (file) pickOrCrop(file);
       return;
     }
     startingRef.current = true;
@@ -390,7 +402,9 @@ export function PhotoPickerButtons({
         <div className="webcam-capture-stage">
           <video
             ref={webcam.bindVideo}
-            className="webcam-capture-video"
+            className={`webcam-capture-video${
+              webcam.facing === 'user' ? ' webcam-capture-video--mirrored' : ''
+            }`}
             autoPlay
             playsInline
             muted
@@ -454,13 +468,7 @@ export function PhotoPickerButtons({
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0];
-            if (file) {
-              if (faceFrame) {
-                void cropImageToPortraitFace(file).then(onPickFile).catch(() => onPickFile(file));
-              } else {
-                void cropImageToDocument(file, page).then(onPickFile).catch(() => onPickFile(file));
-              }
-            }
+          if (file) pickOrCrop(file);
           e.target.value = '';
         }}
       />
@@ -474,11 +482,22 @@ export function PhotoPickerButtons({
           if (multiple && onPickFiles) onPickFiles(e.target.files);
           else {
             const file = e.target.files?.[0];
-            if (file) onPickFile(file);
+            if (file) pickOrCrop(file);
           }
           e.target.value = '';
         }}
       />
+      {cropRequest ? (
+        <ImageCropper
+          file={cropRequest.file}
+          aspect={cropRequest.aspect}
+          onCancel={() => setCropRequest(null)}
+          onComplete={(croppedFile) => {
+            setCropRequest(null);
+            onPickFile(croppedFile);
+          }}
+        />
+      ) : null}
     </>
   );
 }
