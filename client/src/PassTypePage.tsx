@@ -3,7 +3,6 @@ import { isApplicationDemo } from './applicationDemo';
 import { useT } from './i18n';
 import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
-import { PassVerificationCard } from './PassVerificationCard';
 import { WhatsAppChargesCard } from './WhatsAppChargesCard';
 
 type PassType = {
@@ -418,8 +417,6 @@ export function PassTypePage() {
           </div>
         )}
       </section>
-
-      <PassVerificationCard />
 
       <WhatsAppChargesCard />
 

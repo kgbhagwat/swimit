@@ -1150,12 +1150,6 @@ h1 {
   flex: 0 0 auto;
 }
 
-.pass-verification-card .whatsapp-expiry-check {
-  flex-wrap: wrap;
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
 .whatsapp-expiry-days-input {
   width: 1.85rem;
   border: 1px solid #cfd6e4;
@@ -1181,9 +1175,7 @@ h1 {
 }
 
 .whatsapp-setup-card,
-.pass-form-card.pool-core-form.whatsapp-setup-card,
-.pass-verification-card,
-.pass-form-card.pool-core-form.pass-verification-card {
+.pass-form-card.pool-core-form.whatsapp-setup-card {
   width: min(100%, 42rem);
   max-width: min(100%, 42rem);
 }
@@ -12763,15 +12755,6 @@ button.menu-link {
   gap: 0.75rem;
 }
 
-.pass-verification-options {
-  flex-wrap: wrap;
-  gap: 0.55rem 1rem;
-}
-
-.pass-verification-card .pass-verification-options {
-  margin: 0.1rem 0 0.35rem;
-}
-
 .pass-yes-no-option {
   display: inline-flex;
   align-items: center;
@@ -15265,29 +15248,6 @@ html.sensitive-screen-cover-on::before {
 
 .scanner-attendance-status.is-already-marked {
   color: #b42318;
-}
-
-.scanner-face-check {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  margin: 0.15rem 0 0;
-  color: #1a3568;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.scanner-face-check input {
-  width: auto;
-  min-height: auto;
-  margin-top: 0.15rem;
-  accent-color: var(--accent);
-}
-
-.scanner-face-check input:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
 }
 
 .scanner-pass-wrap {
@@ -19120,7 +19080,6 @@ html[data-theme='dark'] summary {
   color: #e8f0fa;
 }
 
-html[data-theme='dark'] .scanner-face-check,
 html[data-theme='dark'] .scanner-attendance-status {
   color: #e8f0fa;
 }

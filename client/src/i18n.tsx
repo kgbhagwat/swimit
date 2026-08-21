@@ -862,7 +862,6 @@ const mr: Record<string, string> = {
   "Failed to update account": "खाते अपडेट झाले नाही",
   "Failed to update status": "स्थिती अपडेट झाली नाही",
   "Failed to update swimmer": "पोहणारा अपडेट झाला नाही",
-  "Face matches the pass photo": "चेहरा पासच्या फोटोशी जुळतो",
   "Face verification required": "चेहरा पडताळणी आवश्यक",
   "Father": "वडील",
   "Features": "वैशिष्ट्ये",
