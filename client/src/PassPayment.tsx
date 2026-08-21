@@ -62,6 +62,7 @@ const SAMPLE_PENDING_SWIMMERS: PendingSwimmer[] = [
 type PassTypeOption = {
   id: number;
   passName: string;
+  forAudience: string;
   duration: string;
   passCharges: number;
   coachingCharges: number;
@@ -90,6 +91,7 @@ const SAMPLE_PASS_TYPES: PassTypeOption[] = [
   {
     id: -101,
     passName: 'Monthly Swim',
+    forAudience: 'Swimming',
     duration: '1 Month',
     passCharges: 2000,
     coachingCharges: 500,
@@ -100,6 +102,7 @@ const SAMPLE_PASS_TYPES: PassTypeOption[] = [
   {
     id: -102,
     passName: 'Quarterly Swim',
+    forAudience: 'Swimming',
     duration: '3 Months',
     passCharges: 5000,
     coachingCharges: 500,
@@ -258,6 +261,24 @@ function batchesForSwimmerSex(slots: BatchSlot[], sex: string | null | undefined
   const normalized = String(sex ?? '').trim();
   if (normalized === 'Female') return slots;
   return slots.filter((slot) => slot.type !== 'Ladies');
+}
+
+function batchesForPass(slots: BatchSlot[], pass: PassTypeOption | null) {
+  if (!pass) return [];
+  const audiences = String(pass.forAudience ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  if (audiences.length === 0) return slots;
+
+  const supportsCompetitive = audiences.includes('competitive');
+  const supportsRegular = audiences.some(
+    (audience) => audience === 'swimming' || audience === 'walking',
+  );
+
+  return slots.filter((slot) =>
+    slot.type === 'Advance' ? supportsCompetitive : supportsRegular,
+  );
 }
 
 function formatMoney(value: number) {
@@ -869,7 +890,12 @@ export function PassPayment() {
 
   const availableBatches = useMemo(
     () =>
-      [...batchesForSwimmerSex(activeBatches, swimmerProfile?.sex)].sort((a, b) => {
+      [
+        ...batchesForPass(
+          batchesForSwimmerSex(activeBatches, swimmerProfile?.sex),
+          selectedPass,
+        ),
+      ].sort((a, b) => {
         const startDiff = String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
         if (startDiff !== 0) return startDiff;
         return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
@@ -877,7 +903,7 @@ export function PassPayment() {
           sensitivity: 'base',
         });
       }),
-    [activeBatches, swimmerProfile?.sex],
+    [activeBatches, selectedPass, swimmerProfile?.sex],
   );
 
   useEffect(() => {
@@ -985,10 +1011,12 @@ export function PassPayment() {
     if (!detailsConfirmed) missing.push('Confirm swimmer details, documents and photo');
     if (!selectedPass) missing.push('Pass');
     if (selectedPass && !passValidUntil) missing.push('Pass period end date');
-    if (availableBatches.length === 0) {
-      missing.push('Batch (set up batches first)');
-    } else if (!batch.trim()) {
-      missing.push('Batch');
+    if (selectedPass) {
+      if (availableBatches.length === 0) {
+        missing.push('Batch (no compatible batch for selected pass)');
+      } else if (!batch.trim()) {
+        missing.push('Batch');
+      }
     }
     if (coachingRequired) {
       if (coachesForBatch.length === 0) {
@@ -1347,11 +1375,13 @@ export function PassPayment() {
                   <span className="label">
                     {t('Batch')} <span className="req">*</span>
                   </span>
-                  {availableBatches.length === 0 ? (
+                  {!selectedPass ? (
+                    <p className="batch-empty">{t('Select a pass to see available batches.')}</p>
+                  ) : availableBatches.length === 0 ? (
                     <p className="batch-empty">
-                      {t('No batches available.')}{' '}
+                      {t('No compatible batches are available for the selected pass.')}{' '}
                       <Link className="terms-link" to={tenantPath('/batches')}>
-                        {t('Set up batches')}
+                        {t('Review batches')}
                       </Link>
                     </p>
                   ) : (
