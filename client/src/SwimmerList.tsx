@@ -25,7 +25,8 @@ import { tenantPath } from './tenantSession';
 
 type SwimmerStatus = 'active' | 'inactive';
 
-type SortKey = 'swimmer' | 'contact' | 'passType' | 'batch' | 'coach';
+type SortKey = 'swimmer' | 'contact' | 'status' | 'passType' | 'batch' | 'coach';
+type PassStatusLabel = 'Pass expired' | 'On hold' | 'Pass' | 'Fail' | '—';
 
 type SwimmerRow = {
   id: number;
@@ -40,6 +41,8 @@ type SwimmerRow = {
   hasValidPassToday: boolean;
   passValidUntil: string | null;
   inactiveAt: string | null;
+  testResult: 'pass' | 'fail' | null;
+  testRequired: boolean;
 };
 
 type RegistrationApiRow = {
@@ -54,6 +57,8 @@ type RegistrationApiRow = {
   coach?: string | null;
   pass_valid_until?: string | null;
   inactive_at?: string | null;
+  test_result?: string | null;
+  test_required?: boolean;
 };
 
 type BatchSlot = {
@@ -72,6 +77,7 @@ type EditForm = {
 const SWIMMER_COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: 'swimmer', label: 'Swimmer' },
   { key: 'contact', label: 'Contact' },
+  { key: 'status', label: 'Status' },
   { key: 'passType', label: 'Pass type' },
   { key: 'batch', label: 'Batch' },
   { key: 'coach', label: 'Coach' },
@@ -132,8 +138,29 @@ function hasPaidPass(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
   return Boolean(row.passValidUntil) || (Boolean(row.passType) && row.passType !== '—');
 }
 
+function swimmerStatusLabel(
+  row: Pick<SwimmerRow, 'isActive' | 'passValidUntil' | 'testResult' | 'testRequired'>,
+): PassStatusLabel {
+  if (row.testResult === 'fail') return 'Fail';
+  const passValid = hasValidPassToday(row.passValidUntil);
+  const isTestPass = row.testResult === 'pass' || row.testRequired;
+  if (isTestPass && passValid && row.isActive) return 'Pass';
+  if (!row.isActive && passValid) return 'On hold';
+  if (row.passValidUntil && row.passValidUntil.slice(0, 10) < todayIso()) return 'Pass expired';
+  return '—';
+}
+
+function swimmerStatusClass(label: PassStatusLabel) {
+  if (label === 'Pass expired') return 'is-expired';
+  if (label === 'On hold') return 'is-hold';
+  if (label === 'Pass') return 'is-pass';
+  if (label === 'Fail') return 'is-fail';
+  return '';
+}
+
 function swimmerCellValue(row: SwimmerRow, key: SortKey) {
   if (key === 'contact') return row.contact || '—';
+  if (key === 'status') return swimmerStatusLabel(row);
   if (key === 'passType') {
     if (isLongExpired(row.passValidUntil) || !row.passType || row.passType === '—') return '—';
     return row.passType;
@@ -175,19 +202,21 @@ function DeleteIcon() {
   );
 }
 
-function downloadCsv(rows: SwimmerRow[]) {
-  const header = ['Swimmer', 'Contact', 'Email', 'Pass type', 'Batch', 'Coach', 'Status'];
+function downloadCsv(rows: SwimmerRow[], includeStatus: boolean) {
+  const header = includeStatus
+    ? ['Swimmer', 'Contact', 'Status', 'Email', 'Pass type', 'Batch', 'Coach']
+    : ['Swimmer', 'Contact', 'Email', 'Pass type', 'Batch', 'Coach'];
   const lines = [
     header.join(','),
     ...rows.map((row) =>
       [
         row.swimmer,
         row.contact,
+        ...(includeStatus ? [swimmerStatusLabel(row)] : []),
         row.email,
         isLongExpired(row.passValidUntil) ? '—' : row.passType,
         row.batch,
         row.coach,
-        belongsOnActiveList(row) ? 'Active' : 'Inactive',
       ]
         .map((cell) => csvEscape(csvPlain(cell)))
         .join(','),
@@ -212,6 +241,8 @@ function mapRow(row: RegistrationApiRow): SwimmerRow {
     hasValidPassToday: hasValidPassToday(passValidUntil),
     passValidUntil,
     inactiveAt,
+    testResult: row.test_result === 'fail' ? 'fail' : row.test_result === 'pass' ? 'pass' : null,
+    testRequired: row.test_required === true,
   };
 }
 
@@ -229,6 +260,8 @@ const SAMPLE_SWIMMERS: SwimmerRow[] = [
     hasValidPassToday: true,
     passValidUntil: daysAgoIso(-25),
     inactiveAt: null,
+    testResult: 'pass',
+    testRequired: true,
   },
   {
     id: -102,
@@ -243,6 +276,8 @@ const SAMPLE_SWIMMERS: SwimmerRow[] = [
     hasValidPassToday: true,
     passValidUntil: daysAgoIso(-60),
     inactiveAt: null,
+    testResult: null,
+    testRequired: false,
   },
   {
     id: -103,
@@ -257,6 +292,8 @@ const SAMPLE_SWIMMERS: SwimmerRow[] = [
     hasValidPassToday: true,
     passValidUntil: daysAgoIso(-15),
     inactiveAt: null,
+    testResult: null,
+    testRequired: false,
   },
   {
     id: -104,
@@ -268,9 +305,11 @@ const SAMPLE_SWIMMERS: SwimmerRow[] = [
     coach: 'Amit Sharma',
     sex: 'Female',
     isActive: false,
-    hasValidPassToday: false,
-    passValidUntil: daysAgoIso(10),
-    inactiveAt: daysAgoIso(10),
+    hasValidPassToday: true,
+    passValidUntil: daysAgoIso(-10),
+    inactiveAt: todayIso(),
+    testResult: null,
+    testRequired: false,
   },
   {
     id: -105,
@@ -285,6 +324,8 @@ const SAMPLE_SWIMMERS: SwimmerRow[] = [
     hasValidPassToday: false,
     passValidUntil: daysAgoIso(18),
     inactiveAt: daysAgoIso(18),
+    testResult: null,
+    testRequired: false,
   },
   {
     id: -106,
@@ -299,6 +340,8 @@ const SAMPLE_SWIMMERS: SwimmerRow[] = [
     hasValidPassToday: false,
     passValidUntil: daysAgoIso(45),
     inactiveAt: daysAgoIso(45),
+    testResult: null,
+    testRequired: false,
   },
   {
     id: -107,
@@ -311,8 +354,10 @@ const SAMPLE_SWIMMERS: SwimmerRow[] = [
     sex: 'Male',
     isActive: false,
     hasValidPassToday: false,
-    passValidUntil: daysAgoIso(7),
-    inactiveAt: daysAgoIso(7),
+    passValidUntil: daysAgoIso(1),
+    inactiveAt: daysAgoIso(1),
+    testResult: 'fail',
+    testRequired: true,
   },
 ];
 
@@ -581,9 +626,16 @@ export function SwimmerList() {
     return visible.filter((row) => !belongsOnActiveList(row));
   }, [rows, status, sampleMode]);
 
+  const showStatusCol = status === 'inactive';
+  const visibleColumns = useMemo(
+    () =>
+      showStatusCol ? SWIMMER_COLUMNS : SWIMMER_COLUMNS.filter((col) => col.key !== 'status'),
+    [showStatusCol],
+  );
+
   const visibleRows = useMemo(() => {
     const filtered = statusRows.filter((row) =>
-      SWIMMER_COLUMNS.every(({ key }) => {
+      visibleColumns.every(({ key }) => {
         const selected = columnSelected[key];
         if (!selected) return true;
         return selected.has(swimmerCellValue(row, key));
@@ -599,7 +651,7 @@ export function SwimmerList() {
       );
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [statusRows, columnSelected, sortKey, sortDir]);
+  }, [statusRows, visibleColumns, columnSelected, sortKey, sortDir]);
 
   const printableRows = useMemo(
     () => visibleRows.filter((row) => hasCurrentPass(row)),
@@ -913,7 +965,7 @@ export function SwimmerList() {
               </button>
             )}
             <DownloadButton
-              onClick={() => downloadCsv(visibleRows)}
+              onClick={() => downloadCsv(visibleRows, showStatusCol)}
               disabled={visibleRows.length === 0}
             />
           </div>
@@ -997,7 +1049,9 @@ export function SwimmerList() {
             {error ? <p className="error">{t(error)}</p> : null}
 
             <section
-              className={`pass-form-card pool-core-form pass-table-card swimmer-table-card${sampleMode ? ' pass-form-card--sample' : ''}`}
+              className={`pass-form-card pool-core-form pass-table-card swimmer-table-card${
+                sampleMode ? ' pass-form-card--sample' : ''
+              }${showStatusCol ? ' has-status-col' : ''}`}
             >
               {sampleMode ? (
                 <div className="user-mgmt-sample-watermark" aria-hidden="true">
@@ -1017,7 +1071,7 @@ export function SwimmerList() {
                     aria-label={t('Select all')}
                   />
                 </label>
-                {SWIMMER_COLUMNS.map(({ key, label }) => (
+                {visibleColumns.map(({ key, label }) => (
                   <div key={key} className="swimmer-col-head">
                     <TableColumnFilter
                       label={t(label)}
@@ -1084,6 +1138,19 @@ export function SwimmerList() {
                           <span className="coach-email">{row.email}</span>
                         ) : null}
                       </span>
+                      {showStatusCol ? (
+                        <span data-label={t('Status')} className="swimmer-status-cell">
+                          {(() => {
+                            const statusLabel = swimmerStatusLabel(row);
+                            if (statusLabel === '—') return '—';
+                            return (
+                              <span className={`swimmer-status-label ${swimmerStatusClass(statusLabel)}`}>
+                                {t(statusLabel)}
+                              </span>
+                            );
+                          })()}
+                        </span>
+                      ) : null}
                       <span data-label={t('Pass type')}>{displayPassType}</span>
                       <span data-label={t('Batch')}>
                         {(() => {

@@ -8,8 +8,10 @@ import { installTenantFetch } from './tenantSession';
 import { ApplicationDemoSync } from './ApplicationDemoSync';
 import { RequirePlatformSession } from './RequirePlatformSession';
 import { MarketingHome } from './MarketingHome';
+import { initializeClientVersion } from './clientVersion';
 
 installTenantFetch();
+initializeClientVersion();
 
 const App = lazy(() => import('./App').then((m) => ({ default: m.App })));
 const BatchList = lazy(() => import('./BatchList').then((m) => ({ default: m.BatchList })));

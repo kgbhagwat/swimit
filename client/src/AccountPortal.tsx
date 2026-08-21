@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useOutlet, useParams } from 'react-router-dom';
 import { AppShell } from './AppShell';
+import { navigateToCurrentVersion } from './clientVersion';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { useT } from './i18n';
 import { LoginCaptchaField, useLoginCaptcha } from './LoginCaptcha';
@@ -403,11 +404,14 @@ export function AccountPortal() {
           csrfToken: user.csrfToken ?? '',
         });
       }
+      void navigateToCurrentVersion('/accounts', (path) => navigate(path, { replace: true }));
       return;
     }
     if (account && !user.mustChangePassword) {
       setActiveTenant({ id: account.id, accountCode: account.accountCode || code });
-      navigate(`/${code}/dashboard`, { replace: true });
+      void navigateToCurrentVersion(`/${code}/dashboard`, (path) =>
+        navigate(path, { replace: true }),
+      );
     }
   }
 

@@ -116,6 +116,23 @@ function amountForSwimmer(
 
 export const coachPaymentRouter = Router();
 
+coachPaymentRouter.get('/settings', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const { rows } = await pool.query(
+      `SELECT COALESCE(coach_payment_basis, 'month') AS basis
+       FROM pool_core_info
+       WHERE saas_account_id = $1`,
+      [accountId],
+    );
+    const basis = String(rows[0]?.basis ?? 'month').trim().toLowerCase();
+    res.json({ basis: basis === 'pass' || basis === 'day' ? basis : 'month' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load coach payment settings' });
+  }
+});
+
 coachPaymentRouter.get('/summary', async (req, res) => {
   try {
     const accountId = tenantId(req);

@@ -302,9 +302,35 @@ export function CoachPayment() {
   const [result, setResult] = useState<PaymentResult | null>(null);
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [loadingCoaches, setLoadingCoaches] = useState(true);
+  const [basisLoading, setBasisLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
+
+  useEffect(() => {
+    if (isApplicationDemo()) {
+      setBasisLoading(false);
+      return;
+    }
+    let cancelled = false;
+    void fetch('/api/coach-payment/settings')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to load settings'))))
+      .then((body: { basis?: Basis }) => {
+        if (
+          !cancelled &&
+          (body.basis === 'pass' || body.basis === 'month' || body.basis === 'day')
+        ) {
+          setBasis(body.basis);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setBasisLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -351,7 +377,7 @@ export function CoachPayment() {
   }, []);
 
   useEffect(() => {
-    if (viewMode !== 'detail') return;
+    if (viewMode !== 'detail' || basisLoading) return;
     if (!coach) {
       setResult(null);
       return;
@@ -387,10 +413,10 @@ export function CoachPayment() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, coach, month, basis, sampleMode]);
+  }, [viewMode, coach, month, basis, basisLoading, sampleMode]);
 
   useEffect(() => {
-    if (viewMode !== 'summary') return;
+    if (viewMode !== 'summary' || basisLoading) return;
 
     if (sampleMode) {
       setLoading(false);
@@ -422,7 +448,7 @@ export function CoachPayment() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, month, basis, sampleMode]);
+  }, [viewMode, month, basis, basisLoading, sampleMode]);
 
   function openSummary() {
     setError('');
@@ -579,35 +605,6 @@ export function CoachPayment() {
             />
           </label>
 
-          <fieldset className="coach-payment-basis">
-            <legend className="label">{t('Payment calculation')}</legend>
-            <div className="staff-role-radios" role="group" aria-label={t('Payment calculation')}>
-              <label className={`staff-role-option${basis === 'pass' ? ' selected' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={basis === 'pass'}
-                  onChange={() => setBasis('pass')}
-                />
-                {t('Pass basis')}
-              </label>
-              <label className={`staff-role-option${basis === 'month' ? ' selected' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={basis === 'month'}
-                  onChange={() => setBasis('month')}
-                />
-                {t('Month basis')}
-              </label>
-              <label className={`staff-role-option${basis === 'day' ? ' selected' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={basis === 'day'}
-                  onChange={() => setBasis('day')}
-                />
-                {t('Day basis')}
-              </label>
-            </div>
-          </fieldset>
         </div>
 
         {error ? <p className="error">{t(error)}</p> : null}

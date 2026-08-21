@@ -13,8 +13,12 @@ type PassType = {
   passCharges: number;
   coachingCharges: number;
   coach: string;
+  testRequired: boolean;
   maxSwimmersPerCoach: number | null;
   exceedingLimitAllowed: boolean;
+  isOffer: boolean;
+  offerStartDate: string | null;
+  offerEndDate: string | null;
 };
 
 type PassForm = {
@@ -25,11 +29,15 @@ type PassForm = {
   passCharges: string;
   coachingCharges: string;
   coach: string;
+  testRequired: boolean;
   maxSwimmersPerCoach: string;
   exceedingLimitAllowed: 'Yes' | 'No';
+  isOffer: 'Yes' | 'No';
+  offerStartDate: string;
+  offerEndDate: string;
 };
 
-const FOR_OPTIONS = ['Walking', 'Swimming', 'Competitive'] as const;
+const FOR_OPTIONS = ['Walking', 'Swimming', 'Competitive', 'Water Polo'] as const;
 
 const DURATION_UNITS = ['Day', 'Week', 'Month', 'Year'] as const;
 
@@ -41,8 +49,12 @@ const emptyForm: PassForm = {
   passCharges: '',
   coachingCharges: '',
   coach: 'Not Required',
+  testRequired: false,
   maxSwimmersPerCoach: 'No Limit',
   exceedingLimitAllowed: 'Yes',
+  isOffer: 'No',
+  offerStartDate: '',
+  offerEndDate: '',
 };
 
 /** Application preview starts with no pre-selected options. */
@@ -60,6 +72,8 @@ type CoachOption = {
   name: string;
   teachStrokes: string[];
 };
+
+type PaymentBasis = 'pass' | 'month' | 'day';
 
 const STROKE_FILTER_OPTIONS = [
   'Free Style',
@@ -167,6 +181,10 @@ export function PassTypePage() {
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<PassForm>(() => createEmptyForm());
+  const [paymentBasis, setPaymentBasis] = useState<PaymentBasis>('month');
+  const [basisLoading, setBasisLoading] = useState(true);
+  const [basisSaving, setBasisSaving] = useState(false);
+  const [basisError, setBasisError] = useState('');
 
   const coachSelectOptions = useMemo(() => {
     const matching = coachesForSelection(coaches, form.forOptions);
@@ -198,6 +216,24 @@ export function PassTypePage() {
 
   useEffect(() => {
     void load();
+    if (isApplicationDemo()) {
+      setBasisLoading(false);
+    } else {
+      void fetch('/api/pass-types/payment-calculation')
+        .then(async (res) => {
+          if (!res.ok) throw new Error(await readApiError(res, 'Failed to load'));
+          return res.json() as Promise<{ basis?: PaymentBasis }>;
+        })
+        .then((body) => {
+          if (body.basis === 'pass' || body.basis === 'day' || body.basis === 'month') {
+            setPaymentBasis(body.basis);
+          }
+        })
+        .catch((err) =>
+          setBasisError(err instanceof Error ? err.message : 'Failed to load payment calculation'),
+        )
+        .finally(() => setBasisLoading(false));
+    }
     void fetch('/api/staff-registrations')
       .then((res) => (res.ok ? res.json() : []))
       .then(
@@ -229,6 +265,28 @@ export function PassTypePage() {
       .catch(() => setCoaches([]));
   }, []);
 
+  async function savePaymentBasis(basis: PaymentBasis) {
+    if (basis === paymentBasis || basisSaving) return;
+    const previous = paymentBasis;
+    setPaymentBasis(basis);
+    setBasisSaving(true);
+    setBasisError('');
+    try {
+      if (isApplicationDemo()) return;
+      const res = await fetch('/api/pass-types/payment-calculation', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ basis }),
+      });
+      if (!res.ok) throw new Error(await readApiError(res, 'Failed to save'));
+    } catch (err) {
+      setPaymentBasis(previous);
+      setBasisError(err instanceof Error ? err.message : 'Failed to save payment calculation');
+    } finally {
+      setBasisSaving(false);
+    }
+  }
+
   function updateForOptions(option: string) {
     const forOptions = toggleForOption(form.forOptions, option);
     const nextCoaches = coachesForSelection(coaches, forOptions);
@@ -259,8 +317,12 @@ export function PassTypePage() {
       passCharges: String(item.passCharges),
       coachingCharges: String(item.coachingCharges),
       coach: item.coach || 'Not Required',
+      testRequired: Boolean(item.testRequired),
       maxSwimmersPerCoach: formatMaxSwimmers(item.maxSwimmersPerCoach),
       exceedingLimitAllowed: item.exceedingLimitAllowed === false ? 'No' : 'Yes',
+      isOffer: item.isOffer ? 'Yes' : 'No',
+      offerStartDate: item.offerStartDate ?? '',
+      offerEndDate: item.offerEndDate ?? '',
     });
     setError('');
   }
@@ -296,6 +358,15 @@ export function PassTypePage() {
       return;
     }
     if (
+      form.isOffer === 'Yes' &&
+      form.offerStartDate &&
+      form.offerEndDate &&
+      form.offerEndDate < form.offerStartDate
+    ) {
+      setError('Offer end date must be on or after the start date');
+      return;
+    }
+    if (
       form.coach !== 'Not Required' &&
       !Number.isNaN(coachingCharges) &&
       coachingCharges >= passCharges &&
@@ -315,8 +386,12 @@ export function PassTypePage() {
         passCharges,
         coachingCharges: form.coach === 'Not Required' ? 0 : coachingCharges,
         coach: form.coach.trim() || 'Not Required',
+        testRequired: form.coach === 'Not Required' && form.testRequired,
         maxSwimmersPerCoach: maxSwimmers,
         exceedingLimitAllowed: form.exceedingLimitAllowed === 'Yes',
+        isOffer: form.isOffer === 'Yes',
+        offerStartDate: form.isOffer === 'Yes' ? form.offerStartDate : null,
+        offerEndDate: form.isOffer === 'Yes' ? form.offerEndDate : null,
       };
       const res = await fetch(editingId ? `/api/pass-types/${editingId}` : '/api/pass-types', {
         method: editingId ? 'PUT' : 'POST',
@@ -420,6 +495,38 @@ export function PassTypePage() {
 
       <WhatsAppChargesCard />
 
+      <section className="pass-form-card payment-calculation-card">
+        <h2>{t('Payment calculation')}</h2>
+        <p className="muted">
+          {t('Select how coaching charges should be calculated on the Coach Payment page.')}
+        </p>
+        <div className="staff-role-radios" role="radiogroup" aria-label={t('Payment calculation')}>
+          {(
+            [
+              ['pass', 'Pass basis'],
+              ['month', 'Month basis'],
+              ['day', 'Day basis'],
+            ] as const
+          ).map(([value, label]) => (
+            <label
+              className={`staff-role-option${paymentBasis === value ? ' selected' : ''}`}
+              key={value}
+            >
+              <input
+                type="radio"
+                name="coachPaymentBasis"
+                checked={paymentBasis === value}
+                disabled={basisLoading || basisSaving}
+                onChange={() => void savePaymentBasis(value)}
+              />
+              {t(label)}
+            </label>
+          ))}
+        </div>
+        {basisLoading ? <p className="muted">{t('Loading…')}</p> : null}
+        {basisError ? <p className="error">{t(basisError)}</p> : null}
+      </section>
+
       <section className="pass-form-card pool-core-form" aria-labelledby="pass-form-title">
         <form className="pass-form" onSubmit={onSubmit}>
           <h2 id="pass-form-title">
@@ -465,6 +572,7 @@ export function PassTypePage() {
                   setForm({
                     ...form,
                     coach,
+                    testRequired: coach === 'Not Required' ? form.testRequired : false,
                     coachingCharges: coach === 'Not Required' ? '' : form.coachingCharges,
                     maxSwimmersPerCoach:
                       coach === 'Not Required' ? 'No Limit' : form.maxSwimmersPerCoach,
@@ -531,7 +639,16 @@ export function PassTypePage() {
                   </div>
                 </div>
               </>
-            ) : null}
+            ) : (
+              <label className="pass-test-required">
+                <input
+                  type="checkbox"
+                  checked={form.testRequired}
+                  onChange={(e) => setForm({ ...form, testRequired: e.target.checked })}
+                />
+                <span>{t('Test required')}</span>
+              </label>
+            )}
           </div>
 
           <div className="pass-charges-row">
@@ -574,6 +691,61 @@ export function PassTypePage() {
                 />
               </div>
             </div>
+          </div>
+
+          <div className="pass-offer-section">
+            <div className="pass-inline-field pass-offer-choice">
+              <span className="pass-option-label">{t('Is this an offer?')}</span>
+              <div className="pass-yes-no" role="radiogroup" aria-label={t('Is this an offer?')}>
+                {(['Yes', 'No'] as const).map((option) => (
+                  <label key={option} className="pass-yes-no-option">
+                    <input
+                      type="radio"
+                      name="isOffer"
+                      value={option}
+                      checked={form.isOffer === option}
+                      onChange={() =>
+                        setForm({
+                          ...form,
+                          isOffer: option,
+                          offerStartDate: option === 'Yes' ? form.offerStartDate : '',
+                          offerEndDate: option === 'Yes' ? form.offerEndDate : '',
+                        })
+                      }
+                    />
+                    <span>{t(option)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {form.isOffer === 'Yes' ? (
+              <div className="pass-offer-dates">
+                <label className="pass-inline-field">
+                  <span className="pass-option-label">
+                    {t('Offer start date')} <span className="req">*</span>
+                  </span>
+                  <input
+                    type="date"
+                    value={form.offerStartDate}
+                    onChange={(e) => setForm({ ...form, offerStartDate: e.target.value })}
+                    required
+                  />
+                </label>
+                <label className="pass-inline-field">
+                  <span className="pass-option-label">
+                    {t('Offer end date')} <span className="req">*</span>
+                  </span>
+                  <input
+                    type="date"
+                    min={form.offerStartDate || undefined}
+                    value={form.offerEndDate}
+                    onChange={(e) => setForm({ ...form, offerEndDate: e.target.value })}
+                    required
+                  />
+                </label>
+              </div>
+            ) : null}
           </div>
 
           {form.coach !== 'Not Required' ? (

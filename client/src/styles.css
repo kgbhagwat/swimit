@@ -1950,6 +1950,26 @@ html[data-theme='dark'] .swimmer-row .swimmer-batch-time {
   color: #e8f0fa !important;
 }
 
+html[data-theme='dark'] .swimmer-status-label.is-expired {
+  background: #4a2d18;
+  color: #ffd7b0;
+}
+
+html[data-theme='dark'] .swimmer-status-label.is-hold {
+  background: #2a3d55;
+  color: #d5e4f5;
+}
+
+html[data-theme='dark'] .swimmer-status-label.is-pass {
+  background: #1d4a34;
+  color: #b7f7d0;
+}
+
+html[data-theme='dark'] .swimmer-status-label.is-fail {
+  background: #4a1d22;
+  color: #ffc4c4;
+}
+
 html[data-theme='dark'] .swimmer-row > *::before {
   color: #9bb0c9 !important;
 }
@@ -6593,6 +6613,35 @@ html[data-theme='dark'] .biometric-offer-title {
   width: 9.5rem;
 }
 
+@media (max-width: 600px) {
+  .attendance-filters {
+    align-items: stretch;
+  }
+
+  .attendance-filters-left,
+  .attendance-filters-right {
+    width: 100%;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .attendance-filters-left {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .attendance-view-option {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .attendance-filters-right .inpage-select {
+    width: min(100%, 9.5rem);
+    min-width: 0;
+  }
+}
+
 .attendance-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -7288,8 +7337,14 @@ button.coach-payment-back {
 .swimmer-row {
   display: grid;
   gap: 0.55rem;
-  grid-template-columns: 2.15rem 1.15fr 1fr 0.95fr 1fr 0.85fr minmax(13.5rem, 1.45fr);
+  grid-template-columns: 2.15rem minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(0, 0.85fr) minmax(0, 1.25fr) minmax(0, 0.85fr) minmax(12.5rem, auto);
   align-items: center;
+}
+
+.swimmer-table-card.has-status-col .swimmer-table-head,
+.swimmer-table-card.has-status-col .swimmer-filter-row,
+.swimmer-table-card.has-status-col .swimmer-row {
+  grid-template-columns: 2.15rem minmax(0, 1.15fr) minmax(0, 1fr) 7.4rem minmax(0, 0.85fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(12.5rem, auto);
 }
 
 .swimmer-table-head {
@@ -7357,16 +7412,42 @@ button.coach-payment-back {
   color: #243b66;
 }
 
-.swimmer-table-head > :nth-child(4),
-.swimmer-filter-row > :nth-child(4),
-.swimmer-row > :nth-child(4) {
-  text-align: center;
-  justify-self: stretch;
+.swimmer-status-cell {
+  min-width: 0;
+  text-align: left;
 }
 
-.swimmer-table-head > :nth-child(4).swimmer-sort-btn {
+.swimmer-status-label {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  width: 100%;
+  min-height: 1.5rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.swimmer-status-label.is-expired {
+  background: #fde8d8;
+  color: #9a3412;
+}
+
+.swimmer-status-label.is-hold {
+  background: #e8eef6;
+  color: #334155;
+}
+
+.swimmer-status-label.is-pass {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.swimmer-status-label.is-fail {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .swimmer-table-head > span:last-child,
@@ -7377,10 +7458,6 @@ button.coach-payment-back {
 
 .swimmer-row > .pass-actions {
   justify-content: flex-start;
-}
-
-.swimmer-filter-row > :nth-child(4) {
-  text-align: center;
 }
 
 .swimmer-select-cell {
@@ -11546,6 +11623,13 @@ button.icon-action.icon-action-unapproved:hover:not(:disabled) {
     overflow: hidden;
   }
 
+  .swimmer-table-card.has-status-col .swimmer-row {
+    grid-template-areas:
+      'select swimmer swimmer contact contact status status'
+      'select passType passType batch batch coach coach'
+      'select actions actions actions actions actions actions';
+  }
+
   .swimmer-row.swimmer-row-alt {
     background: #dce8f8;
     border-color: #a9bcd8;
@@ -11586,6 +11670,28 @@ button.icon-action.icon-action-unapproved:hover:not(:disabled) {
     grid-area: actions;
   }
 
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(4) {
+    grid-area: status;
+    text-align: left;
+    justify-self: stretch;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(5) {
+    grid-area: passType;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(6) {
+    grid-area: batch;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(7) {
+    grid-area: coach;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(8) {
+    grid-area: actions;
+  }
+
   .swimmer-row > * {
     display: grid;
     gap: 0.18rem;
@@ -11604,6 +11710,24 @@ button.icon-action.icon-action-unapproved:hover:not(:disabled) {
   }
 
   .swimmer-row > :nth-child(7) {
+    border-bottom: 0;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(4),
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(7),
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(8) {
+    border-right: 0;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(6) {
+    border-right: 1px solid #b8c7dc;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(7) {
+    border-bottom: 1px solid #b8c7dc;
+  }
+
+  .swimmer-table-card.has-status-col .swimmer-row > :nth-child(8) {
     border-bottom: 0;
   }
 
@@ -12093,6 +12217,38 @@ button.icon-action.icon-action-unapproved:hover:not(:disabled) {
   }
 }
 
+@media (max-width: 600px) {
+  .coach-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'name'
+      'contact'
+      'actions'
+      'teach'
+      'batches';
+  }
+
+  .coach-row > * {
+    border-right: 0;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .coach-row > :nth-child(3),
+  .coach-row > :nth-child(4),
+  .coach-row > :nth-child(5) {
+    border-bottom: 1px solid #b8c7dc;
+  }
+
+  .coach-row > :nth-child(3) {
+    border-bottom: 0;
+  }
+
+  .coach-row > .pass-actions {
+    min-height: 3.25rem;
+  }
+}
+
 .pass-table-card {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -12473,6 +12629,14 @@ button.menu-link {
   margin-bottom: 1.1rem;
 }
 
+.payment-calculation-card {
+  width: min(100%, 42rem);
+}
+
+.payment-calculation-card > .muted {
+  margin: -0.3rem 0 0.8rem;
+}
+
 .pass-form-card.pool-core-form {
   background: #fff;
   border-color: rgba(47, 111, 237, 0.12);
@@ -12749,6 +12913,23 @@ button.menu-link {
   align-items: center;
 }
 
+.pass-test-required {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #243b66;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pass-test-required input {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .pass-yes-no {
   display: inline-flex;
   align-items: center;
@@ -12770,6 +12951,32 @@ button.menu-link {
   min-height: auto;
   margin: 0;
   accent-color: var(--accent);
+}
+
+.pass-offer-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  padding: 0.15rem 0 0.65rem;
+}
+
+.pass-offer-choice,
+.pass-offer-dates,
+.pass-offer-dates .pass-inline-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.pass-offer-dates {
+  gap: 0.75rem 1rem;
+}
+
+.pass-offer-dates input[type='date'] {
+  width: 10rem;
+  max-width: 100%;
 }
 
 .pass-coach-charges-note {
@@ -12900,6 +13107,16 @@ button.menu-link {
     align-items: stretch;
     overflow: visible;
     gap: 0.5rem;
+  }
+
+  .pass-offer-section,
+  .pass-offer-dates {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pass-offer-dates .pass-inline-field {
+    width: 100%;
   }
 
   .pass-inline-field,

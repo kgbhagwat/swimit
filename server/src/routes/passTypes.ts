@@ -11,15 +11,25 @@ type PassBody = {
   passCharges?: number;
   coachingCharges?: number;
   coach?: string;
+  testRequired?: boolean;
   maxSwimmersPerCoach?: number | null;
   exceedingLimitAllowed?: boolean;
+  isOffer?: boolean;
+  offerStartDate?: string | null;
+  offerEndDate?: string | null;
   verificationMode?: string;
 };
 
 type VerificationMode = 'ok_not_ok' | 'face';
+type CoachPaymentBasis = 'pass' | 'month' | 'day';
 
 function parseVerificationMode(value: unknown): VerificationMode {
   return String(value ?? '').trim() === 'face' ? 'face' : 'ok_not_ok';
+}
+
+function parseCoachPaymentBasis(value: unknown): CoachPaymentBasis {
+  const basis = String(value ?? '').trim().toLowerCase();
+  return basis === 'pass' || basis === 'day' ? basis : 'month';
 }
 
 function parseMaxSwimmers(value: unknown): number | null | 'invalid' {
@@ -39,10 +49,16 @@ function mapRow(row: {
   pass_charges: string | number;
   coaching_charges: string | number;
   coach: string | null;
+  test_required?: boolean | null;
   max_swimmers_per_coach?: number | null;
   exceeding_limit_allowed?: boolean | null;
+  is_offer?: boolean | null;
+  offer_start_date?: string | Date | null;
+  offer_end_date?: string | Date | null;
   verification_mode?: string | null;
 }) {
+  const dateOnly = (value: string | Date | null | undefined) =>
+    value ? new Date(value).toISOString().slice(0, 10) : null;
   return {
     id: row.id,
     passName: row.pass_name,
@@ -52,9 +68,13 @@ function mapRow(row: {
     passCharges: Number(row.pass_charges),
     coachingCharges: Number(row.coaching_charges),
     coach: row.coach ?? '',
+    testRequired: Boolean(row.test_required),
     maxSwimmersPerCoach:
       row.max_swimmers_per_coach == null ? null : Number(row.max_swimmers_per_coach),
     exceedingLimitAllowed: row.exceeding_limit_allowed !== false,
+    isOffer: Boolean(row.is_offer),
+    offerStartDate: dateOnly(row.offer_start_date),
+    offerEndDate: dateOnly(row.offer_end_date),
     verificationMode: parseVerificationMode(row.verification_mode),
   };
 }
@@ -88,6 +108,13 @@ function validate(body: PassBody) {
   if (parseMaxSwimmers(body.maxSwimmersPerCoach) === 'invalid') {
     return 'Max swimmers must be a positive number or No Limit';
   }
+  if (body.isOffer) {
+    const start = String(body.offerStartDate ?? '').trim();
+    const end = String(body.offerEndDate ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return 'Offer start date is required';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return 'Offer end date is required';
+    if (end < start) return 'Offer end date must be on or after the start date';
+  }
   return null;
 }
 
@@ -114,6 +141,70 @@ async function passNameTaken(accountId: number, passName: string, exceptId?: num
 }
 
 export const passTypesRouter = Router();
+
+passTypesRouter.get('/payment-calculation', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    await pool.query(
+      `INSERT INTO pool_core_info (saas_account_id)
+       SELECT $1 WHERE NOT EXISTS (
+         SELECT 1 FROM pool_core_info WHERE saas_account_id = $1
+       )`,
+      [accountId],
+    );
+    const { rows } = await pool.query(
+      `SELECT COALESCE(coach_payment_basis, 'month') AS basis
+       FROM pool_core_info
+       WHERE saas_account_id = $1`,
+      [accountId],
+    );
+    res.json({ basis: parseCoachPaymentBasis(rows[0]?.basis) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load payment calculation' });
+  }
+});
+
+passTypesRouter.put('/payment-calculation', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const basis = parseCoachPaymentBasis((req.body as { basis?: string })?.basis);
+    await pool.query(
+      `INSERT INTO pool_core_info (saas_account_id)
+       SELECT $1 WHERE NOT EXISTS (
+         SELECT 1 FROM pool_core_info WHERE saas_account_id = $1
+       )`,
+      [accountId],
+    );
+    const previous = await pool.query(
+      `SELECT COALESCE(coach_payment_basis, 'month') AS basis
+       FROM pool_core_info
+       WHERE saas_account_id = $1`,
+      [accountId],
+    );
+    await pool.query(
+      `UPDATE pool_core_info
+       SET coach_payment_basis = $2, updated_at = NOW()
+       WHERE saas_account_id = $1`,
+      [accountId, basis],
+    );
+    await recordAudit(req, {
+      action: 'update',
+      entityType: 'coach_payment_calculation',
+      entityId: 'coach_payment_calculation',
+      entityLabel: 'Coach payment calculation',
+      summary: `Set coach payment calculation to ${basis} basis`,
+      details: {
+        basis,
+        previous: parseCoachPaymentBasis(previous.rows[0]?.basis),
+      },
+    });
+    res.json({ basis });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save payment calculation' });
+  }
+});
 
 passTypesRouter.get('/verification', async (req, res) => {
   try {
@@ -195,7 +286,8 @@ passTypesRouter.get('/', async (req, res) => {
     const accountId = tenantId(req);
     const { rows } = await pool.query(
       `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-              max_swimmers_per_coach, exceeding_limit_allowed, verification_mode
+              test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date,
+              offer_end_date, verification_mode
        FROM pass_types
        WHERE saas_account_id = $1
        ORDER BY id ASC`,
@@ -227,14 +319,17 @@ passTypesRouter.post('/', async (req, res) => {
     const coach = body.coach?.trim() || 'Not Required';
     const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
+    const isOffer = Boolean(body.isOffer);
     const verificationMode = parseVerificationMode(body.verificationMode);
     const { rows } = await pool.query(
       `INSERT INTO pass_types
        (saas_account_id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-        max_swimmers_per_coach, exceeding_limit_allowed, verification_mode)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date, offer_end_date,
+        verification_mode)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-                 max_swimmers_per_coach, exceeding_limit_allowed, verification_mode`,
+                 test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date,
+                 offer_end_date, verification_mode`,
       [
         accountId,
         passName,
@@ -244,8 +339,12 @@ passTypesRouter.post('/', async (req, res) => {
         Number(body.passCharges),
         coachIsRequired(coach) ? Number(body.coachingCharges || 0) : 0,
         coach,
+        !coachIsRequired(coach) && Boolean(body.testRequired),
         maxSwimmers === 'invalid' ? null : maxSwimmers,
         exceedingAllowed,
+        isOffer,
+        isOffer ? body.offerStartDate : null,
+        isOffer ? body.offerEndDate : null,
         verificationMode,
       ],
     );
@@ -285,6 +384,7 @@ passTypesRouter.put('/:id', async (req, res) => {
     const coach = body.coach?.trim() || 'Not Required';
     const maxSwimmers = parseMaxSwimmers(body.maxSwimmersPerCoach);
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
+    const isOffer = Boolean(body.isOffer);
     const verificationMode = parseVerificationMode(body.verificationMode);
     const { rows } = await pool.query(
       `UPDATE pass_types
@@ -295,13 +395,18 @@ passTypesRouter.put('/:id', async (req, res) => {
            pass_charges = $5,
            coaching_charges = $6,
            coach = $7,
-           max_swimmers_per_coach = $8,
-           exceeding_limit_allowed = $9,
-           verification_mode = $10,
+           test_required = $8,
+           max_swimmers_per_coach = $9,
+           exceeding_limit_allowed = $10,
+           is_offer = $11,
+           offer_start_date = $12,
+           offer_end_date = $13,
+           verification_mode = $14,
            updated_at = NOW()
-       WHERE id = $11 AND saas_account_id = $12
+       WHERE id = $15 AND saas_account_id = $16
        RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
-                 max_swimmers_per_coach, exceeding_limit_allowed, verification_mode`,
+                 test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date,
+                 offer_end_date, verification_mode`,
       [
         passName,
         body.forAudience!.trim(),
@@ -310,8 +415,12 @@ passTypesRouter.put('/:id', async (req, res) => {
         Number(body.passCharges),
         coachIsRequired(coach) ? Number(body.coachingCharges || 0) : 0,
         coach,
+        !coachIsRequired(coach) && Boolean(body.testRequired),
         maxSwimmers === 'invalid' ? null : maxSwimmers,
         exceedingAllowed,
+        isOffer,
+        isOffer ? body.offerStartDate : null,
+        isOffer ? body.offerEndDate : null,
         verificationMode,
         id,
         accountId,

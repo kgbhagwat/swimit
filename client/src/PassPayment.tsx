@@ -28,11 +28,12 @@ type PendingSwimmer = {
   fullName: string;
   contact: string;
   email: string;
-  type: 'New' | 'Expired';
+  type: 'New' | 'Expired' | 'Test';
   passType: string;
   coach: string;
   batch: string;
   awaitingWhatsApp?: boolean;
+  upgradePaymentId?: number | null;
 };
 
 const SAMPLE_PENDING_SWIMMERS: PendingSwimmer[] = [
@@ -69,6 +70,10 @@ type PassTypeOption = {
   coach: string;
   maxSwimmersPerCoach: number | null;
   exceedingLimitAllowed: boolean;
+  isOffer?: boolean;
+  offerStartDate?: string | null;
+  offerEndDate?: string | null;
+  testRequired?: boolean;
 };
 
 type BatchSlot = {
@@ -289,6 +294,12 @@ function todayIso() {
   return toIsoDate(new Date());
 }
 
+function passIsAvailableForPayment(pass: PassTypeOption, today = todayIso()) {
+  if (!pass.isOffer) return true;
+  if (!pass.offerStartDate || !pass.offerEndDate) return false;
+  return pass.offerStartDate <= today && today <= pass.offerEndDate;
+}
+
 function toIsoDate(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -379,6 +390,7 @@ export function PassPayment() {
   const [successMessage, setSuccessMessage] = useState('');
   const [paying, setPaying] = useState<PendingSwimmer | null>(null);
   const [passTypeId, setPassTypeId] = useState('');
+  const [testOutcome, setTestOutcome] = useState<'change' | 'fail'>('change');
   const [batch, setBatch] = useState('');
   const [coach, setCoach] = useState('');
   const [passStartDate, setPassStartDate] = useState(todayIso());
@@ -429,11 +441,12 @@ export function PassPayment() {
         full_name: string;
         whatsapp_mobile: string;
         email: string;
-        pending_type: 'New' | 'Expired';
+        pending_type: 'New' | 'Expired' | 'Test';
         pass_type?: string | null;
         coach?: string | null;
         batch?: string | null;
         awaitingWhatsApp?: boolean;
+        upgradePaymentId?: number | null;
       }>;
 
       setRows(
@@ -442,11 +455,18 @@ export function PassPayment() {
           fullName: row.full_name,
           contact: row.whatsapp_mobile || '—',
           email: row.email || '—',
-          type: row.pending_type === 'Expired' ? 'Expired' : 'New',
+          type:
+            row.pending_type === 'Test'
+              ? 'Test'
+              : row.pending_type === 'Expired'
+                ? 'Expired'
+                : 'New',
           passType: row.pass_type?.trim() || '',
           coach: row.coach?.trim() || '',
           batch: row.batch?.trim() || '',
           awaitingWhatsApp: Boolean(row.awaitingWhatsApp),
+          upgradePaymentId:
+            row.upgradePaymentId == null ? null : Number(row.upgradePaymentId),
         })),
       );
 
@@ -458,14 +478,17 @@ export function PassPayment() {
           }
         >;
         setPassTypes(
-          passes.map((pass) => ({
-            ...pass,
-            maxSwimmersPerCoach:
-              pass.maxSwimmersPerCoach == null || Number(pass.maxSwimmersPerCoach) <= 0
-                ? null
-                : Number(pass.maxSwimmersPerCoach),
-            exceedingLimitAllowed: pass.exceedingLimitAllowed !== false,
-          })),
+          passes
+            .map((pass) => ({
+              ...pass,
+              maxSwimmersPerCoach:
+                pass.maxSwimmersPerCoach == null || Number(pass.maxSwimmersPerCoach) <= 0
+                  ? null
+                  : Number(pass.maxSwimmersPerCoach),
+              exceedingLimitAllowed: pass.exceedingLimitAllowed !== false,
+              testRequired: Boolean(pass.testRequired),
+            }))
+            .filter((pass) => passIsAvailableForPayment(pass)),
         );
       }
       if (batchRes.ok) {
@@ -533,7 +556,8 @@ export function PassPayment() {
     const activeBatches = sample ? SAMPLE_BATCHES : batches;
     setPaying(effectiveRow);
     const matched = activePassTypes.find((pass) => pass.passName === row.passType);
-    setPassTypeId(matched ? String(matched.id) : '');
+    setPassTypeId(row.upgradePaymentId ? '' : matched ? String(matched.id) : '');
+    setTestOutcome('change');
     setBatch(resolveBatchValue(row.batch || '', activeBatches));
     setCoach(sample && (row.coach === 'Any' || !row.coach) ? SAMPLE_COACHES[0].fullName : row.coach || '');
     setPassStartDate(todayIso());
@@ -574,6 +598,7 @@ export function PassPayment() {
     clearIssueCloseTimer();
     setPaying(null);
     setPassTypeId('');
+    setTestOutcome('change');
     setBatch('');
     setCoach('');
     setPassStartDate(todayIso());
@@ -608,6 +633,13 @@ export function PassPayment() {
   const activePassTypes = samplePaying ? SAMPLE_PASS_TYPES : passTypes;
   const activeBatches = samplePaying ? SAMPLE_BATCHES : batches;
   const activeCoaches = samplePaying ? SAMPLE_COACHES : coaches;
+  const isTestPassUpdate = Boolean(paying?.upgradePaymentId);
+  const isTestPassFail = isTestPassUpdate && testOutcome === 'fail';
+  const paymentPassTypes = isTestPassUpdate
+    ? activePassTypes.filter(
+        (pass) => pass.testRequired && pass.passName !== paying?.passType,
+      )
+    : activePassTypes;
 
   function openSwimmerEdit() {
     if (!paying || !swimmerProfile) return;
@@ -660,7 +692,7 @@ export function PassPayment() {
     setSamplePhotoFile(null);
   }
 
-  const selectedPass = activePassTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
+  const selectedPass = paymentPassTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
   const coachingRequired = Boolean(selectedPass && selectedPass.coach !== 'Not Required');
   const passValidUntil = selectedPass
     ? addPassDuration(selectedPass.duration, passStartDate)
@@ -1009,6 +1041,7 @@ export function PassPayment() {
     if (profileLoading) missing.push('Wait for swimmer details to finish loading');
     if (!profileLoading && !swimmerProfile) missing.push('Swimmer details could not be loaded');
     if (!detailsConfirmed) missing.push('Confirm swimmer details, documents and photo');
+    if (isTestPassFail) return missing;
     if (!selectedPass) missing.push('Pass');
     if (selectedPass && !passValidUntil) missing.push('Pass period end date');
     if (selectedPass) {
@@ -1030,6 +1063,7 @@ export function PassPayment() {
 
   function collectSubmitMissing(): string[] {
     const missing = collectSharedMissing();
+    if (isTestPassUpdate || onlinePayAmount <= 0) return missing;
     if (paymentMode !== 'Cash' && paymentMode !== 'Online') {
       missing.push('Payment mode');
     }
@@ -1068,34 +1102,48 @@ export function PassPayment() {
       showMissing(missing);
       return;
     }
-    if (!paying || !selectedPass) {
+    if (!paying || (!isTestPassFail && !selectedPass)) {
       showMissing(['Pass']);
       return;
     }
-    if (!confirmAssignmentIfOverLimit()) return;
+    if (!isTestPassFail && !confirmAssignmentIfOverLimit()) return;
     setSaving(true);
     setError('');
     setMissingFields([]);
     try {
       const assignedCoach = !coachingRequired
         ? null
-        : coach || (selectedPass.coach !== 'Any' ? selectedPass.coach : null);
+        : coach || (selectedPass && selectedPass.coach !== 'Any' ? selectedPass.coach : null);
       const res = await fetch(`/api/registrations/${paying.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          passType: selectedPass.passName,
-          coach: assignedCoach,
-          batch: batch.trim(),
-          passValidUntil,
-          paymentMode,
-          transactionId: paymentMode === 'Online' ? transactionId.trim() : null,
-          isActive: true,
-        }),
+        body: JSON.stringify(
+          isTestPassFail
+            ? {
+                testResult: 'fail',
+                upgradePaymentId: paying.upgradePaymentId ?? null,
+              }
+            : {
+                passType: selectedPass!.passName,
+                coach: assignedCoach,
+                batch: batch.trim(),
+                passValidUntil,
+                paymentMode,
+                transactionId: paymentMode === 'Online' ? transactionId.trim() : null,
+                upgradePaymentId: paying.upgradePaymentId ?? null,
+                isActive: true,
+              },
+        ),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Payment update failed');
-      setIssueSuccessMessage('Pass generated successfully and sent on whatsapp');
+      setIssueSuccessMessage(
+        isTestPassFail
+          ? 'Test marked as fail. Pass is no longer valid.'
+          : isTestPassUpdate
+            ? 'Test pass updated.'
+            : 'Pass generated successfully and sent on whatsapp',
+      );
       scheduleCloseAfterIssue(() => {
         void load();
       });
@@ -1116,11 +1164,12 @@ export function PassPayment() {
   const sampleOnlineQrUrl = samplePaying ? SAMPLE_PAYMENT_QR_URL : null;
   const onlineQrUrl = uploadUrl(paymentQrPath) ?? sampleOnlineQrUrl;
   const onlineUpi = samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails;
-  const onlinePayAmount = selectedPass
+  const selectedPassAmount = selectedPass
     ? Math.round(
         (Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0)) * 100,
       ) / 100
     : 0;
+  const onlinePayAmount = selectedPassAmount;
 
   const queuedSamplePayments = demoMode
     ? getSamplePassPaymentQueue()
@@ -1224,7 +1273,7 @@ export function PassPayment() {
                         className="terms-link"
                         onClick={() => openPay(row)}
                       >
-                        {t('Pay')}
+                        {t(row.upgradePaymentId ? 'Edit pass' : 'Pay')}
                       </button>
                     </span>
                   </div>
@@ -1247,7 +1296,9 @@ export function PassPayment() {
           ) : null}
           <div className="swimmer-edit-head">
             <div>
-              <h2 id="pay-title">{t('Collect pass payment')}</h2>
+              <h2 id="pay-title">
+                {t(isTestPassUpdate ? 'Update test pass' : 'Collect pass payment')}
+              </h2>
               <p className="pass-count">
                 {samplePaying
                   ? `${paying.fullName} · ${t(paying.type)} — ${t('sample layout')}`
@@ -1299,6 +1350,42 @@ export function PassPayment() {
             onSubmit={onConfirmPay}
             noValidate
           >
+              {isTestPassUpdate ? (
+                <div className="field">
+                  <span className="label">{t('Test result')}</span>
+                  <div className="payment-mode-choices" role="radiogroup" aria-label={t('Test result')}>
+                    <label className={`choice-chip${testOutcome === 'change' ? ' selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="testOutcome"
+                        checked={testOutcome === 'change'}
+                        onChange={() => {
+                          setTestOutcome('change');
+                          setMissingFields([]);
+                        }}
+                      />
+                      {t('Change test pass')}
+                    </label>
+                    <label className={`choice-chip${testOutcome === 'fail' ? ' selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="testOutcome"
+                        checked={testOutcome === 'fail'}
+                        onChange={() => {
+                          setTestOutcome('fail');
+                          setPassTypeId('');
+                          setCoach('');
+                          setMissingFields([]);
+                        }}
+                      />
+                      {t('Fail')}
+                    </label>
+                  </div>
+                </div>
+              ) : null}
+
+              {!isTestPassFail ? (
+              <>
               <label className="field payment-pass-type-field">
                 <span className="label">
                   {t('Pass')} <span className="req">*</span>
@@ -1306,14 +1393,14 @@ export function PassPayment() {
                 <InPageSelect
                   aria-label={t('Pass')}
                   value={passTypeId}
-                  placeholder={t('Select pass')}
+                  placeholder={t(isTestPassUpdate ? 'Select a test pass' : 'Select pass')}
                   searchable
                   onChange={(next) => {
                     setPassTypeId(next);
                     setCoach('');
                     setMissingFields([]);
                   }}
-                  options={activePassTypes.map((pass) => ({
+                  options={paymentPassTypes.map((pass) => ({
                     value: String(pass.id),
                     label: `${pass.passName} · ${pass.duration} · ${formatMoney(pass.passCharges)}`,
                     searchText: pass.passName,
@@ -1442,12 +1529,19 @@ export function PassPayment() {
                   </label>
                 ) : null}
               </div>
+              </>
+              ) : (
+                <p className="muted">
+                  {t('Failing the test ends this pass today. The swimmer cannot use it after that.')}
+                </p>
+              )}
 
-              <div
-                className={`payment-mode-row${
-                  paymentMode === 'Online' ? ' payment-mode-row--online' : ''
-                }`}
-              >
+              {onlinePayAmount > 0 && !isTestPassUpdate ? (
+                <div
+                  className={`payment-mode-row${
+                    paymentMode === 'Online' ? ' payment-mode-row--online' : ''
+                  }`}
+                >
                 <div className="payment-mode-left">
                   <div className="field payment-mode-field">
                     <span className="label">
@@ -1573,7 +1667,8 @@ export function PassPayment() {
                     )}
                   </div>
                 ) : null}
-              </div>
+                </div>
+              ) : null}
 
               {error ? <p className="error">{t(error)}</p> : null}
               {missingFields.length > 0 ? (
@@ -1605,9 +1700,19 @@ export function PassPayment() {
                   <button
                     type="submit"
                     className="submit"
-                    disabled={saving || !paymentReceived || Boolean(issueSuccessMessage)}
+                    disabled={
+                      saving ||
+                      (!isTestPassUpdate && onlinePayAmount > 0 && !paymentReceived) ||
+                      Boolean(issueSuccessMessage)
+                    }
                   >
-                    {saving ? t('Issuing…') : t('Issue Pass')}
+                    {saving
+                      ? isTestPassFail
+                        ? t('Saving…')
+                        : t('Issuing…')
+                      : isTestPassFail
+                        ? t('Mark as fail')
+                        : t(isTestPassUpdate ? 'Update Pass' : 'Issue Pass')}
                   </button>
                 </div>
               </div>

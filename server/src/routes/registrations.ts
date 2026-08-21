@@ -94,6 +94,9 @@ async function ensureInactiveAtColumn() {
       await pool.query(
         `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ`,
       );
+      await pool.query(
+        `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS test_result TEXT`,
+      );
     })().catch((err) => {
       inactiveAtReady = null;
       throw err;
@@ -152,6 +155,8 @@ function mapRegistrationRow(row: Record<string, unknown>) {
       : null,
     created_at: row.created_at,
     pending_type: row.pending_type,
+    test_result: row.test_result ? String(row.test_result) : null,
+    test_required: row.test_required === true,
   };
 }
 
@@ -162,7 +167,15 @@ registrationsRouter.get('/', async (req, res) => {
     await deactivateExpiredPasses(accountId);
     const { rows } = await pool.query(
       `SELECT id, full_name, email, whatsapp_mobile, birthdate, sex, blood_group,
-              is_active, pass_type, batch, coach, pass_valid_until, inactive_at, created_at
+              is_active, pass_type, batch, coach, pass_valid_until, inactive_at, created_at,
+              test_result,
+              COALESCE((
+                SELECT pt.test_required
+                FROM pass_types pt
+                WHERE pt.saas_account_id = registrations.saas_account_id
+                  AND LOWER(TRIM(pt.pass_name)) = LOWER(TRIM(registrations.pass_type))
+                LIMIT 1
+              ), FALSE) AS test_required
        FROM registrations
        WHERE saas_account_id = $1
        ORDER BY created_at DESC`,
@@ -187,14 +200,30 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
       `SELECT r.id, r.full_name, r.email, r.whatsapp_mobile, r.birthdate, r.sex, r.blood_group,
               r.is_active, r.pass_type, r.batch, r.coach, r.pass_valid_until, r.created_at,
               CASE
+                WHEN test_payment.id IS NOT NULL THEN 'Test'
                 WHEN r.pass_valid_until IS NULL THEN 'New'
                 ELSE 'Expired'
               END AS pending_type,
+              test_payment.id AS upgrade_payment_id,
               EXISTS (
                 SELECT 1 FROM pass_payment_intents i
                 WHERE i.registration_id = r.id AND i.status = 'pending'
               ) AS awaiting_whatsapp
        FROM registrations r
+       LEFT JOIN LATERAL (
+         SELECT p.id
+         FROM pass_payments p
+         JOIN pass_types pt
+           ON pt.saas_account_id = p.saas_account_id
+          AND LOWER(TRIM(pt.pass_name)) = LOWER(TRIM(p.pass_type))
+         WHERE p.saas_account_id = r.saas_account_id
+           AND p.registration_id = r.id
+           AND p.payment_date = CURRENT_DATE
+           AND COALESCE(pt.test_required, FALSE) = TRUE
+           AND COALESCE(p.test_upgrade_applied, FALSE) = FALSE
+         ORDER BY p.id DESC
+         LIMIT 1
+       ) test_payment ON TRUE
        WHERE r.saas_account_id = $1
          AND (
            -- New / unpaid registrations
@@ -210,6 +239,7 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
              AND r.inactive_at IS NOT NULL
              AND r.inactive_at::date >= (CURRENT_DATE - INTERVAL '3 days')
            )
+           OR test_payment.id IS NOT NULL
          )
        ORDER BY
          CASE WHEN r.pass_valid_until IS NULL THEN 0 ELSE 1 END,
@@ -220,6 +250,8 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
       rows.map((row) => ({
         ...mapRegistrationRow(row),
         awaitingWhatsApp: row.awaiting_whatsapp === true,
+        upgradePaymentId:
+          row.upgrade_payment_id == null ? null : Number(row.upgrade_payment_id),
       })),
     );
   } catch (err) {
@@ -513,6 +545,8 @@ registrationsRouter.patch('/:id', async (req, res) => {
       passValidUntil?: string | null;
       paymentMode?: string | null;
       transactionId?: string | null;
+      upgradePaymentId?: number | null;
+      testResult?: string | null;
     };
 
     const existing = await pool.query(
@@ -524,20 +558,146 @@ registrationsRouter.patch('/:id', async (req, res) => {
       return;
     }
 
+    const upgradePaymentId = Number(body.upgradePaymentId ?? 0);
+    const testResult = String(body.testResult ?? '').trim().toLowerCase();
+
+    async function loadSameDayTestPayment() {
+      const credit = await pool.query(
+        `SELECT p.id, p.pass_type
+         FROM pass_payments p
+         JOIN pass_types pt
+           ON pt.saas_account_id = p.saas_account_id
+          AND LOWER(TRIM(pt.pass_name)) = LOWER(TRIM(p.pass_type))
+         WHERE p.id = $1
+           AND p.saas_account_id = $2
+           AND p.registration_id = $3
+           AND p.payment_date = CURRENT_DATE
+           AND COALESCE(pt.test_required, FALSE) = TRUE
+           AND COALESCE(p.test_upgrade_applied, FALSE) = FALSE
+         LIMIT 1`,
+        [upgradePaymentId, accountId, id],
+      );
+      return credit.rows[0] as { id: number; pass_type: string } | undefined;
+    }
+
+    if (testResult === 'fail') {
+      if (upgradePaymentId <= 0) {
+        res.status(400).json({ error: 'Test pass update is no longer available' });
+        return;
+      }
+      const testPayment = await loadSameDayTestPayment();
+      if (!testPayment) {
+        res.status(400).json({ error: 'Test pass update is no longer available' });
+        return;
+      }
+      const { rows } = await pool.query(
+        `UPDATE registrations
+            SET is_active = FALSE,
+                pass_valid_until = (CURRENT_DATE - 1),
+                inactive_at = NOW(),
+                test_result = 'fail'
+          WHERE id = $1 AND saas_account_id = $2`
+          RETURNING id, full_name, email, whatsapp_mobile, is_active, pass_type, batch, coach, pass_valid_until`,
+        [id, accountId],
+      );
+      await pool.query(
+        `UPDATE pass_payments
+            SET test_upgrade_applied = TRUE
+          WHERE id = $1 AND saas_account_id = $2 AND registration_id = $3`,
+        [upgradePaymentId, accountId, id],
+      );
+      const updated = rows[0];
+      await recordAudit(req, {
+        action: 'update',
+        entityType: 'swimmer',
+        entityId: updated.id,
+        entityLabel: String(updated.full_name ?? ''),
+        summary: 'Marked test pass as fail',
+        details: {
+          originalTestPass: testPayment.pass_type,
+          passType: updated.pass_type,
+        },
+      });
+      res.json(updated);
+      return;
+    }
+
     const isPassPayment =
       body.passType !== undefined &&
       body.passValidUntil !== undefined &&
       Boolean(String(body.passType ?? '').trim()) &&
       Boolean(body.passValidUntil);
 
+    let selectedPassPrice = 0;
+    let selectedPassIsTest = false;
+    if (isPassPayment) {
+      const passAvailability = await pool.query(
+        `SELECT id, pass_charges, coaching_charges, COALESCE(test_required, FALSE) AS test_required`
+         FROM pass_types
+         WHERE saas_account_id = $1
+           AND LOWER(TRIM(pass_name)) = LOWER(TRIM($2))
+           AND (
+             COALESCE(is_offer, FALSE) = FALSE
+             OR (
+               offer_start_date IS NOT NULL
+               AND offer_end_date IS NOT NULL
+               AND CURRENT_DATE BETWEEN offer_start_date AND offer_end_date
+             )
+           )
+         LIMIT 1`,
+        [accountId, String(body.passType ?? '').trim()],
+      );
+      if (!passAvailability.rows[0]) {
+        res.status(400).json({ error: 'Selected pass is not currently available' });
+        return;
+      }
+      selectedPassIsTest = Boolean(passAvailability.rows[0].test_required);
+      selectedPassPrice =
+        Number(passAvailability.rows[0].pass_charges ?? 0) +
+        Number(passAvailability.rows[0].coaching_charges ?? 0);
+      if (upgradePaymentId > 0 && !passAvailability.rows[0].test_required) {
+        res.status(400).json({ error: 'Same-day test pass edit can only change to another test pass or fail' });
+        return;
+      }
+    }
+
+    let originalTestPass = '';
+    if (isPassPayment && upgradePaymentId > 0) {
+      const testPayment = await loadSameDayTestPayment();
+      if (!testPayment) {
+        res.status(400).json({ error: 'Test pass update is no longer available' });
+        return;
+      }
+      originalTestPass = String(testPayment.pass_type ?? '').trim();
+      if (
+        originalTestPass.toLowerCase() === String(body.passType ?? '').trim().toLowerCase()
+      ) {
+        res.status(400).json({ error: 'Select a different pass for the update' });
+        return;
+      }
+    }
+
+    const isTestPassChange = isPassPayment && upgradePaymentId > 0;
     const paymentMode = String(body.paymentMode ?? '').trim();
-    if (isPassPayment && paymentMode !== 'Cash' && paymentMode !== 'Online') {
+    if (
+      isPassPayment &&
+      !isTestPassChange &&
+      selectedPassPrice > 0 &&
+      paymentMode !== 'Cash' &&
+      paymentMode !== 'Online'
+    ) {
       res.status(400).json({ error: 'Payment mode must be Cash or Online' });
       return;
     }
 
     const transactionId = String(body.transactionId ?? '').trim();
-    if (isPassPayment && paymentMode === 'Online' && !transactionId) {
+    if (
+      isPassPayment &&
+      !isTestPassChange &&
+      selectedPassPrice > 0 &&
+      paymentMode === 'Online' &&
+      !transactionId
+    ) {
       res.status(400).json({ error: 'Enter transaction ID for online payment' });
       return;
     }
@@ -593,6 +753,10 @@ registrationsRouter.patch('/:id', async (req, res) => {
       values.push(body.passValidUntil || null);
       updates.push(`pass_valid_until = $${values.length}`);
     }
+    if (isPassPayment) {
+      values.push(selectedPassIsTest ? 'pass' : null);
+      updates.push(`test_result = $${values.length}`);
+    }
     // Single inactive_at assignment (Postgres rejects setting the same column twice).
     if (isPassPayment || body.isActive === true) {
       updates.push(`inactive_at = NULL`);
@@ -629,22 +793,34 @@ registrationsRouter.patch('/:id', async (req, res) => {
       const passCharges = Number(passRes.rows[0]?.pass_charges ?? 0);
       const coachingCharges = Number(passRes.rows[0]?.coaching_charges ?? 0);
       const amount = passCharges + coachingCharges;
-      await pool.query(
-        `INSERT INTO pass_payments
-         (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges, amount, payment_date, payment_mode, transaction_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, $8, $9)`,
-        [
-          accountId,
-          updated.id,
-          updated.full_name,
-          passName,
-          passCharges,
-          coachingCharges,
-          amount,
-          paymentMode,
-          paymentMode === 'Online' ? transactionId : null,
-        ],
-      );
+      if (!isTestPassChange) {
+        await pool.query(
+          `INSERT INTO pass_payments
+           (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges,
+            amount, payment_date, payment_mode, transaction_id, upgrade_source_payment_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, $8, $9, $10)`,
+          [
+            accountId,
+            updated.id,
+            updated.full_name,
+            passName,
+            passCharges,
+            coachingCharges,
+            amount,
+            amount > 0 ? paymentMode : 'No payment',
+            amount > 0 && paymentMode === 'Online' ? transactionId : null,
+            upgradePaymentId > 0 ? upgradePaymentId : null,
+          ],
+        );
+      }
+      if (upgradePaymentId > 0) {
+        await pool.query(
+          `UPDATE pass_payments
+           SET test_upgrade_applied = TRUE
+           WHERE id = $1 AND saas_account_id = $2 AND registration_id = $3`,
+          [upgradePaymentId, accountId, id],
+        );
+      }
 
       const account = await pool.query(
         `SELECT account_code FROM saas_accounts WHERE id = $1`,
@@ -685,11 +861,14 @@ registrationsRouter.patch('/:id', async (req, res) => {
         entityType: 'swimmer',
         entityId: updated.id,
         entityLabel: String(updated.full_name ?? ''),
-        summary: 'Recorded pass payment / renewed pass',
+        summary: isTestPassChange
+          ? 'Changed test pass on same day'
+          : 'Recorded pass payment / renewed pass',
         details: {
           passType: body.passType,
           passValidUntil: body.passValidUntil,
           paymentMode,
+          upgradedFromTestPass: originalTestPass || null,
           batch: updated.batch,
           coach: updated.coach,
         },

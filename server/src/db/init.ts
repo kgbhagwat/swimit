@@ -41,6 +41,7 @@ ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_relation TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_mobile TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ;
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS test_result TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS identity_number TEXT NOT NULL DEFAULT '';
 ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
 ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS identity_number TEXT NOT NULL DEFAULT '';
@@ -125,8 +126,12 @@ CREATE TABLE IF NOT EXISTS pass_types (
   pass_charges NUMERIC(12, 2) NOT NULL DEFAULT 0,
   coaching_charges NUMERIC(12, 2) NOT NULL DEFAULT 0,
   coach TEXT,
+  test_required BOOLEAN NOT NULL DEFAULT FALSE,
   max_swimmers_per_coach INT,
   exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE,
+  is_offer BOOLEAN NOT NULL DEFAULT FALSE,
+  offer_start_date DATE,
+  offer_end_date DATE,
   verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -134,6 +139,10 @@ CREATE TABLE IF NOT EXISTS pass_types (
 
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS max_swimmers_per_coach INT;
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS test_required BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS is_offer BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_start_date DATE;
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_end_date DATE;
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok';
 UPDATE pass_types SET verification_mode = 'ok_not_ok' WHERE verification_mode IS NULL OR TRIM(verification_mode) = '';
 
@@ -206,6 +215,8 @@ CREATE TABLE IF NOT EXISTS pass_payments (
 
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS payment_mode TEXT;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS transaction_id TEXT;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS test_upgrade_applied BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS upgrade_source_payment_id INT REFERENCES pass_payments(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS pool_core_info (
   id SERIAL PRIMARY KEY,
@@ -632,6 +643,7 @@ UPDATE pool_core_info SET whatsapp_broadcast_enabled = FALSE WHERE whatsapp_broa
 ALTER TABLE pool_core_info ALTER COLUMN whatsapp_broadcast_enabled SET NOT NULL;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pass_verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok';
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pass_verification_configured BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS coach_payment_basis TEXT NOT NULL DEFAULT 'month';
 UPDATE pool_core_info pci
    SET pass_verification_mode = 'face',
        pass_verification_configured = TRUE

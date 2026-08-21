@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { exitApplicationDemo } from './applicationDemo';
+import { navigateToCurrentVersion } from './clientVersion';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { useT } from './i18n';
 import { LoginCaptchaField, useLoginCaptcha } from './LoginCaptcha';
@@ -220,7 +221,7 @@ export function PlatformLoginModal({
           csrfToken: user.csrfToken,
         });
         onClose();
-        navigate('/accounts');
+        void navigateToCurrentVersion('/accounts', (path) => navigate(path, { replace: true }));
         return;
       }
 
@@ -233,7 +234,9 @@ export function PlatformLoginModal({
       }
 
       onClose();
-      navigate(`/${code}/dashboard`);
+      void navigateToCurrentVersion(`/${code}/dashboard`, (path) =>
+        navigate(path, { replace: true }),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
       void captcha.refresh();
