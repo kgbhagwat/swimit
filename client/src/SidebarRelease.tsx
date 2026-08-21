@@ -48,8 +48,14 @@ export function SidebarRelease() {
   }, []);
 
   return (
-    <p className="platform-sidebar-release" title={commit}>
-      {t('Release')} {commit}
-    </p>
+    <footer className="platform-sidebar-footer">
+      <div className="platform-sidebar-copyright">
+        <strong>© 2026 KGIT Solution LLP</strong>
+        <span>This is proprietary software. All rights reserved.</span>
+      </div>
+      <p className="platform-sidebar-release" title={commit}>
+        {t('Release')} {commit}
+      </p>
+    </footer>
   );
 }

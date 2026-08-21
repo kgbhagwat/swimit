@@ -906,7 +906,7 @@ export function StaffRegistration() {
           >
             <RegistrationPhotoField
               label={t("Photo")}
-              hint={t("Image (max 200 KB) or PDF (max 2 MB) — recent passport-size photo for identification")}
+              hint={t("Image or PDF (max 200 KB) — recent passport-size photo for identification")}
               required
               protectFromCapture
               file={staffPhoto}
@@ -1013,7 +1013,7 @@ export function StaffRegistration() {
                 <div className="achievements-cert-uploads">
                   <MultiCertificateField
                     label={t("Certificates")}
-                    hint={t("Optional — upload up to 3 certificate photos or PDFs (images max 200 KB; PDFs max 2 MB)")}
+                    hint={t("Optional — upload up to 3 certificate photos or PDFs (max 200 KB each)")}
                     cameraFacing="environment"
                     files={certPhotos}
                     previews={certPreviews}
@@ -1117,7 +1117,7 @@ export function StaffRegistration() {
                   <div className="lifeguard-photo-inline">
                     <RegistrationPhotoField
                       label={t("Certificate")}
-                      hint={t("Image (max 200 KB) or PDF (max 2 MB) — upload or take a clear photo of the Life Guard certificate")}
+                      hint={t("Image or PDF (max 200 KB) — upload or take a clear photo of the Life Guard certificate")}
                       required
                       cameraFacing="environment"
                       file={lifeguardPhoto}

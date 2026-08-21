@@ -472,8 +472,8 @@ const mr: Record<string, string> = {
   Sample: 'नमुना',
   "Achievements": "उपलब्धी",
   "Life Guard certificate photo": "लाइफ गार्ड प्रमाणपत्र फोटो",
-  "Optional — upload up to 3 certificate photos or PDFs (images max 200 KB; PDFs max 2 MB)":
-    "पर्यायी — जास्तीत जास्त ३ प्रमाणपत्र फोटो किंवा PDF (प्रतिमा कमाल २०० KB; PDF कमाल २ MB)",
+  "Optional — upload up to 3 certificate photos or PDFs (max 200 KB each)":
+    "पर्यायी — जास्तीत जास्त ३ प्रमाणपत्र फोटो किंवा PDF अपलोड करा (प्रत्येक कमाल २०० KB)",
   " (inactive)": " (निष्क्रिय)",
   "(A random password is sent on WhatsApp.)": "(यादृच्छिक पासवर्ड WhatsApp वर पाठवला जातो.)",
   "(It should be part of pass charges)": "(हे पास शुल्काचा भाग असावे)",
@@ -942,17 +942,17 @@ const mr: Record<string, string> = {
   "Looking up swimmer…": "पोहणारा शोधत आहे…",
   "Lookup failed": "शोध अयशस्वी",
   "Male": "पुरुष",
-  "Images max 200 KB; PDFs max 2 MB": "प्रतिमा कमाल २०० KB; PDF कमाल २ MB",
-  "Image (max 200 KB) or PDF (max 2 MB) — recent passport-size photo for identification":
-    "प्रतिमा (कमाल २०० KB) किंवा PDF (कमाल २ MB) — ओळखीसाठी अलीकडील पासपोर्ट-साइज फोटो",
-  "Image (max 200 KB) or PDF (max 2 MB) — recent passport-size photo of the swimmer":
-    "प्रतिमा (कमाल २०० KB) किंवा PDF (कमाल २ MB) — अलीकडील पासपोर्ट-साइज फोटो",
-  "Image (max 200 KB) or PDF (max 2 MB) — upload or take a clear photo of the Life Guard certificate":
-    "प्रतिमा (कमाल २०० KB) किंवा PDF (कमाल २ MB) — लाइफ गार्ड प्रमाणपत्राचा स्पष्ट फोटो अपलोड करा किंवा घ्या",
-  "Image (max 200 KB) or PDF (max 2 MB) — upload or take a photo of your identity proof":
-    "प्रतिमा (कमाल २०० KB) किंवा PDF (कमाल २ MB) — अपलोड करा किंवा स्पष्ट फोटो घ्या",
-  "Image (max 200 KB) or PDF (max 2 MB) — upload the UPI / payment QR account holders will scan":
-    "प्रतिमा (कमाल २०० KB) किंवा PDF (कमाल २ MB) — खातेधारक स्कॅन करतील तो UPI / पेमेंट QR अपलोड करा",
+  "Images and PDFs max 200 KB": "प्रतिमा आणि PDF कमाल २०० KB",
+  "Image or PDF (max 200 KB) — recent passport-size photo for identification":
+    "प्रतिमा किंवा PDF (कमाल २०० KB) — ओळखीसाठी अलीकडील पासपोर्ट-साइज फोटो",
+  "Image or PDF (max 200 KB) — recent passport-size photo of the swimmer":
+    "प्रतिमा किंवा PDF (कमाल २०० KB) — अलीकडील पासपोर्ट-साइज फोटो",
+  "Image or PDF (max 200 KB) — upload or take a clear photo of the Life Guard certificate":
+    "प्रतिमा किंवा PDF (कमाल २०० KB) — लाइफ गार्ड प्रमाणपत्राचा स्पष्ट फोटो अपलोड करा किंवा घ्या",
+  "Image or PDF (max 200 KB) — upload or take a photo of your identity proof":
+    "प्रतिमा किंवा PDF (कमाल २०० KB) — अपलोड करा किंवा स्पष्ट फोटो घ्या",
+  "Image or PDF (max 200 KB) — upload the UPI / payment QR account holders will scan":
+    "प्रतिमा किंवा PDF (कमाल २०० KB) — खातेधारक स्कॅन करतील तो UPI / पेमेंट QR अपलोड करा",
   "Max no of swimmers in a batch per coach": "प्रति कोच बॅचमधील कमाल पोहणारे",
   "Max swimmers": "कमाल पोहणारे",
   "Max swimmers must be a positive number or No Limit": "कमाल पोहणारे सकारात्मक संख्या किंवा मर्यादा नाही असावी",
@@ -1281,10 +1281,10 @@ const mr: Record<string, string> = {
   "Take a photo or upload an image or PDF, then confirm with OK.":
     "फोटो काढा किंवा प्रतिमा किंवा PDF अपलोड करा, नंतर OK ने पुष्टी करा.",
   "PDF document": "PDF दस्तऐवज",
-  "PDF must be 2 MB or smaller": "PDF २ MB किंवा त्याहून लहान हवा",
+  "PDF must be 200 KB or smaller": "PDF २०० KB किंवा त्याहून लहान हवा",
   "Please upload an image or a PDF": "प्रतिमा किंवा PDF अपलोड करा",
-  "Upload one or more certificate photos or PDFs (up to 3). Images over 200 KB are compressed; PDFs can be up to 2 MB.":
-    "एक किंवा अधिक प्रमाणपत्र फोटो किंवा PDF अपलोड करा (कमाल ३). २०० KB पेक्षा मोठ्या प्रतिमा संकुचित होतात; PDF २ MB पर्यंत चालतो.",
+  "Upload one or more certificate photos or PDFs (up to 3). Each file must be max 200 KB; larger photos are compressed automatically.":
+    "एक किंवा अधिक प्रमाणपत्र फोटो किंवा PDF अपलोड करा (कमाल ३). प्रत्येक फाइल कमाल २०० KB असावी; मोठे फोटो आपोआप संकुचित होतात.",
   "Upload one or more certificate photos (up to 3). Each image must be max 200 KB — larger photos are compressed automatically.":
     "एक किंवा अधिक प्रमाणपत्र फोटो अपलोड करा (कमाल ३). प्रत्येक प्रतिमा कमाल २०० KB — मोठ्या फोटोंचे आपोआप संकुचन होते.",
   "certificate attached": "प्रमाणपत्र जोडले",

@@ -3768,11 +3768,28 @@ button.platform-rail-link {
   overflow-y: auto;
 }
 
-.platform-sidebar-release {
+.platform-sidebar-footer {
   flex: 0 0 auto;
-  margin: 0;
-  padding: 0.55rem 0.85rem 0.75rem;
   border-top: 1px solid rgba(47, 111, 237, 0.08);
+}
+
+.platform-sidebar-copyright {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem 0.35rem;
+  text-align: center;
+  font-size: 0.61rem;
+  line-height: 1.35;
+  color: #5b6b80;
+}
+
+.platform-sidebar-copyright strong {
+  font-size: 0.64rem;
+}
+
+.platform-sidebar-release {
+  margin: 0;
+  padding: 0.25rem 0.85rem 0.65rem;
   font-size: 0.72rem;
   line-height: 1.3;
   color: #5b6b80;
@@ -18301,8 +18318,12 @@ html[data-theme='dark'] .platform-sidebar-brand {
   border-bottom-color: rgba(75, 132, 245, 0.14);
 }
 
-html[data-theme='dark'] .platform-sidebar-release {
+html[data-theme='dark'] .platform-sidebar-footer {
   border-top-color: rgba(75, 132, 245, 0.14);
+}
+
+html[data-theme='dark'] .platform-sidebar-release,
+html[data-theme='dark'] .platform-sidebar-copyright {
   color: #8aa0b8;
 }
 

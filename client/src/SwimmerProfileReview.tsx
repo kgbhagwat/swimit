@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { FilePreview } from './FilePreview';
 import { maskIdentityNumber, shouldMaskIdentityNumber } from './identityNumber';
-import { MaskedIdentityProofImage } from './MaskedIdentityProofImage';
 import { SensitiveSurface } from './sensitiveScreen';
 
 export type SwimmerProfile = {
@@ -196,15 +195,11 @@ export function SwimmerProfileReview({
             <div className="swimmer-review-photos">
               <figure className="swimmer-review-photo">
                 {profile.identityPhotoUrl ? (
-                  <MaskedIdentityProofImage
+                  <FilePreview
                     className="swimmer-review-photo-doc"
                     src={profile.identityPhotoUrl}
-                    identityNumber={
-                      shouldMaskIdentityNumber(profile.identityNumber)
-                        ? profile.identityNumber
-                        : undefined
-                    }
                     alt={`${profile.fullName} identity proof`}
+                    draggable={false}
                   />
                 ) : (
                   <div className="swimmer-review-photo-empty">No identity photo</div>

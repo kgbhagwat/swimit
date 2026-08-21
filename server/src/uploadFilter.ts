@@ -2,7 +2,7 @@ import type { Request } from 'express';
 import type { FileFilterCallback } from 'multer';
 import { randomUUID } from 'node:crypto';
 
-export const UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
+export const UPLOAD_MAX_BYTES = 200 * 1024;
 
 export const IMAGE_OR_PDF_MIME_EXTENSIONS: Readonly<Record<string, string>> = {
   'image/jpeg': '.jpg',

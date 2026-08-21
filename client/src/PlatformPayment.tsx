@@ -282,7 +282,7 @@ export function PlatformPayment() {
           <form className="pass-form-card platform-payment-details-card" onSubmit={onSubmit}>
             <ImageField
               label="SaaS payment QR code"
-              hint="Image (max 200 KB) or PDF (max 2 MB) — upload the UPI / payment QR account holders will scan"
+              hint="Image or PDF (max 200 KB) — upload the UPI / payment QR account holders will scan"
               file={qrFile}
               preview={qrPreview}
               existingUrl={clearQr ? null : uploadUrl(form.paymentQrPath)}

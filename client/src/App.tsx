@@ -860,7 +860,7 @@ export function App() {
           >
             <RegistrationPhotoField
               label={t("Swimmer photo")}
-              hint={t("Image (max 200 KB) or PDF (max 2 MB) — recent passport-size photo of the swimmer")}
+              hint={t("Image or PDF (max 200 KB) — recent passport-size photo of the swimmer")}
               required
               protectFromCapture
               file={swimmerPhoto}

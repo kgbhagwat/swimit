@@ -673,7 +673,7 @@ staffRegistrationsRouter.put(
       console.error(err);
       const message = err instanceof Error ? err.message : 'Update failed';
       if (message.includes('File too large')) {
-        res.status(400).json({ error: 'Each photo must be 200 KB or less' });
+        res.status(400).json({ error: 'Each file must be 200 KB or less' });
         return;
       }
       if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {
@@ -927,7 +927,7 @@ staffRegistrationsRouter.post(
       console.error(err);
       const message = err instanceof Error ? err.message : 'Registration failed';
       if (message.includes('File too large')) {
-        res.status(400).json({ error: 'Each photo must be 200 KB or less' });
+        res.status(400).json({ error: 'Each file must be 200 KB or less' });
         return;
       }
       if (message.toLowerCase().includes('unique') || message.toLowerCase().includes('duplicate')) {

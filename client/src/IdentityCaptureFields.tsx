@@ -105,12 +105,11 @@ export function IdentityCaptureFields({
       </label>
       <RegistrationPhotoField
         label={t('Photo of identity proof')}
-        hint={t('Image (max 200 KB) or PDF (max 2 MB) — upload or take a photo of your identity proof')}
+        hint={t('Image or PDF (max 200 KB) — upload or take a photo of your identity proof')}
         required
         hideLabel
         protectFromCapture
         cameraFacing="environment"
-        identityNumberToMask={number}
         file={proofFile}
         preview={proofPreview}
         existingUrl={proofExistingUrl}

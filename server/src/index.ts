@@ -292,7 +292,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   console.error(err);
   const message = err instanceof Error ? err.message : 'Internal server error';
   if (message.includes('File too large')) {
-    res.status(400).json({ error: 'Each photo must be 200 KB or less' });
+    res.status(400).json({ error: 'Each file must be 200 KB or less' });
     return;
   }
   if (message.includes('request entity too large')) {

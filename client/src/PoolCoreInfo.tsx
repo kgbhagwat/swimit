@@ -671,7 +671,7 @@ export function PoolCoreInfo() {
           <div className="grid-2 photos">
             <ImageField
               label={t('Pool Logo')}
-              hint={t('Images max 200 KB; PDFs max 2 MB')}
+              hint={t('Images and PDFs max 200 KB')}
               file={logoFile}
               preview={logoPreview}
               existingUrl={clearLogo ? null : uploadUrl(form.poolLogoPath)}

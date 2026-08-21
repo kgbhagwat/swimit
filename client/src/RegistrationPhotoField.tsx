@@ -1,11 +1,8 @@
 import { useId, useState } from 'react';
-import { compressImageToLimit } from './compressImage';
 import { FilePreview } from './FilePreview';
 import { useT } from './i18n';
-import { shouldMaskIdentityNumber } from './identityNumber';
-import { maskIdentityProofImage } from './maskIdentityProofImage';
 import { SensitiveSurface, useSensitiveScreen } from './sensitiveScreen';
-import { isPdfFile, prepareUploadFile } from './uploadFile';
+import { prepareUploadFile } from './uploadFile';
 import { useObjectUrl, useObjectUrls } from './useObjectUrl';
 import { PhotoPickerButtons, type CameraFacing } from './WebcamCapture';
 
@@ -39,11 +36,6 @@ type RegistrationPhotoFieldProps = {
   hideLabel?: boolean;
   /** Block save/print/screenshot affordances while this photo is on screen. */
   protectFromCapture?: boolean;
-  /**
-   * When set (identity proof uploads), mask this number on the image so only
-   * the last 4 characters remain visible before the file is accepted.
-   */
-  identityNumberToMask?: string;
   /** Rear camera for ID / certificates; front camera for portraits. */
   cameraFacing?: CameraFacing;
 };
@@ -63,7 +55,6 @@ export function RegistrationPhotoField({
   invalid,
   hideLabel = false,
   protectFromCapture = false,
-  identityNumberToMask,
   cameraFacing = 'user',
 }: RegistrationPhotoFieldProps) {
   const t = useT();
@@ -74,7 +65,6 @@ export function RegistrationPhotoField({
   const [open, setOpen] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [compressing, setCompressing] = useState(false);
-  const [masking, setMasking] = useState(false);
   const draftPreview = useObjectUrl(draftFile);
   const display = preview || existingUrl || null;
   const modalTitleId = useId();
@@ -84,7 +74,6 @@ export function RegistrationPhotoField({
   function closeModal(discardDraft: boolean) {
     if (discardDraft) setDraftFile(null);
     setCompressing(false);
-    setMasking(false);
     setOpen(false);
   }
 
@@ -105,27 +94,8 @@ export function RegistrationPhotoField({
     }
   }
 
-  async function confirmDraft() {
-    if (!draftFile || masking || compressing) return;
-    const idNumber = String(identityNumberToMask ?? '').trim();
-    if (shouldMaskIdentityNumber(idNumber) && !isPdfFile(draftFile)) {
-      setMasking(true);
-      try {
-        const masked = await maskIdentityProofImage(draftFile, idNumber);
-        const ready = await compressImageToLimit(masked);
-        onPick(ready);
-        closeModal(true);
-      } catch (err) {
-        alert(
-          err instanceof Error
-            ? err.message
-            : t('Unable to mask identity number on the proof photo'),
-        );
-      } finally {
-        setMasking(false);
-      }
-      return;
-    }
+  function confirmDraft() {
+    if (!draftFile || compressing) return;
     onPick(draftFile);
     closeModal(true);
   }
@@ -219,9 +189,6 @@ export function RegistrationPhotoField({
                 onPickFile={(file) => void handleDraftFile(file)}
               />
               {compressing ? <p className="hint">{t('Compressing image…')}</p> : null}
-              {masking ? (
-                <p className="hint">{t('Masking identity number on proof…')}</p>
-              ) : null}
               {draftPreview ? (
                 <div className="preview-wrap pool-core-image-modal-preview">
                   <FilePreview
@@ -238,17 +205,11 @@ export function RegistrationPhotoField({
                   {draftFile.name} ({Math.ceil(draftFile.size / 1024)} KB)
                 </p>
               ) : null}
-              {shouldMaskIdentityNumber(identityNumberToMask) && !isPdfFile(draftFile) ? (
-                <p className="hint">
-                  {t('On OK, the identity number on this photo is masked — only the last 4 digits stay visible.')}
-                </p>
-              ) : null}
             </div>
             <div className="modal-footer accounts-delete-modal-footer">
               <button
                 type="button"
                 className="ghost-btn"
-                disabled={masking}
                 onClick={() => closeModal(true)}
               >
                 {t('Cancel')}
@@ -256,10 +217,10 @@ export function RegistrationPhotoField({
               <button
                 type="button"
                 className="submit"
-                disabled={!draftFile || compressing || masking}
-                onClick={() => void confirmDraft()}
+                disabled={!draftFile || compressing}
+                onClick={confirmDraft}
               >
-                {masking ? t('Masking…') : t('OK')}
+                {t('OK')}
               </button>
             </div>
           </div>
@@ -417,7 +378,7 @@ export function MultiCertificateField({
           >
             <h2 id={modalTitleId}>{label}</h2>
             <p className="modal-intro">
-              {t('Upload one or more certificate photos or PDFs (up to 3). Images over 200 KB are compressed; PDFs can be up to 2 MB.')}
+              {t('Upload one or more certificate photos or PDFs (up to 3). Each file must be max 200 KB; larger photos are compressed automatically.')}
               {hint ? ` ${hint}` : ''}
             </p>
             <div className="modal-scroll">
