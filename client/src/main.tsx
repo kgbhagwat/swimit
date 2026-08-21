@@ -96,6 +96,9 @@ const UpiPayLaunch = lazy(() =>
 const RemoteAccessPage = lazy(() =>
   import('./RemoteAccessPage').then((m) => ({ default: m.RemoteAccessPage })),
 );
+const HelpPage = lazy(() =>
+  import('./HelpPage').then((m) => ({ default: m.HelpPage })),
+);
 
 function withPlatformAuth(element: ReactElement) {
   return <RequirePlatformSession>{element}</RequirePlatformSession>;
@@ -153,6 +156,7 @@ function appFeatureRoutes() {
       <Route path="pool-core-info" element={<PoolCoreInfo />} />
       <Route path="holiday-management" element={<HolidayManagement />} />
       <Route path="renew-payment" element={<RenewPayment />} />
+      <Route path="help" element={<HelpPage />} />
     </>
   );
 }

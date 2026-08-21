@@ -4,6 +4,7 @@ import { LanguageSwitcher, useT } from './i18n';
 import {
   clearPlatformSession,
   getPlatformSession,
+  setPlatformSession,
   type PlatformSession,
 } from './platformSession';
 import { hasPlatformAccess, type PlatformAccessPageKey } from './platformAccess';
@@ -223,7 +224,13 @@ export function PlatformNav({
           <LanguageSwitcher />
           {platformUser ? (
             <>
-              <PlatformProfileMenu session={platformUser} />
+              <PlatformProfileMenu
+                session={platformUser}
+                onSessionChange={(next) => {
+                  setPlatformSession(next);
+                  setPlatformUser(next);
+                }}
+              />
               <button
                 type="button"
                 className="tenant-signout-btn"
@@ -270,12 +277,25 @@ export function PlatformNav({
 
 function PlatformProfileMenu({
   session,
+  onSessionChange,
 }: {
   session: PlatformSession;
+  onSessionChange: (session: PlatformSession) => void;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profile, setProfile] = useState<{
+    userName: string;
+    mobile: string;
+    email: string;
+    isAccountAdmin: boolean;
+    createdAt?: string;
+    accountName: string;
+    accountCode: string;
+  } | null>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -293,6 +313,7 @@ function PlatformProfileMenu({
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
         setChangingPassword(false);
+        setEditingProfile(false);
         setError('');
         setSuccess('');
       }
@@ -315,7 +336,72 @@ function PlatformProfileMenu({
   function closeMenu() {
     setOpen(false);
     setChangingPassword(false);
+    setEditingProfile(false);
     resetPasswordForm();
+  }
+
+  async function openProfile() {
+    setEditingProfile(true);
+    setChangingPassword(false);
+    setProfileLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/auth/profile');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to load profile');
+      setProfile({
+        userName: String(body.userName ?? ''),
+        mobile: String(body.mobile ?? ''),
+        email: String(body.email ?? ''),
+        isAccountAdmin: Boolean(body.isAccountAdmin),
+        createdAt: body.createdAt ? String(body.createdAt) : undefined,
+        accountName: String(body.accountName ?? session.accountName),
+        accountCode: String(body.accountCode ?? session.accountCode),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load profile');
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function saveProfile(e: FormEvent) {
+    e.preventDefault();
+    if (!profile) return;
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userName: profile.userName,
+          mobile: profile.mobile,
+          email: profile.email,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Failed to update profile');
+      const userName = String(body.userName ?? profile.userName);
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              userName,
+              mobile: String(body.mobile ?? prev.mobile),
+              email: String(body.email ?? prev.email),
+            }
+          : prev,
+      );
+      onSessionChange({ ...session, userName });
+      setSuccess('Profile updated.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function onChangePassword(e: FormEvent) {
@@ -376,6 +462,7 @@ function PlatformProfileMenu({
           }
           setOpen(true);
           setChangingPassword(false);
+          setEditingProfile(false);
           setError('');
           setSuccess('');
         }}
@@ -388,15 +475,94 @@ function PlatformProfileMenu({
 
       {open ? (
         <div className="platform-profile-dropdown" role="menu">
-          <p className="tenant-profile-name">{session.userName}</p>
-          <p className="tenant-profile-detail">
-            Account: <strong>{session.accountName}</strong>
-          </p>
-          <p className="tenant-profile-detail">
-            Code: <code>{session.accountCode}</code>
-          </p>
+          <div className="platform-profile-heading">
+            <p className="tenant-profile-name">{session.userName}</p>
+            {!editingProfile && !changingPassword ? (
+              <button
+                type="button"
+                className="platform-profile-edit-btn"
+                onClick={() => void openProfile()}
+                aria-label={t('View or edit profile')}
+                title={t('View or edit profile')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                  <circle cx="12" cy="8" r="3.5" />
+                  <path d="M4 20c1.5-4 4.2-6 8-6 1.5 0 2.8.3 3.9.9" />
+                  <path d="m16 18 3.8-3.8 1.2 1.2-3.8 3.8-2 .5z" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
 
-          {!changingPassword ? (
+          {editingProfile ? (
+            profileLoading ? (
+              <p className="muted">{t('Loading…')}</p>
+            ) : profile ? (
+              <form className="tenant-password-form platform-profile-form" onSubmit={saveProfile}>
+                <div className="platform-profile-readonly">
+                  <span>{t('Account')}: <strong>{profile.accountName}</strong></span>
+                  <span>{t('Code')}: <code>{profile.accountCode}</code></span>
+                  <span>{t('Role')}: <strong>{profile.isAccountAdmin ? t('Admin') : t('User')}</strong></span>
+                </div>
+                <label className="field">
+                  <span className="label">{t('User Name')}</span>
+                  <input
+                    value={profile.userName}
+                    onChange={(e) => setProfile((prev) => prev ? { ...prev, userName: e.target.value } : prev)}
+                    maxLength={80}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span className="label">{t('Mobile')}</span>
+                  <input
+                    value={profile.mobile}
+                    onChange={(e) => setProfile((prev) => prev ? { ...prev, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) } : prev)}
+                    inputMode="numeric"
+                    minLength={10}
+                    maxLength={10}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span className="label">{t('Email')}</span>
+                  <input
+                    type="email"
+                    value={profile.email}
+                    onChange={(e) => setProfile((prev) => prev ? { ...prev, email: e.target.value } : prev)}
+                    required
+                  />
+                </label>
+                {error ? <p className="error">{error}</p> : null}
+                {success ? <p className="success tenant-profile-success">{success}</p> : null}
+                <div className="tenant-password-actions">
+                  <button
+                    type="button"
+                    className="terms-link"
+                    onClick={() => {
+                      setEditingProfile(false);
+                      setError('');
+                      setSuccess('');
+                    }}
+                  >
+                    {t('Cancel')}
+                  </button>
+                  <button type="submit" className="csv-btn" disabled={saving}>
+                    {saving ? t('Saving…') : t('Save')}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <p className="error">{error || t('Failed to load profile')}</p>
+            )
+          ) : !changingPassword ? (
+            <>
+              <p className="tenant-profile-detail">
+                Account: <strong>{session.accountName}</strong>
+              </p>
+              <p className="tenant-profile-detail">
+                Code: <code>{session.accountCode}</code>
+              </p>
             <div className="tenant-profile-actions">
               <button
                 type="button"
@@ -409,6 +575,7 @@ function PlatformProfileMenu({
                 Change password
               </button>
             </div>
+            </>
           ) : (
             <form className="tenant-password-form" onSubmit={onChangePassword} autoComplete="off">
               <label className="field">
@@ -487,7 +654,9 @@ function PlatformProfileMenu({
             </form>
           )}
 
-          {success ? <p className="success tenant-profile-success">{success}</p> : null}
+          {!editingProfile && success ? (
+            <p className="success tenant-profile-success">{success}</p>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -403,7 +403,7 @@ export function PhotoPickerButtons({
           <video
             ref={webcam.bindVideo}
             className={`webcam-capture-video${
-              webcam.facing === 'user' ? ' webcam-capture-video--mirrored' : ''
+              webcam.facing === 'user' && faceFrame ? ' webcam-capture-video--mirrored' : ''
             }`}
             autoPlay
             playsInline
@@ -491,6 +491,7 @@ export function PhotoPickerButtons({
         <ImageCropper
           file={cropRequest.file}
           aspect={cropRequest.aspect}
+          documentMode={!faceFrame}
           onCancel={() => setCropRequest(null)}
           onComplete={(croppedFile) => {
             setCropRequest(null);

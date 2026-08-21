@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useT } from './i18n';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { isApplicationDemo } from './applicationDemo';
 import { emailHint, emergencyMatchesApplicant, isValidEmail, isValidMobile, isValidPersonName, mobileHint, nameHint, sanitizeMobileInput, sanitizeNameInput } from './formValidation';
 import { PlatformPage } from './PlatformPage';
@@ -114,12 +114,14 @@ function uploadUrl(filename: string | null | undefined) {
 
 export function StaffRegistration() {
   const { id: editIdParam } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const editId = editIdParam ? Number(editIdParam) : null;
   const isSampleEdit =
     isApplicationDemo() && editId !== null && Number.isFinite(editId) && editId < 0;
   const isEdit =
     (editId !== null && Number.isFinite(editId) && editId > 0) || isSampleEdit;
+  const viewOnly = isEdit && searchParams.get('view') === '1';
 
   const t = useT();
   const savedDraft = !isEdit ? readFormDraft<FormState>(STAFF_FORM_DRAFT) : null;
@@ -460,6 +462,7 @@ export function StaffRegistration() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (viewOnly) return;
     setError('');
     setSuccess('');
     setErrorCount(0);
@@ -543,7 +546,7 @@ export function StaffRegistration() {
 
   if (loadingEdit) {
     return (
-      <PlatformPage title={isEdit ? "Staff details" : "Staff registration"}>
+      <PlatformPage title={viewOnly ? "View staff details" : isEdit ? "Staff details" : "Staff registration"}>
         <p className="pass-empty">{t("Loading…")}</p>
       </PlatformPage>
     );
@@ -570,7 +573,7 @@ export function StaffRegistration() {
 
   return (
     <PlatformPage
-      title={isEdit ? "Staff details" : "Staff registration"}
+      title={viewOnly ? "View staff details" : isEdit ? "Staff details" : "Staff registration"}
       actions={
         <>
           {isEdit ? (
@@ -578,7 +581,7 @@ export function StaffRegistration() {
               {t("← Staff List")}
             </Link>
           ) : null}
-          {isEdit ? (
+          {isEdit && !viewOnly ? (
             <label className="status-switch">
               <span className={isActive ? 'status-on' : 'status-off'}>
                 {isActive ? t("Active") : t("Inactive")}
@@ -601,6 +604,7 @@ export function StaffRegistration() {
       </p>
 
       <form onSubmit={onSubmit} noValidate className="pass-form-card pool-core-form registration-form">
+        <fieldset className="staff-form-fieldset" disabled={viewOnly}>
         <section className={`registration-section role-card${isInvalid('registrationFor') ? ' field-box-invalid' : ''}`}>
           <div className="role-row" role="radiogroup" aria-label={t("Registration for")}>
             <span className="role-label">
@@ -1163,11 +1167,18 @@ export function StaffRegistration() {
                   : t("{count} errors").replace('{count}', String(errorCount))}
               </p>
             ) : null}
-            <button className="submit" type="submit" disabled={submitting}>
-              {submitting ? t("Submitting…") : isEdit ? t("Save changes") : t("Submit")}
-            </button>
+            {viewOnly ? (
+              <Link className="submit" to={tenantPath('/coaches')}>
+                {t("Close")}
+              </Link>
+            ) : (
+              <button className="submit" type="submit" disabled={submitting}>
+                {submitting ? t("Submitting…") : isEdit ? t("Save changes") : t("Submit")}
+              </button>
+            )}
           </div>
         </div>
+        </fieldset>
 
         {error ? <p className="error">{error}</p> : null}
         {success ? <p className="success">{success}</p> : null}

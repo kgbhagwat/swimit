@@ -28,6 +28,7 @@ type SimpleStaffRow = {
   contact: string;
   email: string;
   post: string;
+  certificateStatus: string;
 };
 
 type StaffApiRow = {
@@ -41,6 +42,9 @@ type StaffApiRow = {
   post_name?: string | null;
   salary?: string | number | null;
   is_active?: boolean;
+  has_lifeguard_cert?: string | null;
+  lifeguard_expiry?: string | null;
+  lifeguard_photo_path?: string | null;
 };
 
 type BatchSlot = {
@@ -52,7 +56,7 @@ type BatchSlot = {
 };
 
 type CoachColKey = 'fullName' | 'contact' | 'batches' | 'teachStrokes';
-type SimpleColKey = 'fullName' | 'contact' | 'post';
+type SimpleColKey = 'fullName' | 'contact' | 'post' | 'certificateStatus';
 
 const COACH_COLUMNS: Array<{ key: CoachColKey; label: string }> = [
   { key: 'fullName', label: 'Coach name' },
@@ -71,6 +75,7 @@ function coachCellValue(row: CoachRow, key: CoachColKey) {
 function simpleCellValue(row: SimpleStaffRow, key: SimpleColKey) {
   if (key === 'contact') return row.contact || '—';
   if (key === 'post') return row.post || '—';
+  if (key === 'certificateStatus') return row.certificateStatus || '—';
   return row.fullName || '—';
 }
 
@@ -93,6 +98,22 @@ function DeleteIcon() {
       <path d="M7 7l1 13h8l1-13" />
       <path d="M10 11v6M14 11v6" />
     </svg>
+  );
+}
+
+function ViewIconLink({ id, name }: { id: number; name: string }) {
+  return (
+    <Link
+      className="icon-action"
+      to={`${tenantPath(`/staff-register/${id}`)}?view=1`}
+      aria-label={`View ${name}`}
+      title="View complete form"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+        <circle cx="12" cy="12" r="2.75" />
+      </svg>
+    </Link>
   );
 }
 
@@ -132,8 +153,18 @@ export function CoachList() {
     try {
       if (isApplicationDemo()) {
         setCoaches(sampleCoachListRows());
-        setLifeguards(sampleSimpleStaffRows('Lifeguard'));
-        setOthers(sampleSimpleStaffRows('Other'));
+        setLifeguards(
+          sampleSimpleStaffRows('Lifeguard').map((row) => ({
+            ...row,
+            certificateStatus: 'Valid until 2027-12-31',
+          })),
+        );
+        setOthers(
+          sampleSimpleStaffRows('Other').map((row) => ({
+            ...row,
+            certificateStatus: '—',
+          })),
+        );
         setSampleMode(true);
         return;
       }
@@ -168,6 +199,17 @@ export function CoachList() {
         contact: row.whatsapp_mobile || '—',
         email: row.email || '—',
         post: row.post_name?.trim() || row.registration_for || '—',
+        certificateStatus:
+          row.registration_for !== 'Lifeguard' || row.has_lifeguard_cert !== 'Yes'
+            ? 'Not provided'
+            : row.lifeguard_expiry &&
+                String(row.lifeguard_expiry).slice(0, 10) < new Date().toISOString().slice(0, 10)
+              ? `Expired ${String(row.lifeguard_expiry).slice(0, 10)}`
+              : row.lifeguard_expiry
+                ? `Valid until ${String(row.lifeguard_expiry).slice(0, 10)}`
+                : row.lifeguard_photo_path
+                  ? 'Uploaded'
+                  : 'Details missing',
       });
 
       setCoaches(
@@ -246,6 +288,9 @@ export function CoachList() {
       { key: 'fullName', label: 'Name' },
       { key: 'contact', label: 'Contact' },
     ];
+    if (role === 'Lifeguard') {
+      cols.push({ key: 'certificateStatus', label: 'Life saving certificate' });
+    }
     if (role === 'Other') cols.push({ key: 'post', label: 'Post' });
     return cols;
   }, [role]);
@@ -303,10 +348,12 @@ export function CoachList() {
     }
     downloadCsv(
       `staff-${role.toLowerCase()}-${stamp}.csv`,
-      role === 'Lifeguard' ? ['Name', 'Contact', 'Email'] : ['Name', 'Contact', 'Email', 'Post'],
+      role === 'Lifeguard'
+        ? ['Name', 'Contact', 'Email', 'Life saving certificate']
+        : ['Name', 'Contact', 'Email', 'Post'],
       visibleSimple.map((row) =>
         role === 'Lifeguard'
-          ? [row.fullName, row.contact, row.email]
+          ? [row.fullName, row.contact, row.email, row.certificateStatus]
           : [row.fullName, row.contact, row.email, row.post],
       ),
     );
@@ -515,6 +562,7 @@ export function CoachList() {
                   </span>
                   <span data-label={t('Interested to teach')}>{coach.teachStrokes}</span>
                   <span className="pass-actions" data-label={t('Actions')}>
+                    <ViewIconLink id={coach.id} name={coach.fullName} />
                     {canEdit ? (
                       <EditIconButton
                         to={tenantPath(`/staff-register/${coach.id}`)}
@@ -598,10 +646,24 @@ export function CoachList() {
                   className={role === 'Lifeguard' ? 'lifeguard-staff-row' : 'other-staff-row'}
                   key={staff.id}
                 >
-                  <strong>{staff.fullName}</strong>
-                  <span className="coach-contact">{staff.contact}</span>
-                  {role === 'Other' ? <span>{staff.post}</span> : null}
-                  <span className="pass-actions">
+                  <strong data-label={t('Name')}>{staff.fullName}</strong>
+                  <span className="coach-contact" data-label={t('Contact')}>{staff.contact}</span>
+                  {role === 'Lifeguard' ? (
+                    <span
+                      className={`staff-certificate-status${
+                        staff.certificateStatus.startsWith('Expired') ||
+                        staff.certificateStatus === 'Not provided'
+                          ? ' is-warning'
+                          : ' is-valid'
+                      }`}
+                      data-label={t('Life saving certificate')}
+                    >
+                      {staff.certificateStatus}
+                    </span>
+                  ) : null}
+                  {role === 'Other' ? <span data-label={t('Post')}>{staff.post}</span> : null}
+                  <span className="pass-actions" data-label={t('Actions')}>
+                    <ViewIconLink id={staff.id} name={staff.fullName} />
                     {canEdit ? (
                       <EditIconButton
                         to={tenantPath(`/staff-register/${staff.id}`)}

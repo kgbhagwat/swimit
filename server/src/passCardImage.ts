@@ -100,6 +100,25 @@ function wrapLines(text: string, maxChars: number, maxLines: number) {
   return lines.slice(0, maxLines);
 }
 
+function wrapNameLines(text: string, maxChars = 11, maxLines = 3) {
+  const words = String(text ?? '').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return ['—'];
+  const lines: string[] = [];
+  for (const word of words) {
+    const lastIndex = lines.length - 1;
+    const candidate = lastIndex >= 0 ? `${lines[lastIndex]} ${word}` : word;
+    if (lastIndex >= 0 && candidate.length <= maxChars) {
+      lines[lastIndex] = candidate;
+    } else if (lines.length < maxLines) {
+      lines.push(word);
+    } else {
+      // Preserve every complete name word; font sizing below keeps the final line inside its area.
+      lines[maxLines - 1] = `${lines[maxLines - 1]} ${word}`;
+    }
+  }
+  return lines;
+}
+
 export async function renderPassCardPng(input: PassCardImageInput): Promise<Buffer> {
   const qrPng = await QRCode.toBuffer(`SWIMIT:${input.id}`, {
     type: 'png',
@@ -116,6 +135,10 @@ export async function renderPassCardPng(input: PassCardImageInput): Promise<Buff
   const validUntil = formatPassDate(input.passValidUntil);
   const addressLines = wrapLines(poolAddress, 22, 2);
   const batchLines = [batch.title, batch.time].filter(Boolean);
+  const nameLines = wrapNameLines(input.fullName);
+  const longestNameLine = Math.max(...nameLines.map((line) => line.length), 1);
+  const nameFontSize = Math.max(18, Math.min(30, Math.floor(214 / (longestNameLine * 0.64))));
+  const nameLineHeight = nameFontSize + 3;
 
   const fields: Array<{ label: string; value: string }> = [
     { label: 'Pass ID', value: String(input.id) },
@@ -183,9 +206,12 @@ export async function renderPassCardPng(input: PassCardImageInput): Promise<Buff
   <rect x="36" y="156" width="200" height="250" rx="14" fill="none" stroke="#b8c7dc" />
   <rect x="528" y="32" width="192" height="192" rx="12" fill="#ffffff" stroke="#d7e2f5" />
   <image href="${qrUri}" x="537" y="41" width="174" height="174" />
-  <text x="292" y="190" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#1a3568">${escapeXml(
-    wrapLines(input.fullName, 14, 1)[0],
-  )}</text>
+  ${nameLines
+    .map(
+      (line, i) =>
+        `<text x="292" y="${190 + i * nameLineHeight}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${nameFontSize}" font-weight="700" fill="#1a3568">${escapeXml(line)}</text>`,
+    )
+    .join('')}
   ${fieldRows}
 </svg>`;
 
@@ -197,15 +223,6 @@ export async function renderPassCardPng(input: PassCardImageInput): Promise<Buff
     },
   });
   return Buffer.from(resvg.render().asPng());
-}
-
-export async function renderPassQrPng(registrationId: number): Promise<Buffer> {
-  return QRCode.toBuffer(`SWIMIT:${registrationId}`, {
-    type: 'png',
-    width: 640,
-    margin: 2,
-    errorCorrectionLevel: 'M',
-  });
 }
 
 export async function renderUrlQrPng(url: string): Promise<Buffer> {

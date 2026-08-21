@@ -190,7 +190,8 @@ staffRegistrationsRouter.get('/', async (req, res) => {
     const accountId = tenantId(req);
     const { rows } = await pool.query(
       `SELECT id, registration_for, full_name, email, whatsapp_mobile, teach_strokes,
-              suitable_batch_ids, post_name, salary, is_active, is_approved, created_at
+              suitable_batch_ids, post_name, salary, is_active, is_approved, created_at,
+              has_lifeguard_cert, lifeguard_expiry, lifeguard_photo_path
        FROM staff_registrations
        WHERE saas_account_id = $1
        ORDER BY created_at DESC`,

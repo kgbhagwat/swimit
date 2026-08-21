@@ -1,5 +1,5 @@
 import { pool } from '../db/pool.js';
-import { renderPassCardPng, renderPassQrPng, renderUrlQrPng } from '../passCardImage.js';
+import { renderPassCardPng, renderUrlQrPng } from '../passCardImage.js';
 import { buildUpiHttpsLaunchUrl, buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
 import { ensureFormQrTemplates, ensurePassPayQrTemplate, ensureRegistrationHiTemplate, formQrTemplateStatus, passPayQrTemplateStatus } from './ensureFormQrTemplate.js';
@@ -584,14 +584,6 @@ export async function notifyPassIssued(params: {
     `Pass type: ${params.passType}`,
     `Valid until: ${validUntil}`,
   ].join('\n');
-  const qrCaption = [
-    `Hello ${params.fullName},`,
-    'Your SwimIT pass is active.',
-    `Pass type: ${params.passType}`,
-    `Valid until: ${validUntil}`,
-    'Show this QR at the gate for attendance.',
-  ].join('\n');
-
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
     await logOutbound({
@@ -607,7 +599,7 @@ export async function notifyPassIssued(params: {
 
   try {
     const { rows } = await pool.query(
-      `SELECT r.id, r.full_name, r.pass_type, r.batch, r.coach, r.pass_valid_until,
+      `SELECT r.id, r.full_name, r.whatsapp_mobile, r.pass_type, r.batch, r.coach, r.pass_valid_until,
               r.swimmer_photo_path, pt.duration AS pass_duration,
               pci.pool_name, pci.pool_address, pci.pool_logo_path
        FROM registrations r
@@ -620,12 +612,14 @@ export async function notifyPassIssued(params: {
       [params.registrationId, params.saasAccountId],
     );
     const row = rows[0];
+    if (!row) throw new Error('Swimmer registration not found');
+    const recipientMobile = String(row.whatsapp_mobile ?? '').trim();
+    if (!recipientMobile) throw new Error('Swimmer WhatsApp mobile is missing');
 
     let passSent = false;
-    let qrSent = false;
     let lastError = '';
 
-    // 1) Full pass card image
+    // Full pass card image (the attendance QR is embedded in this image).
     try {
       const passPng = await renderPassCardPng({
         id: params.registrationId,
@@ -645,11 +639,15 @@ export async function notifyPassIssued(params: {
         mimeType: 'image/png',
         filename: `pass-${params.registrationId}.png`,
       });
-      const passResult = await sendWhatsAppImageByMediaId(params.mobile, passMediaId, passCaption);
+      const passResult = await sendWhatsAppImageByMediaId(
+        recipientMobile,
+        passMediaId,
+        passCaption,
+      );
       passSent = !passResult.skipped;
       await logOutbound({
         saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
+        toMobile: recipientMobile,
         kind: 'pass_issued_card',
         body: `${passCaption}\n[full pass image]`,
         status: passResult.skipped ? 'skipped' : 'sent',
@@ -659,7 +657,7 @@ export async function notifyPassIssued(params: {
       lastError = passErr instanceof Error ? passErr.message : 'Full pass image failed';
       await logOutbound({
         saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
+        toMobile: recipientMobile,
         kind: 'pass_issued_card',
         body: passCaption,
         status: 'failed',
@@ -667,62 +665,15 @@ export async function notifyPassIssued(params: {
       });
     }
 
-    // 2) Pass QR image
-    try {
-      const qrPng = await renderPassQrPng(params.registrationId);
-      const qrMediaId = await uploadWhatsAppMedia({
-        buffer: qrPng,
-        mimeType: 'image/png',
-        filename: `pass-qr-${params.registrationId}.png`,
-      });
-      const qrResult = await sendWhatsAppImageByMediaId(params.mobile, qrMediaId, qrCaption);
-      qrSent = !qrResult.skipped;
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'pass_issued_qr',
-        body: `${qrCaption}\n[pass QR image]`,
-        status: qrResult.skipped ? 'skipped' : 'sent',
-      });
-    } catch (qrErr) {
-      console.warn('[whatsapp] pass QR image send failed; trying public QR link', qrErr);
-      try {
-        const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
-          `SWIMIT:${params.registrationId}`,
-        )}`;
-        const imageResult = await sendWhatsAppImage(params.mobile, qrApi, qrCaption);
-        qrSent = !imageResult.skipped;
-        await logOutbound({
-          saasAccountId: params.saasAccountId,
-          toMobile: params.mobile,
-          kind: 'pass_issued_qr',
-          body: `${qrCaption}\n[pass QR image link]`,
-          status: imageResult.skipped ? 'skipped' : 'sent',
-        });
-      } catch (qrLinkErr) {
-        const qrMessage = qrLinkErr instanceof Error ? qrLinkErr.message : 'Pass QR image failed';
-        lastError = qrMessage;
-        await logOutbound({
-          saasAccountId: params.saasAccountId,
-          toMobile: params.mobile,
-          kind: 'pass_issued_qr',
-          body: qrCaption,
-          status: 'failed',
-          error: qrMessage,
-        });
-      }
-    }
-
-    if (!passSent && !qrSent) {
+    if (!passSent) {
       // Last resort: text only so the swimmer still gets something.
       try {
         await sendWhatsAppText(
-          params.mobile,
+          recipientMobile,
           [
             passCaption,
             '',
-            'Show your pass QR at the gate for attendance.',
-            '(Pass/QR images could not be sent right now — ask the desk to Resend.)',
+            'Your pass image could not be sent right now — ask the desk to Resend.',
           ].join('\n'),
         );
       } catch {
@@ -730,22 +681,11 @@ export async function notifyPassIssued(params: {
       }
       return {
         skipped: true as const,
-        error: formatWhatsAppUserError(lastError || 'Pass and QR send failed', params.mobile),
+        error: formatWhatsAppUserError(lastError || 'Pass image send failed', recipientMobile),
       };
     }
 
-    if (passSent && qrSent) {
-      return { skipped: false as const, result: 'pass_and_qr' as const };
-    }
-
-    return {
-      skipped: false as const,
-      result: passSent ? ('pass_only' as const) : ('qr_only' as const),
-      error: formatWhatsAppUserError(
-        lastError || (passSent ? 'Pass QR image failed' : 'Full pass image failed'),
-        params.mobile,
-      ),
-    };
+    return { skipped: false as const, result: 'pass_only' as const };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Send failed';
     await logOutbound({

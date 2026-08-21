@@ -27,9 +27,10 @@ const WORKFLOW_HOTSPOTS: {
 
 type WorkflowDiagramProps = {
   onNavigate?: () => void;
+  resolveTo?: (to: string) => string;
 };
 
-export function WorkflowDiagram({ onNavigate }: WorkflowDiagramProps) {
+export function WorkflowDiagram({ onNavigate, resolveTo }: WorkflowDiagramProps) {
   const t = useT();
 
   return (
@@ -43,7 +44,7 @@ export function WorkflowDiagram({ onNavigate }: WorkflowDiagramProps) {
         {WORKFLOW_HOTSPOTS.map((spot) => (
           <Link
             key={`${spot.to}-${spot.label}`}
-            to={spot.to}
+            to={resolveTo ? resolveTo(spot.to) : spot.to}
             className="workflow-hotspot"
             style={{
               left: `${spot.left}%`,
