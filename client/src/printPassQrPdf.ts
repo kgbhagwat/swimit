@@ -7,7 +7,8 @@ import {
   type SwimmerPassDetails,
 } from './swimmerPass';
 
-const PAIRS_PER_PAGE = 5;
+const PASS_ROWS_PER_PAGE = 5;
+const PASSES_PER_PAGE = PASS_ROWS_PER_PAGE * 2;
 const PAGE_W = 1240;
 const PAGE_H = 1754;
 const A4_PT_W = 595.28;
@@ -218,7 +219,7 @@ function drawPassCard(
 }
 
 async function renderPage(
-  pairs: Array<{ pass: SwimmerPassDetails; brand: PoolBrand; photo: HTMLImageElement | null; logo: HTMLImageElement | null; qr: HTMLImageElement }>,
+  passes: Array<{ pass: SwimmerPassDetails; brand: PoolBrand; photo: HTMLImageElement | null; logo: HTMLImageElement | null; qr: HTMLImageElement }>,
 ) {
   const canvas = document.createElement('canvas');
   canvas.width = PAGE_W;
@@ -230,23 +231,27 @@ async function renderPage(
 
   const margin = 36;
   const contentW = PAGE_W - margin * 2;
-  const passW = Math.round(contentW / 2);
-  const rowH = (PAGE_H - margin * 2) / PAIRS_PER_PAGE;
-  pairs.forEach((pair, index) => {
-    const y = margin + index * rowH;
+  const columnGap = 12;
+  const passW = Math.floor((contentW - columnGap) / 2);
+  const rowH = (PAGE_H - margin * 2) / PASS_ROWS_PER_PAGE;
+  passes.forEach((item, index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = margin + column * (passW + columnGap);
+    const y = margin + row * rowH;
     const inner = 8;
-    const pairH = rowH - inner * 2;
+    const passH = rowH - inner * 2;
     drawPassCard(
       ctx,
-      margin,
+      x,
       y + inner,
       passW,
-      pairH,
-      pair.pass,
-      pair.brand,
-      pair.photo,
-      pair.logo,
-      pair.qr,
+      passH,
+      item.pass,
+      item.brand,
+      item.photo,
+      item.logo,
+      item.qr,
     );
   });
 
@@ -362,8 +367,8 @@ export async function downloadSelectedPassQrPdf(swimmers: PrintableSwimmer[]) {
   }
 
   const pages: Uint8Array[] = [];
-  for (let i = 0; i < prepared.length; i += PAIRS_PER_PAGE) {
-    pages.push(await renderPage(prepared.slice(i, i + PAIRS_PER_PAGE)));
+  for (let i = 0; i < prepared.length; i += PASSES_PER_PAGE) {
+    pages.push(await renderPage(prepared.slice(i, i + PASSES_PER_PAGE)));
   }
   const pdf = buildPdfFromJpegs(pages);
   const url = URL.createObjectURL(pdf);

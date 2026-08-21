@@ -1238,7 +1238,7 @@ const mr: Record<string, string> = {
   "Staff details": "कर्मचारी तपशील",
   "Staff details updated successfully.": "कर्मचारी तपशील यशस्वीरित्या अद्ययावत झाले.",
   "Staff must be more than 18 years old": "कर्मचारी १८ वर्षांपेक्षा जास्त वयाचा असावा",
-  "Staff registration submitted successfully.": "कर्मचारी नोंदणी यशस्वीरित्या सबमिट झाली.",
+  "Thank you! Your staff registration has been submitted successfully.": "धन्यवाद! तुमची कर्मचारी नोंदणी यशस्वीरित्या सबमिट झाली आहे.",
   "Staff form link + QR sent on WhatsApp": "स्टाफ फॉर्म लिंक + QR WhatsApp वर पाठवला",
   "Staff type": "स्टाफ प्रकार",
   "Staff users": "स्टाफ वापरकर्ते",

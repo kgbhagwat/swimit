@@ -562,7 +562,9 @@ export function StaffRegistration() {
         }
       >
         <div className="registration-success-panel">
-          <p className="success">{t("Staff registration submitted successfully.")}</p>
+          <p className="success">
+            {t("Thank you! Your staff registration has been submitted successfully.")}
+          </p>
           <button type="button" className="submit" onClick={onSuccessOk}>
             {t("OK")}
           </button>
