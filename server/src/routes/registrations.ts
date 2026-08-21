@@ -596,7 +596,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
                 pass_valid_until = (CURRENT_DATE - 1),
                 inactive_at = NOW(),
                 test_result = 'fail'
-          WHERE id = $1 AND saas_account_id = $2`
+          WHERE id = $1 AND saas_account_id = $2
           RETURNING id, full_name, email, whatsapp_mobile, is_active, pass_type, batch, coach, pass_valid_until`,
         [id, accountId],
       );
@@ -632,7 +632,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
     let selectedPassIsTest = false;
     if (isPassPayment) {
       const passAvailability = await pool.query(
-        `SELECT id, pass_charges, coaching_charges, COALESCE(test_required, FALSE) AS test_required`
+        `SELECT id, pass_charges, coaching_charges, COALESCE(test_required, FALSE) AS test_required
          FROM pass_types
          WHERE saas_account_id = $1
            AND LOWER(TRIM(pass_name)) = LOWER(TRIM($2))
