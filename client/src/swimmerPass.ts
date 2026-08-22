@@ -148,8 +148,8 @@ export function isPassPopupWindow() {
   return params.get('popup') === '1' || Boolean(window.opener);
 }
 
-/** Opens Pass QR / Pass as an in-page popup (not a new browser tab). */
-export function openPassPopup(kind: 'qr' | 'pass', id: number) {
+/** Opens Pass QR / Pass / invoices as an in-page popup (not a new browser tab). */
+export function openPassPopup(kind: 'qr' | 'pass' | 'invoice', id: number) {
   requestPassPopup(kind, id);
 }
 

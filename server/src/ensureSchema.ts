@@ -78,7 +78,41 @@ export async function ensureSchema() {
       END IF;
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS test_upgrade_applied BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS upgrade_source_payment_id INT;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(6, 2) NOT NULL DEFAULT 18;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
     END $$;
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.pass_payments') IS NULL THEN
+        RETURN;
+      END IF;
+      UPDATE pass_payments
+         SET invoice_number = 'INV-' || TO_CHAR(payment_date, 'YYYY') || '-' || LPAD(id::text, 6, '0'),
+             tax_inclusive = TRUE,
+             gst_percent = COALESCE(NULLIF(gst_percent, 0), 18),
+             taxable_amount = CASE
+               WHEN COALESCE(amount, 0) <= 0 THEN 0
+               ELSE ROUND((amount / (1 + COALESCE(NULLIF(gst_percent, 0), 18) / 100.0))::numeric, 2)
+             END,
+             gst_amount = CASE
+               WHEN COALESCE(amount, 0) <= 0 THEN 0
+               ELSE ROUND(
+                 (amount - ROUND((amount / (1 + COALESCE(NULLIF(gst_percent, 0), 18) / 100.0))::numeric, 2))::numeric,
+                 2
+               )
+             END
+       WHERE invoice_number IS NULL OR BTRIM(invoice_number) = '';
+    END $$;
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS pass_payments_invoice_number_uidx
+      ON pass_payments (saas_account_id, invoice_number)
+      WHERE invoice_number IS NOT NULL AND BTRIM(invoice_number) <> '';
   `);
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS pass_payment_intents_share_token_uidx

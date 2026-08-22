@@ -1,5 +1,7 @@
 import { pool } from '../db/pool.js';
 import { renderPassCardPng, renderUrlQrPng } from '../passCardImage.js';
+import { renderPassInvoicePng } from '../invoiceImage.js';
+import { formatInvoiceInr, loadLatestPassInvoice } from '../passInvoice.js';
 import { buildUpiHttpsLaunchUrl, buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
 import { ensureFormQrTemplates, ensurePassPayQrTemplate, ensureRegistrationHiTemplate, formQrTemplateStatus, passPayQrTemplateStatus } from './ensureFormQrTemplate.js';
@@ -576,6 +578,7 @@ export async function notifyPassIssued(params: {
   registrationId: number;
   accountCode: string;
   saasAccountId: number;
+  sendInvoice?: boolean;
 }) {
   const validUntil = formatWhatsAppPassDate(params.passValidUntil);
   const passCaption = [
@@ -683,6 +686,48 @@ export async function notifyPassIssued(params: {
         skipped: true as const,
         error: formatWhatsAppUserError(lastError || 'Pass image send failed', recipientMobile),
       };
+    }
+
+    if (params.sendInvoice !== false) {
+      try {
+        const invoice = await loadLatestPassInvoice(params.saasAccountId, params.registrationId);
+        if (invoice) {
+          const invoiceCaption = [
+            `Hello ${params.fullName},`,
+            'Your SwimIT tax invoice is ready.',
+            `Invoice: ${invoice.invoiceNumber}`,
+            `Amount: ${formatInvoiceInr(invoice.amount)} (inclusive of all taxes)`,
+          ].join('\n');
+          const invoicePng = await renderPassInvoicePng(invoice);
+          const invoiceMediaId = await uploadWhatsAppMedia({
+            buffer: invoicePng,
+            mimeType: 'image/png',
+            filename: `invoice-${invoice.invoiceNumber}.png`,
+          });
+          const invoiceResult = await sendWhatsAppImageByMediaId(
+            recipientMobile,
+            invoiceMediaId,
+            invoiceCaption,
+          );
+          await logOutbound({
+            saasAccountId: params.saasAccountId,
+            toMobile: recipientMobile,
+            kind: 'pass_invoice',
+            body: `${invoiceCaption}\n[invoice image]`,
+            status: invoiceResult.skipped ? 'skipped' : 'sent',
+          });
+        }
+      } catch (invoiceErr) {
+        console.warn('[whatsapp] invoice image send failed', invoiceErr);
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: recipientMobile,
+          kind: 'pass_invoice',
+          body: 'Tax invoice',
+          status: 'failed',
+          error: invoiceErr instanceof Error ? invoiceErr.message : 'Invoice image failed',
+        });
+      }
     }
 
     return { skipped: false as const, result: 'pass_only' as const };

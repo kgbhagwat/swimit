@@ -1,4 +1,4 @@
-export type PassPopupKind = 'qr' | 'pass';
+export type PassPopupKind = 'qr' | 'pass' | 'invoice';
 
 export type PassPopupRequest = {
   kind: PassPopupKind;

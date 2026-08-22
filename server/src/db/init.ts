@@ -217,6 +217,11 @@ ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS payment_mode TEXT;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS transaction_id TEXT;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS test_upgrade_applied BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS upgrade_source_payment_id INT REFERENCES pass_payments(id) ON DELETE SET NULL;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(6, 2) NOT NULL DEFAULT 18;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS pool_core_info (
   id SERIAL PRIMARY KEY,
@@ -687,6 +692,9 @@ CREATE INDEX IF NOT EXISTS swimmer_attendance_reg_date_idx
   ON swimmer_attendance (registration_id, attendance_date);
 CREATE INDEX IF NOT EXISTS pass_payments_saas_date_idx
   ON pass_payments (saas_account_id, payment_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS pass_payments_invoice_number_uidx
+  ON pass_payments (saas_account_id, invoice_number)
+  WHERE invoice_number IS NOT NULL AND BTRIM(invoice_number) <> '';
 CREATE INDEX IF NOT EXISTS whatsapp_outbound_account_kind_idx
   ON whatsapp_outbound (saas_account_id, kind);
 CREATE INDEX IF NOT EXISTS app_users_saas_admin_idx

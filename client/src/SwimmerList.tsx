@@ -546,7 +546,7 @@ export function SwimmerList() {
       const res = await fetch(`/api/registrations/${row.id}/resend-pass`, { method: 'POST' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Failed to resend pass on WhatsApp');
-      setSuccess(`Pass and QR resent on WhatsApp to ${row.swimmer} (${row.contact}).`);
+      setSuccess(`Pass and invoice resent on WhatsApp to ${row.swimmer} (${row.contact}).`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resend pass on WhatsApp');
     } finally {
@@ -1233,26 +1233,31 @@ export function SwimmerList() {
                           </label>
                         ) : null}
                         {showPassActions ? (
-                          <>
-                            <button
-                              type="button"
-                              className="terms-link"
-                              onClick={() => openPassPopup('pass', row.id)}
-                            >
-                              {t('Pass')}
-                            </button>
-                            {!sampleMode ? (
-                              <button
-                                type="button"
-                                className="terms-link"
-                                onClick={() => void resendPass(row)}
-                                disabled={resendingId === row.id}
-                                title={t('Resend pass & QR on WhatsApp')}
-                              >
-                                {resendingId === row.id ? t('Sending…') : t('Resend')}
-                              </button>
-                            ) : null}
-                          </>
+                          <button
+                            type="button"
+                            className="terms-link"
+                            onClick={() => openPassPopup('pass', row.id)}
+                          >
+                            {t('Pass')}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="terms-link"
+                          onClick={() => openPassPopup('invoice', row.id)}
+                        >
+                          {t('Invoice')}
+                        </button>
+                        {showPassActions && !sampleMode ? (
+                          <button
+                            type="button"
+                            className="terms-link"
+                            onClick={() => void resendPass(row)}
+                            disabled={resendingId === row.id}
+                            title={t('Resend pass & invoice on WhatsApp')}
+                          >
+                            {resendingId === row.id ? t('Sending…') : t('Resend')}
+                          </button>
                         ) : null}
                         {canEdit ? (
                           <button

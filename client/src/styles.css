@@ -12641,6 +12641,273 @@ button.menu-link {
   color: #1a3568;
 }
 
+.pass-popup-panel-invoice {
+  width: min(46rem, calc(100vw - 1.25rem));
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+.pass-popup-invoice-body {
+  overflow: auto;
+  padding: 0.2rem 0.95rem 0.95rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.pass-invoice-swimmer-label {
+  margin: 0 0 0.55rem;
+  color: #1a3568;
+  font-weight: 700;
+}
+
+.pass-invoice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.pass-invoice-list-item {
+  display: grid;
+  grid-template-columns: 1.1fr 0.85fr 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #d7e2f5;
+  border-radius: 10px;
+  background: #f7faff;
+  color: #243b66;
+  padding: 0.7rem 0.8rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.pass-invoice-list-item:hover {
+  border-color: #9bb6e3;
+  background: #eef4ff;
+}
+
+.pass-invoice-list-no {
+  font-weight: 700;
+  color: #1a3568;
+}
+
+.pass-invoice-list-amount {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pass-invoice-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.pass-invoice-doc {
+  background: #fff;
+  color: #12325f;
+  border: 1px solid #d7e2f5;
+  border-radius: 12px;
+  padding: 1rem 1.05rem 0.95rem;
+  box-shadow: 0 8px 22px rgba(26, 53, 104, 0.08);
+}
+
+.pass-invoice-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  align-items: flex-start;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e4ebf6;
+}
+
+.pass-invoice-brand {
+  display: flex;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.pass-invoice-logo-wrap {
+  flex: 0 0 3rem;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #edf4ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pass-invoice-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pass-invoice-logo-fallback {
+  font-weight: 800;
+  color: #1a3568;
+  font-size: 1.2rem;
+}
+
+.pass-invoice-pool {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.pass-invoice-address {
+  margin: 0.2rem 0 0;
+  color: #4a5d7c;
+  font-size: 0.88rem;
+}
+
+.pass-invoice-title-block {
+  text-align: right;
+}
+
+.pass-invoice-title-block h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1a3568;
+}
+
+.pass-invoice-incl {
+  margin: 0.2rem 0 0;
+  color: #2d6a3f;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.pass-invoice-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 1rem;
+  margin: 0.85rem 0 0.7rem;
+}
+
+.pass-invoice-meta div,
+.pass-invoice-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pass-invoice-meta dt,
+.pass-invoice-billto h4,
+.pass-invoice-totals dt {
+  margin: 0;
+  color: #61738f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pass-invoice-meta dd,
+.pass-invoice-totals dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.pass-invoice-billto {
+  margin: 0 0 0.8rem;
+}
+
+.pass-invoice-billto h4 {
+  margin-bottom: 0.25rem;
+}
+
+.pass-invoice-billto p {
+  margin: 0.1rem 0 0;
+}
+
+.pass-invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.pass-invoice-table th,
+.pass-invoice-table td {
+  border-bottom: 1px solid #e4ebf6;
+  padding: 0.5rem 0.15rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.pass-invoice-table th {
+  color: #61738f;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pass-invoice-num {
+  text-align: right !important;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pass-invoice-line-note {
+  display: block;
+  margin-top: 0.15rem;
+  color: #6a7b95;
+  font-size: 0.78rem;
+}
+
+.pass-invoice-totals {
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.pass-invoice-grand {
+  border-top: 1px solid #d7e2f5;
+  padding-top: 0.45rem;
+  font-size: 1.02rem;
+}
+
+.pass-invoice-grand dt,
+.pass-invoice-grand dd {
+  color: #1a3568;
+  font-weight: 800;
+}
+
+.pass-invoice-footnote {
+  margin: 0.65rem 0 0;
+  color: #2d6a3f;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .pass-invoice-list-item {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pass-invoice-list-amount {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .pass-invoice-header {
+    flex-direction: column;
+  }
+
+  .pass-invoice-title-block {
+    text-align: left;
+  }
+
+  .pass-invoice-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pass-form-card {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -15191,6 +15458,24 @@ html.sensitive-screen-cover-on::before {
     display: block;
     padding: 2rem;
     font-size: 1.1rem;
+  }
+
+  body:has(.pass-invoice-doc) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.pass-invoice-doc) .pass-invoice-doc,
+  body:has(.pass-invoice-doc) .pass-invoice-doc * {
+    visibility: visible !important;
+  }
+
+  body:has(.pass-invoice-doc) .pass-invoice-doc {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: none !important;
   }
 }
 
@@ -18875,11 +19160,28 @@ html[data-theme='dark'] .pass-popup-close-x:hover {
   color: #ffffff;
 }
 
+html[data-theme='dark'] .pass-invoice-swimmer-label,
+html[data-theme='dark'] .pass-invoice-list-no {
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] .pass-invoice-list-item {
+  background: #1d334d;
+  border-color: rgba(75, 132, 245, 0.22);
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .pass-invoice-list-item:hover {
+  background: #234062;
+  border-color: rgba(75, 132, 245, 0.4);
+}
+
 /* QR / pass cards stay print-style: white paper, dark ink (QR must stay scannable). */
 html[data-theme='dark'] .pass-qr-only,
 html[data-theme='dark'] .pass-qr-image,
 html[data-theme='dark'] .pass-qr-fallback,
-html[data-theme='dark'] .pass-document {
+html[data-theme='dark'] .pass-document,
+html[data-theme='dark'] .pass-invoice-doc {
   background: #fff !important;
   border-color: #d7e2f5 !important;
   color: #12325f !important;
@@ -18897,6 +19199,21 @@ html[data-theme='dark'] .id-card {
   border-color: #d7e2f5 !important;
   color: #12325f !important;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme='dark'] .pass-invoice-doc p,
+html[data-theme='dark'] .pass-invoice-doc h3,
+html[data-theme='dark'] .pass-invoice-doc h4,
+html[data-theme='dark'] .pass-invoice-doc dt,
+html[data-theme='dark'] .pass-invoice-doc dd,
+html[data-theme='dark'] .pass-invoice-doc th,
+html[data-theme='dark'] .pass-invoice-doc td {
+  color: #12325f !important;
+}
+
+html[data-theme='dark'] .pass-invoice-incl,
+html[data-theme='dark'] .pass-invoice-footnote {
+  color: #2d6a3f !important;
 }
 
 html[data-theme='dark'] .id-card-header {

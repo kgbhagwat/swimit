@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IdCard, fetchPoolBrand, type PoolBrand } from './IdCard';
+import { PassInvoiceBody } from './PassInvoicePopup';
 import { QrImage } from './QrImage';
+import { useT } from './i18n';
 import {
   PASS_POPUP_EVENT,
   type PassPopupKind,
@@ -17,8 +19,9 @@ export type { PassPopupKind };
 
 const emptyBrand: PoolBrand = { poolName: '', poolAddress: '', poolLogoUrl: null };
 
-/** In-page Pass QR / Pass card overlay (avoids a new browser tab). */
+/** In-page Pass QR / Pass card / invoice overlay (avoids a new browser tab). */
 export function PassPopupOverlay() {
+  const t = useT();
   const [request, setRequest] = useState<PassPopupRequest | null>(null);
   const [pass, setPass] = useState<SwimmerPassDetails | null>(null);
   const [brand, setBrand] = useState<PoolBrand>(emptyBrand);
@@ -28,7 +31,9 @@ export function PassPopupOverlay() {
   useEffect(() => {
     function onRequest(event: Event) {
       const detail = (event as CustomEvent<PassPopupRequest>).detail;
-      if (!detail?.id || (detail.kind !== 'qr' && detail.kind !== 'pass')) return;
+      if (!detail?.id || (detail.kind !== 'qr' && detail.kind !== 'pass' && detail.kind !== 'invoice')) {
+        return;
+      }
       setRequest({ kind: detail.kind, id: detail.id });
     }
     window.addEventListener(PASS_POPUP_EVENT, onRequest);
@@ -37,6 +42,13 @@ export function PassPopupOverlay() {
 
   useEffect(() => {
     if (!request) return;
+    if (request.kind === 'invoice') {
+      setLoading(false);
+      setError('');
+      setPass(null);
+      setBrand(emptyBrand);
+      return;
+    }
 
     let cancelled = false;
     setLoading(true);
@@ -89,8 +101,10 @@ export function PassPopupOverlay() {
 
   if (!request) return null;
 
-  const title = request.kind === 'qr' ? 'Pass QR' : 'Pass';
+  const title =
+    request.kind === 'qr' ? t('Pass QR') : request.kind === 'invoice' ? t('Invoice') : t('Pass');
   const qrValue = idCardUrl(request.id);
+  const invoiceMode = request.kind === 'invoice';
 
   return createPortal(
     <div
@@ -103,7 +117,7 @@ export function PassPopupOverlay() {
       <div
         className={`modal-panel pass-popup-panel${
           request.kind === 'pass' ? ' pass-popup-panel-wide' : ''
-        }`}
+        }${invoiceMode ? ' pass-popup-panel-invoice' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="pass-popup-title"
@@ -114,24 +128,26 @@ export function PassPopupOverlay() {
             type="button"
             className="pass-popup-close-x"
             onClick={() => setRequest(null)}
-            aria-label="Close"
-            title="Close"
+            aria-label={t('Close')}
+            title={t('Close')}
           >
             ×
           </button>
         </div>
 
-        {loading ? <p className="pass-empty">Loading…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {invoiceMode ? <PassInvoiceBody swimmerId={request.id} /> : null}
 
-        {!loading && pass && request.kind === 'qr' ? (
+        {!invoiceMode && loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
+        {!invoiceMode && error ? <p className="error">{error}</p> : null}
+
+        {!invoiceMode && !loading && pass && request.kind === 'qr' ? (
           <section className="pass-qr-only" aria-label="Pass QR code">
             <QrImage value={qrValue} alt={`QR code for pass ${pass.id}`} size={240} />
             {pass.fullName ? <p className="pass-qr-hint">{pass.fullName}</p> : null}
           </section>
         ) : null}
 
-        {!loading && pass && request.kind === 'pass' ? (
+        {!invoiceMode && !loading && pass && request.kind === 'pass' ? (
           <IdCard
             data={{
               id: pass.id,

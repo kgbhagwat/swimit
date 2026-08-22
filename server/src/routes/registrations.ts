@@ -23,6 +23,7 @@ import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batc
 import { newPaymentShareToken, whatsAppPayShareUrl } from '../upiPayQr.js';
 import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
 import { INDIA_SQL_TODAY, indiaDaysAgoIso } from '../indiaDate.js';
+import { insertPassPayment, loadLatestPassInvoice, poolLogoUrl } from '../passInvoice.js';
 import { applyLatestScreenshotToIntent, getPassPaymentScreenshot } from '../passPaymentVerify.js';
 import {
   guessImageContentType,
@@ -477,6 +478,52 @@ registrationsRouter.get('/:id', async (req, res) => {
   }
 });
 
+registrationsRouter.get('/:id/invoices', async (req, res) => {
+  try {
+    const accountId = tenantId(req);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid swimmer id' });
+      return;
+    }
+
+    const swimmerRes = await pool.query(
+      `SELECT r.id, r.full_name, r.whatsapp_mobile, r.email, r.full_address,
+              pci.pool_name, pci.pool_address, pci.pool_logo_path
+       FROM registrations r
+       LEFT JOIN pool_core_info pci ON pci.saas_account_id = r.saas_account_id
+       WHERE r.id = $1 AND r.saas_account_id = $2`,
+      [id, accountId],
+    );
+    const swimmer = swimmerRes.rows[0];
+    if (!swimmer) {
+      res.status(404).json({ error: 'Swimmer not found' });
+      return;
+    }
+
+    const invoice = await loadLatestPassInvoice(accountId, id);
+
+    res.json({
+      swimmer: {
+        id: Number(swimmer.id),
+        fullName: String(swimmer.full_name ?? ''),
+        contact: String(swimmer.whatsapp_mobile ?? ''),
+        email: String(swimmer.email ?? ''),
+        address: String(swimmer.full_address ?? ''),
+      },
+      pool: {
+        poolName: String(swimmer.pool_name ?? '').trim(),
+        poolAddress: String(swimmer.pool_address ?? '').trim(),
+        poolLogoUrl: poolLogoUrl(swimmer.pool_logo_path),
+      },
+      invoice,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load invoices' });
+  }
+});
+
 registrationsRouter.get('/:id/identity-photo', async (req, res) => {
   try {
     const accountId = tenantId(req);
@@ -818,24 +865,18 @@ registrationsRouter.patch('/:id', async (req, res) => {
       const coachingCharges = Number(passRes.rows[0]?.coaching_charges ?? 0);
       const amount = passCharges + coachingCharges;
       if (!isTestPassChange) {
-        await pool.query(
-          `INSERT INTO pass_payments
-           (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges,
-            amount, payment_date, payment_mode, transaction_id, upgrade_source_payment_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, ${INDIA_SQL_TODAY}, $8, $9, $10)`,
-          [
-            accountId,
-            updated.id,
-            updated.full_name,
-            passName,
-            passCharges,
-            coachingCharges,
-            amount,
-            amount > 0 ? paymentMode : 'No payment',
-            amount > 0 && paymentMode === 'Online' ? transactionId : null,
-            upgradePaymentId > 0 ? upgradePaymentId : null,
-          ],
-        );
+        await insertPassPayment({
+          accountId,
+          registrationId: Number(updated.id),
+          swimmerName: String(updated.full_name ?? ''),
+          passType: passName,
+          passCharges,
+          coachingCharges,
+          amount,
+          paymentMode: amount > 0 ? paymentMode : 'No payment',
+          transactionId: amount > 0 && paymentMode === 'Online' ? transactionId : null,
+          upgradeSourcePaymentId: upgradePaymentId > 0 ? upgradePaymentId : null,
+        });
       }
       if (upgradePaymentId > 0) {
         await pool.query(
@@ -858,6 +899,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
         registrationId: Number(updated.id),
         accountCode: String(account.rows[0]?.account_code ?? ''),
         saasAccountId: accountId,
+        sendInvoice: !isTestPassChange,
       }).catch((err) => {
         console.warn('[whatsapp] pass notify failed', err);
         return {
@@ -990,6 +1032,7 @@ registrationsRouter.post('/:id/resend-pass', async (req, res) => {
       registrationId: Number(swimmer.id),
       accountCode: String(account.rows[0]?.account_code ?? ''),
       saasAccountId: accountId,
+      sendInvoice: true,
     });
 
     if ('skipped' in notify && notify.skipped) {
@@ -1005,7 +1048,7 @@ registrationsRouter.post('/:id/resend-pass', async (req, res) => {
 
     res.json({
       ok: true,
-      message: 'Full pass and QR resent on WhatsApp',
+      message: 'Pass and invoice resent on WhatsApp',
       whatsapp: notify,
     });
   } catch (err) {

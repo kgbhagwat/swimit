@@ -1116,7 +1116,7 @@ export function PassPayment() {
       const paidId = paying.id;
       setError('');
       setMissingFields([]);
-      setIssueSuccessMessage('Pass generated successfully and sent on whatsapp');
+      setIssueSuccessMessage('Pass and invoice generated successfully and sent on whatsapp');
       scheduleCloseAfterIssue(() => {
         markSampleSwimmerPaid(paidId, selectedPass?.passName || paying.passType || 'Monthly Swim');
         setDismissedSampleIds((ids) => (ids.includes(paidId) ? ids : [...ids, paidId]));
@@ -1168,7 +1168,7 @@ export function PassPayment() {
           ? 'Test marked as fail. Pass is no longer valid.'
           : isUnpaidTestPassChange
             ? 'Test pass updated.'
-            : 'Pass generated successfully and sent on whatsapp',
+            : 'Pass and invoice generated successfully and sent on whatsapp',
       );
       scheduleCloseAfterIssue(() => {
         void load();
