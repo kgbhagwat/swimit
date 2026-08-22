@@ -18,6 +18,7 @@ import {
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
 import { tenantPath } from './tenantSession';
+import { indiaTodayIso } from './indiaDate';
 import { isPdfUrl } from './uploadFile';
 import { useObjectUrl } from './useObjectUrl';
 import { PhotoPickerButtons } from './WebcamCapture';
@@ -291,7 +292,7 @@ function formatMoney(value: number) {
 }
 
 function todayIso() {
-  return toIsoDate(new Date());
+  return indiaTodayIso();
 }
 
 function passIsAvailableForPayment(pass: PassTypeOption, today = todayIso()) {
@@ -319,7 +320,7 @@ function addPassDuration(duration: string, startDate = todayIso()) {
   }
   const amount = Number(match[1]);
   const unit = match[2].toLowerCase();
-  if (unit.startsWith('day')) end.setDate(end.getDate() + amount);
+  if (unit.startsWith('day')) end.setDate(end.getDate() + Math.max(amount, 1) - 1);
   else if (unit.startsWith('week')) end.setDate(end.getDate() + amount * 7);
   else if (unit.startsWith('month')) end.setMonth(end.getMonth() + amount);
   else end.setFullYear(end.getFullYear() + amount);
@@ -635,11 +636,7 @@ export function PassPayment() {
   const activeCoaches = samplePaying ? SAMPLE_COACHES : coaches;
   const isTestPassUpdate = Boolean(paying?.upgradePaymentId);
   const isTestPassFail = isTestPassUpdate && testOutcome === 'fail';
-  const paymentPassTypes = isTestPassUpdate
-    ? activePassTypes.filter(
-        (pass) => pass.testRequired && pass.passName !== paying?.passType,
-      )
-    : activePassTypes;
+  const paymentPassTypes = activePassTypes;
 
   function openSwimmerEdit() {
     if (!paying || !swimmerProfile) return;
@@ -693,6 +690,7 @@ export function PassPayment() {
   }
 
   const selectedPass = paymentPassTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
+  const isUnpaidTestPassChange = isTestPassUpdate && Boolean(selectedPass?.testRequired);
   const coachingRequired = Boolean(selectedPass && selectedPass.coach !== 'Not Required');
   const passValidUntil = selectedPass
     ? addPassDuration(selectedPass.duration, passStartDate)
@@ -1063,7 +1061,7 @@ export function PassPayment() {
 
   function collectSubmitMissing(): string[] {
     const missing = collectSharedMissing();
-    if (isTestPassUpdate || onlinePayAmount <= 0) return missing;
+    if (isUnpaidTestPassChange || onlinePayAmount <= 0) return missing;
     if (paymentMode !== 'Cash' && paymentMode !== 'Online') {
       missing.push('Payment mode');
     }
@@ -1140,7 +1138,7 @@ export function PassPayment() {
       setIssueSuccessMessage(
         isTestPassFail
           ? 'Test marked as fail. Pass is no longer valid.'
-          : isTestPassUpdate
+          : isUnpaidTestPassChange
             ? 'Test pass updated.'
             : 'Pass generated successfully and sent on whatsapp',
       );
@@ -1364,7 +1362,7 @@ export function PassPayment() {
                           setMissingFields([]);
                         }}
                       />
-                      {t('Change test pass')}
+                      {t('Change pass')}
                     </label>
                     <label className={`choice-chip${testOutcome === 'fail' ? ' selected' : ''}`}>
                       <input
@@ -1393,7 +1391,7 @@ export function PassPayment() {
                 <InPageSelect
                   aria-label={t('Pass')}
                   value={passTypeId}
-                  placeholder={t(isTestPassUpdate ? 'Select a test pass' : 'Select pass')}
+                  placeholder={t('Select pass')}
                   searchable
                   onChange={(next) => {
                     setPassTypeId(next);
@@ -1536,7 +1534,7 @@ export function PassPayment() {
                 </p>
               )}
 
-              {onlinePayAmount > 0 && !isTestPassUpdate ? (
+              {onlinePayAmount > 0 && !isUnpaidTestPassChange ? (
                 <div
                   className={`payment-mode-row${
                     paymentMode === 'Online' ? ' payment-mode-row--online' : ''
@@ -1702,7 +1700,7 @@ export function PassPayment() {
                     className="submit"
                     disabled={
                       saving ||
-                      (!isTestPassUpdate && onlinePayAmount > 0 && !paymentReceived) ||
+                      (!isUnpaidTestPassChange && onlinePayAmount > 0 && !paymentReceived) ||
                       Boolean(issueSuccessMessage)
                     }
                   >
@@ -1712,7 +1710,7 @@ export function PassPayment() {
                         : t('Issuing…')
                       : isTestPassFail
                         ? t('Mark as fail')
-                        : t(isTestPassUpdate ? 'Update Pass' : 'Issue Pass')}
+                        : t(isUnpaidTestPassChange ? 'Update Pass' : 'Issue Pass')}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
+import { INDIA_SQL_TODAY, indiaTodayIso } from '../indiaDate.js';
 
 type NamedCount = { name: string; count: number };
 
@@ -11,25 +12,17 @@ function toNamedCounts(rows: Array<{ name: string | null; count: string | number
   }));
 }
 
-function todayLocalIso() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
 function parseAsOfDate(raw: unknown): string {
   const value = String(raw ?? '').trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  return todayLocalIso();
+  return indiaTodayIso();
 }
 
 const ACTIVE_ON_DATE_SQL = `
 (
-  ($2::date = CURRENT_DATE AND COALESCE(is_active, TRUE) = TRUE)
+  ($2::date = ${INDIA_SQL_TODAY} AND COALESCE(is_active, TRUE) = TRUE)
   OR (
-    $2::date <> CURRENT_DATE
+    $2::date <> ${INDIA_SQL_TODAY}
     AND created_at::date <= $2::date
     AND pass_valid_until IS NOT NULL
     AND pass_valid_until >= $2::date
@@ -77,7 +70,7 @@ async function deactivateExpiredPasses(accountId: number) {
        WHERE saas_account_id = $1
          AND COALESCE(is_active, TRUE) = TRUE
          AND pass_valid_until IS NOT NULL
-         AND pass_valid_until < CURRENT_DATE`,
+         AND pass_valid_until < ${INDIA_SQL_TODAY}`,
       [accountId],
     );
   } catch (err) {
@@ -122,9 +115,9 @@ dashboardRouter.get('/', async (req, res) => {
         `SELECT
            COUNT(*) FILTER (
              WHERE (
-               ($2::date = CURRENT_DATE AND COALESCE(is_active, TRUE) = TRUE)
+               ($2::date = ${INDIA_SQL_TODAY} AND COALESCE(is_active, TRUE) = TRUE)
                OR (
-                 $2::date <> CURRENT_DATE
+                 $2::date <> ${INDIA_SQL_TODAY}
                  AND created_at::date <= $2::date
                  AND pass_valid_until IS NOT NULL
                  AND pass_valid_until >= $2::date
@@ -134,9 +127,9 @@ dashboardRouter.get('/', async (req, res) => {
            )::int AS active,
            COUNT(*) FILTER (
              WHERE (
-               ($2::date = CURRENT_DATE AND COALESCE(is_active, TRUE) = TRUE)
+               ($2::date = ${INDIA_SQL_TODAY} AND COALESCE(is_active, TRUE) = TRUE)
                OR (
-                 $2::date <> CURRENT_DATE
+                 $2::date <> ${INDIA_SQL_TODAY}
                  AND created_at::date <= $2::date
                  AND pass_valid_until IS NOT NULL
                  AND pass_valid_until >= $2::date
@@ -188,9 +181,9 @@ dashboardRouter.get('/', async (req, res) => {
          FROM registrations
          WHERE saas_account_id = $1
            AND (
-             ($2::date = CURRENT_DATE AND COALESCE(is_active, TRUE) = TRUE)
+             ($2::date = ${INDIA_SQL_TODAY} AND COALESCE(is_active, TRUE) = TRUE)
              OR (
-               $2::date <> CURRENT_DATE
+               $2::date <> ${INDIA_SQL_TODAY}
                AND created_at::date <= $2::date
                AND pass_valid_until IS NOT NULL
                AND pass_valid_until >= $2::date
@@ -206,9 +199,9 @@ dashboardRouter.get('/', async (req, res) => {
          FROM registrations
          WHERE saas_account_id = $1
            AND (
-             ($2::date = CURRENT_DATE AND COALESCE(is_active, TRUE) = TRUE)
+             ($2::date = ${INDIA_SQL_TODAY} AND COALESCE(is_active, TRUE) = TRUE)
              OR (
-               $2::date <> CURRENT_DATE
+               $2::date <> ${INDIA_SQL_TODAY}
                AND created_at::date <= $2::date
                AND pass_valid_until IS NOT NULL
                AND pass_valid_until >= $2::date
@@ -224,9 +217,9 @@ dashboardRouter.get('/', async (req, res) => {
          FROM registrations
          WHERE saas_account_id = $1
            AND (
-             ($2::date = CURRENT_DATE AND COALESCE(is_active, TRUE) = TRUE)
+             ($2::date = ${INDIA_SQL_TODAY} AND COALESCE(is_active, TRUE) = TRUE)
              OR (
-               $2::date <> CURRENT_DATE
+               $2::date <> ${INDIA_SQL_TODAY}
                AND created_at::date <= $2::date
                AND pass_valid_until IS NOT NULL
                AND pass_valid_until >= $2::date

@@ -1349,6 +1349,7 @@ const mr: Record<string, string> = {
   "Update test pass": "चाचणी पास बदला",
   "Update Pass": "पास अपडेट करा",
   "Test result": "चाचणी निकाल",
+  "Change pass": "पास बदला",
   "Change test pass": "चाचणी पास बदला",
   "Select a different pass for the update": "अपडेटसाठी वेगळा पास निवडा",
   "Select a test pass": "चाचणी पास निवडा",

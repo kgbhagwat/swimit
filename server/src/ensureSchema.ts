@@ -39,6 +39,10 @@ export async function ensureSchema() {
       ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS max_swimmers_per_coach INT;
       ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS exceeding_limit_allowed BOOLEAN NOT NULL DEFAULT TRUE;
       ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok';
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS test_required BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS is_offer BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_start_date DATE;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_end_date DATE;
       ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS saas_account_id INT;
       UPDATE pass_types
          SET verification_mode = 'ok_not_ok'
@@ -53,6 +57,27 @@ export async function ensureSchema() {
         RETURN;
       END IF;
       ALTER TABLE pass_payment_intents ADD COLUMN IF NOT EXISTS share_token TEXT;
+    END $$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.registrations') IS NULL THEN
+        RETURN;
+      END IF;
+      ALTER TABLE registrations ADD COLUMN IF NOT EXISTS test_result TEXT;
+    END $$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.pass_payments') IS NULL THEN
+        RETURN;
+      END IF;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS test_upgrade_applied BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS upgrade_source_payment_id INT;
     END $$;
   `);
   await pool.query(`

@@ -22,6 +22,7 @@ import {
 import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
 import { newPaymentShareToken, whatsAppPayShareUrl } from '../upiPayQr.js';
 import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
+import { INDIA_SQL_TODAY, indiaDaysAgoIso } from '../indiaDate.js';
 import { applyLatestScreenshotToIntent, getPassPaymentScreenshot } from '../passPaymentVerify.js';
 import {
   guessImageContentType,
@@ -97,6 +98,9 @@ async function ensureInactiveAtColumn() {
       await pool.query(
         `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS test_result TEXT`,
       );
+      await pool.query(
+        `ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS test_required BOOLEAN NOT NULL DEFAULT FALSE`,
+      );
     })().catch((err) => {
       inactiveAtReady = null;
       throw err;
@@ -108,6 +112,29 @@ async function ensureInactiveAtColumn() {
 async function deactivateExpiredPasses(accountId: number) {
   try {
     await ensureInactiveAtColumn();
+    // Old 1-day passes stored valid-until as issue date + 1 (two calendar days).
+    await pool.query(
+      `UPDATE registrations r
+       SET pass_valid_until = latest.paid_on
+       FROM (
+         SELECT DISTINCT ON (p.registration_id)
+                p.registration_id,
+                p.saas_account_id,
+                p.payment_date AS paid_on
+         FROM pass_payments p
+         JOIN pass_types pt
+           ON pt.saas_account_id = p.saas_account_id
+          AND LOWER(TRIM(pt.pass_name)) = LOWER(TRIM(p.pass_type))
+         WHERE p.saas_account_id = $1
+           AND TRIM(pt.duration) ~* '^1\\s*days?$'
+         ORDER BY p.registration_id, p.id DESC
+       ) latest
+       WHERE r.id = latest.registration_id
+         AND r.saas_account_id = latest.saas_account_id
+         AND r.pass_valid_until IS NOT NULL
+         AND r.pass_valid_until = latest.paid_on + 1`,
+      [accountId],
+    );
     // Pass expired → inactive immediately. They remain on Pass Payment for 3 days
     // via inactive_at / pass_valid_until window in pending-payment.
     await pool.query(
@@ -116,7 +143,7 @@ async function deactivateExpiredPasses(accountId: number) {
            inactive_at = COALESCE(inactive_at, NOW())
        WHERE saas_account_id = $1
          AND pass_valid_until IS NOT NULL
-         AND pass_valid_until < CURRENT_DATE
+         AND pass_valid_until < ${INDIA_SQL_TODAY}
          AND is_active = TRUE`,
       [accountId],
     );
@@ -218,7 +245,7 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
           AND LOWER(TRIM(pt.pass_name)) = LOWER(TRIM(p.pass_type))
          WHERE p.saas_account_id = r.saas_account_id
            AND p.registration_id = r.id
-           AND p.payment_date = CURRENT_DATE
+           AND p.payment_date = ${INDIA_SQL_TODAY}
            AND COALESCE(pt.test_required, FALSE) = TRUE
            AND COALESCE(p.test_upgrade_applied, FALSE) = FALSE
          ORDER BY p.id DESC
@@ -230,14 +257,14 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
            r.pass_valid_until IS NULL
            OR (
              -- Pass expired within last 3 days
-             r.pass_valid_until < CURRENT_DATE
-             AND r.pass_valid_until >= (CURRENT_DATE - INTERVAL '3 days')
+             r.pass_valid_until < ${INDIA_SQL_TODAY}
+             AND r.pass_valid_until >= (${INDIA_SQL_TODAY} - INTERVAL '3 days')
            )
            OR (
              -- Manually (or auto) marked inactive: visible for 3 days
              COALESCE(r.is_active, FALSE) = FALSE
              AND r.inactive_at IS NOT NULL
-             AND r.inactive_at::date >= (CURRENT_DATE - INTERVAL '3 days')
+             AND r.inactive_at::date >= (${INDIA_SQL_TODAY} - INTERVAL '3 days')
            )
            OR test_payment.id IS NOT NULL
          )
@@ -479,10 +506,7 @@ function registrationHasCurrentPass(passType: string | null | undefined, passVal
   const type = String(passType ?? '').trim();
   if (!type || type === '—') return false;
   if (!passValidUntil) return true;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 3);
-  const cutoffIso = cutoff.toISOString().slice(0, 10);
-  return passValidUntil.slice(0, 10) >= cutoffIso;
+  return passValidUntil.slice(0, 10) >= indiaDaysAgoIso(3);
 }
 
 registrationsRouter.delete('/:id', async (req, res) => {
@@ -571,7 +595,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
          WHERE p.id = $1
            AND p.saas_account_id = $2
            AND p.registration_id = $3
-           AND p.payment_date = CURRENT_DATE
+           AND p.payment_date = ${INDIA_SQL_TODAY}
            AND COALESCE(pt.test_required, FALSE) = TRUE
            AND COALESCE(p.test_upgrade_applied, FALSE) = FALSE
          LIMIT 1`,
@@ -593,7 +617,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
       const { rows } = await pool.query(
         `UPDATE registrations
             SET is_active = FALSE,
-                pass_valid_until = (CURRENT_DATE - 1),
+                pass_valid_until = (${INDIA_SQL_TODAY} - 1),
                 inactive_at = NOW(),
                 test_result = 'fail'
           WHERE id = $1 AND saas_account_id = $2
@@ -641,7 +665,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
              OR (
                offer_start_date IS NOT NULL
                AND offer_end_date IS NOT NULL
-               AND CURRENT_DATE BETWEEN offer_start_date AND offer_end_date
+               AND ${INDIA_SQL_TODAY} BETWEEN offer_start_date AND offer_end_date
              )
            )
          LIMIT 1`,
@@ -655,10 +679,6 @@ registrationsRouter.patch('/:id', async (req, res) => {
       selectedPassPrice =
         Number(passAvailability.rows[0].pass_charges ?? 0) +
         Number(passAvailability.rows[0].coaching_charges ?? 0);
-      if (upgradePaymentId > 0 && !passAvailability.rows[0].test_required) {
-        res.status(400).json({ error: 'Same-day test pass edit can only change to another test pass or fail' });
-        return;
-      }
     }
 
     let originalTestPass = '';
@@ -677,7 +697,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
       }
     }
 
-    const isTestPassChange = isPassPayment && upgradePaymentId > 0;
+    const isTestPassChange = isPassPayment && upgradePaymentId > 0 && selectedPassIsTest;
     const paymentMode = String(body.paymentMode ?? '').trim();
     if (
       isPassPayment &&
@@ -798,7 +818,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
           `INSERT INTO pass_payments
            (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges,
             amount, payment_date, payment_mode, transaction_id, upgrade_source_payment_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, $8, $9, $10)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, ${INDIA_SQL_TODAY}, $8, $9, $10)`,
           [
             accountId,
             updated.id,
@@ -863,7 +883,9 @@ registrationsRouter.patch('/:id', async (req, res) => {
         entityLabel: String(updated.full_name ?? ''),
         summary: isTestPassChange
           ? 'Changed test pass on same day'
-          : 'Recorded pass payment / renewed pass',
+          : originalTestPass
+            ? 'Recorded pass payment after test'
+            : 'Recorded pass payment / renewed pass',
         details: {
           passType: body.passType,
           passValidUntil: body.passValidUntil,

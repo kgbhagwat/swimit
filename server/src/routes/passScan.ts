@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
+import { indiaTodayIso, INDIA_SQL_TODAY } from '../indiaDate.js';
 import { normalizeBirthdate } from '../sensitiveData.js';
 
 function formatPlainDate(value: unknown) {
@@ -48,7 +49,7 @@ function parseSwimmerId(code: string) {
 
 function hasValidPassToday(passValidUntil: string) {
   if (!passValidUntil) return false;
-  return passValidUntil >= new Date().toISOString().slice(0, 10);
+  return passValidUntil >= indiaTodayIso();
 }
 
 export const passScanRouter = Router();
@@ -87,7 +88,7 @@ passScanRouter.get('/lookup', async (req, res) => {
        FROM swimmer_attendance
        WHERE registration_id = $1
          AND saas_account_id = $2
-         AND attendance_date = CURRENT_DATE`,
+         AND attendance_date = ${INDIA_SQL_TODAY}`,
       [id, accountId],
     );
 
@@ -151,7 +152,7 @@ passScanRouter.post('/attendance', async (req, res) => {
 
     const inserted = await pool.query(
       `INSERT INTO swimmer_attendance (saas_account_id, registration_id, attendance_date)
-       VALUES ($1, $2, CURRENT_DATE)
+       VALUES ($1, $2, ${INDIA_SQL_TODAY})
        ON CONFLICT (registration_id, attendance_date) DO NOTHING
        RETURNING id, attendance_date, marked_at`,
       [accountId, registrationId],

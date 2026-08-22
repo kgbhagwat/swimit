@@ -22,6 +22,7 @@ import {
 } from './SwimmerProfileReview';
 import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 import { tenantPath } from './tenantSession';
+import { indiaDaysAgoIso, indiaTodayIso } from './indiaDate';
 
 type SwimmerStatus = 'active' | 'inactive';
 
@@ -84,13 +85,11 @@ const SWIMMER_COLUMNS: Array<{ key: SortKey; label: string }> = [
 ];
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return indiaTodayIso();
 }
 
 function daysAgoIso(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return indiaDaysAgoIso(days);
 }
 
 function hasValidPassToday(passValidUntil: string | null | undefined) {
@@ -109,9 +108,9 @@ function hasCurrentPass(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
   return Boolean(row.passType) && row.passType !== '—' && !isLongExpired(row.passValidUntil);
 }
 
-/** Active list: marked active and has a current paid pass. */
+/** Active list: marked active and pass is still valid on today's India date. */
 function belongsOnActiveList(row: Pick<SwimmerRow, 'isActive' | 'passType' | 'passValidUntil'>) {
-  return row.isActive && hasCurrentPass(row);
+  return row.isActive && hasValidPassToday(row.passValidUntil);
 }
 
 /** No current pass — activating sends them to Pass Payment first. */
@@ -578,8 +577,19 @@ export function SwimmerList() {
         fetch('/api/registrations'),
         fetch('/api/batches'),
       ]);
-      if (!swimmerRes.ok) throw new Error('Failed to load swimmers');
-      const data = (await swimmerRes.json()) as RegistrationApiRow[];
+      const swimmerBody = (await swimmerRes.json().catch(() => ({}))) as {
+        error?: string;
+        detail?: string;
+      } & RegistrationApiRow[];
+      if (!swimmerRes.ok) {
+        const detail = typeof swimmerBody.detail === 'string' ? swimmerBody.detail.trim() : '';
+        throw new Error(
+          detail
+            ? `${swimmerBody.error ?? 'Failed to load swimmers'}: ${detail}`
+            : swimmerBody.error ?? 'Failed to load swimmers',
+        );
+      }
+      const data = swimmerBody as RegistrationApiRow[];
       setRows(data.map(mapRow));
       setSampleMode(false);
 
@@ -1353,8 +1363,6 @@ export function SwimmerList() {
             </form>
           </section>
         )}
-
-        {error && !editing && !viewing ? <p className="error">{error}</p> : null}
       </div>
     </PlatformPage>
   );
