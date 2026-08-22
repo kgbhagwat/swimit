@@ -23,6 +23,7 @@ import { isPdfUrl } from './uploadFile';
 import { useObjectUrl } from './useObjectUrl';
 import { PhotoPickerButtons } from './WebcamCapture';
 import { readSampleSwimmerProfile } from './sampleSwimmerEdit';
+import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 
 type PendingSwimmer = {
   id: number;
@@ -60,6 +61,27 @@ const SAMPLE_PENDING_SWIMMERS: PendingSwimmer[] = [
     awaitingWhatsApp: true,
   },
 ];
+
+type PendingSortKey = 'swimmer' | 'contact' | 'email' | 'type';
+
+const PENDING_COLUMNS: Array<{ key: PendingSortKey; label: string }> = [
+  { key: 'swimmer', label: 'Swimmer' },
+  { key: 'contact', label: 'Contact' },
+  { key: 'email', label: 'Email' },
+  { key: 'type', label: 'Type' },
+];
+
+function pendingCellValue(row: PendingSwimmer, key: PendingSortKey) {
+  if (key === 'contact') return row.contact?.trim() || '—';
+  if (key === 'email') return row.email?.trim() || '—';
+  if (key === 'type') {
+    const parts = [row.type];
+    if (row.passType) parts.push(row.passType);
+    if (row.awaitingWhatsApp) parts.push('Awaiting WhatsApp payment');
+    return parts.join(' · ');
+  }
+  return row.fullName?.trim() || '—';
+}
 
 type PassTypeOption = {
   id: number;
@@ -414,6 +436,12 @@ export function PassPayment() {
   const [samplePhotoFile, setSamplePhotoFile] = useState<File | null>(null);
   const [issueSuccessMessage, setIssueSuccessMessage] = useState('');
   const [dismissedSampleIds, setDismissedSampleIds] = useState<number[]>([]);
+  const [openFilter, setOpenFilter] = useState<PendingSortKey | null>(null);
+  const [columnSelected, setColumnSelected] = useState<
+    Partial<Record<PendingSortKey, Set<string> | null>>
+  >({});
+  const [sortKey, setSortKey] = useState<PendingSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
   const issueCloseTimerRef = useRef<number | null>(null);
 
   function clearIssueCloseTimer() {
@@ -1198,6 +1226,25 @@ export function PassPayment() {
       ]
     : rows;
 
+  const visibleRows = useMemo(() => {
+    const filtered = displayRows.filter((row) =>
+      PENDING_COLUMNS.every(({ key }) => {
+        const selected = columnSelected[key];
+        if (!selected) return true;
+        return selected.has(pendingCellValue(row, key));
+      }),
+    );
+    if (!sortKey || !sortDir) return filtered;
+    return [...filtered].sort((a, b) => {
+      const cmp = pendingCellValue(a, sortKey).localeCompare(
+        pendingCellValue(b, sortKey),
+        undefined,
+        { numeric: true, sensitivity: 'base' },
+      );
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [displayRows, columnSelected, sortKey, sortDir]);
+
   const pendingCountLede =
     rows.length === 1
       ? `1 ${t('swimmer pending payment for today')}`
@@ -1238,19 +1285,37 @@ export function PassPayment() {
             </div>
           ) : null}
           <div className="pass-table-head">
-            <span>{t('Swimmer')}</span>
-            <span>{t('Contact')}</span>
-            <span>{t('Email')}</span>
-            <span>{t('Type')}</span>
+            {PENDING_COLUMNS.map(({ key, label }) => (
+              <div key={key} className="swimmer-col-head">
+                <TableColumnFilter
+                  label={t(label)}
+                  values={displayRows.map((row) => pendingCellValue(row, key))}
+                  selected={columnSelected[key] ?? null}
+                  sortDir={sortKey === key ? sortDir : null}
+                  open={openFilter === key}
+                  onToggleOpen={() => setOpenFilter((prev) => (prev === key ? null : key))}
+                  onClose={() => setOpenFilter(null)}
+                  onSelectedChange={(next) =>
+                    setColumnSelected((prev) => ({ ...prev, [key]: next }))
+                  }
+                  onSort={(dir) => {
+                    setSortKey(dir ? key : null);
+                    setSortDir(dir);
+                  }}
+                />
+              </div>
+            ))}
             <span>{t('Actions')}</span>
           </div>
           {loading ? (
             <p className="pass-empty">{t('Loading…')}</p>
           ) : displayRows.length === 0 ? (
             <p className="pass-empty">{t('No swimmers pending payment.')}</p>
+          ) : visibleRows.length === 0 ? (
+            <p className="pass-empty">{t('No swimmers match these filters.')}</p>
           ) : (
             <div className="pass-table-body">
-              {displayRows.map((row, index) => (
+              {visibleRows.map((row, index) => (
                 <div className={`pass-row pass-row-tone-${index % 4}`} key={row.id}>
                   <div className="pass-block-row">
                     <strong data-label={t('Swimmer')}>{row.fullName}</strong>

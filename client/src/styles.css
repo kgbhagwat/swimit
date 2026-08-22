@@ -7493,9 +7493,24 @@ button.coach-payment-back {
   position: relative;
 }
 
+.payment-pass-table.pass-table-card,
+.payment-pass-table.pass-table-card--sample {
+  overflow: visible;
+}
+
+.payment-pass-table .pass-table-head {
+  position: relative;
+  z-index: 6;
+  overflow: visible;
+}
+
 .payment-pass-table .pass-table-head,
 .payment-pass-table .pass-row {
   grid-template-columns: 1.2fr 1fr 1.2fr 1.5fr 0.7fr;
+}
+
+.payment-pass-table .swimmer-col-head {
+  min-width: 0;
 }
 
 .payment-pass-table .pass-actions {
@@ -7523,6 +7538,10 @@ button.coach-payment-back {
   overflow: hidden;
 }
 
+.payment-pass-table.pass-table-card--sample {
+  overflow: visible;
+}
+
 .pass-table-card--sample > *:not(.user-mgmt-sample-watermark),
 .pass-form-card--sample > *:not(.user-mgmt-sample-watermark) {
   position: relative;
@@ -7533,6 +7552,7 @@ button.coach-payment-back {
 .pass-table-card--sample > .coach-table-head,
 .pass-table-card--sample > .lifeguard-staff-head,
 .pass-table-card--sample > .other-staff-head,
+.pass-table-card--sample > .pass-table-head,
 .pass-form-card--sample > .swimmer-table-head,
 .pass-form-card--sample > .coach-table-head,
 .pass-form-card--sample > .lifeguard-staff-head,

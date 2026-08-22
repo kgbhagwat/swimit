@@ -113,9 +113,9 @@ function belongsOnActiveList(row: Pick<SwimmerRow, 'isActive' | 'passType' | 'pa
   return row.isActive && hasValidPassToday(row.passValidUntil);
 }
 
-/** No current pass — activating sends them to Pass Payment first. */
+/** No valid pass today — activating sends them to Pass Payment first. */
 function needsPassPayment(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
-  return !hasCurrentPass(row);
+  return !hasValidPassToday(row.passValidUntil);
 }
 
 /** Recently sent to Pass Payment (within 3 days). */
@@ -124,17 +124,22 @@ function isPaymentWindowOpen(inactiveAt: string | null | undefined) {
   return inactiveAt.slice(0, 10) >= daysAgoIso(3);
 }
 
+/** Pass expired and still inside the 3-day renew window. */
+function isInExpiryPaymentWindow(passValidUntil: string | null | undefined) {
+  if (!passValidUntil) return false;
+  const until = passValidUntil.slice(0, 10);
+  return until < todayIso() && until >= daysAgoIso(3);
+}
+
 /** Waiting on Pass Payment — hide from Active/Inactive lists. */
 function isAwaitingPassPayment(
   row: Pick<SwimmerRow, 'id' | 'passType' | 'passValidUntil' | 'inactiveAt'>,
   queuedIds: Set<number>,
 ) {
   if (queuedIds.has(row.id)) return true;
+  if (!row.passValidUntil) return true;
+  if (isInExpiryPaymentWindow(row.passValidUntil)) return true;
   return needsPassPayment(row) && isPaymentWindowOpen(row.inactiveAt);
-}
-
-function hasPaidPass(row: Pick<SwimmerRow, 'passType' | 'passValidUntil'>) {
-  return Boolean(row.passValidUntil) || (Boolean(row.passType) && row.passType !== '—');
 }
 
 function swimmerStatusLabel(
@@ -1123,7 +1128,7 @@ export function SwimmerList() {
                     const displayPassType = longExpired || !row.passType || row.passType === '—'
                       ? '—'
                       : row.passType;
-                    const showPassActions = hasCurrentPass(row);
+                    const showPassActions = hasValidPassToday(row.passValidUntil);
                     const showToggle = canToggleActive;
                     return (
                     <div
@@ -1200,7 +1205,7 @@ export function SwimmerList() {
                             className={`status-switch swimmer-active-switch${
                               onActiveList
                                 ? ' is-active'
-                                : hasPaidPass(row)
+                                : hasValidPassToday(row.passValidUntil)
                                   ? ' is-paid-inactive'
                                   : ' is-inactive'
                             }`}

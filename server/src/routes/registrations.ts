@@ -261,10 +261,14 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
              AND r.pass_valid_until >= (${INDIA_SQL_TODAY} - INTERVAL '3 days')
            )
            OR (
-             -- Manually (or auto) marked inactive: visible for 3 days
+             -- Reopened from Inactive after the 3-day expiry window
              COALESCE(r.is_active, FALSE) = FALSE
              AND r.inactive_at IS NOT NULL
              AND r.inactive_at::date >= (${INDIA_SQL_TODAY} - INTERVAL '3 days')
+             AND (
+               r.pass_valid_until IS NULL
+               OR r.pass_valid_until < ${INDIA_SQL_TODAY}
+             )
            )
            OR test_payment.id IS NOT NULL
          )
