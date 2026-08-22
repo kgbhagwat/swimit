@@ -75,7 +75,7 @@ function pendingCellValue(row: PendingSwimmer, key: PendingSortKey) {
   if (key === 'contact') return row.contact?.trim() || '—';
   if (key === 'email') return row.email?.trim() || '—';
   if (key === 'type') {
-    const parts = [row.type];
+    const parts: string[] = [row.type];
     if (row.passType) parts.push(row.passType);
     if (row.awaitingWhatsApp) parts.push('Awaiting WhatsApp payment');
     return parts.join(' · ');
