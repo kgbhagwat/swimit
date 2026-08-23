@@ -1089,6 +1089,8 @@ const mr: Record<string, string> = {
   "Pass generated successfully and sent on whatsapp": "पास यशस्वीपणे तयार झाला आणि WhatsApp वर पाठवला",
   "Pass and invoice generated successfully and sent on whatsapp":
     "पास आणि चलन यशस्वीपणे तयार झाले आणि WhatsApp वर पाठवले",
+  "Pass renewed from WhatsApp payment. Swimmer moved to the Active list.":
+    "WhatsApp पेमेंटने पास नूतनीकरण झाले. पोहणार्‍याला सक्रिय यादीत हलवले.",
   "Pass holders extended by 1 day": "पासधारकांना १ दिवस मुदतवाढ",
   "Pass name": "पास नाव",
   "Pass No.": "पास क्रमांक",

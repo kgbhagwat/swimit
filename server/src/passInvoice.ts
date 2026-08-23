@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { pool } from './db/pool.js';
 import { INDIA_SQL_TODAY } from './indiaDate.js';
 
@@ -173,14 +174,21 @@ export async function insertPassPayment(params: {
   paymentMode: string;
   transactionId: string | null;
   upgradeSourcePaymentId: number | null;
+  paymentDate?: string | null;
+  client?: PoolClient;
 }) {
+  const db = params.client ?? pool;
   const tax = splitInclusiveTax(params.amount);
-  const { rows } = await pool.query(
+  const paymentDate =
+    params.paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(params.paymentDate)
+      ? params.paymentDate
+      : null;
+  const { rows } = await db.query(
     `INSERT INTO pass_payments
      (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges,
       amount, payment_date, payment_mode, transaction_id, upgrade_source_payment_id,
       tax_inclusive, gst_percent, gst_amount, taxable_amount)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, ${INDIA_SQL_TODAY}, $8, $9, $10, TRUE, $11, $12, $13)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::date, ${INDIA_SQL_TODAY}), $9, $10, $11, TRUE, $12, $13, $14)
      RETURNING id, payment_date`,
     [
       params.accountId,
@@ -190,6 +198,7 @@ export async function insertPassPayment(params: {
       params.passCharges,
       params.coachingCharges,
       tax.amount,
+      paymentDate,
       params.paymentMode,
       params.transactionId,
       params.upgradeSourcePaymentId,
@@ -199,13 +208,13 @@ export async function insertPassPayment(params: {
     ],
   );
   const id = Number(rows[0].id);
-  const paymentDate = formatPaymentDate(rows[0].payment_date);
-  const invoiceNumber = invoiceNumberForPayment(id, paymentDate);
-  await pool.query(
+  const storedPaymentDate = formatPaymentDate(rows[0].payment_date);
+  const invoiceNumber = invoiceNumberForPayment(id, storedPaymentDate);
+  await db.query(
     `UPDATE pass_payments
      SET invoice_number = $1
      WHERE id = $2 AND saas_account_id = $3`,
     [invoiceNumber, id, params.accountId],
   );
-  return { id, invoiceNumber, paymentDate };
+  return { id, invoiceNumber, paymentDate: storedPaymentDate };
 }

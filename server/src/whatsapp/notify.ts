@@ -762,7 +762,7 @@ export async function notifyPassExpiring(params: {
     `Pass type: ${params.passType || '—'}`,
     `Valid until: ${params.passValidUntil}`,
     '',
-    'Please renew at the pool desk to continue entry.',
+    'Please renew by paying the same pass amount to the pool UPI and sending the payment screenshot here on WhatsApp.',
   ].join('\n');
 
   return deliverNotice({

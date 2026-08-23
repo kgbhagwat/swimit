@@ -38,6 +38,35 @@ type PendingSwimmer = {
   upgradePaymentId?: number | null;
 };
 
+type PendingPaymentApiRow = {
+  id: number;
+  full_name: string;
+  whatsapp_mobile: string;
+  email: string;
+  pending_type: 'New' | 'Expired' | 'Test';
+  pass_type?: string | null;
+  coach?: string | null;
+  batch?: string | null;
+  awaitingWhatsApp?: boolean;
+  upgradePaymentId?: number | null;
+};
+
+function mapPendingPaymentRows(pending: PendingPaymentApiRow[]): PendingSwimmer[] {
+  return pending.map((row) => ({
+    id: row.id,
+    fullName: row.full_name,
+    contact: row.whatsapp_mobile || '—',
+    email: row.email || '—',
+    type:
+      row.pending_type === 'Test' ? 'Test' : row.pending_type === 'Expired' ? 'Expired' : 'New',
+    passType: row.pass_type?.trim() || '',
+    coach: row.coach?.trim() || '',
+    batch: row.batch?.trim() || '',
+    awaitingWhatsApp: Boolean(row.awaitingWhatsApp),
+    upgradePaymentId: row.upgradePaymentId == null ? null : Number(row.upgradePaymentId),
+  }));
+}
+
 const SAMPLE_PENDING_SWIMMERS: PendingSwimmer[] = [
   {
     id: -1,
@@ -443,6 +472,7 @@ export function PassPayment() {
   const [sortKey, setSortKey] = useState<PendingSortKey | null>(null);
   const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
   const issueCloseTimerRef = useRef<number | null>(null);
+  const autoIssuedHandledRef = useRef(false);
 
   function clearIssueCloseTimer() {
     if (issueCloseTimerRef.current != null) {
@@ -465,39 +495,8 @@ export function PassPayment() {
       ]);
       if (!pendingRes.ok) throw new Error('Failed to load pending payments');
 
-      const pending = (await pendingRes.json()) as Array<{
-        id: number;
-        full_name: string;
-        whatsapp_mobile: string;
-        email: string;
-        pending_type: 'New' | 'Expired' | 'Test';
-        pass_type?: string | null;
-        coach?: string | null;
-        batch?: string | null;
-        awaitingWhatsApp?: boolean;
-        upgradePaymentId?: number | null;
-      }>;
-
-      setRows(
-        pending.map((row) => ({
-          id: row.id,
-          fullName: row.full_name,
-          contact: row.whatsapp_mobile || '—',
-          email: row.email || '—',
-          type:
-            row.pending_type === 'Test'
-              ? 'Test'
-              : row.pending_type === 'Expired'
-                ? 'Expired'
-                : 'New',
-          passType: row.pass_type?.trim() || '',
-          coach: row.coach?.trim() || '',
-          batch: row.batch?.trim() || '',
-          awaitingWhatsApp: Boolean(row.awaitingWhatsApp),
-          upgradePaymentId:
-            row.upgradePaymentId == null ? null : Number(row.upgradePaymentId),
-        })),
-      );
+      const pending = (await pendingRes.json()) as PendingPaymentApiRow[];
+      setRows(mapPendingPaymentRows(pending));
 
       if (passRes.ok) {
         const passes = (await passRes.json()) as Array<
@@ -559,6 +558,23 @@ export function PassPayment() {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (paying || demoMode) return;
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const pendingRes = await fetch('/api/registrations/pending-payment');
+          if (!pendingRes.ok) return;
+          const pending = (await pendingRes.json()) as PendingPaymentApiRow[];
+          setRows(mapPendingPaymentRows(pending));
+        } catch {
+          /* keep current list */
+        }
+      })();
+    }, 12000);
+    return () => window.clearInterval(timer);
+  }, [paying, demoMode]);
+
   function openPay(row: PendingSwimmer) {
     const sample = isSamplePendingId(row.id);
     const defaultSampleProfile = sample ? sampleProfileFromRow(row) : null;
@@ -601,6 +617,7 @@ export function PassPayment() {
     setSuccessMessage('');
     clearIssueCloseTimer();
     setIssueSuccessMessage('');
+    autoIssuedHandledRef.current = false;
     setDetailsConfirmed(false);
     if (sample) {
       setSwimmerProfile(savedSampleProfile ?? defaultSampleProfile);
@@ -645,6 +662,7 @@ export function PassPayment() {
     setMissingFields([]);
     setSuccessMessage('');
     setIssueSuccessMessage('');
+    autoIssuedHandledRef.current = false;
   }
 
   function scheduleCloseAfterIssue(afterClose?: () => void) {
@@ -654,6 +672,17 @@ export function PassPayment() {
       afterClose?.();
       closePay();
     }, 2500);
+  }
+
+  function markWhatsAppAutoIssued() {
+    if (autoIssuedHandledRef.current) return;
+    autoIssuedHandledRef.current = true;
+    setIssueSuccessMessage(
+      t('Pass renewed from WhatsApp payment. Swimmer moved to the Active list.'),
+    );
+    scheduleCloseAfterIssue(() => {
+      void load();
+    });
   }
 
   const samplePaying = Boolean(paying && isSamplePendingId(paying.id));
@@ -873,7 +902,12 @@ export function PassPayment() {
           upiOk?: boolean;
           amountMatched?: boolean;
           transactionId?: string;
+          issued?: boolean;
         };
+        if (!cancelled && res.ok && body.issued) {
+          markWhatsAppAutoIssued();
+          return;
+        }
         if (!cancelled && res.ok && body.upiOk && body.amountMatched) {
           const txn = String(body.transactionId ?? '').trim();
           if (txn) {
@@ -907,10 +941,15 @@ export function PassPayment() {
             upiOk?: boolean;
             amountMatched?: boolean;
             transactionId?: string;
+            issued?: boolean;
           };
         };
         if (cancelled) return;
         const shot = body.screenshot;
+        if (res.ok && shot?.issued) {
+          markWhatsAppAutoIssued();
+          return;
+        }
         if (res.ok && shot?.upiOk && shot.amountMatched) {
           const txn = String(shot.transactionId ?? '').trim();
           if (txn) {

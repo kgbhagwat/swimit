@@ -9,6 +9,9 @@ import {
 } from './paymentAmount.js';
 import { sendWhatsAppText } from './whatsapp/client.js';
 import { getWhatsAppConfig } from './whatsapp/config.js';
+import { notifyPassIssued } from './whatsapp/notify.js';
+import { indiaTodayIso } from './indiaDate.js';
+import { issueAutoRenewedPass, loadAutoRenewCandidate } from './passAutoRenew.js';
 
 async function logOutbound(params: {
   saasAccountId: number;
@@ -78,13 +81,14 @@ export type PassScreenshotStatus = {
   transactionId: string;
   detectedAmount: number | null;
   expectedAmount: number | null;
+  issued?: boolean;
 };
 
 function screenshotStatusFromRow(row: Record<string, unknown> | undefined): PassScreenshotStatus {
   const expected = row?.expected_amount == null ? null : Number(row.expected_amount);
   const detected = row?.detected_amount == null ? null : Number(row.detected_amount);
   const notes = String(row?.notes ?? '');
-  const matched = notes.includes('Screenshot matched');
+  const matched = notes.includes('Screenshot matched') || notes.includes('Auto-renewed');
   const upiFailed = notes.includes('UPI ID not found');
   const amountFailed = notes.includes('Amount not');
   return {
@@ -96,10 +100,125 @@ function screenshotStatusFromRow(row: Record<string, unknown> | undefined): Pass
   };
 }
 
+async function maybeAutoRenewFromScreenshot(params: {
+  saasAccountId: number;
+  registrationId: number;
+  fromMobileLast10: string;
+  inboundId: number;
+  upiOk: boolean;
+  configuredUpi: string;
+  foundAmounts: number[];
+  transactionId: string;
+  paymentDate: string;
+  hasPendingIntent: boolean;
+}) {
+  const candidate = await loadAutoRenewCandidate({
+    saasAccountId: params.saasAccountId,
+    registrationId: params.registrationId,
+  });
+  if (!candidate) return false;
+
+  const amountOk = amountsMatch(candidate.expectedAmount, params.foundAmounts);
+  if (!params.upiOk || !amountOk) {
+    if (params.hasPendingIntent) return false;
+    await replyText(
+      params.saasAccountId,
+      params.fromMobileLast10,
+      !params.upiOk
+        ? [
+            'We received your payment screenshot, but the UPI ID did not match.',
+            candidate.configuredUpi
+              ? `Please pay to *${candidate.configuredUpi}* and send the screenshot again.`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : [
+            'We received your payment screenshot. The UPI ID matched, but the amount did not.',
+            `Please pay *₹${candidate.expectedAmount.toLocaleString('en-IN')}* (same as your last pass) and send the screenshot again.`,
+          ].join('\n'),
+      'pass_payment_mismatch',
+    );
+    return true;
+  }
+
+  if (!params.transactionId) {
+    await replyText(
+      params.saasAccountId,
+      params.fromMobileLast10,
+      [
+        'We received your payment screenshot. Amount and UPI ID matched.',
+        'Please send a screenshot that clearly shows the UPI transaction ID / UTR so we can issue your pass.',
+      ].join('\n'),
+      'pass_payment_mismatch',
+    );
+    return true;
+  }
+
+  const result = await issueAutoRenewedPass({
+    saasAccountId: params.saasAccountId,
+    registrationId: params.registrationId,
+    candidate,
+    paymentDate: params.paymentDate,
+    transactionId: params.transactionId,
+    inboundId: params.inboundId,
+  });
+
+  if ('reason' in result && result.reason === 'duplicate_transaction') {
+    await replyText(
+      params.saasAccountId,
+      params.fromMobileLast10,
+      'This transaction was already used to issue a pass. If you paid again, send a new screenshot with a new transaction ID.',
+      'pass_payment_received',
+    );
+    return true;
+  }
+
+  if (!result.issued) return false;
+
+  await pool.query(`UPDATE whatsapp_inbound SET payment_notice_sent = TRUE WHERE id = $1`, [
+    params.inboundId,
+  ]);
+  await replyText(
+    params.saasAccountId,
+    params.fromMobileLast10,
+    [
+      'Payment received. Thank you!',
+      '',
+      `Amount: ₹${candidate.expectedAmount.toLocaleString('en-IN')}`,
+      `Payment date: ${params.paymentDate}`,
+      candidate.configuredUpi ? `UPI ID: ${candidate.configuredUpi}` : '',
+      `Transaction ID: ${params.transactionId}`,
+      `Your pass is renewed until ${result.passValidUntil}.`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    'pass_payment_received',
+  );
+
+  const account = await pool.query(`SELECT account_code FROM saas_accounts WHERE id = $1`, [
+    params.saasAccountId,
+  ]);
+  await notifyPassIssued({
+    mobile: result.mobile,
+    fullName: result.fullName,
+    passType: candidate.passType,
+    passValidUntil: result.passValidUntil,
+    registrationId: params.registrationId,
+    accountCode: String(account.rows[0]?.account_code ?? ''),
+    saasAccountId: params.saasAccountId,
+    sendInvoice: true,
+  }).catch((err) => {
+    console.warn('[pass-auto-renew] pass notify failed', err);
+    return { skipped: true as const };
+  });
+  return true;
+}
+
 /**
  * Verify pass payment screenshot: UPI first, then amount.
- * On match, save the transaction ID and send a payment-received WhatsApp.
- * Does not issue the pass — staff confirms it on Pass Payment.
+ * If the pass is expired or expires within 5 days and the amount matches the latest pass,
+ * issue the renewed pass automatically. Otherwise staff confirms it on Pass Payment.
  */
 export async function processPassPaymentInbound(params: {
   saasAccountId: number;
@@ -155,8 +274,70 @@ export async function processPassPaymentInbound(params: {
     [upiOk, detected, transactionId, params.inboundId],
   );
 
+  const inboundMeta = await pool.query<{ created_at: Date | string }>(
+    `SELECT created_at FROM whatsapp_inbound WHERE id = $1`,
+    [params.inboundId],
+  );
+  const sendDate = inboundMeta.rows[0]?.created_at
+    ? indiaTodayIso(new Date(inboundMeta.rows[0].created_at))
+    : indiaTodayIso();
+
+  let registrationId = params.registrationId ?? null;
+  if (!registrationId) {
+    const found = await pool.query(
+      `SELECT id FROM registrations
+       WHERE saas_account_id = $1
+         AND RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10) = $2
+       ORDER BY id DESC
+       LIMIT 1`,
+      [params.saasAccountId, params.fromMobileLast10],
+    );
+    registrationId = found.rows[0] ? Number(found.rows[0].id) : null;
+  }
+
+  if (registrationId) {
+    const autoHandled = await maybeAutoRenewFromScreenshot({
+      saasAccountId: params.saasAccountId,
+      registrationId,
+      fromMobileLast10: params.fromMobileLast10,
+      inboundId: params.inboundId,
+      upiOk,
+      configuredUpi,
+      foundAmounts: found,
+      transactionId,
+      paymentDate: sendDate,
+      hasPendingIntent: Boolean(pending.rows[0]),
+    });
+    if (autoHandled) return true;
+  }
+
+  if (registrationId && transactionId) {
+    const alreadyPaid = await pool.query(
+      `SELECT id FROM pass_payments
+       WHERE saas_account_id = $1 AND registration_id = $2
+         AND LOWER(TRIM(COALESCE(transaction_id, ''))) = LOWER(TRIM($3))
+       LIMIT 1`,
+      [params.saasAccountId, registrationId, transactionId],
+    );
+    if (alreadyPaid.rows[0]) {
+      await pool.query(
+        `UPDATE pass_payment_intents
+            SET status = 'verified',
+                verified_at = NOW(),
+                inbound_id = $1,
+                transaction_id = COALESCE(NULLIF($2, ''), transaction_id),
+                notes = 'Already issued from this transaction'
+          WHERE saas_account_id = $3
+            AND registration_id = $4
+            AND status = 'pending'`,
+        [params.inboundId, transactionId, params.saasAccountId, registrationId],
+      );
+      return true;
+    }
+  }
+
   if (!pending.rows[0]) {
-    return Boolean(params.registrationId);
+    return Boolean(registrationId);
   }
 
   const intent = pending.rows[0] as Record<string, unknown>;
@@ -331,6 +512,61 @@ export async function getPassPaymentScreenshot(params: {
   saasAccountId: number;
   registrationId: number;
 }): Promise<PassScreenshotStatus> {
+  const inbound = await pool.query(
+    `SELECT ocr_upi_ok, ocr_amount, ocr_transaction_id
+       FROM whatsapp_inbound
+      WHERE saas_account_id = $1
+        AND registration_id = $2
+        AND file_path IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [params.saasAccountId, params.registrationId],
+  );
+  const inboundTxn = String(inbound.rows[0]?.ocr_transaction_id ?? '').trim();
+  if (inboundTxn) {
+    const paid = await pool.query(
+      `SELECT amount, transaction_id
+         FROM pass_payments
+        WHERE saas_account_id = $1 AND registration_id = $2
+          AND LOWER(TRIM(COALESCE(transaction_id, ''))) = LOWER(TRIM($3))
+        LIMIT 1`,
+      [params.saasAccountId, params.registrationId, inboundTxn],
+    );
+    if (paid.rows[0]) {
+      const amount = Number(paid.rows[0].amount);
+      return {
+        upiOk: true,
+        amountMatched: true,
+        issued: true,
+        transactionId: inboundTxn,
+        detectedAmount: Number.isFinite(amount) ? amount : null,
+        expectedAmount: Number.isFinite(amount) ? amount : null,
+      };
+    }
+  }
+
+  const verified = await pool.query(
+    `SELECT transaction_id, detected_amount, expected_amount, notes
+       FROM pass_payment_intents
+      WHERE saas_account_id = $1 AND registration_id = $2 AND status = 'verified'
+        AND (
+          notes ILIKE '%Auto-renewed%'
+          OR notes ILIKE '%Already issued%'
+        )
+        AND COALESCE(verified_at, created_at) > NOW() - INTERVAL '2 days'
+      ORDER BY COALESCE(verified_at, created_at) DESC
+      LIMIT 1`,
+    [params.saasAccountId, params.registrationId],
+  );
+  if (verified.rows[0]) {
+    return {
+      ...screenshotStatusFromRow(verified.rows[0] as Record<string, unknown>),
+      upiOk: true,
+      amountMatched: true,
+      issued: true,
+    };
+  }
+
   const { rows } = await pool.query(
     `SELECT transaction_id, detected_amount, expected_amount, notes
        FROM pass_payment_intents
@@ -343,19 +579,11 @@ export async function getPassPaymentScreenshot(params: {
     return screenshotStatusFromRow(rows[0] as Record<string, unknown>);
   }
 
-  const inbound = await pool.query(
-    `SELECT ocr_upi_ok, ocr_amount, ocr_transaction_id
-       FROM whatsapp_inbound
-      WHERE saas_account_id = $1 AND registration_id = $2 AND file_path IS NOT NULL
-      ORDER BY created_at DESC
-      LIMIT 1`,
-    [params.saasAccountId, params.registrationId],
-  );
   const w = inbound.rows[0];
   return {
     upiOk: w?.ocr_upi_ok === true,
     amountMatched: false,
-    transactionId: String(w?.ocr_transaction_id ?? '').trim(),
+    transactionId: inboundTxn,
     detectedAmount: w?.ocr_amount == null ? null : Number(w.ocr_amount),
     expectedAmount: null,
   };

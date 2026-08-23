@@ -772,6 +772,27 @@ registrationsRouter.patch('/:id', async (req, res) => {
       res.status(400).json({ error: 'Enter transaction ID for online payment' });
       return;
     }
+    if (
+      isPassPayment &&
+      !isTestPassChange &&
+      selectedPassPrice > 0 &&
+      paymentMode === 'Online' &&
+      transactionId
+    ) {
+      const duplicateTxn = await pool.query(
+        `SELECT id FROM pass_payments
+         WHERE saas_account_id = $1 AND registration_id = $2
+           AND LOWER(TRIM(COALESCE(transaction_id, ''))) = LOWER(TRIM($3))
+         LIMIT 1`,
+        [accountId, id, transactionId],
+      );
+      if (duplicateTxn.rows[0]) {
+        res.status(400).json({
+          error: 'This transaction was already used to issue a pass',
+        });
+        return;
+      }
+    }
 
     if (body.batch !== undefined) {
       const ladiesError = await assertLadiesBatchForFemaleSwimmer(
