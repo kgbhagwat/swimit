@@ -173,7 +173,7 @@ export async function issueAutoRenewedPass(params: {
       return { issued: false as const, reason: 'not_found' as const, passValidUntil };
     }
 
-    await insertPassPayment({
+    const payment = await insertPassPayment({
       accountId: params.saasAccountId,
       registrationId: params.registrationId,
       swimmerName: String(updated.full_name ?? params.candidate.fullName),
@@ -187,6 +187,13 @@ export async function issueAutoRenewedPass(params: {
       paymentDate: params.paymentDate,
       client,
     });
+    // Same-amount WhatsApp renewals skip the in-person test-upgrade queue.
+    await client.query(
+      `UPDATE pass_payments
+          SET test_upgrade_applied = TRUE
+        WHERE id = $1 AND saas_account_id = $2`,
+      [payment.id, params.saasAccountId],
+    );
 
     await client.query(
       `UPDATE pass_payment_intents

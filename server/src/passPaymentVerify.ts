@@ -10,7 +10,7 @@ import {
 import { sendWhatsAppText } from './whatsapp/client.js';
 import { getWhatsAppConfig } from './whatsapp/config.js';
 import { notifyPassIssued } from './whatsapp/notify.js';
-import { indiaTodayIso } from './indiaDate.js';
+import { INDIA_SQL_TODAY, indiaTodayIso } from './indiaDate.js';
 import { formatPaymentDate } from './passInvoice.js';
 import { issueAutoRenewedPass, loadAutoRenewCandidate } from './passAutoRenew.js';
 
@@ -326,6 +326,87 @@ export async function completePendingScreenshotAutoRenews(params: {
     } catch (err) {
       console.warn('[pass-auto-renew] complete pending failed', err);
     }
+  }
+
+  await markAutoRenewedTestPaymentsApplied(params.saasAccountId, params.registrationId);
+  await sendMissingAutoRenewPassMedia(params.saasAccountId, params.registrationId);
+}
+
+async function markAutoRenewedTestPaymentsApplied(
+  saasAccountId: number,
+  registrationId?: number,
+) {
+  await pool.query(
+    `UPDATE pass_payments p
+        SET test_upgrade_applied = TRUE
+      WHERE p.saas_account_id = $1
+        AND COALESCE(p.test_upgrade_applied, FALSE) = FALSE
+        AND ($2::int IS NULL OR p.registration_id = $2)
+        AND EXISTS (
+          SELECT 1
+            FROM pass_payment_intents i
+           WHERE i.saas_account_id = p.saas_account_id
+             AND i.registration_id = p.registration_id
+             AND i.status = 'verified'
+             AND i.notes ILIKE '%Auto-renewed%'
+             AND (
+               (
+                 TRIM(COALESCE(i.transaction_id, '')) <> ''
+                 AND LOWER(TRIM(i.transaction_id)) = LOWER(TRIM(COALESCE(p.transaction_id, '')))
+               )
+               OR p.payment_date = ${INDIA_SQL_TODAY}
+             )
+        )`,
+    [saasAccountId, registrationId ?? null],
+  );
+}
+
+async function sendMissingAutoRenewPassMedia(
+  saasAccountId: number,
+  registrationId?: number,
+) {
+  const { rows } = await pool.query(
+    `SELECT r.id, r.full_name, r.whatsapp_mobile, r.pass_type, r.pass_valid_until, a.account_code
+       FROM pass_payment_intents i
+       JOIN registrations r
+         ON r.id = i.registration_id AND r.saas_account_id = i.saas_account_id
+       JOIN saas_accounts a ON a.id = i.saas_account_id
+      WHERE i.saas_account_id = $1
+        AND i.status = 'verified'
+        AND i.notes ILIKE '%Auto-renewed%'
+        AND COALESCE(i.verified_at, i.created_at) > NOW() - INTERVAL '2 days'
+        AND r.pass_valid_until >= ${INDIA_SQL_TODAY}
+        AND ($2::int IS NULL OR r.id = $2)
+        AND NOT EXISTS (
+          SELECT 1
+            FROM whatsapp_outbound o
+           WHERE o.saas_account_id = i.saas_account_id
+             AND RIGHT(regexp_replace(o.to_mobile, '\\D', '', 'g'), 10)
+               = RIGHT(regexp_replace(r.whatsapp_mobile, '\\D', '', 'g'), 10)
+             AND o.kind IN ('pass_issued', 'pass_issued_card', 'pass_invoice')
+             AND o.status = 'sent'
+             AND o.created_at > NOW() - INTERVAL '2 days'
+        )`,
+    [saasAccountId, registrationId ?? null],
+  );
+
+  for (const row of rows) {
+    const until = formatPaymentDate(row.pass_valid_until);
+    const mobile = String(row.whatsapp_mobile ?? '').trim();
+    if (!until || !mobile) continue;
+    await notifyPassIssued({
+      mobile,
+      fullName: String(row.full_name ?? '').trim(),
+      passType: String(row.pass_type ?? ''),
+      passValidUntil: until,
+      registrationId: Number(row.id),
+      accountCode: String(row.account_code ?? ''),
+      saasAccountId,
+      sendInvoice: true,
+    }).catch((err) => {
+      console.warn('[pass-auto-renew] missing pass notify failed', err);
+      return { skipped: true as const };
+    });
   }
 }
 
