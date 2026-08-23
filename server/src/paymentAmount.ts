@@ -33,6 +33,20 @@ function addFoundAmount(found: Set<number>, value: number) {
   }
 }
 
+/** Amount sitting just above GPay/PhonePe "Transferred" / "Paid" (checkmark often OCRs as ©). */
+function amountBesideTransferred(text: string): number | null {
+  const raw = latinDigits(String(text ?? '')).replace(/,/g, '');
+  const re =
+    /(?:^|\n)\s*(?:₹|rs\.?|inr|re\.?|¥|\$)?\s*([0-9]{1,7}(?:\.[0-9]{1,2})?)\s*(?:[^\n\d]{0,24})(?:transferred|paid|successful|completed|success)\b/gi;
+  let last: number | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(raw)) != null) {
+    const n = Number(match[1]);
+    if (Number.isFinite(n) && n > 0 && n < 10_000_000) last = Math.round(n * 100) / 100;
+  }
+  return last;
+}
+
 export function extractPaymentAmounts(text: string): number[] {
   const raw = latinDigits(String(text ?? '')).replace(/,/g, '');
   const normalized = raw.replace(/\s+/g, ' ');
@@ -41,35 +55,38 @@ export function extractPaymentAmounts(text: string): number[] {
   const patterns = [
     /(?:₹|rs\.?|inr|rupees?|re\.?|¥|\$)\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
     /(?:amount|paid|payment|total|amt)\s*[:=]?\s*(?:₹|rs\.?|¥|\$)?\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
-    /(?:^|\n)\s*(?:₹|rs\.?|inr|¥|\$)?\s*([0-9]{1,7}(?:\.[0-9]{1,2})?)\s*(?:\n|\s+)(?:transferred|paid|successful|completed|success)\b/gi,
     /\b([0-9]{2,7}(?:\.[0-9]{1,2})?)\b/g,
   ];
 
-  for (let i = 0; i < patterns.length; i++) {
-    const re = patterns[i];
-    const source = i === 2 ? raw : normalized;
+  for (const re of patterns) {
     re.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = re.exec(source)) != null) {
+    while ((match = re.exec(normalized)) != null) {
       addFoundAmount(found, Number(match[1]));
     }
   }
 
-  // GPay shows ₹1 as a huge glyph on its own line; OCR often drops ₹ and leaves "1".
+  const beside = amountBesideTransferred(raw);
+  if (beside != null) addFoundAmount(found, beside);
+
+  // GPay shows ₹1 as a huge glyph on its own line; OCR often drops ₹ and leaves "1" or "3".
   for (const line of raw.split(/\r?\n/)) {
     const lone = line.trim().match(/^(?:₹|rs\.?|inr|rupees?|re\.?|¥|\$)?\s*([0-9]{1,7}(?:\.[0-9]{1,2})?)\s*$/i);
     if (lone) addFoundAmount(found, Number(lone[1]));
   }
 
-  return [...found].sort((a, b) => b - a);
+  const rest = [...found].filter((n) => n !== beside).sort((a, b) => b - a);
+  return beside != null ? [beside, ...rest] : rest;
 }
 
 export function amountsMatch(expected: number, found: number[], tolerance = 1) {
   const target = Math.round(Number(expected) * 100) / 100;
   if (found.some((a) => Math.abs(a - target) <= tolerance)) return true;
-  // Tesseract often reads ₹1 as 21 or 71 (rupee glyph mistaken for 2 or 7).
   if (target > 0 && target < 10) {
-    return found.some((a) => a === 20 + target || a === 70 + target);
+    // ₹1 is often read as 3 (rupee+1 glyph) or 21 / 71 (₹ → 2 or 7).
+    if (found.some((a) => a < 10 && Math.abs(a - target) <= 2)) return true;
+    if (found.some((a) => a === 20 + target || a === 70 + target)) return true;
+    if (target === 1 && found.some((a) => a === 3 || a === 7)) return true;
   }
   return false;
 }
@@ -198,6 +215,21 @@ async function preparePaymentOcrImages(absolutePath: string): Promise<Buffer[]> 
             }),
         ),
       );
+      const amountTop = Math.round(height * 0.1);
+      const amountHeight = Math.max(40, Math.round(height * 0.28));
+      buffers.push(
+        await enhance(
+          sharp(absolutePath)
+            .rotate()
+            .extract({
+              left: Math.round(width * 0.08),
+              top: amountTop,
+              width: Math.max(20, Math.round(width * 0.84)),
+              height: amountHeight,
+            })
+            .threshold(160),
+        ),
+      );
     }
     return buffers;
   } catch (err) {
@@ -220,11 +252,20 @@ export async function ocrImageForAmount(absolutePath: string): Promise<string> {
       const prepared = await preparePaymentOcrImages(absolutePath);
       if (prepared.length) {
         await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-        for (const buf of prepared) {
-          const next = await worker.recognize(buf);
+        for (let i = 0; i < prepared.length; i++) {
+          if (i === prepared.length - 1 && prepared.length > 1) {
+            await worker.setParameters({
+              tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+              tessedit_char_whitelist: '0123456789.',
+            });
+          }
+          const next = await worker.recognize(prepared[i]);
           parts.push(String(next.data.text ?? ''));
         }
-        await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.AUTO,
+          tessedit_char_whitelist: '',
+        });
       }
       return parts.join('\n');
     } catch (err) {
