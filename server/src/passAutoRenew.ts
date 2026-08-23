@@ -48,18 +48,28 @@ export type AutoRenewCheck = {
   coach: string | null;
 };
 
+function inferPassDuration(duration: string, passName: string) {
+  const fromType = String(duration ?? '').trim();
+  if (/^(\d+)\s*(Day|Week|Month|Year)s?$/i.test(fromType)) return fromType;
+  if (/\bday|daily\b/i.test(`${fromType} ${passName}`)) return '1 Day';
+  if (fromType) return fromType;
+  return '1 Month';
+}
+
 export async function loadAutoRenewCandidate(params: {
   saasAccountId: number;
   registrationId: number;
 }): Promise<AutoRenewCheck | null> {
   const { rows } = await pool.query(
     `SELECT r.id, r.full_name, r.whatsapp_mobile, r.pass_type, r.batch, r.coach, r.pass_valid_until,
-            p.pass_type AS paid_pass_type, p.pass_charges, p.coaching_charges, p.amount,
-            COALESCE(pt.test_required, FALSE) AS test_required,
+            p.pass_type AS paid_pass_type, p.pass_charges AS paid_pass_charges,
+            p.coaching_charges AS paid_coaching_charges, p.amount AS paid_amount,
             COALESCE(pt.duration, '') AS pass_duration,
+            COALESCE(pt.pass_charges, 0) AS type_pass_charges,
+            COALESCE(pt.coaching_charges, 0) AS type_coaching_charges,
             pci.upi_details
      FROM registrations r
-     JOIN LATERAL (
+     LEFT JOIN LATERAL (
        SELECT pass_type, pass_charges, coaching_charges, amount
        FROM pass_payments
        WHERE saas_account_id = r.saas_account_id AND registration_id = r.id
@@ -84,22 +94,25 @@ export async function loadAutoRenewCandidate(params: {
   const expired = until < today;
   const expiringSoon = until >= today && until <= windowEnd;
   if (!expired && !expiringSoon) return null;
-  if (row.test_required === true) return null;
-
-  const expectedAmount = Number(row.amount ?? 0);
-  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) return null;
 
   const passType = String(row.paid_pass_type || row.pass_type || '').trim();
   if (!passType) return null;
+
+  const paidAmount = Number(row.paid_amount ?? 0);
+  const typeAmount = Number(row.type_pass_charges ?? 0) + Number(row.type_coaching_charges ?? 0);
+  const expectedAmount = paidAmount > 0 ? paidAmount : typeAmount;
+  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) return null;
 
   return {
     eligible: true,
     expectedAmount,
     configuredUpi: String(row.upi_details ?? '').trim(),
     passType,
-    passDuration: String(row.pass_duration ?? '').trim() || '1 Month',
-    passCharges: Number(row.pass_charges ?? 0),
-    coachingCharges: Number(row.coaching_charges ?? 0),
+    passDuration: inferPassDuration(String(row.pass_duration ?? ''), passType),
+    passCharges: Number((paidAmount > 0 ? row.paid_pass_charges : row.type_pass_charges) ?? 0),
+    coachingCharges: Number(
+      (paidAmount > 0 ? row.paid_coaching_charges : row.type_coaching_charges) ?? 0,
+    ),
     currentValidUntil: until,
     fullName: String(row.full_name ?? '').trim(),
     mobile: String(row.whatsapp_mobile ?? '').trim(),

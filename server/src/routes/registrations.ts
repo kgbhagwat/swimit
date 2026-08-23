@@ -24,7 +24,11 @@ import { newPaymentShareToken, whatsAppPayShareUrl } from '../upiPayQr.js';
 import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
 import { INDIA_SQL_TODAY, indiaDaysAgoIso } from '../indiaDate.js';
 import { insertPassPayment, loadLatestPassInvoice, poolLogoUrl } from '../passInvoice.js';
-import { applyLatestScreenshotToIntent, getPassPaymentScreenshot } from '../passPaymentVerify.js';
+import {
+  applyLatestScreenshotToIntent,
+  completePendingScreenshotAutoRenews,
+  getPassPaymentScreenshot,
+} from '../passPaymentVerify.js';
 import {
   guessImageContentType,
   normalizeBirthdate,
@@ -224,6 +228,7 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
     const accountId = tenantId(req);
     await ensureInactiveAtColumn();
     await deactivateExpiredPasses(accountId);
+    await completePendingScreenshotAutoRenews({ saasAccountId: accountId });
     const { rows } = await pool.query(
       `SELECT r.id, r.full_name, r.email, r.whatsapp_mobile, r.birthdate, r.sex, r.blood_group,
               r.is_active, r.pass_type, r.batch, r.coach, r.pass_valid_until, r.created_at,
