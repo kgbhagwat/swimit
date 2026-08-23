@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import { createWorker, PSM } from 'tesseract.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -176,7 +176,7 @@ async function preparePaymentOcrImages(absolutePath: string): Promise<Buffer[]> 
     const width = meta.width ?? 0;
     const height = meta.height ?? 0;
     const targetWidth = width > 0 && width < 1200 ? 1400 : Math.min(Math.max(width, 800), 1800);
-    const enhance = (img: sharp.Sharp) =>
+    const enhance = (img: Sharp) =>
       img
         .resize({ width: targetWidth, kernel: 'lanczos3' })
         .greyscale()
