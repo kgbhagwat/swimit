@@ -110,7 +110,6 @@ async function maybeAutoRenewFromScreenshot(params: {
   foundAmounts: number[];
   transactionId: string;
   paymentDate: string;
-  hasPendingIntent: boolean;
 }) {
   const candidate = await loadAutoRenewCandidate({
     saasAccountId: params.saasAccountId,
@@ -120,7 +119,6 @@ async function maybeAutoRenewFromScreenshot(params: {
 
   const amountOk = amountsMatch(candidate.expectedAmount, params.foundAmounts);
   if (!params.upiOk || !amountOk) {
-    if (params.hasPendingIntent) return false;
     await replyText(
       params.saasAccountId,
       params.fromMobileLast10,
@@ -218,7 +216,8 @@ async function maybeAutoRenewFromScreenshot(params: {
 /**
  * Verify pass payment screenshot: UPI first, then amount.
  * If the pass is expired or expires within 5 days and the amount matches the latest pass,
- * issue the renewed pass automatically. Otherwise staff confirms it on Pass Payment.
+ * confirm the payment and issue the renewed pass (no Pass Payment step).
+ * Otherwise staff confirms a new or different-amount payment on Pass Payment.
  */
 export async function processPassPaymentInbound(params: {
   saasAccountId: number;
@@ -306,7 +305,6 @@ export async function processPassPaymentInbound(params: {
       foundAmounts: found,
       transactionId,
       paymentDate: sendDate,
-      hasPendingIntent: Boolean(pending.rows[0]),
     });
     if (autoHandled) return true;
   }
