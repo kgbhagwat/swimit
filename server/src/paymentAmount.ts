@@ -27,25 +27,38 @@ function latinDigits(text: string) {
  * Extract likely payment amounts (INR) from free text / OCR.
  * Returns unique amounts sorted descending (largest first).
  */
+function addFoundAmount(found: Set<number>, value: number) {
+  if (Number.isFinite(value) && value > 0 && value < 10_000_000) {
+    found.add(Math.round(value * 100) / 100);
+  }
+}
+
 export function extractPaymentAmounts(text: string): number[] {
-  const normalized = latinDigits(String(text ?? ''))
-    .replace(/,/g, '')
-    .replace(/\s+/g, ' ');
+  const raw = latinDigits(String(text ?? '')).replace(/,/g, '');
+  const normalized = raw.replace(/\s+/g, ' ');
 
   const found = new Set<number>();
   const patterns = [
-    /(?:₹|rs\.?|inr|¥|\$)\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
+    /(?:₹|rs\.?|inr|rupees?|re\.?|¥|\$)\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
     /(?:amount|paid|payment|total|amt)\s*[:=]?\s*(?:₹|rs\.?|¥|\$)?\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
+    /(?:^|\n)\s*(?:₹|rs\.?|inr|¥|\$)?\s*([0-9]{1,7}(?:\.[0-9]{1,2})?)\s*(?:\n|\s+)(?:transferred|paid|successful|completed|success)\b/gi,
     /\b([0-9]{2,7}(?:\.[0-9]{1,2})?)\b/g,
   ];
 
-  for (const re of patterns) {
+  for (let i = 0; i < patterns.length; i++) {
+    const re = patterns[i];
+    const source = i === 2 ? raw : normalized;
     re.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = re.exec(normalized)) != null) {
-      const n = Number(match[1]);
-      if (Number.isFinite(n) && n > 0 && n < 10_000_000) found.add(Math.round(n * 100) / 100);
+    while ((match = re.exec(source)) != null) {
+      addFoundAmount(found, Number(match[1]));
     }
+  }
+
+  // GPay shows ₹1 as a huge glyph on its own line; OCR often drops ₹ and leaves "1".
+  for (const line of raw.split(/\r?\n/)) {
+    const lone = line.trim().match(/^(?:₹|rs\.?|inr|rupees?|re\.?|¥|\$)?\s*([0-9]{1,7}(?:\.[0-9]{1,2})?)\s*$/i);
+    if (lone) addFoundAmount(found, Number(lone[1]));
   }
 
   return [...found].sort((a, b) => b - a);
@@ -53,7 +66,12 @@ export function extractPaymentAmounts(text: string): number[] {
 
 export function amountsMatch(expected: number, found: number[], tolerance = 1) {
   const target = Math.round(Number(expected) * 100) / 100;
-  return found.some((a) => Math.abs(a - target) <= tolerance);
+  if (found.some((a) => Math.abs(a - target) <= tolerance)) return true;
+  // Tesseract often reads ₹1 as 21 or 71 (rupee glyph mistaken for 2 or 7).
+  if (target > 0 && target < 10) {
+    return found.some((a) => a === 20 + target || a === 70 + target);
+  }
+  return false;
 }
 
 /** Best-effort UPI / UTR / transaction reference from caption or OCR. */
@@ -156,16 +174,32 @@ async function preparePaymentOcrImages(absolutePath: string): Promise<Buffer[]> 
   try {
     const meta = await sharp(absolutePath).rotate().metadata();
     const width = meta.width ?? 0;
+    const height = meta.height ?? 0;
     const targetWidth = width > 0 && width < 1200 ? 1400 : Math.min(Math.max(width, 800), 1800);
-    const buf = await sharp(absolutePath)
-      .rotate()
-      .resize({ width: targetWidth, kernel: 'lanczos3' })
-      .greyscale()
-      .normalise()
-      .linear(1.35, -28)
-      .png()
-      .toBuffer();
-    return [buf];
+    const enhance = (img: sharp.Sharp) =>
+      img
+        .resize({ width: targetWidth, kernel: 'lanczos3' })
+        .greyscale()
+        .normalise()
+        .linear(1.35, -28)
+        .png()
+        .toBuffer();
+    const buffers = [await enhance(sharp(absolutePath).rotate())];
+    if (width > 40 && height > 80) {
+      buffers.push(
+        await enhance(
+          sharp(absolutePath)
+            .rotate()
+            .extract({
+              left: 0,
+              top: 0,
+              width,
+              height: Math.max(40, Math.round(height * 0.4)),
+            }),
+        ),
+      );
+    }
+    return buffers;
   } catch (err) {
     console.warn('[payment-ocr] preprocess skipped', err);
     return [];
