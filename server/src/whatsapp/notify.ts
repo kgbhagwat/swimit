@@ -217,14 +217,14 @@ export async function notifyLoginCredentials(params: {
   saasAccountId?: number;
 }): Promise<NotifyCredentialsResult> {
   const passwordLine = String(params.temporaryPassword).trim();
+  const loginIdLabel = 'Mobile/Email';
   const body = [
     `Your SwimIT account ${params.accountName} is ready.`,
     `Code: ${params.accountCode}`,
     `Sign-in link: ${params.loginUrl}`,
-    `User: ${params.userName}`,
-    `Password: ${passwordLine}`,
-    'This sign-in information sent on email as well.',
-    'Please update it after first sign-in',
+    `Login ID: ${loginIdLabel}`,
+    `Temporary password: ${passwordLine}`,
+    'Please update it after first sign-in.',
   ].join('\n');
 
   const cfg = getWhatsAppConfig();
@@ -244,15 +244,15 @@ export async function notifyLoginCredentials(params: {
     templateText(params.accountName),
     templateText(params.accountCode, 32),
     templateText(params.loginUrl, 200),
-    templateText(params.userName, 32),
+    templateText(loginIdLabel, 32),
     templateText(passwordLine, 32),
   ];
-  // Older 4-variable template: username only (no trailing full stop — it can look like part of the login).
+  // Older 4-variable template: keep password in the last slot.
   const loginInfoTexts = [
     templateText(params.accountName),
     templateText(params.accountCode, 32),
     templateText(params.loginUrl, 200),
-    templateText(params.userName, 32),
+    templateText(`${loginIdLabel}. Password: ${passwordLine}`, 60),
   ];
 
   async function sent(templateName: string, to: string, messageId: string): Promise<NotifyCredentialsResult> {

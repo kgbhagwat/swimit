@@ -139,7 +139,7 @@ export async function sendTempPasswordEmail(params: {
     '',
     `Account code: ${params.accountCode}`,
     `Login URL: ${params.loginUrl}`,
-    `User name: ${params.userName}`,
+    `Login ID: Mobile/Email`,
     `Temporary password: ${params.temporaryPassword}`,
     '',
     'Please change the password after you sign in.',
