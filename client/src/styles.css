@@ -2344,6 +2344,25 @@ html[data-theme='dark'] .swimmer-row > *::before {
   }
 }
 
+.form-grid-3 {
+  display: grid;
+  gap: 0.5rem 1rem;
+  grid-template-columns: 1fr;
+  margin-bottom: 0.95rem;
+  align-items: start;
+}
+
+.form-grid-3 > .field {
+  margin-bottom: 0;
+  align-content: start;
+}
+
+@media (min-width: 720px) {
+  .form-grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -5663,6 +5682,314 @@ html[data-theme='dark'] .biometric-offer-title {
   overflow: hidden;
 }
 
+.swimmer-progress-card.expense-table-card {
+  overflow: hidden;
+}
+
+.swimmer-progress-card.expense-table-card:has(.inpage-select.is-open) {
+  overflow: visible;
+}
+
+.swimmer-progress-card .swimmer-progress-head,
+.swimmer-progress-card .swimmer-progress-row {
+  display: grid;
+  gap: 0.45rem 0.65rem;
+  grid-template-columns: 13.5rem repeat(var(--progress-cols, 1), 13.5rem) auto;
+  justify-content: start;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  box-sizing: border-box;
+}
+
+.swimmer-progress-card .swimmer-progress-head {
+  position: relative;
+  z-index: 8;
+  align-items: center;
+  background: #e8eef8;
+  color: #1a3568;
+  border-bottom: 1px solid rgba(47, 111, 237, 0.14);
+  font-weight: 700;
+}
+
+.swimmer-progress-card .swimmer-progress-head .label {
+  color: inherit;
+}
+
+.swimmer-progress-name-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: center;
+}
+
+.swimmer-progress-filters {
+  display: grid;
+  grid-template-columns: 4.4rem 8.25rem;
+  align-items: center;
+  column-gap: 0.35rem;
+  row-gap: 0.28rem;
+  width: 13.5rem;
+}
+
+.swimmer-progress-head-field {
+  display: contents;
+}
+
+.swimmer-progress-head-field > .label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.swimmer-progress-head-field > input,
+.swimmer-progress-head-field > .inpage-select {
+  width: 8.25rem;
+  max-width: 8.25rem;
+  min-height: 1.85rem;
+}
+
+.swimmer-progress-head-field > input {
+  padding: 0.22rem 0.35rem;
+  font-size: 0.8rem;
+}
+
+.swimmer-progress-filters .inpage-select-trigger {
+  min-height: 1.85rem;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.8rem;
+}
+
+.swimmer-progress-remove-col {
+  justify-self: start;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.78rem;
+}
+
+.swimmer-progress-add-col {
+  align-self: center;
+  white-space: nowrap;
+  padding: 0.3rem 0.6rem;
+}
+
+.swimmer-progress-col-sort {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swimmer-progress-add-slot {
+  min-width: 0;
+}
+
+.progress-trend-page .platform-page-heading {
+  position: relative;
+  z-index: 20;
+  overflow: visible;
+}
+
+.progress-trend-filters {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.55rem;
+}
+
+.progress-trend-filters .label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.progress-trend-filters .inpage-select {
+  width: 8.5rem;
+  max-width: 8.5rem;
+}
+
+.progress-trend-filters .progress-trend-type-select,
+.progress-trend-filters .progress-trend-type-select .inpage-select {
+  width: 7.25rem;
+  max-width: 7.25rem;
+}
+
+.progress-trend-filters .inpage-select-trigger {
+  min-height: 1.85rem;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.82rem;
+}
+
+.progress-trend-card.expense-table-card,
+.progress-trend-card.pass-form-card--sample {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.progress-trend-card .swimmer-progress-head,
+.progress-trend-card .swimmer-progress-row {
+  grid-template-columns: 13.5rem repeat(var(--progress-cols, 1), 7rem);
+}
+
+.progress-trend-date-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.progress-trend-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.85rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.progress-trend-empty-head {
+  min-width: 0;
+}
+
+.progress-trend-time-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.85rem;
+}
+
+.progress-trend-line-row {
+  grid-template-columns: 13.5rem max-content !important;
+}
+
+.progress-trend-line-track {
+  position: relative;
+  width: calc(var(--progress-cols) * 7rem + (var(--progress-cols) - 1) * 0.65rem);
+  min-height: 3.6rem;
+}
+
+.progress-trend-line-times {
+  display: grid;
+  grid-template-columns: repeat(var(--progress-cols), 7rem);
+  gap: 0.65rem;
+  min-height: 3.6rem;
+}
+
+.progress-trend-line-times .progress-trend-time-slot {
+  min-height: 3.6rem;
+}
+
+.progress-trend-row-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.progress-trend-time--on-line {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  padding: 0 0.15rem;
+  font-size: 0.78rem;
+  line-height: 1.1;
+  background: #fff;
+}
+
+.progress-trend-line {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.progress-trend-dot {
+  stroke: #fff;
+  stroke-width: 1.2;
+}
+
+html[data-theme='dark'] .progress-trend-time--on-line {
+  background: #172a42;
+}
+
+html[data-theme='dark'] .progress-trend-dot {
+  stroke: #172a42;
+}
+
+.swimmer-progress-name {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: 13.5rem;
+}
+
+.swimmer-progress-name strong {
+  font-weight: 700;
+}
+
+.swimmer-progress-time {
+  display: grid;
+  grid-template-columns: 4.4rem 8.25rem;
+  column-gap: 0.35rem;
+  align-items: center;
+  width: 13.5rem;
+}
+
+.swimmer-progress-time input,
+.swimmer-progress-time .field-error {
+  grid-column: 2;
+}
+
+.swimmer-progress-time-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.swimmer-progress-row {
+  border-bottom: 1px solid rgba(20, 56, 103, 0.08);
+}
+
+.swimmer-progress-row input {
+  width: 8.25rem;
+  max-width: 8.25rem;
+}
+
+@media (max-width: 720px) {
+  .swimmer-progress-card .swimmer-progress-head,
+  .swimmer-progress-card .swimmer-progress-row {
+    grid-template-columns: 11.5rem repeat(var(--progress-cols, 1), 12.8rem) auto;
+  }
+
+  .swimmer-progress-name {
+    max-width: 11.5rem;
+  }
+
+  .swimmer-progress-filters,
+  .swimmer-progress-time {
+    width: 12.8rem;
+    grid-template-columns: 4.1rem 8rem;
+  }
+
+  .swimmer-progress-head-field > input,
+  .swimmer-progress-head-field > .inpage-select,
+  .swimmer-progress-row input {
+    width: 8rem;
+    max-width: 8rem;
+  }
+}
+
 .expense-table-head,
 .expense-entry-row,
 .expense-row {
@@ -6917,6 +7244,58 @@ html[data-theme='dark'] .biometric-offer-title {
   width: 9.5rem;
 }
 
+.balance-date-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  flex: 0 0 2.45rem;
+  border: 1px solid #cfd6e4;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a3568;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.balance-date-picker:hover,
+.balance-date-picker:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(47, 111, 237, 0.15);
+}
+
+.balance-date-picker.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #eef5ff;
+}
+
+.balance-date-calendar-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  pointer-events: none;
+}
+
+.balance-date-picker input[type='date'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.balance-date-clear {
+  min-height: 2.45rem;
+  white-space: nowrap;
+}
+
 .balance-summary-card {
   flex: 1 1 0;
   min-width: 0;
@@ -6977,6 +7356,10 @@ html[data-theme='dark'] .biometric-offer-title {
   background: #fff;
 }
 
+.balance-table--filter-open {
+  overflow: visible;
+}
+
 .balance-head,
 .balance-row {
   display: grid;
@@ -7006,6 +7389,7 @@ html[data-theme='dark'] .biometric-offer-title {
 }
 
 .balance-head > span,
+.balance-head > .balance-col-head,
 .balance-row > span {
   padding: 0.7rem 0.75rem;
   border-right: 1px solid #8aa3c2;
@@ -7015,8 +7399,18 @@ html[data-theme='dark'] .biometric-offer-title {
 }
 
 .balance-head > span:last-child,
+.balance-head > .balance-col-head:last-child,
 .balance-row > span:last-child {
   border-right: 0;
+}
+
+.balance-col-head {
+  position: relative;
+}
+
+.balance-col-head:nth-child(n + 4) .table-col-filter-menu {
+  right: 0;
+  left: auto;
 }
 
 .balance-row:last-child > span {
@@ -7556,7 +7950,9 @@ button.coach-payment-back {
 .pass-form-card--sample > .swimmer-table-head,
 .pass-form-card--sample > .coach-table-head,
 .pass-form-card--sample > .lifeguard-staff-head,
-.pass-form-card--sample > .other-staff-head {
+.pass-form-card--sample > .other-staff-head,
+.pass-form-card--sample > .swimmer-progress-head,
+.pass-table-card--sample > .swimmer-progress-head {
   z-index: 6;
 }
 
@@ -8369,6 +8765,7 @@ button.coach-payment-back {
   border-color: #b7d4de;
   padding: 0.75rem 0.9rem 0.85rem;
   margin-bottom: 0.5rem;
+  overflow: visible;
 }
 
 .registration-form.pass-form-card.pool-core-form {
@@ -9188,6 +9585,32 @@ button.coach-payment-back {
   margin-bottom: 0;
 }
 
+.pool-core-form .form-grid-3 {
+  margin-bottom: 0.35rem;
+  gap: 0.35rem 1rem;
+  overflow: visible;
+}
+
+.pool-core-form .form-grid-3 > .field {
+  margin-bottom: 0.45rem;
+}
+
+.pool-core-form .form-grid-3 > .field.field-beside > .label {
+  min-height: 0;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.pool-core-form .pool-core-location-row > .field.field-beside > .inpage-select {
+  flex: 1 1 8rem;
+  max-width: none;
+  width: 100%;
+}
+
+.pool-core-form .form-grid-3 .pool-core-view-row {
+  min-width: 0;
+}
+
 .pool-core-form .field {
   margin-bottom: 0.45rem;
 }
@@ -9509,6 +9932,18 @@ button.coach-payment-back {
   flex: 0 1 auto;
 }
 
+.create-user-login-type {
+  flex: 0 1 auto;
+}
+
+.create-user-login-type .inpage-select {
+  width: 8.5rem;
+}
+
+.create-user-login-type .inpage-select.is-open {
+  z-index: 40;
+}
+
 .create-user-login-geo-hint {
   width: 100%;
   margin: 0.35rem 0 0;
@@ -9535,8 +9970,17 @@ button.coach-payment-back {
   min-width: 0;
 }
 
-.user-login-geo {
-  margin-top: 0.55rem;
+.user-login-geo .inpage-select {
+  width: 8.5rem;
+  margin-top: 0.2rem;
+}
+
+.user-login-geo .inpage-select.is-open {
+  z-index: 24;
+}
+
+.user-coach-access-hint {
+  margin: 0.45rem 0 0;
 }
 
 .create-user-login-geo-option,
@@ -9717,6 +10161,10 @@ button.coach-payment-back {
     max-width: none;
     min-width: 0;
     flex: 1 1 auto;
+  }
+
+  .create-user-login-type .inpage-select {
+    width: 100%;
   }
 }
 
@@ -11514,6 +11962,7 @@ button.coach-payment-back {
     min-width: 0;
     max-width: 100%;
   }
+
 }
 
 .payment-missing-box {
@@ -12461,8 +12910,16 @@ button.icon-action.icon-action-unapproved:hover:not(:disabled) {
 .platform-page-heading-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
+}
+
+.platform-page-heading-actions .submit,
+.platform-page-heading-actions .pass-cancel {
+  width: auto;
+  flex: 0 0 auto;
+  max-width: none;
+  margin-left: 0;
 }
 
 .platform-page-heading h1,
@@ -20042,8 +20499,14 @@ html[data-theme='dark'] .app-shell-body .coach-table-head,
 html[data-theme='dark'] .app-shell-body .coach-payment-head,
 html[data-theme='dark'] .app-shell-body .lifeguard-staff-head,
 html[data-theme='dark'] .app-shell-body .other-staff-head,
-html[data-theme='dark'] .app-shell-body .expense-table-head {
+html[data-theme='dark'] .app-shell-body .expense-table-head,
+html[data-theme='dark'] .swimmer-progress-card .swimmer-progress-head {
   background: #1a3452 !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .swimmer-progress-card .swimmer-progress-head .label,
+html[data-theme='dark'] .swimmer-progress-name-heading {
   color: #e8f0fa !important;
 }
 
@@ -20104,6 +20567,18 @@ html[data-theme='dark'] .balance-summary-card.debit strong {
   color: #ffb4ae !important;
 }
 
+html[data-theme='dark'] .balance-date-picker {
+  background: #172a42;
+  border-color: #3a5578;
+  color: #d7e6f8;
+}
+
+html[data-theme='dark'] .balance-date-picker.selected {
+  background: #1a3452;
+  border-color: #6ea0ff;
+  color: #9ec0ff;
+}
+
 html[data-theme='dark'] .balance-table,
 html[data-theme='dark'] .balance-head,
 html[data-theme='dark'] .balance-row,
@@ -20123,6 +20598,7 @@ html[data-theme='dark'] .balance-table > .balance-row:nth-child(even) {
 }
 
 html[data-theme='dark'] .balance-head > span,
+html[data-theme='dark'] .balance-head > .balance-col-head,
 html[data-theme='dark'] .balance-row > span,
 html[data-theme='dark'] .balance-row > span strong,
 html[data-theme='dark'] .balance-row-title {

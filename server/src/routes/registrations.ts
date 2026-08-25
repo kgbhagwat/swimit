@@ -240,7 +240,9 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
               test_payment.id AS upgrade_payment_id,
               EXISTS (
                 SELECT 1 FROM pass_payment_intents i
-                WHERE i.registration_id = r.id AND i.status = 'pending'
+                WHERE i.registration_id = r.id
+                  AND i.saas_account_id = r.saas_account_id
+                  AND i.status = 'pending'
               ) AS awaiting_whatsapp
        FROM registrations r
        LEFT JOIN LATERAL (

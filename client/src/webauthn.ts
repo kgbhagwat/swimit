@@ -10,11 +10,6 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/browser';
-import {
-  captureLoginLocation,
-  parseRemoteAccessRequired,
-  RemoteAccessRequiredError,
-} from './loginLocation';
 
 export type BiometricDevicePref = {
   credentialId: string;
@@ -171,7 +166,6 @@ export async function loginWithBiometric(opts: {
     throw new Error(err instanceof Error ? err.message : 'Biometric login failed');
   }
 
-  const geo = await captureLoginLocation();
   const verifyRes = await fetch(
     `/api/saas-accounts/by-code/${encodeURIComponent(opts.accountCode)}/webauthn/login/verify`,
     {
@@ -179,16 +173,11 @@ export async function loginWithBiometric(opts: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         response: assertion,
-        latitude: geo?.latitude ?? null,
-        longitude: geo?.longitude ?? null,
-        accuracyM: geo?.accuracyM ?? null,
       }),
     },
   );
   const verifyBody = await verifyRes.json().catch(() => ({}));
   if (!verifyRes.ok) {
-    const pending = parseRemoteAccessRequired(verifyBody as Record<string, unknown>);
-    if (pending) throw new RemoteAccessRequiredError(pending);
     throw new Error(verifyBody.error ?? 'Biometric login failed');
   }
 

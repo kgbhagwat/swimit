@@ -50,6 +50,8 @@ const mr: Record<string, string> = {
     'रिमोट प्रवेश मंजूर. सुरू ठेवण्यासाठी पुन्हा साइन इन करा.',
   'Remote access was denied by an admin.': 'प्रशासकाने रिमोट प्रवेश नाकारला.',
   'Remote login approval': 'रिमोट लॉगिन मंजुरी',
+  'Sign-in no longer uses location or distance checks. Users can log in without admin approval.':
+    'साइन इन आता स्थान किंवा अंतर तपासणी वापरत नाही. वापरकर्ते प्रशासक मंजुरीशिवाय लॉगिन करू शकतात.',
   'This remote access link is invalid or incomplete.':
     'ही रिमोट प्रवेश लिंक अवैध किंवा अपूर्ण आहे.',
   'Failed to update remote access': 'रिमोट प्रवेश अपडेट करता आला नाही',
@@ -75,6 +77,12 @@ const mr: Record<string, string> = {
   'Enter allowed login distance between 1 and 500 km':
     'अनुमत लॉगिन अंतर १ ते ५०० किमी दरम्यान टाका',
   'Google location of swimming pool': 'जलतरण तलावाचे Google स्थान',
+  District: 'जिल्हा',
+  'Pin Code': 'पिन कोड',
+  'Select state': 'राज्य निवडा',
+  'Select district': 'जिल्हा निवडा',
+  'Select state first': 'आधी राज्य निवडा',
+  'Enter a 6-digit PIN code': '६ अंकी पिन कोड टाका',
   'Paste Google Maps link (Share → Copy link)':
     'Google Maps लिंक पेस्ट करा (Share → Copy link)',
   'Location saved': 'स्थान जतन झाले',
@@ -83,8 +91,13 @@ const mr: Record<string, string> = {
     'Google Maps मध्ये तुमचा पूल उघडा, Share टॅप करा, लिंक कॉपी करून येथे पेस्ट करा.',
   'How far from the pool this user may sign in without admin approval. Farther logins need approval.':
     'प्रशासक मंजुरीशिवाय हा वापरकर्ता पूलपासून किती दूरून साइन इन करू शकतो. त्याहून दूरच्या लॉगिनसाठी मंजुरी लागते.',
-  'Pool name, address, map location (for remote login checks), terms, payment options, and branding images.':
-    'पूल नाव, पत्ता, नकाशा स्थान (रिमोट लॉगिन तपासणीसाठी), अटी, पेमेंट पर्याय आणि ब्रँडिंग प्रतिमा.',
+  'Login type': 'लॉगिन प्रकार',
+  Normal: 'सामान्य',
+  Coach: 'कोच',
+  'Coach logins can open only Swimmer Progress and Progress Trend for their assigned swimmers.':
+    'कोच लॉगिन फक्त त्यांच्या जलतरणपटूंसाठी Swimmer Progress आणि Progress Trend पाहू शकतात.',
+  'Pool name, address, terms, payment options, and branding images.':
+    'पूल नाव, पत्ता, अटी, पेमेंट पर्याय आणि ब्रँडिंग प्रतिमा.',
   Captcha: 'कॅप्चा',
   'Captcha code': 'कॅप्चा कोड',
   'Enter captcha': 'कॅप्चा टाका',
@@ -280,6 +293,28 @@ const mr: Record<string, string> = {
   'Coach Payment': 'प्रशिक्षक पेमेंट',
   'Pool Expenses': 'पूल खर्च',
   'Water Quality': 'पाण्याची गुणवत्ता',
+  'Swimmer Progress': 'पोहणाऱ्याची प्रगती',
+  'Progress Trend': 'प्रगती कल',
+  Stroke: 'स्ट्रोक',
+  Distance: 'अंतर',
+  Type: 'प्रकार',
+  Counter: 'काउंटर',
+  Line: 'रेषा',
+  mtr: 'मीटर',
+  'Record race times for competitive batch swimmers. Select date, stroke, and distance, then enter min:sec for each swimmer.':
+    'स्पर्धात्मक बॅचमधील पोहणाऱ्यांसाठी रेस वेळ नोंदवा. तारीख, स्ट्रोक आणि अंतर निवडा, नंतर प्रत्येक पोहणाऱ्यासाठी मिनिट:सेकंद टाका.',
+  'Select stroke and distance to see times across all recorded dates.':
+    'निवडलेल्या स्ट्रोक आणि अंतराच्या सर्व नोंदवलेल्या तारखांवरील वेळ पहा.',
+  'No timings recorded for this stroke and distance yet.':
+    'या स्ट्रोक आणि अंतरासाठी अद्याप वेळ नोंदलेली नाही.',
+  'Failed to load progress trend': 'प्रगती कल लोड करता आली नाही',
+  'No competitive batch swimmers found. Add an Advance batch or a Competitive pass.':
+    'स्पर्धात्मक बॅचमधील पोहणारे सापडले नाहीत. Advance बॅच किंवा Competitive पास जोडा.',
+  'Enter timing as min:sec (e.g. 1:23)': 'वेळ मिनिट:सेकंद मध्ये टाका (उदा. 1:23)',
+  'Swimmer progress saved.': 'पोहणाऱ्याची प्रगती जतन झाली.',
+  'Failed to load swimmer progress': 'पोहणाऱ्याची प्रगती लोड करता आली नाही',
+  'Failed to save swimmer progress': 'पोहणाऱ्याची प्रगती जतन करता आली नाही',
+  'Add column': 'स्तंभ जोडा',
   'Delete record': 'नोंद हटवा',
   'No water quality records for this month.': 'या महिन्यासाठी पाण्याची गुणवत्ता नोंद नाही.',
   'No water quality records yet.': 'अद्याप पाण्याची गुणवत्ता नोंद नाही.',
@@ -400,6 +435,8 @@ const mr: Record<string, string> = {
   Filter: 'फिल्टर',
   Month: 'महिना',
   Date: 'दिनांक',
+  'All month': 'संपूर्ण महिना',
+  'Select a day for the balance sheet': 'ताळेबंदासाठी दिवस निवडा',
   Amount: 'रक्कम',
   Description: 'वर्णन',
   Actions: 'क्रिया',
@@ -470,6 +507,11 @@ const mr: Record<string, string> = {
   'No credit entries for this month.': 'या महिन्यात जमा नोंदी नाहीत.',
   'No debit entries for this month.': 'या महिन्यात नावे नोंदी नाहीत.',
   'No credit or debit entries for this month.': 'या महिन्यात जमा किंवा नावे नोंदी नाहीत.',
+  'No credit entries for this day.': 'या दिवशी जमा नोंदी नाहीत.',
+  'No debit entries for this day.': 'या दिवशी नावे नोंदी नाहीत.',
+  'No credit or debit entries for this day.': 'या दिवशी जमा किंवा नावे नोंदी नाहीत.',
+  'No balance sheet entries match these filters.':
+    'या फिल्टरशी जुळणाऱ्या ताळेबंद नोंदी नाहीत.',
   'Service package updated.': 'सेवा पॅकेज अपडेट झाले.',
   Sample: 'नमुना',
   "Achievements": "उपलब्धी",
@@ -1424,6 +1466,9 @@ const mr: Record<string, string> = {
   "User management & access": "युजर व्यवस्थापन आणि एक्सेस",
   "User Name": "वापरकर्ता नाव",
   "User name": "वापरकर्ता नाव",
+  "Login ID": "लॉगिन आयडी",
+  "User name, mobile, or email": "वापरकर्ता नाव, मोबाईल किंवा ईमेल",
+  "Invalid login ID or password": "अवैध लॉगिन आयडी किंवा पासवर्ड",
   "Users & access": "वापरकर्ते आणि एक्सेस",
   "Valid from": "पासून वैध",
   "Valid until": "पर्यंत वैध",

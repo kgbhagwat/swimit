@@ -292,6 +292,23 @@ export const MENU_ITEMS: MenuItem[] = [
     ),
   },
   {
+    section: 'Operations',
+    to: '/swimmer-progress',
+    label: 'Swimmer Progress',
+    does: 'Records race times for competitive batch swimmers by date, stroke, and distance.',
+    helps:
+      'Lets coaches track how each competitive swimmer is improving over timed repeats.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8.2" />
+          <path d="M12 7.5v5.1l3.2 1.8" />
+          <path d="M5 16.5h3.2l1.1 2.1h5.4l1.1-2.1H19" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
     section: 'Information',
     to: '/balance-sheet',
     label: 'Balance Sheet',
@@ -319,6 +336,23 @@ export const MENU_ITEMS: MenuItem[] = [
           <rect x="3" y="6" width="18" height="12" rx="2" />
           <path d="M3 10h18" />
           <path d="M7 15h3" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
+    section: 'Information',
+    to: '/progress-trend',
+    label: 'Progress Trend',
+    does: 'Shows all recorded dates for a selected stroke and distance.',
+    helps:
+      'Lets coaches compare each swimmer’s times across sessions without changing stroke or distance per column.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8.2" />
+          <path d="M12 7.5v5.1l3.2 1.8" />
+          <path d="M5 16.5h3.2l1.1 2.1h5.4l1.1-2.1H19" />
         </svg>
       </IconWrap>
     ),

@@ -8,6 +8,7 @@ export async function ensureSchema() {
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS remote_access_until TIMESTAMPTZ;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_geo_mode TEXT NOT NULL DEFAULT 'pool_only';
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_radius_km INT;
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_type TEXT NOT NULL DEFAULT 'normal';
     ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS login_session_timeout_minutes INT NOT NULL DEFAULT 30;
     ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
     ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
@@ -26,6 +27,13 @@ export async function ensureSchema() {
         ALTER TABLE app_users
           ADD CONSTRAINT app_users_login_geo_mode_check
           CHECK (login_geo_mode IN ('pool_only', 'radius'));
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'app_users_login_type_check'
+      ) THEN
+        ALTER TABLE app_users
+          ADD CONSTRAINT app_users_login_type_check
+          CHECK (login_type IN ('normal', 'coach'));
       END IF;
     END $$;
   `);

@@ -3,7 +3,9 @@ import {
   amountsMatch,
   extractPaymentAmounts,
   extractTransactionId,
+  extractUpiIds,
   ocrImageForAmount,
+  paymentIsToPlatformUpi,
   upiIdPresentInText,
   uploadAbsolutePath,
 } from './paymentAmount.js';
@@ -101,6 +103,73 @@ function screenshotStatusFromRow(row: Record<string, unknown> | undefined): Pass
   };
 }
 
+async function resolvePassIssueTarget(params: {
+  fromMobileLast10: string;
+  textBlob: string;
+}): Promise<
+  | {
+      ok: true;
+      saasAccountId: number;
+      registrationId: number;
+      configuredUpi: string;
+      poolName: string;
+    }
+  | { ok: false; reason: 'no_upi' | 'no_pool' | 'not_swimmer' | 'ambiguous'; poolName?: string; matchedUpi?: string }
+> {
+  const upiIds = extractUpiIds(params.textBlob);
+  if (!upiIds.length) return { ok: false, reason: 'no_upi' };
+
+  const pools = await pool.query<{
+    saas_account_id: number;
+    upi_details: string;
+    pool_name: string | null;
+  }>(
+    `SELECT saas_account_id, upi_details, pool_name
+       FROM pool_core_info
+      WHERE TRIM(COALESCE(upi_details, '')) <> ''`,
+  );
+  const matchedPools = pools.rows.filter((row) =>
+    upiIdPresentInText(String(row.upi_details ?? ''), params.textBlob),
+  );
+  if (!matchedPools.length) return { ok: false, reason: 'no_pool' };
+
+  const poolIds = [...new Set(matchedPools.map((row) => Number(row.saas_account_id)))];
+  const swimmers = await pool.query<{ id: number; saas_account_id: number }>(
+    `SELECT id, saas_account_id
+       FROM registrations
+      WHERE saas_account_id = ANY($1::int[])
+        AND RIGHT(regexp_replace(COALESCE(whatsapp_mobile, ''), '\\D', '', 'g'), 10) = $2
+      ORDER BY id DESC`,
+    [poolIds, params.fromMobileLast10],
+  );
+  if (!swimmers.rows.length) {
+    return {
+      ok: false,
+      reason: 'not_swimmer',
+      poolName: String(matchedPools[0]?.pool_name ?? ''),
+      matchedUpi: String(matchedPools[0]?.upi_details ?? '').trim(),
+    };
+  }
+
+  const accountIds = [...new Set(swimmers.rows.map((row) => Number(row.saas_account_id)))];
+  if (accountIds.length !== 1) return { ok: false, reason: 'ambiguous' };
+
+  const saasAccountId = accountIds[0];
+  const registrationId = Number(
+    swimmers.rows.find((row) => Number(row.saas_account_id) === saasAccountId)?.id,
+  );
+  const poolRow = matchedPools.find((row) => Number(row.saas_account_id) === saasAccountId);
+  if (!registrationId || !poolRow) return { ok: false, reason: 'not_swimmer' };
+
+  return {
+    ok: true,
+    saasAccountId,
+    registrationId,
+    configuredUpi: String(poolRow.upi_details ?? '').trim(),
+    poolName: String(poolRow.pool_name ?? ''),
+  };
+}
+
 async function maybeAutoRenewFromScreenshot(params: {
   saasAccountId: number;
   registrationId: number;
@@ -119,9 +188,11 @@ async function maybeAutoRenewFromScreenshot(params: {
     registrationId: params.registrationId,
   });
   if (!candidate) return false;
+  const swimmerMobile = String(candidate.mobile ?? '').replace(/\D/g, '').slice(-10);
+  if (!swimmerMobile || swimmerMobile !== params.fromMobileLast10) return false;
 
   const amountOk = amountsMatch(candidate.expectedAmount, params.foundAmounts);
-  if (!params.upiOk || !amountOk) {
+  if (!candidate.configuredUpi || !params.upiOk || !amountOk) {
     if (params.notifyMismatch === false || params.hasPendingIntent) return false;
     await replyText(
       params.saasAccountId,
@@ -160,6 +231,7 @@ async function maybeAutoRenewFromScreenshot(params: {
   const result = await issueAutoRenewedPass({
     saasAccountId: params.saasAccountId,
     registrationId: params.registrationId,
+    fromMobileLast10: params.fromMobileLast10,
     candidate,
     paymentDate: params.paymentDate,
     transactionId: params.transactionId,
@@ -286,31 +358,30 @@ export async function completePendingScreenshotAutoRenews(params: {
     if (!Number.isFinite(registrationId) || registrationId <= 0) continue;
     try {
       const inboundId = Number(row.inbound_id) || 0;
+      if (!inboundId) continue;
       let paymentDate = indiaTodayIso();
       let fromMobile = String(row.from_mobile ?? '').replace(/\D/g, '').slice(-10);
       let inboundTxn = '';
-      if (inboundId) {
-        const inbound = await pool.query(
-          `SELECT created_at, from_mobile, ocr_transaction_id
-             FROM whatsapp_inbound
-            WHERE id = $1`,
-          [inboundId],
-        );
-        if (inbound.rows[0]?.created_at) {
-          paymentDate = indiaTodayIso(new Date(inbound.rows[0].created_at));
-        }
-        const inboundMobile = String(inbound.rows[0]?.from_mobile ?? '')
-          .replace(/\D/g, '')
-          .slice(-10);
-        if (inboundMobile) fromMobile = inboundMobile;
-        inboundTxn = String(inbound.rows[0]?.ocr_transaction_id ?? '').trim();
+      const inbound = await pool.query(
+        `SELECT created_at, from_mobile, ocr_transaction_id, ocr_upi_ok
+           FROM whatsapp_inbound
+          WHERE id = $1`,
+        [inboundId],
+      );
+      if (inbound.rows[0]?.ocr_upi_ok !== true) continue;
+      if (inbound.rows[0]?.created_at) {
+        paymentDate = indiaTodayIso(new Date(inbound.rows[0].created_at));
       }
+      const inboundMobile = String(inbound.rows[0]?.from_mobile ?? '')
+        .replace(/\D/g, '')
+        .slice(-10);
+      if (inboundMobile) fromMobile = inboundMobile;
+      inboundTxn = String(inbound.rows[0]?.ocr_transaction_id ?? '').trim();
       const transactionId = String(row.transaction_id ?? '').trim() || inboundTxn;
       if (!transactionId || !fromMobile) continue;
 
-      const extra = [Number(row.expected_amount), Number(row.detected_amount)].filter(
-        (n) => Number.isFinite(n) && n > 0,
-      );
+      const detected = Number(row.detected_amount);
+      const foundAmounts = Number.isFinite(detected) && detected > 0 ? [detected] : [];
       await maybeAutoRenewFromScreenshot({
         saasAccountId: params.saasAccountId,
         registrationId,
@@ -318,7 +389,7 @@ export async function completePendingScreenshotAutoRenews(params: {
         inboundId,
         upiOk: true,
         configuredUpi: '',
-        foundAmounts: extra,
+        foundAmounts,
         transactionId,
         paymentDate,
         notifyMismatch: false,
@@ -423,7 +494,127 @@ export async function processPassPaymentInbound(params: {
   relativeFilePath: string | null;
   inboundId: number;
   registrationId?: number | null;
+  lockToAccount?: boolean;
 }) {
+  let textBlob = String(params.caption ?? '');
+  if (params.relativeFilePath) {
+    try {
+      const abs = uploadAbsolutePath(params.relativeFilePath);
+      const ocrText = await ocrImageForAmount(abs);
+      if (ocrText) textBlob = `${textBlob}\n${ocrText}`;
+    } catch (err) {
+      console.warn('[pass-payment] OCR skipped', err);
+    }
+  }
+
+  const inboundPool = await pool.query(
+    `SELECT upi_details FROM pool_core_info WHERE saas_account_id = $1 LIMIT 1`,
+    [params.saasAccountId],
+  );
+  let configuredUpi = String(inboundPool.rows[0]?.upi_details ?? '').trim();
+  const platformPay = await pool.query(
+    `SELECT upi_id FROM platform_payment_settings WHERE id = 1`,
+  );
+  const platformUpi = String(platformPay.rows[0]?.upi_id ?? '').trim();
+  const found = extractPaymentAmounts(textBlob);
+  const transactionId = extractTransactionId(textBlob) ?? '';
+  const detected = found[0] ?? null;
+
+  if (paymentIsToPlatformUpi(textBlob, platformUpi, configuredUpi)) {
+    await pool.query(
+      `UPDATE whatsapp_inbound
+          SET ocr_upi_ok = $1,
+              ocr_amount = $2,
+              ocr_transaction_id = $3
+        WHERE id = $4`,
+      [false, detected, transactionId, params.inboundId],
+    );
+    await replyText(
+      params.saasAccountId,
+      params.fromMobileLast10,
+      [
+        'This screenshot is a SwimIT platform / account payment, not a pool pass payment.',
+        platformUpi ? `Paid to: ${platformUpi}` : '',
+        configuredUpi
+          ? `To buy or renew a pass, pay the pass amount to *${configuredUpi}* and send that screenshot.`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      'pass_payment_platform_upi',
+    );
+    return true;
+  }
+
+  const target = await resolvePassIssueTarget({
+    fromMobileLast10: params.fromMobileLast10,
+    textBlob,
+  });
+  const lockToAccount = params.lockToAccount === true;
+  let saasAccountId = params.saasAccountId;
+  let registrationId = params.registrationId ?? null;
+  let upiOk = false;
+
+  if (target.ok) {
+    const lockedMismatch =
+      lockToAccount &&
+      (target.saasAccountId !== params.saasAccountId ||
+        (params.registrationId != null && target.registrationId !== params.registrationId));
+    if (lockedMismatch) {
+      upiOk = false;
+    } else {
+      saasAccountId = target.saasAccountId;
+      registrationId = target.registrationId;
+      configuredUpi = target.configuredUpi;
+      upiOk = true;
+      if (saasAccountId !== params.saasAccountId || registrationId !== params.registrationId) {
+        await pool.query(
+          `UPDATE whatsapp_inbound
+              SET saas_account_id = $1,
+                  registration_id = $2
+            WHERE id = $3`,
+          [saasAccountId, registrationId, params.inboundId],
+        );
+      }
+    }
+  } else if (!lockToAccount && (target.reason === 'not_swimmer' || target.reason === 'ambiguous')) {
+    await pool.query(
+      `UPDATE whatsapp_inbound
+          SET ocr_upi_ok = $1,
+              ocr_amount = $2,
+              ocr_transaction_id = $3
+        WHERE id = $4`,
+      [false, detected, transactionId, params.inboundId],
+    );
+    await replyText(
+      params.saasAccountId,
+      params.fromMobileLast10,
+      target.reason === 'ambiguous'
+        ? 'This payment could not be matched to a single pool, so a pass was not issued. Please contact the pool office.'
+        : [
+            'This payment does not match a swimmer at the pool for that UPI ID, so a pass was not issued.',
+            target.matchedUpi ? `Paid to: ${target.matchedUpi}` : '',
+            'The WhatsApp number must be in that pool\'s swimmer list, and the screenshot must show that pool\'s UPI ID.',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+      'pass_payment_tenant_mismatch',
+    );
+    return true;
+  } else {
+    upiOk = false;
+    if (registrationId) {
+      const ownSwimmer = await pool.query(
+        `SELECT id FROM registrations
+          WHERE id = $1 AND saas_account_id = $2
+            AND RIGHT(regexp_replace(COALESCE(whatsapp_mobile, ''), '\\D', '', 'g'), 10) = $3
+          LIMIT 1`,
+        [registrationId, saasAccountId, params.fromMobileLast10],
+      );
+      if (!ownSwimmer.rows[0]) registrationId = null;
+    }
+  }
+
   const pending = await pool.query(
     `SELECT i.*
      FROM pass_payment_intents i
@@ -437,29 +628,8 @@ export async function processPassPaymentInbound(params: {
        CASE WHEN $3::int IS NOT NULL AND i.registration_id = $3 THEN 0 ELSE 1 END,
        i.created_at DESC
      LIMIT 1`,
-    [params.saasAccountId, params.fromMobileLast10, params.registrationId ?? null],
+    [saasAccountId, params.fromMobileLast10, registrationId],
   );
-
-  let textBlob = String(params.caption ?? '');
-  if (params.relativeFilePath) {
-    try {
-      const abs = uploadAbsolutePath(params.relativeFilePath);
-      const ocrText = await ocrImageForAmount(abs);
-      if (ocrText) textBlob = `${textBlob}\n${ocrText}`;
-    } catch (err) {
-      console.warn('[pass-payment] OCR skipped', err);
-    }
-  }
-
-  const poolPay = await pool.query(
-    `SELECT upi_details FROM pool_core_info WHERE saas_account_id = $1 LIMIT 1`,
-    [params.saasAccountId],
-  );
-  const configuredUpi = String(poolPay.rows[0]?.upi_details ?? '').trim();
-  const upiOk = upiIdPresentInText(configuredUpi, textBlob);
-  const found = extractPaymentAmounts(textBlob);
-  const transactionId = extractTransactionId(textBlob) ?? '';
-  const detected = found[0] ?? null;
 
   await pool.query(
     `UPDATE whatsapp_inbound
@@ -478,29 +648,30 @@ export async function processPassPaymentInbound(params: {
     ? indiaTodayIso(new Date(inboundMeta.rows[0].created_at))
     : indiaTodayIso();
 
-  let registrationId = params.registrationId ?? null;
-  if (!registrationId) {
-    const byMobile = await pool.query(
-      `SELECT id FROM registrations
-       WHERE saas_account_id = $1
-         AND RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10) = $2
-       ORDER BY id DESC
-       LIMIT 1`,
-      [params.saasAccountId, params.fromMobileLast10],
-    );
-    registrationId = byMobile.rows[0] ? Number(byMobile.rows[0].id) : null;
-  }
-  if (!registrationId && pending.rows[0]?.registration_id) {
-    registrationId = Number(pending.rows[0].registration_id);
-  }
-
-  const intentExpected = pending.rows[0] ? Number(pending.rows[0].expected_amount) : NaN;
   const foundAmounts = [...found];
-  if (Number.isFinite(intentExpected) && intentExpected > 0) foundAmounts.push(intentExpected);
 
-  if (registrationId) {
+  if (transactionId) {
+    const platformTxn = await pool.query(
+      `SELECT id FROM saas_package_renewals
+       WHERE LOWER(TRIM(COALESCE(transaction_id, ''))) = LOWER(TRIM($1))
+         AND status = 'verified'
+       LIMIT 1`,
+      [transactionId],
+    );
+    if (platformTxn.rows[0]) {
+      await replyText(
+        saasAccountId,
+        params.fromMobileLast10,
+        'This transaction was already used for a SwimIT account / package payment, so it cannot issue a pass.',
+        'pass_payment_platform_txn',
+      );
+      return true;
+    }
+  }
+
+  if (upiOk && registrationId) {
     const autoHandled = await maybeAutoRenewFromScreenshot({
-      saasAccountId: params.saasAccountId,
+      saasAccountId,
       registrationId,
       fromMobileLast10: params.fromMobileLast10,
       inboundId: params.inboundId,
@@ -520,7 +691,7 @@ export async function processPassPaymentInbound(params: {
        WHERE saas_account_id = $1 AND registration_id = $2
          AND LOWER(TRIM(COALESCE(transaction_id, ''))) = LOWER(TRIM($3))
        LIMIT 1`,
-      [params.saasAccountId, registrationId, transactionId],
+      [saasAccountId, registrationId, transactionId],
     );
     if (alreadyPaid.rows[0]) {
       await pool.query(
@@ -533,7 +704,7 @@ export async function processPassPaymentInbound(params: {
           WHERE saas_account_id = $3
             AND registration_id = $4
             AND status = 'pending'`,
-        [params.inboundId, transactionId, params.saasAccountId, registrationId],
+        [params.inboundId, transactionId, saasAccountId, registrationId],
       );
       return true;
     }
@@ -556,13 +727,13 @@ export async function processPassPaymentInbound(params: {
         [transactionId, intentId],
       );
     }
-    if (registrationId) {
+    if (upiOk && registrationId) {
       await maybeAutoRenewFromScreenshot({
-        saasAccountId: params.saasAccountId,
+        saasAccountId,
         registrationId,
         fromMobileLast10: params.fromMobileLast10,
         inboundId: params.inboundId,
-        upiOk: true,
+        upiOk,
         configuredUpi,
         foundAmounts,
         transactionId: transactionId || String(intent.transaction_id ?? '').trim(),
@@ -596,7 +767,7 @@ export async function processPassPaymentInbound(params: {
     );
     if (!sameInbound || !alreadyUpiMismatch) {
       await replyText(
-        params.saasAccountId,
+        saasAccountId,
         params.fromMobileLast10,
         [
           'We received your payment screenshot, but the UPI ID did not match.',
@@ -631,7 +802,7 @@ export async function processPassPaymentInbound(params: {
     );
     if (!sameInbound || !alreadyAmountMismatch) {
       await replyText(
-        params.saasAccountId,
+        saasAccountId,
         params.fromMobileLast10,
         [
           'We received your payment screenshot. The UPI ID matched, but the amount did not.',
@@ -656,7 +827,7 @@ export async function processPassPaymentInbound(params: {
 
   if (registrationId) {
     const autoIssued = await maybeAutoRenewFromScreenshot({
-      saasAccountId: params.saasAccountId,
+      saasAccountId,
       registrationId,
       fromMobileLast10: params.fromMobileLast10,
       inboundId: params.inboundId,
@@ -672,7 +843,7 @@ export async function processPassPaymentInbound(params: {
 
   if (!alreadyMatched) {
     await replyText(
-      params.saasAccountId,
+      saasAccountId,
       params.fromMobileLast10,
       [
         'Payment received. Thank you!',
@@ -738,6 +909,7 @@ export async function applyLatestScreenshotToIntent(params: {
     relativeFilePath: row.file_path,
     inboundId: Number(row.id),
     registrationId: params.registrationId,
+    lockToAccount: true,
   });
 }
 

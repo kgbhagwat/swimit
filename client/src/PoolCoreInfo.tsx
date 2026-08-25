@@ -17,12 +17,19 @@ import {
 } from './swimmerTermsDefaults';
 import { useObjectUrl } from './useObjectUrl';
 import { PhotoPickerButtons } from './WebcamCapture';
+import { InPageSelect } from './InPageSelect';
+import {
+  districtsForState,
+  INDIA_STATES,
+  isValidIndianPinCode,
+} from './indiaStatesDistricts';
 
 type PoolCoreInfoData = {
   poolName: string;
   poolAddress: string;
-  googleMapsUrl: string;
-  locationSet: boolean;
+  poolState: string;
+  poolDistrict: string;
+  pinCode: string;
   poolLogoPath: string | null;
   swimmerTerms: string;
   staffTerms: string;
@@ -228,8 +235,9 @@ export function PoolCoreInfo() {
   const [form, setForm] = useState<PoolCoreInfoData>(() => ({
     poolName: '',
     poolAddress: '',
-    googleMapsUrl: '',
-    locationSet: false,
+    poolState: '',
+    poolDistrict: '',
+    pinCode: '',
     poolLogoPath: null,
     swimmerTerms: defaultSwimmerTerms('en'),
     staffTerms: defaultCoachTerms('en'),
@@ -263,8 +271,9 @@ export function PoolCoreInfo() {
       const next: PoolCoreInfoData = {
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
-        googleMapsUrl: String(body.googleMapsUrl ?? ''),
-        locationSet: Boolean(body.locationSet),
+        poolState: String(body.poolState ?? ''),
+        poolDistrict: String(body.poolDistrict ?? ''),
+        pinCode: String(body.pinCode ?? ''),
         poolLogoPath: body.poolLogoPath ?? null,
         // Empty / built-in default → language text so the account can edit them.
         swimmerTerms: resolveSwimmerTerms(String(body.swimmerTerms ?? ''), lang),
@@ -332,6 +341,10 @@ export function PoolCoreInfo() {
         return;
       }
     }
+    if (form.pinCode.trim() && !isValidIndianPinCode(form.pinCode.trim())) {
+      setError('Enter a 6-digit PIN code');
+      return;
+    }
     if (upiHint(form.upiDetails)) {
       setError(upiHint(form.upiDetails));
       return;
@@ -345,7 +358,9 @@ export function PoolCoreInfo() {
       const data = new FormData();
       data.append('poolName', form.poolName.trim());
       data.append('poolAddress', form.poolAddress.trim());
-      data.append('googleMapsUrl', form.googleMapsUrl.trim());
+      data.append('poolState', form.poolState.trim());
+      data.append('poolDistrict', form.poolDistrict.trim());
+      data.append('pinCode', form.pinCode.trim());
       data.append('swimmerTerms', form.swimmerTerms);
       data.append('staffTerms', form.staffTerms);
       data.append('upiDetails', form.upiDetails.trim());
@@ -362,8 +377,9 @@ export function PoolCoreInfo() {
       setForm({
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
-        googleMapsUrl: String(body.googleMapsUrl ?? ''),
-        locationSet: Boolean(body.locationSet),
+        poolState: String(body.poolState ?? ''),
+        poolDistrict: String(body.poolDistrict ?? ''),
+        pinCode: String(body.pinCode ?? ''),
         poolLogoPath: body.poolLogoPath ?? null,
         swimmerTerms: resolveSwimmerTerms(String(body.swimmerTerms ?? ''), lang),
         staffTerms: resolveCoachTerms(String(body.staffTerms ?? ''), lang),
@@ -408,8 +424,9 @@ export function PoolCoreInfo() {
                     ...prev,
                     poolName: '',
                     poolAddress: '',
-                    googleMapsUrl: '',
-                    locationSet: false,
+                    poolState: '',
+                    poolDistrict: '',
+                    pinCode: '',
                     swimmerTerms: '',
                     staffTerms: '',
                     paymentAcceptCash: false,
@@ -449,7 +466,7 @@ export function PoolCoreInfo() {
     >
       <p className="lede batch-list-lede">
         {t(
-          'Pool name, address, map location (for remote login checks), terms, payment options, and branding images.',
+          'Pool name, address, terms, payment options, and branding images.',
         )}
       </p>
       {loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
@@ -472,24 +489,18 @@ export function PoolCoreInfo() {
             </div>
           </div>
 
-          <div className="form-grid-2">
+          <div className="form-grid-3 pool-core-location-row">
             <div className="pool-core-view-row">
-              <span className="label">{t('Google location of swimming pool')}</span>
-              <p className="pool-core-view-value pool-core-view-multiline">
-                {form.googleMapsUrl.trim() ? (
-                  <a
-                    href={form.googleMapsUrl.trim()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {form.googleMapsUrl.trim()}
-                  </a>
-                ) : form.locationSet ? (
-                  t('Location saved')
-                ) : (
-                  '—'
-                )}
-              </p>
+              <span className="label">{t('State')}</span>
+              <p className="pool-core-view-value">{form.poolState.trim() || '—'}</p>
+            </div>
+            <div className="pool-core-view-row">
+              <span className="label">{t('District')}</span>
+              <p className="pool-core-view-value">{form.poolDistrict.trim() || '—'}</p>
+            </div>
+            <div className="pool-core-view-row">
+              <span className="label">{t('Pin Code')}</span>
+              <p className="pool-core-view-value">{form.pinCode.trim() || '—'}</p>
             </div>
           </div>
 
@@ -590,20 +601,62 @@ export function PoolCoreInfo() {
             </label>
           </div>
 
-          <label className="field field-beside pool-core-maps-field">
-            <span className="label">{t('Google location of swimming pool')}</span>
-            <input
-              value={form.googleMapsUrl}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, googleMapsUrl: e.target.value }))
-              }
-              placeholder={t(
-                'Open your pool in Google Maps, tap Share, copy the link, and paste it here.',
-              )}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
+          <div className="form-grid-3 pool-core-location-row">
+            <div className="field field-beside">
+              <span className="label">{t('State')}</span>
+              <InPageSelect
+                value={form.poolState}
+                onChange={(poolState) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    poolState,
+                    poolDistrict: districtsForState(poolState).includes(prev.poolDistrict)
+                      ? prev.poolDistrict
+                      : '',
+                  }))
+                }
+                options={INDIA_STATES.map((state) => ({ value: state, label: state }))}
+                placeholder={t('Select state')}
+                searchable
+                aria-label={t('State')}
+              />
+            </div>
+            <div className="field field-beside">
+              <span className="label">{t('District')}</span>
+              <InPageSelect
+                value={form.poolDistrict}
+                onChange={(poolDistrict) => setForm((prev) => ({ ...prev, poolDistrict }))}
+                options={districtsForState(form.poolState).map((district) => ({
+                  value: district,
+                  label: district,
+                }))}
+                placeholder={form.poolState ? t('Select district') : t('Select state first')}
+                searchable
+                disabled={!form.poolState}
+                aria-label={t('District')}
+              />
+            </div>
+            <label className="field field-beside">
+              <span className="label">{t('Pin Code')}</span>
+              <input
+                value={form.pinCode}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    pinCode: e.target.value.replace(/\D/g, '').slice(0, 6),
+                  }))
+                }
+                placeholder="411001"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                maxLength={6}
+                aria-invalid={Boolean(form.pinCode && !isValidIndianPinCode(form.pinCode))}
+              />
+              {form.pinCode && !isValidIndianPinCode(form.pinCode) ? (
+                <span className="field-error">{t('Enter a 6-digit PIN code')}</span>
+              ) : null}
+            </label>
+          </div>
 
           <div className="form-grid-2 pool-core-payment-options-row">
             <div

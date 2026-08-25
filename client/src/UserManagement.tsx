@@ -6,10 +6,13 @@ import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
 import {
   ACCESS_PAGES,
+  COACH_LOGIN_PAGE_KEYS,
   MENU_SECTIONS,
   editAccessKey,
   INFORMATION_EDITABLE_PAGE_KEYS,
+  parseLoginType,
   type MenuPageKey,
+  type UserLoginType,
   pagesBySection,
 } from './menuCatalog';
 import { pageKeysForPackage } from './packageFeatures';
@@ -33,7 +36,7 @@ type AppUser = {
   menuAccess: string[];
   createdAt: string;
   isAccountAdmin?: boolean;
-  loginRadiusKm?: number | null;
+  loginType?: UserLoginType;
 };
 
 type AccessKey = MenuPageKey | PlatformAccessPageKey;
@@ -110,19 +113,18 @@ function UserRow({
   const [accessDraft, setAccessDraft] = useState(() =>
     toAccessSet(user.menuAccess, allowedPages),
   );
-  const [loginRadiusKm, setLoginRadiusKm] = useState(
-    user.loginRadiusKm != null ? String(user.loginRadiusKm) : '',
-  );
+  const [loginType, setLoginType] = useState<UserLoginType>(() => parseLoginType(user.loginType));
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
+  const isCoach = !platformMode && !user.isAccountAdmin && loginType === 'coach';
 
   useEffect(() => {
     setAccessDraft(toAccessSet(user.menuAccess, allowedPages));
-    setLoginRadiusKm(user.loginRadiusKm != null ? String(user.loginRadiusKm) : '');
+    setLoginType(parseLoginType(user.loginType));
   }, [
     user.id,
     user.menuAccess.join('|'),
-    user.loginRadiusKm,
+    user.loginType,
     platformMode,
     packagePageKeys?.size,
   ]);
@@ -197,21 +199,16 @@ function UserRow({
   }
 
   async function onSaveAccess() {
-    if (!platformMode) {
-      const km = Number(loginRadiusKm);
-      if (!Number.isFinite(km) || km < 1 || km > 500) {
-        onMessage('error', 'Enter allowed login distance between 1 and 500 km');
-        return;
-      }
-    }
     setSavingAccess(true);
     try {
       const res = await fetch(`/api/users/${user.id}/access`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          menuAccess: [...accessDraft],
-          ...(platformMode ? {} : { loginRadiusKm: Number(loginRadiusKm) }),
+          menuAccess: isCoach
+            ? COACH_LOGIN_PAGE_KEYS.filter((key) => allowedPages.some((page) => page.key === key))
+            : [...accessDraft],
+          ...(platformMode ? {} : { loginType }),
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -239,24 +236,33 @@ function UserRow({
         <p>
           <strong>{t('Created')}</strong> {formatCreatedAt(String(user.createdAt ?? ''))}
         </p>
-        {!platformMode ? (
+        {!platformMode && !user.isAccountAdmin ? (
           <label className="user-login-geo">
             <strong>
-              {t('Allowed login distance (km)')} <span className="req">*</span>
+              {t('Login type')} <span className="req">*</span>
             </strong>
-            <span className="user-login-geo-radius">
-              <input
-                type="number"
-                min={1}
-                max={500}
-                step={1}
-                value={loginRadiusKm}
-                disabled={readOnly}
-                onChange={(e) => setLoginRadiusKm(e.target.value)}
-                aria-label={t('Allowed login distance (km)')}
-              />
-              <span>{t('km from swimming pool')}</span>
-            </span>
+            <InPageSelect
+              value={loginType}
+              onChange={(value) => {
+                const next = parseLoginType(value);
+                setLoginType(next);
+                if (next === 'coach') {
+                  setAccessDraft(
+                    new Set(
+                      COACH_LOGIN_PAGE_KEYS.filter((key) =>
+                        allowedPages.some((page) => page.key === key),
+                      ),
+                    ),
+                  );
+                }
+              }}
+              options={[
+                { value: 'normal', label: t('Normal') },
+                { value: 'coach', label: t('Coach') },
+              ]}
+              disabled={readOnly}
+              aria-label={t('Login type')}
+            />
           </label>
         ) : null}
         {!user.isAccountAdmin ? (
@@ -285,12 +291,12 @@ function UserRow({
                       <input
                         type="checkbox"
                         checked={allOn}
-                        disabled={readOnly}
+                        disabled={readOnly || isCoach}
                         ref={(el) => {
                           if (el) el.indeterminate = someOn && !allOn;
                         }}
                         onChange={() => {
-                          if (readOnly) return;
+                          if (readOnly || isCoach) return;
                           setAccessDraft((prev) => {
                             const next = new Set(prev);
                             for (const page of pages) {
@@ -325,7 +331,7 @@ function UserRow({
                               <input
                                 type="checkbox"
                                 checked={accessDraft.has(page.key)}
-                                disabled={readOnly}
+                                disabled={readOnly || isCoach}
                                 onChange={() => togglePage(page.key)}
                               />
                               <span>{t(page.label)}</span>
@@ -341,7 +347,7 @@ function UserRow({
                                 <input
                                   type="checkbox"
                                   checked={accessDraft.has(editAccessKey(page.key))}
-                                  disabled={readOnly || !accessDraft.has(page.key)}
+                                  disabled={readOnly || isCoach || !accessDraft.has(page.key)}
                                   onChange={() => {
                                     if (isEditableInformationPage(page.key)) {
                                       togglePageEdit(page.key);
@@ -361,6 +367,13 @@ function UserRow({
             })}
           </tbody>
         </table>
+        {isCoach ? (
+          <p className="hint user-coach-access-hint">
+            {t(
+              'Coach logins can open only Swimmer Progress and Progress Trend for their assigned swimmers.',
+            )}
+          </p>
+        ) : null}
         <div className="user-reset-actions">
           {!user.isAccountAdmin ? (
             <button
@@ -514,6 +527,7 @@ const SAMPLE_TENANT_USER: AppUser = {
   ],
   createdAt: '2026-03-15T10:30:00.000Z',
   isAccountAdmin: false,
+  loginType: 'normal',
 };
 
 const SAMPLE_PLATFORM_USER: AppUser = {

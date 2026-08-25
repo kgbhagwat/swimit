@@ -359,6 +359,14 @@ function toIsoDate(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function daysAcrossStartingMonths(start: Date, monthCount: number) {
+  let days = 0;
+  for (let offset = 0; offset < monthCount; offset += 1) {
+    days += new Date(start.getFullYear(), start.getMonth() + offset + 1, 0).getDate();
+  }
+  return days;
+}
+
 function addPassDuration(duration: string, startDate = todayIso()) {
   const match = duration.trim().match(/^(\d+)\s*(Day|Week|Month|Year)s?$/i);
   const end = new Date(`${startDate}T00:00:00`);
@@ -373,7 +381,10 @@ function addPassDuration(duration: string, startDate = todayIso()) {
   const unit = match[2].toLowerCase();
   if (unit.startsWith('day')) end.setDate(end.getDate() + Math.max(amount, 1) - 1);
   else if (unit.startsWith('week')) end.setDate(end.getDate() + amount * 7);
-  else if (unit.startsWith('month')) end.setMonth(end.getMonth() + amount);
+  else if (unit.startsWith('month')) {
+    const inclusiveDays = daysAcrossStartingMonths(end, Math.max(amount, 1));
+    end.setDate(end.getDate() + inclusiveDays - 1);
+  }
   else end.setFullYear(end.getFullYear() + amount);
   return toIsoDate(end);
 }

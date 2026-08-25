@@ -51,7 +51,6 @@ const ENTITY_OPTIONS = [
   { value: 'pool_core_info', label: 'Core info' },
   { value: 'whatsapp_settings', label: 'WhatsApp settings' },
   { value: 'app_user', label: 'App user' },
-  { value: 'remote_login', label: 'Remote login' },
 ] as const;
 
 function todayIso() {
@@ -108,18 +107,6 @@ function actionLabel(action: string) {
   }
 }
 
-function remoteRequestId(details: unknown): number | null {
-  if (!details || typeof details !== 'object') return null;
-  const id = Number((details as { requestId?: unknown }).requestId);
-  return Number.isFinite(id) && id > 0 ? id : null;
-}
-
-function remoteCanDecide(details: unknown): boolean {
-  if (!details || typeof details !== 'object') return false;
-  const d = details as { canDecide?: unknown; status?: unknown };
-  return d.canDecide === true && String(d.status ?? '') === 'pending';
-}
-
 function entityLabel(type: string) {
   const found = ENTITY_OPTIONS.find((o) => o.value === type);
   return found?.label ?? type;
@@ -147,7 +134,6 @@ function ActivityLogBody({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [decidingId, setDecidingId] = useState<number | null>(null);
 
   const actionSelectOptions = useMemo(
     () => ACTION_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) })),
@@ -198,25 +184,6 @@ function ActivityLogBody({
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     void load();
-  }
-
-  async function decideRemote(requestId: number, decision: 'approve' | 'deny') {
-    setDecidingId(requestId);
-    setError('');
-    try {
-      const res = await fetch(`/api/remote-login/requests/${requestId}/decide`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(String(body.error || 'Failed to update remote access'));
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update remote access');
-    } finally {
-      setDecidingId(null);
-    }
   }
 
   function downloadCsv() {
@@ -334,12 +301,6 @@ function ActivityLogBody({
               {rows.map((row) => {
                 const open = expandedId === row.id;
                 const hasDetails = row.details != null;
-                const requestId =
-                  row.entityType === 'remote_login' ? remoteRequestId(row.details) : null;
-                const showDecide =
-                  row.entityType === 'remote_login' &&
-                  remoteCanDecide(row.details) &&
-                  requestId != null;
                 return (
                   <tr key={row.id}>
                     <td className="nowrap">{formatDateTime(row.createdAt)}</td>
@@ -359,26 +320,6 @@ function ActivityLogBody({
                     </td>
                     <td>
                       <div>{row.summary}</div>
-                      {showDecide ? (
-                        <div className="activity-remote-actions">
-                          <button
-                            type="button"
-                            className="submit activity-remote-approve"
-                            disabled={decidingId === requestId}
-                            onClick={() => void decideRemote(requestId, 'approve')}
-                          >
-                            {t('Approve remote')}
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost-btn activity-remote-deny"
-                            disabled={decidingId === requestId}
-                            onClick={() => void decideRemote(requestId, 'deny')}
-                          >
-                            {t('Deny')}
-                          </button>
-                        </div>
-                      ) : null}
                     </td>
                     <td>
                       {hasDetails ? (

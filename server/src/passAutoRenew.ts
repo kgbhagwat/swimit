@@ -7,6 +7,14 @@ import { formatPaymentDate, insertPassPayment } from './passInvoice.js';
 /** Auto-renew when the current pass expires within this many days, or has already expired. */
 export const AUTO_RENEW_WITHIN_DAYS = 5;
 
+function daysAcrossStartingMonths(start: Date, monthCount: number) {
+  let days = 0;
+  for (let offset = 0; offset < monthCount; offset += 1) {
+    days += new Date(start.getFullYear(), start.getMonth() + offset + 1, 0).getDate();
+  }
+  return days;
+}
+
 export function addPassDuration(duration: string, startDate: string) {
   const match = String(duration ?? '')
     .trim()
@@ -21,7 +29,10 @@ export function addPassDuration(duration: string, startDate: string) {
   const unit = match[2].toLowerCase();
   if (unit.startsWith('day')) end.setDate(end.getDate() + Math.max(amount, 1) - 1);
   else if (unit.startsWith('week')) end.setDate(end.getDate() + amount * 7);
-  else if (unit.startsWith('month')) end.setMonth(end.getMonth() + amount);
+  else if (unit.startsWith('month')) {
+    const inclusiveDays = daysAcrossStartingMonths(end, Math.max(amount, 1));
+    end.setDate(end.getDate() + inclusiveDays - 1);
+  }
   else end.setFullYear(end.getFullYear() + amount);
   return toIsoDate(end);
 }
@@ -124,6 +135,7 @@ export async function loadAutoRenewCandidate(params: {
 export async function issueAutoRenewedPass(params: {
   saasAccountId: number;
   registrationId: number;
+  fromMobileLast10: string;
   candidate: AutoRenewCheck;
   paymentDate: string;
   transactionId: string;
@@ -145,12 +157,23 @@ export async function issueAutoRenewedPass(params: {
     | undefined;
   try {
     await client.query('BEGIN');
+    const senderOk = await client.query(
+      `SELECT id FROM registrations
+        WHERE id = $1 AND saas_account_id = $2
+          AND RIGHT(regexp_replace(COALESCE(whatsapp_mobile, ''), '\\D', '', 'g'), 10) = $3
+        LIMIT 1`,
+      [params.registrationId, params.saasAccountId, params.fromMobileLast10],
+    );
+    if (!senderOk.rows[0]) {
+      await client.query('ROLLBACK');
+      return { issued: false as const, reason: 'not_swimmer' as const, passValidUntil };
+    }
+
     const existingTxn = await client.query(
       `SELECT id FROM pass_payments
-       WHERE saas_account_id = $1 AND registration_id = $2
-         AND LOWER(TRIM(COALESCE(transaction_id, ''))) = LOWER(TRIM($3))
+       WHERE LOWER(TRIM(COALESCE(transaction_id, ''))) = LOWER(TRIM($1))
        LIMIT 1`,
-      [params.saasAccountId, params.registrationId, params.transactionId],
+      [params.transactionId],
     );
     if (existingTxn.rows[0]) {
       await client.query('ROLLBACK');

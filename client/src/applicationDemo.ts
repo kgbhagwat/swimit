@@ -13,6 +13,8 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/whatsapp',
   '/pool-expenses',
   '/water-quality',
+  '/swimmer-progress',
+  '/progress-trend',
   '/pass-scanner',
   '/coach-payment',
   '/attendance-sheet',
@@ -56,6 +58,7 @@ export type DemoStore = {
   holidays: Array<Record<string, unknown>>;
   expenses: Array<Record<string, unknown>>;
   waterQuality: Array<Record<string, unknown>>;
+  swimmerProgress: Array<Record<string, unknown>>;
   attendance: Array<Record<string, unknown>>;
   auditLogs: Array<Record<string, unknown>>;
 };
@@ -75,6 +78,9 @@ function emptyStore(): DemoStore {
     poolCoreInfo: {
       poolName: '',
       poolAddress: '',
+      poolState: '',
+      poolDistrict: '',
+      pinCode: '',
       poolLogoPath: null,
       swimmerTerms: '', // TermsModal / Core Info fill language defaults when empty
       staffTerms: '',
@@ -89,6 +95,7 @@ function emptyStore(): DemoStore {
     holidays: [],
     expenses: [],
     waterQuality: [],
+    swimmerProgress: [],
     attendance: [],
     auditLogs: [],
   };

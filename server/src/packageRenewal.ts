@@ -85,21 +85,21 @@ export async function processPackageRenewalInbound(params: {
   caption: string;
   relativeFilePath: string | null;
   inboundId: number;
-}) {
+}): Promise<'verified' | 'mismatch' | 'skipped'> {
   const pending = await pool.query(
     `SELECT r.*, p.package_name AS renew_package_name
      FROM saas_package_renewals r
      JOIN service_packages p ON p.id = r.renew_package_id
-     WHERE r.saas_account_id = $1
-       AND r.status = 'pending'
-       AND RIGHT(regexp_replace(r.from_mobile, '\\D', '', 'g'), 10) = $2
+     WHERE r.status = 'pending'
+       AND RIGHT(regexp_replace(r.from_mobile, '\\D', '', 'g'), 10) = $1
      ORDER BY r.created_at DESC
      LIMIT 1`,
-    [params.saasAccountId, params.fromMobileLast10],
+    [params.fromMobileLast10],
   );
-  if (!pending.rows[0]) return;
+  if (!pending.rows[0]) return 'skipped';
 
   const renewal = pending.rows[0] as Record<string, unknown>;
+  const renewalAccountId = Number(renewal.saas_account_id);
   const renewalId = Number(renewal.id);
   const expected = Number(renewal.expected_amount);
   const renewPackageName = String(renewal.renew_package_name ?? '');
@@ -123,28 +123,27 @@ export async function processPackageRenewalInbound(params: {
   );
   const configuredUpi = String(paySettings.rows[0]?.upi_id ?? '').trim();
   const upiOk = upiIdPresentInText(configuredUpi, textBlob);
+  if (!upiOk) return 'skipped';
 
   const found = extractPaymentAmounts(textBlob);
   const matched = amountsMatch(expected, found);
-  const detected = found.find((a) => Math.abs(a - expected) <= 1) ?? found[0] ?? null;
+  const detected = found.find((a) => Math.abs(a - expected) <= 0.05) ?? found[0] ?? null;
   const transactionId = extractTransactionId(textBlob) ?? '';
 
-  if (!matched || !upiOk) {
-    const reasons: string[] = [];
-    if (!matched) {
-      reasons.push(
-        found.length
-          ? `Amount not matched. Expected ₹${expected}, found: ${found.join(', ')}`
-          : `Amount not found in screenshot/caption. Expected ₹${expected}`,
-      );
-    }
-    if (!upiOk) {
-      reasons.push(
-        configuredUpi
-          ? `UPI ID not found in screenshot. Expected payment to ${configuredUpi}`
-          : 'UPI ID could not be verified',
-      );
-    }
+  if (!Number.isFinite(renewalAccountId) || renewalAccountId <= 0) return 'skipped';
+  if (renewalAccountId !== params.saasAccountId) {
+    await pool.query(`UPDATE whatsapp_inbound SET saas_account_id = $1 WHERE id = $2`, [
+      renewalAccountId,
+      params.inboundId,
+    ]);
+  }
+
+  if (!matched) {
+    const reasons = [
+      found.length
+        ? `Amount not matched. Expected ₹${expected}, found: ${found.join(', ')}`
+        : `Amount not found in screenshot/caption. Expected ₹${expected}`,
+    ];
 
     await pool.query(
       `UPDATE saas_package_renewals
@@ -157,7 +156,7 @@ export async function processPackageRenewalInbound(params: {
     );
 
     await replyText(
-      params.saasAccountId,
+      renewalAccountId,
       params.fromMobileLast10,
       [
         'We received your payment screenshot, but could not confirm it yet.',
@@ -168,7 +167,7 @@ export async function processPackageRenewalInbound(params: {
       'package_renewal_mismatch',
     );
     await createAccountNotification({
-      saasAccountId: params.saasAccountId,
+      saasAccountId: renewalAccountId,
       title: 'Package payment not confirmed',
       body: [
         'We received your payment screenshot, but could not confirm it yet.',
@@ -176,7 +175,7 @@ export async function processPackageRenewalInbound(params: {
         'Please pay the exact amount and send the screenshot again, or open Support if you need help.',
       ].join('\n'),
     });
-    return;
+    return 'mismatch';
   }
 
   const newExpires = addMonthsDateOnly(renewFrom, months);
@@ -197,7 +196,7 @@ export async function processPackageRenewalInbound(params: {
     );
     if ((updated.rowCount ?? 0) === 0) {
       await client.query('ROLLBACK');
-      return;
+      return 'skipped';
     }
 
     await client.query(
@@ -206,7 +205,7 @@ export async function processPackageRenewalInbound(params: {
            status = 'Active',
            subscription_expires_at = $2::date
        WHERE id = $3`,
-      [renewPackageId, newExpires, params.saasAccountId],
+      [renewPackageId, newExpires, renewalAccountId],
     );
 
     const pkg = await client.query<{
@@ -225,14 +224,14 @@ export async function processPackageRenewalInbound(params: {
       `UPDATE app_users
        SET menu_access = $1
        WHERE saas_account_id = $2 AND COALESCE(is_account_admin, FALSE) = TRUE`,
-      [packageMenuKeys, params.saasAccountId],
+      [packageMenuKeys, renewalAccountId],
     );
 
     await client.query(
       `UPDATE saas_package_renewals
        SET status = 'cancelled', notes = 'Superseded by verified renewal'
        WHERE saas_account_id = $1 AND status = 'pending' AND id <> $2`,
-      [params.saasAccountId, renewalId],
+      [renewalAccountId, renewalId],
     );
 
     await client.query('COMMIT');
@@ -244,7 +243,7 @@ export async function processPackageRenewalInbound(params: {
   }
 
   await replyText(
-    params.saasAccountId,
+    renewalAccountId,
     params.fromMobileLast10,
     [
       'Payment confirmation: payment received. Thank you!',
@@ -262,7 +261,7 @@ export async function processPackageRenewalInbound(params: {
   );
 
   await createAccountNotification({
-    saasAccountId: params.saasAccountId,
+    saasAccountId: renewalAccountId,
     title: 'Package payment confirmed',
     body: [
       `Package: ${renewPackageName}`,
@@ -275,4 +274,5 @@ export async function processPackageRenewalInbound(params: {
       .filter(Boolean)
       .join('\n'),
   });
+  return 'verified';
 }

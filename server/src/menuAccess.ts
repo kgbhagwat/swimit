@@ -11,6 +11,8 @@ export const ACCESS_PAGE_KEYS = [
   'coach-payment',
   'pool-expenses',
   'water-quality',
+  'swimmer-progress',
+  'progress-trend',
   'dashboard',
   'swimmers',
   'attendance-sheet',
@@ -29,6 +31,42 @@ export function editAccessKey(pageKey: string): string {
 }
 
 export const EDIT_ACCESS_KEYS = INFORMATION_EDITABLE_PAGE_KEYS.map(editAccessKey);
+
+export const COACH_LOGIN_PAGE_KEYS: readonly AccessPageKey[] = [
+  'swimmer-progress',
+  'progress-trend',
+];
+
+export type UserLoginType = 'normal' | 'coach';
+
+export function parseLoginType(value: unknown): UserLoginType {
+  return String(value ?? '').trim().toLowerCase() === 'coach' ? 'coach' : 'normal';
+}
+
+export function clipMenuAccessForLoginType(
+  keys: string[],
+  loginType: unknown,
+  isAccountAdmin?: boolean,
+): string[] {
+  if (isAccountAdmin) return keys;
+  if (parseLoginType(loginType) !== 'coach') return keys;
+  const allowed = new Set<string>(COACH_LOGIN_PAGE_KEYS);
+  return keys.filter((key) => allowed.has(key));
+}
+
+export function menuAccessForLoginType(
+  keys: string[],
+  loginType: unknown,
+  packageKeys: AccessPageKey[],
+  isAccountAdmin?: boolean,
+): string[] {
+  if (isAccountAdmin) return clipMenuAccessToPackage(sanitizeMenuAccess(keys), packageKeys);
+  if (parseLoginType(loginType) !== 'coach') {
+    return clipMenuAccessToPackage(sanitizeMenuAccess(keys), packageKeys);
+  }
+  const allowed = new Set(packageKeys);
+  return COACH_LOGIN_PAGE_KEYS.filter((key) => allowed.has(key));
+}
 
 /** SwimIT SaaS platform (swimit) staff access keys. */
 export const PLATFORM_ACCESS_PAGE_KEYS = [
@@ -57,6 +95,8 @@ export const CORE_PAGE_KEYS: readonly AccessPageKey[] = [
   'attendance-sheet',
   'pool-core-info',
   'coaches',
+  'swimmer-progress',
+  'progress-trend',
 ];
 
 /** Extra pages for Professional / Enterprise (modules: full). */

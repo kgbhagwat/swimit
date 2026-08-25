@@ -20,6 +20,14 @@ function toIsoDate(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function daysAcrossStartingMonths(start: Date, monthCount: number) {
+  let days = 0;
+  for (let offset = 0; offset < monthCount; offset += 1) {
+    days += new Date(start.getFullYear(), start.getMonth() + offset + 1, 0).getDate();
+  }
+  return days;
+}
+
 /** Inverse of Pass Payment duration math: end − duration → start date. */
 function subtractPassDuration(duration: string, endDate: string) {
   const match = String(duration ?? '')
@@ -35,7 +43,20 @@ function subtractPassDuration(duration: string, endDate: string) {
   const unit = match[2].toLowerCase();
   if (unit.startsWith('day')) start.setDate(start.getDate() - amount);
   else if (unit.startsWith('week')) start.setDate(start.getDate() - amount * 7);
-  else if (unit.startsWith('month')) start.setMonth(start.getMonth() - amount);
+  else if (unit.startsWith('month')) {
+    const end = new Date(start);
+    const maxDays = Math.max(amount, 1) * 31 + 31;
+    for (let daysBack = 0; daysBack <= maxDays; daysBack += 1) {
+      const candidate = new Date(end);
+      candidate.setDate(candidate.getDate() - daysBack);
+      const candidateEnd = new Date(candidate);
+      candidateEnd.setDate(
+        candidateEnd.getDate() + daysAcrossStartingMonths(candidate, Math.max(amount, 1)) - 1,
+      );
+      if (toIsoDate(candidateEnd) === endDate) return toIsoDate(candidate);
+    }
+    start.setMonth(start.getMonth() - amount);
+  }
   else start.setFullYear(start.getFullYear() - amount);
   return toIsoDate(start);
 }

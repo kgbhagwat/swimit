@@ -7,7 +7,6 @@ import {
 } from '@simplewebauthn/server';
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 import { pool } from '../db/pool.js';
-import { enforceLoginLocation } from '../remoteLogin.js';
 import {
   challengeKey,
   expectedOriginFromRequest,
@@ -18,6 +17,8 @@ import {
   takeChallenge,
 } from '../webauthn.js';
 import { createAuthSession, setSessionCookie } from '../authSessions.js';
+import { clipMenuAccessForLoginType } from '../menuAccess.js';
+import { findAppUserByLogin } from '../appUserLogin.js';
 
 const ACCOUNT_CODE_RE = /^[a-z0-9]{6}$/;
 
@@ -48,7 +49,11 @@ function mapLoginUser(row: Record<string, unknown>) {
     mobile: String(row.mobile ?? ''),
     mustChangePassword: row.must_change_password === true,
     isAccountAdmin: row.is_account_admin === true,
-    menuAccess: Array.isArray(row.menu_access) ? row.menu_access.map(String) : [],
+    menuAccess: clipMenuAccessForLoginType(
+      Array.isArray(row.menu_access) ? row.menu_access.map(String) : [],
+      row.login_type,
+      row.is_account_admin === true,
+    ),
   };
 }
 
@@ -303,26 +308,28 @@ webauthnRouter.post('/by-code/:code/webauthn/login/options', async (req, res) =>
         ];
       }
     } else if (userName) {
-      const { rows } = await pool.query<{
-        credential_id: string;
-        transports: string[] | null;
-      }>(
-        `SELECT c.credential_id, c.transports
-         FROM webauthn_credentials c
-         JOIN app_users u ON u.id = c.user_id
-         WHERE c.saas_account_id = $1 AND LOWER(u.user_name) = LOWER($2)`,
-        [account.id, userName],
-      );
-      allowCredentials = rows.map((row) => ({
-        id: row.credential_id,
-        transports: normalizeTransports(row.transports) as (
-          | 'internal'
-          | 'hybrid'
-          | 'usb'
-          | 'ble'
-          | 'nfc'
-        )[],
-      }));
+      const user = await findAppUserByLogin(account.id, userName);
+      if (user) {
+        const { rows } = await pool.query<{
+          credential_id: string;
+          transports: string[] | null;
+        }>(
+          `SELECT credential_id, transports
+           FROM webauthn_credentials
+           WHERE saas_account_id = $1 AND user_id = $2`,
+          [account.id, Number(user.id)],
+        );
+        allowCredentials = rows.map((row) => ({
+          id: row.credential_id,
+          transports: normalizeTransports(row.transports) as (
+            | 'internal'
+            | 'hybrid'
+            | 'usb'
+            | 'ble'
+            | 'nfc'
+          )[],
+        }));
+      }
     } else {
       const { rows } = await pool.query<{
         credential_id: string;
@@ -373,9 +380,6 @@ webauthnRouter.post('/by-code/:code/webauthn/login/verify', async (req, res) => 
     }
     const body = req.body as {
       response?: AuthenticationResponseJSON;
-      latitude?: number | string | null;
-      longitude?: number | string | null;
-      accuracyM?: number | string | null;
     };
     const response = body.response;
     if (!response?.id) {
@@ -448,7 +452,7 @@ webauthnRouter.post('/by-code/:code/webauthn/login/verify', async (req, res) => 
 
     const { rows: userRows } = await pool.query(
       `SELECT id, user_name, mobile, email, menu_access, must_change_password,
-              is_account_admin, saas_account_id, created_at
+              is_account_admin, saas_account_id, created_at, login_type
        FROM app_users
        WHERE id = $1 AND saas_account_id = $2
        LIMIT 1`,
@@ -456,29 +460,6 @@ webauthnRouter.post('/by-code/:code/webauthn/login/verify', async (req, res) => 
     );
     if (!userRows[0]) {
       res.status(401).json({ error: 'User not found for this biometric login' });
-      return;
-    }
-
-    const locationGate = await enforceLoginLocation({
-      req,
-      accountId: account.id,
-      accountCode: String(account.account_code),
-      accountName: String(account.account_name),
-      user: {
-        id: Number(userRows[0].id),
-        user_name: String(userRows[0].user_name),
-        mobile: String(userRows[0].mobile ?? ''),
-        email: userRows[0].email == null ? null : String(userRows[0].email),
-        is_account_admin: userRows[0].is_account_admin === true,
-      },
-      location: {
-        latitude: body.latitude,
-        longitude: body.longitude,
-        accuracyM: body.accuracyM,
-      },
-    });
-    if (!locationGate.ok) {
-      res.status(locationGate.statusCode).json(locationGate.body);
       return;
     }
 
@@ -497,8 +478,6 @@ webauthnRouter.post('/by-code/:code/webauthn/login/verify', async (req, res) => 
       },
       user: mapLoginUser(userRows[0]),
       credentialId: cred.credential_id,
-      locationStatus: locationGate.locationStatus,
-      distanceKm: locationGate.distanceKm,
       csrfToken: authSession.csrfToken,
     });
   } catch (err) {

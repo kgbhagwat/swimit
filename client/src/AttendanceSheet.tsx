@@ -135,6 +135,11 @@ function addDaysIso(isoDay: string, amount: number) {
   return `${y}-${m}-${d}`;
 }
 
+function monthlyPassEnd(startDate: string) {
+  const startingMonthDays = daysInMonth(startDate.slice(0, 7)).length;
+  return addDaysIso(startDate, startingMonthDays - 1);
+}
+
 function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
   const days = daysInMonth(month);
   const today = todayIso();
@@ -160,7 +165,7 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
       coach: 'Riya Kulkarni',
       offset: 0,
       passStart: monthStart,
-      passEnd: monthEnd,
+      passEnd: monthlyPassEnd(monthStart),
     },
     {
       id: -102,
@@ -170,7 +175,7 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
       coach: 'Amit Sharma',
       offset: 1,
       passStart: addDaysIso(monthStart, -20),
-      passEnd: addDaysIso(monthStart, 9),
+      passEnd: monthlyPassEnd(addDaysIso(monthStart, -20)),
     },
     {
       id: -103,
@@ -180,7 +185,7 @@ function sampleAttendanceSheet(month: string, view: ViewMode): SheetResult {
       coach: 'Riya Kulkarni',
       offset: 2,
       passStart: addDaysIso(monthStart, 3),
-      passEnd: addDaysIso(monthStart, 32),
+      passEnd: monthlyPassEnd(addDaysIso(monthStart, 3)),
     },
   ];
 

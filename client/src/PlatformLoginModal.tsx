@@ -6,11 +6,6 @@ import { navigateToCurrentVersion } from './clientVersion';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { useT } from './i18n';
 import { LoginCaptchaField, useLoginCaptcha } from './LoginCaptcha';
-import {
-  captureLoginLocation,
-  parseRemoteAccessRequired,
-  type RemoteAccessPending,
-} from './loginLocation';
 import { MobileField } from './MobileField';
 import {
   clearPlatformSession,
@@ -89,8 +84,7 @@ export function PlatformLoginModal({
   const [loggingIn, setLoggingIn] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [openedAt, setOpenedAt] = useState(0);
-  const [remotePending, setRemotePending] = useState<RemoteAccessPending | null>(null);
-  const captcha = useLoginCaptcha(open && mode === 'login' && !remotePending);
+  const captcha = useLoginCaptcha(open && mode === 'login');
 
   useEffect(() => {
     if (!open) return;
@@ -100,47 +94,12 @@ export function PlatformLoginModal({
     setSuccess('');
     setForgotEmail('');
     setForgotMobile('');
-    setRemotePending(null);
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
-
-  useEffect(() => {
-    if (!open || !remotePending) return;
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const params = new URLSearchParams({
-          requestId: String(remotePending.requestId),
-          statusToken: remotePending.statusToken,
-        });
-        const res = await fetch(`/api/remote-login/status?${params.toString()}`);
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok || cancelled) return;
-        const status = String(body.status ?? '');
-        if (status === 'approved') {
-          setRemotePending(null);
-          setSuccess(t('Remote access approved. Sign in again to continue.'));
-          void captcha.refresh();
-        } else if (status === 'denied') {
-          setRemotePending(null);
-          setError(t('Remote access was denied by an admin.'));
-          void captcha.refresh();
-        }
-      } catch {
-        // keep waiting
-      }
-    };
-    void tick();
-    const id = window.setInterval(() => void tick(), 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [open, remotePending, t, captcha.refresh]);
 
   if (!open) return null;
 
@@ -160,7 +119,6 @@ export function PlatformLoginModal({
     }
 
     setLoggingIn(true);
-    setRemotePending(null);
     try {
       if (!captcha.value) {
         throw new Error(t('Enter the captcha code'));
@@ -169,7 +127,6 @@ export function PlatformLoginModal({
       const accountBody = await accountRes.json().catch(() => ({}));
       if (!accountRes.ok) throw new Error(accountBody.error ?? 'Account not found');
 
-      const geo = await captureLoginLocation();
       const res = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -178,19 +135,10 @@ export function PlatformLoginModal({
           password: form.password,
           captchaId: captcha.value.captchaId,
           captchaAnswer: captcha.value.captchaAnswer,
-          latitude: geo?.latitude ?? null,
-          longitude: geo?.longitude ?? null,
-          accuracyM: geo?.accuracyM ?? null,
         }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const pending = parseRemoteAccessRequired(body as Record<string, unknown>);
-        if (pending) {
-          setRemotePending(pending);
-          void captcha.refresh();
-          return;
-        }
         throw new Error(body.error ?? 'Login failed');
       }
 
@@ -313,38 +261,7 @@ export function PlatformLoginModal({
                 className="platform-login-logo"
               />
             </div>
-            {mode === 'login' && remotePending ? (
-              <div className="platform-login-form remote-login-pending">
-                <h2 className="biometric-offer-title">{t('Waiting for admin approval')}</h2>
-                <p className="muted">
-                  {remotePending.distanceKm == null
-                    ? t(
-                        'Your location could not be verified near the pool. An admin was notified by email and WhatsApp.',
-                      )
-                    : t(
-                        'You are about {distance} km from the pool (limit {limit} km). An admin was notified by email and WhatsApp.',
-                      )
-                        .replace('{distance}', String(remotePending.distanceKm.toFixed(1)))
-                        .replace('{limit}', String(remotePending.thresholdKm))}
-                </p>
-                <p className="muted">
-                  {t('This page updates automatically when they approve or deny.')}
-                </p>
-                <div className="platform-login-actions">
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    onClick={() => {
-                      setRemotePending(null);
-                      setError('');
-                      void captcha.refresh();
-                    }}
-                  >
-                    {t('Back to login')}
-                  </button>
-                </div>
-              </div>
-            ) : mode === 'login' ? (
+            {mode === 'login' ? (
               <form className="platform-login-form" onSubmit={onSubmit}>
                 <label className="field platform-login-code-field">
                   <span className="label">
@@ -366,12 +283,13 @@ export function PlatformLoginModal({
                 </label>
                 <label className="field">
                   <span className="label">
-                    {t('User name')} <span className="req">*</span>
+                    {t('Login ID')} <span className="req">*</span>
                   </span>
                   <input
                     value={form.userName}
                     onChange={(e) => onFormChange({ userName: e.target.value })}
                     autoComplete="username"
+                    placeholder={t('User name, mobile, or email')}
                     required
                   />
                 </label>

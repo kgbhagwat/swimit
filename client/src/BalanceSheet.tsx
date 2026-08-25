@@ -5,6 +5,7 @@ import { saveCsvFile } from './csvDownload';
 import { useT } from './i18n';
 import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
+import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 
 type LedgerItem = {
   id: string;
@@ -24,6 +25,16 @@ type SheetResult = {
   totalDebit: number;
   closingBalance: number;
 };
+
+type BalanceColumnKey = 'date' | 'particulars' | 'credit' | 'debit' | 'balance';
+
+const BALANCE_COLUMNS: Array<{ key: BalanceColumnKey; label: string }> = [
+  { key: 'date', label: 'Date' },
+  { key: 'particulars', label: 'Particulars' },
+  { key: 'credit', label: 'Credit' },
+  { key: 'debit', label: 'Debit' },
+  { key: 'balance', label: 'Balance' },
+];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -66,6 +77,34 @@ function formatDisplayDate(value: string) {
   const match = value.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return value;
   return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function balanceCellValue(item: LedgerItem, key: BalanceColumnKey) {
+  if (key === 'date') return formatDisplayDate(item.entryDate);
+  if (key === 'particulars') return item.particulars;
+  if (key === 'credit') return item.credit ? formatMoney(item.credit) : '—';
+  if (key === 'debit') return item.debit ? formatMoney(item.debit) : '—';
+  return formatMoney(item.balance);
+}
+
+function compareBalanceItems(a: LedgerItem, b: LedgerItem, key: BalanceColumnKey) {
+  if (key === 'date') return a.entryDate.localeCompare(b.entryDate);
+  if (key === 'particulars') {
+    return a.particulars.localeCompare(b.particulars, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  }
+  return a[key] - b[key];
+}
+
+function monthDateBounds(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  const min = `${month}-01`;
+  const monthEnd = `${month}-${String(lastDay).padStart(2, '0')}`;
+  const today = todayIso();
+  return { min, max: month === today.slice(0, 7) ? today : monthEnd };
 }
 
 function csvEscape(value: string) {
@@ -157,14 +196,26 @@ export function BalanceSheet() {
     [monthOptions],
   );
   const [month, setMonth] = useState(currentMonthValue);
+  const [selectedDate, setSelectedDate] = useState('');
   const [sheet, setSheet] = useState<SheetResult | null>(null);
   const [filter, setFilter] = useState<FilterMode>('all');
+  const [openColumnFilter, setOpenColumnFilter] = useState<BalanceColumnKey | null>(null);
+  const [columnSelected, setColumnSelected] = useState<
+    Partial<Record<BalanceColumnKey, Set<string> | null>>
+  >({});
+  const [sortKey, setSortKey] = useState<BalanceColumnKey | null>(null);
+  const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
 
   useEffect(() => {
     setFilter('all');
+    setSelectedDate('');
+    setOpenColumnFilter(null);
+    setColumnSelected({});
+    setSortKey(null);
+    setSortDir(null);
   }, [month]);
 
   useEffect(() => {
@@ -202,20 +253,69 @@ export function BalanceSheet() {
     };
   }, [month]);
 
+  const displayedSheet = useMemo(() => {
+    if (!sheet || !selectedDate) return sheet;
+    let running = 0;
+    const items = sheet.items
+      .filter((item) => item.entryDate.slice(0, 10) === selectedDate)
+      .map((item) => {
+        running = Math.round((running + item.credit - item.debit + Number.EPSILON) * 100) / 100;
+        return { ...item, balance: running };
+      });
+    const totalCredit = items.reduce((sum, item) => sum + item.credit, 0);
+    const totalDebit = items.reduce((sum, item) => sum + item.debit, 0);
+    return {
+      ...sheet,
+      items,
+      totalCredit,
+      totalDebit,
+      closingBalance: totalCredit - totalDebit,
+    };
+  }, [sheet, selectedDate]);
+
+  const typeItems = useMemo(() => {
+    if (!displayedSheet) return [];
+    if (filter === 'credit') return displayedSheet.items.filter((item) => item.credit > 0);
+    if (filter === 'debit') return displayedSheet.items.filter((item) => item.debit > 0);
+    return displayedSheet.items;
+  }, [displayedSheet, filter]);
+
   const visibleItems = useMemo(() => {
-    if (!sheet) return [];
-    if (filter === 'credit') return sheet.items.filter((item) => item.credit > 0);
-    if (filter === 'debit') return sheet.items.filter((item) => item.debit > 0);
-    return sheet.items;
-  }, [sheet, filter]);
+    const filtered = typeItems.filter((item) =>
+      BALANCE_COLUMNS.every(({ key }) => {
+        const selected = columnSelected[key];
+        if (!selected) return true;
+        return selected.has(balanceCellValue(item, key));
+      }),
+    );
+    if (!sortKey || !sortDir) return filtered;
+    return [...filtered].sort((a, b) => {
+      const comparison = compareBalanceItems(a, b, sortKey);
+      return sortDir === 'asc' ? comparison : -comparison;
+    });
+  }, [typeItems, columnSelected, sortKey, sortDir]);
+
+  const dateBounds = useMemo(() => monthDateBounds(month), [month]);
 
   function toggleFilter(next: FilterMode) {
     setFilter((current) => (current === next ? 'all' : next));
   }
 
+  function clearSelectedDate() {
+    setSelectedDate('');
+    setFilter('all');
+    setOpenColumnFilter(null);
+    setColumnSelected({});
+    setSortKey(null);
+    setSortDir(null);
+  }
+
   function downloadCsv() {
-    if (!sheet) return;
-    const rows = filter === 'all' ? sheet.items : visibleItems;
+    if (!displayedSheet) return;
+    const rows = visibleItems;
+    const exportedCredit = rows.reduce((sum, item) => sum + item.credit, 0);
+    const exportedDebit = rows.reduce((sum, item) => sum + item.debit, 0);
+    const exportedBalance = exportedCredit - exportedDebit;
     const header = ['Date', 'Particulars', 'Credit', 'Debit', 'Balance'];
     const lines = [
       header.join(','),
@@ -230,11 +330,20 @@ export function BalanceSheet() {
           .map(csvEscape)
           .join(','),
       ),
-      ['', 'Total', String(sheet.totalCredit), String(sheet.totalDebit), String(sheet.closingBalance)]
+      [
+        '',
+        'Total',
+        String(exportedCredit),
+        String(exportedDebit),
+        String(exportedBalance),
+      ]
         .map(csvEscape)
         .join(','),
     ];
-    saveCsvFile(`balance-sheet-${month}${filter === 'all' ? '' : `-${filter}`}.csv`, lines.join('\n'));
+    saveCsvFile(
+      `balance-sheet-${selectedDate || month}${filter === 'all' ? '' : `-${filter}`}.csv`,
+      lines.join('\n'),
+    );
   }
 
   return (
@@ -252,7 +361,58 @@ export function BalanceSheet() {
               aria-label={t('Month')}
             />
           </label>
-          <DownloadButton onClick={downloadCsv} disabled={!sheet || sheet.items.length === 0} />
+          <label className="balance-month-inline balance-date-inline">
+            <span className="label">{t('Day')}</span>
+            <span
+              className={`balance-date-picker${selectedDate ? ' selected' : ''}`}
+              title={
+                selectedDate
+                  ? formatDisplayDate(selectedDate)
+                  : t('Select a day for the balance sheet')
+              }
+            >
+              <svg
+                className="balance-date-calendar-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                aria-hidden="true"
+              >
+                <rect x="3.5" y="5.5" width="17" height="15" rx="2" />
+                <path d="M8 3.5v4M16 3.5v4M3.5 10h17" />
+                <path d="M8 14h2M14 14h2M8 17h2M14 17h2" />
+              </svg>
+              <input
+                type="date"
+                value={selectedDate}
+                min={dateBounds.min}
+                max={dateBounds.max}
+                onChange={(event) => {
+                  setSelectedDate(event.target.value);
+                  setFilter('all');
+                  setOpenColumnFilter(null);
+                  setColumnSelected({});
+                  setSortKey(null);
+                  setSortDir(null);
+                }}
+                aria-label={t('Select a day for the balance sheet')}
+              />
+            </span>
+          </label>
+          {selectedDate ? (
+            <button
+              type="button"
+              className="ghost-btn balance-date-clear"
+              onClick={clearSelectedDate}
+            >
+              {t('All month')}
+            </button>
+          ) : null}
+          <DownloadButton
+            onClick={downloadCsv}
+            disabled={!displayedSheet || displayedSheet.items.length === 0}
+          />
         </>
       }
     >
@@ -265,7 +425,7 @@ export function BalanceSheet() {
         {error ? <p className="error">{t(error)}</p> : null}
         {loading ? <p className="pass-count batch-list-lede">{t('Loading…')}</p> : null}
 
-        {!loading && sheet ? (
+        {!loading && displayedSheet ? (
           <>
             <div className="balance-summary-cards">
               <button
@@ -274,7 +434,7 @@ export function BalanceSheet() {
                 onClick={() => toggleFilter('credit')}
               >
                 <span>{t('Total credit')}</span>
-                <strong>{formatMoney(sheet.totalCredit)}</strong>
+                <strong>{formatMoney(displayedSheet.totalCredit)}</strong>
               </button>
               <button
                 type="button"
@@ -282,7 +442,7 @@ export function BalanceSheet() {
                 onClick={() => toggleFilter('debit')}
               >
                 <span>{t('Total debit')}</span>
-                <strong>{formatMoney(sheet.totalDebit)}</strong>
+                <strong>{formatMoney(displayedSheet.totalDebit)}</strong>
               </button>
               <button
                 type="button"
@@ -290,7 +450,7 @@ export function BalanceSheet() {
                 onClick={() => setFilter('all')}
               >
                 <span>{t('Closing balance')}</span>
-                <strong>{formatMoney(sheet.closingBalance)}</strong>
+                <strong>{formatMoney(displayedSheet.closingBalance)}</strong>
               </button>
             </div>
 
@@ -300,23 +460,57 @@ export function BalanceSheet() {
                 : filter === 'debit'
                   ? `${t('Showing debit entries')} (${visibleItems.length})`
                   : `${t('Showing all entries')} (${visibleItems.length})`}
+              {selectedDate ? ` · ${formatDisplayDate(selectedDate)}` : ''}
             </p>
 
-            <div className="balance-table">
+            <div
+              className={`balance-table${openColumnFilter ? ' balance-table--filter-open' : ''}`}
+            >
               <div className="balance-head">
-                <span>{t('Date')}</span>
-                <span>{t('Particulars')}</span>
-                <span>{t('Credit')}</span>
-                <span>{t('Debit')}</span>
-                <span>{t('Balance')}</span>
+                {BALANCE_COLUMNS.map(({ key, label }) => (
+                  <div className="balance-col-head" key={key}>
+                    <TableColumnFilter
+                      label={label}
+                      values={typeItems.map((item) => balanceCellValue(item, key))}
+                      selected={columnSelected[key] ?? null}
+                      sortDir={sortKey === key ? sortDir : null}
+                      open={openColumnFilter === key}
+                      onToggleOpen={() =>
+                        setOpenColumnFilter((current) => (current === key ? null : key))
+                      }
+                      onClose={() => setOpenColumnFilter(null)}
+                      onSelectedChange={(next) =>
+                        setColumnSelected((current) => ({ ...current, [key]: next }))
+                      }
+                      onSort={(direction) => {
+                        setSortKey(direction ? key : null);
+                        setSortDir(direction);
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
               {visibleItems.length === 0 ? (
                 <p className="pass-empty">
-                  {filter === 'credit'
-                    ? t('No credit entries for this month.')
+                  {typeItems.length > 0
+                    ? t('No balance sheet entries match these filters.')
+                    : filter === 'credit'
+                    ? t(
+                        selectedDate
+                          ? 'No credit entries for this day.'
+                          : 'No credit entries for this month.',
+                      )
                     : filter === 'debit'
-                      ? t('No debit entries for this month.')
-                      : t('No credit or debit entries for this month.')}
+                      ? t(
+                          selectedDate
+                            ? 'No debit entries for this day.'
+                            : 'No debit entries for this month.',
+                        )
+                      : t(
+                          selectedDate
+                            ? 'No credit or debit entries for this day.'
+                            : 'No credit or debit entries for this month.',
+                        )}
                 </p>
               ) : (
                 visibleItems.map((item) => (
@@ -344,15 +538,16 @@ export function BalanceSheet() {
                 <span>
                   {filter === 'debit' ? (
                     <>
-                      {t('Total debit')}: <strong>{formatMoney(sheet.totalDebit)}</strong>
+                      {t('Total debit')}: <strong>{formatMoney(displayedSheet.totalDebit)}</strong>
                     </>
                   ) : filter === 'credit' ? (
                     <>
-                      {t('Total credit')}: <strong>{formatMoney(sheet.totalCredit)}</strong>
+                      {t('Total credit')}: <strong>{formatMoney(displayedSheet.totalCredit)}</strong>
                     </>
                   ) : (
                     <>
-                      {t('Closing balance')}: <strong>{formatMoney(sheet.closingBalance)}</strong>
+                      {t('Closing balance')}:{' '}
+                      <strong>{formatMoney(displayedSheet.closingBalance)}</strong>
                     </>
                   )}
                 </span>

@@ -11,6 +11,7 @@ import { batchesRouter } from './routes/batches.js';
 import { passTypesRouter } from './routes/passTypes.js';
 import { poolExpensesRouter } from './routes/poolExpenses.js';
 import { waterQualityRouter } from './routes/waterQuality.js';
+import { swimmerProgressRouter } from './routes/swimmerProgress.js';
 import { passScanRouter } from './routes/passScan.js';
 import { coachPaymentRouter } from './routes/coachPayment.js';
 import { attendanceSheetRouter } from './routes/attendanceSheet.js';
@@ -167,6 +168,12 @@ app.use(
   requireTenant,
   requireAnyPageAccess('water-quality'),
   waterQualityRouter,
+);
+app.use(
+  '/api/swimmer-progress',
+  requireTenant,
+  requireAnyPageAccess('swimmer-progress', 'progress-trend'),
+  swimmerProgressRouter,
 );
 app.use('/api/pass-scan', requireTenant, requireAnyPageAccess('pass-scanner'), passScanRouter);
 app.use(

@@ -100,62 +100,125 @@ function classifyInbound(caption: string, mimeType: string) {
   return 'other';
 }
 
-/**
- * Only accept inbound WhatsApp from registered mobiles:
- * swimmer (registrations), staff (staff_registrations), or app user (app_users).
- * Unknown numbers are ignored.
- */
-async function resolveInboundAccount(fromMobile: string): Promise<{
+type InboundMember = {
   last10: string;
   saasAccountId: number;
   registrationId: number | null;
-} | null> {
-  const last10 = fromMobile.replace(/\D/g, '').slice(-10);
-  if (last10.length < 10) return null;
+  kind: 'swimmer' | 'staff' | 'user';
+};
 
-  const swimmer = await pool.query(
+type ResolvedInbound = {
+  last10: string;
+  saasAccountId: number;
+  registrationId: number | null;
+};
+
+function uniqueAccountIds(members: InboundMember[]) {
+  return [...new Set(members.map((row) => row.saasAccountId))];
+}
+
+function swimmerIdForAccount(members: InboundMember[], accountId: number) {
+  return (
+    members.find((row) => row.kind === 'swimmer' && row.saasAccountId === accountId)?.registrationId ??
+    null
+  );
+}
+
+/**
+ * Memberships for this WhatsApp number, kept per pool.
+ * Same mobile may exist at several pools; never mix another pool's swimmer id onto this pool.
+ */
+async function listInboundMembers(fromMobile: string): Promise<InboundMember[]> {
+  const last10 = fromMobile.replace(/\D/g, '').slice(-10);
+  if (last10.length < 10) return [];
+  const members: InboundMember[] = [];
+
+  const swimmers = await pool.query<{ id: number; saas_account_id: number }>(
     `SELECT id, saas_account_id FROM registrations
      WHERE RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10) = $1
-     ORDER BY id DESC LIMIT 1`,
+     ORDER BY id DESC`,
     [last10],
   );
-  if (swimmer.rows[0]?.saas_account_id != null) {
-    return {
+  for (const row of swimmers.rows) {
+    if (row.saas_account_id == null) continue;
+    members.push({
       last10,
-      saasAccountId: Number(swimmer.rows[0].saas_account_id),
-      registrationId: Number(swimmer.rows[0].id),
-    };
+      saasAccountId: Number(row.saas_account_id),
+      registrationId: Number(row.id),
+      kind: 'swimmer',
+    });
   }
 
-  const staff = await pool.query(
+  const staff = await pool.query<{ id: number; saas_account_id: number }>(
     `SELECT id, saas_account_id FROM staff_registrations
      WHERE RIGHT(regexp_replace(whatsapp_mobile, '\\D', '', 'g'), 10) = $1
-     ORDER BY id DESC LIMIT 1`,
+     ORDER BY id DESC`,
     [last10],
   );
-  if (staff.rows[0]?.saas_account_id != null) {
-    return {
+  for (const row of staff.rows) {
+    if (row.saas_account_id == null) continue;
+    members.push({
       last10,
-      saasAccountId: Number(staff.rows[0].saas_account_id),
+      saasAccountId: Number(row.saas_account_id),
       registrationId: null,
-    };
+      kind: 'staff',
+    });
   }
 
-  const user = await pool.query(
+  const users = await pool.query<{ id: number; saas_account_id: number }>(
     `SELECT id, saas_account_id FROM app_users
      WHERE RIGHT(regexp_replace(mobile, '\\D', '', 'g'), 10) = $1
-     ORDER BY id DESC LIMIT 1`,
+     ORDER BY id DESC`,
     [last10],
   );
-  if (user.rows[0]?.saas_account_id != null) {
-    return {
+  for (const row of users.rows) {
+    if (row.saas_account_id == null) continue;
+    members.push({
       last10,
-      saasAccountId: Number(user.rows[0].saas_account_id),
+      saasAccountId: Number(row.saas_account_id),
       registrationId: null,
-    };
+      kind: 'user',
+    });
   }
 
-  return null;
+  return members;
+}
+
+async function resolveInboundAccount(fromMobile: string): Promise<ResolvedInbound | null> {
+  const members = await listInboundMembers(fromMobile);
+  if (!members.length) return null;
+  const last10 = members[0].last10;
+  const accountIds = uniqueAccountIds(members);
+
+  const pick = (saasAccountId: number): ResolvedInbound => ({
+    last10,
+    saasAccountId,
+    registrationId: swimmerIdForAccount(members, saasAccountId),
+  });
+
+  if (accountIds.length === 1) return pick(accountIds[0]);
+
+  const pending = await pool.query<{ saas_account_id: number }>(
+    `SELECT saas_account_id FROM saas_package_renewals
+     WHERE status = 'pending'
+       AND RIGHT(regexp_replace(from_mobile, '\\D', '', 'g'), 10) = $1
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [last10],
+  );
+  const pendingAccountId = Number(pending.rows[0]?.saas_account_id ?? 0);
+  if (pendingAccountId > 0 && accountIds.includes(pendingAccountId)) {
+    return pick(pendingAccountId);
+  }
+
+  const userAccounts = uniqueAccountIds(members.filter((row) => row.kind === 'user'));
+  if (userAccounts.length === 1) return pick(userAccounts[0]);
+
+  const staffAccounts = uniqueAccountIds(members.filter((row) => row.kind === 'staff'));
+  if (staffAccounts.length === 1 && userAccounts.length === 0) return pick(staffAccounts[0]);
+
+  // Several pools share this number: do not attach another pool's swimmer record.
+  return { last10, saasAccountId: accountIds[0], registrationId: null };
 }
 
 function inboundMessageText(msg: {
@@ -262,28 +325,32 @@ async function saveInboundMedia(params: {
 
   const inboundId = Number(inserted.rows[0]?.id);
   if (inboundId && status === 'received' && relativePath) {
+    let skipPassPayment = false;
     try {
-      await processPackageRenewalInbound({
+      const renewalResult = await processPackageRenewalInbound({
         saasAccountId,
         fromMobileLast10: last10,
         caption: params.caption || '',
         relativeFilePath: relativePath,
         inboundId,
       });
+      skipPassPayment = renewalResult === 'verified';
     } catch (err) {
       console.error('[whatsapp] package renewal processing failed', err);
     }
-    try {
-      await processPassPaymentInbound({
-        saasAccountId,
-        fromMobileLast10: last10,
-        caption: params.caption || '',
-        relativeFilePath: relativePath,
-        inboundId,
-        registrationId,
-      });
-    } catch (err) {
-      console.error('[whatsapp] pass payment processing failed', err);
+    if (!skipPassPayment) {
+      try {
+        await processPassPaymentInbound({
+          saasAccountId,
+          fromMobileLast10: last10,
+          caption: params.caption || '',
+          relativeFilePath: relativePath,
+          inboundId,
+          registrationId,
+        });
+      } catch (err) {
+        console.error('[whatsapp] pass payment processing failed', err);
+      }
     }
   }
 }
@@ -338,9 +405,8 @@ whatsappRouter.post('/webhook', async (req, res) => {
           const from = String(msg.from ?? '');
           if (!from) continue;
 
-          const resolved = await resolveInboundAccount(from);
-          // Only registered swimmer / staff / user mobiles
-          if (!resolved) {
+          const members = await listInboundMembers(from);
+          if (!members.length) {
             console.info('[whatsapp] ignored message from unregistered mobile', from);
             continue;
           }
@@ -359,20 +425,29 @@ whatsappRouter.post('/webhook', async (req, res) => {
 
           const inboundText = inboundMessageText(msg);
           if (inboundText) {
-            await saveInboundText({
-              text: inboundText,
-              waMessageId: msg.id,
-              resolved,
-            });
-            try {
-              await replyIfRegistrationHi({
-                fromMobileLast10: resolved.last10,
-                saasAccountId: resolved.saasAccountId,
-                registrationId: resolved.registrationId,
+            const last10 = members[0].last10;
+            const accountIds = uniqueAccountIds(members);
+            for (const saasAccountId of accountIds) {
+              const resolved = {
+                last10,
+                saasAccountId,
+                registrationId: swimmerIdForAccount(members, saasAccountId),
+              };
+              await saveInboundText({
                 text: inboundText,
+                waMessageId: msg.id,
+                resolved,
               });
-            } catch (err) {
-              console.error('[whatsapp] registration Hi reply failed', err);
+              try {
+                await replyIfRegistrationHi({
+                  fromMobileLast10: last10,
+                  saasAccountId,
+                  registrationId: resolved.registrationId,
+                  text: inboundText,
+                });
+              } catch (err) {
+                console.error('[whatsapp] registration Hi reply failed', err);
+              }
             }
             continue;
           }

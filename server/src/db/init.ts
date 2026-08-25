@@ -175,6 +175,22 @@ ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS ph_level NUMERIC(8, 2) NOT NU
 ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS free_chlorine NUMERIC(8, 2) NOT NULL DEFAULT 0;
 ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS total_alkalinity NUMERIC(8, 2) NOT NULL DEFAULT 0;
 ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS calcium_hardness NUMERIC(8, 2) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS swimmer_progress (
+  id SERIAL PRIMARY KEY,
+  saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  registration_id INT NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
+  record_date DATE NOT NULL,
+  stroke TEXT NOT NULL,
+  distance_m INT NOT NULL,
+  time_text TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS swimmer_progress_entry_unique
+  ON swimmer_progress (saas_account_id, registration_id, record_date, stroke, distance_m);
+ALTER TABLE swimmer_progress ALTER COLUMN saas_account_id SET NOT NULL;
 ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS tester_name TEXT NOT NULL DEFAULT '';
 DO $$
 BEGIN
@@ -625,6 +641,7 @@ ALTER TABLE batch_slots ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES 
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE pool_expenses ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
+ALTER TABLE swimmer_progress ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE holidays ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE swimmer_attendance ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS saas_account_id INT REFERENCES saas_accounts(id) ON DELETE CASCADE;
@@ -705,12 +722,16 @@ ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 /** Google Maps share link used to set pool coordinates (admin-friendly). */
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS google_maps_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pool_state TEXT NOT NULL DEFAULT '';
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pool_district TEXT NOT NULL DEFAULT '';
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pin_code TEXT NOT NULL DEFAULT '';
 /** Admin-chosen near-pool login distance (km) for users set to “swimming pool only”. */
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS login_near_km INT;
 
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS remote_access_until TIMESTAMPTZ;
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_geo_mode TEXT NOT NULL DEFAULT 'pool_only';
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_radius_km INT;
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_type TEXT NOT NULL DEFAULT 'normal';
 ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS login_session_timeout_minutes INT NOT NULL DEFAULT 30;
 
 DO $$
@@ -724,6 +745,13 @@ BEGIN
     ALTER TABLE app_users
       ADD CONSTRAINT app_users_login_geo_mode_check
       CHECK (login_geo_mode IN ('pool_only', 'radius'));
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'app_users_login_type_check'
+  ) THEN
+    ALTER TABLE app_users
+      ADD CONSTRAINT app_users_login_type_check
+      CHECK (login_type IN ('normal', 'coach'));
   END IF;
 END $$;
 

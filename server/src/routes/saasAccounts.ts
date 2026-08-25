@@ -26,8 +26,9 @@ import {
   renewFromDate,
   addMonthsDateOnly,
 } from '../paymentAmount.js';
+import { clipMenuAccessForLoginType } from '../menuAccess.js';
 import { consumeCaptcha } from '../captcha.js';
-import { enforceLoginLocation } from '../remoteLogin.js';
+import { findAppUserByLogin } from '../appUserLogin.js';
 import {
   createAuthSession,
   createPublicAccessToken,
@@ -1067,11 +1068,8 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
       password?: string;
       captchaId?: string;
       captchaAnswer?: string;
-      latitude?: number | string | null;
-      longitude?: number | string | null;
-      accuracyM?: number | string | null;
     };
-    const userName = String(body.userName ?? '').trim() || 'admin';
+    const loginId = String(body.userName ?? '').trim() || 'admin';
     const password = String(body.password ?? '');
     if (!password) {
       res.status(400).json({ error: 'Password is required' });
@@ -1100,51 +1098,21 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
     }
 
     const accountId = Number(accountRows[0].id);
-    const { rows: userRows } = await pool.query(
-      `SELECT id, user_name, mobile, email, password_hash, menu_access, must_change_password,
-              is_account_admin, saas_account_id, created_at
-       FROM app_users
-       WHERE saas_account_id = $1 AND LOWER(user_name) = LOWER($2)
-       LIMIT 1`,
-      [accountId, userName],
-    );
-    if (!userRows[0]) {
-      res.status(401).json({ error: 'Invalid user name or password' });
+    const userRow = await findAppUserByLogin(accountId, loginId);
+    if (!userRow) {
+      res.status(401).json({ error: 'Invalid login ID or password' });
       return;
     }
 
-    const valid = await verifyPassword(password, String(userRows[0].password_hash));
+    const valid = await verifyPassword(password, String(userRow.password_hash));
     if (!valid) {
-      res.status(401).json({ error: 'Invalid user name or password' });
-      return;
-    }
-
-    const locationGate = await enforceLoginLocation({
-      req,
-      accountId,
-      accountCode: String(accountRows[0].account_code),
-      accountName: String(accountRows[0].account_name),
-      user: {
-        id: Number(userRows[0].id),
-        user_name: String(userRows[0].user_name),
-        mobile: String(userRows[0].mobile ?? ''),
-        email: userRows[0].email == null ? null : String(userRows[0].email),
-        is_account_admin: userRows[0].is_account_admin === true,
-      },
-      location: {
-        latitude: body.latitude,
-        longitude: body.longitude,
-        accuracyM: body.accuracyM,
-      },
-    });
-    if (!locationGate.ok) {
-      res.status(locationGate.statusCode).json(locationGate.body);
+      res.status(401).json({ error: 'Invalid login ID or password' });
       return;
     }
 
     const authSession = await createAuthSession({
       accountId,
-      userId: Number(userRows[0].id),
+      userId: Number(userRow.id),
       kind: code === 'swimit' ? 'platform' : 'account',
     });
     setSessionCookie(res, authSession.token, authSession.expiresAt, authSession.csrfToken);
@@ -1157,17 +1125,17 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
         loginSessionTimeoutMinutes: Number(accountRows[0].login_session_timeout_minutes ?? 30),
       },
       user: {
-        id: Number(userRows[0].id),
-        userName: String(userRows[0].user_name),
-        mobile: String(userRows[0].mobile),
-        mustChangePassword: userRows[0].must_change_password === true,
-        isAccountAdmin: userRows[0].is_account_admin === true,
-        menuAccess: Array.isArray(userRows[0].menu_access)
-          ? userRows[0].menu_access.map(String)
-          : [],
+        id: Number(userRow.id),
+        userName: String(userRow.user_name),
+        mobile: String(userRow.mobile ?? ''),
+        mustChangePassword: userRow.must_change_password === true,
+        isAccountAdmin: userRow.is_account_admin === true,
+        menuAccess: clipMenuAccessForLoginType(
+          Array.isArray(userRow.menu_access) ? userRow.menu_access.map(String) : [],
+          userRow.login_type,
+          userRow.is_account_admin === true,
+        ),
       },
-      locationStatus: locationGate.locationStatus,
-      distanceKm: locationGate.distanceKm,
       csrfToken: authSession.csrfToken,
     });
   } catch (err) {
@@ -1390,7 +1358,7 @@ saasAccountsRouter.post('/by-code/:code/change-password', async (req, res) => {
        SET password_hash = $1,
            must_change_password = FALSE
        WHERE id = $2
-       RETURNING id, user_name, mobile, menu_access, must_change_password, is_account_admin`,
+       RETURNING id, user_name, mobile, menu_access, must_change_password, is_account_admin, login_type`,
       [passwordHash, userId],
     );
     await pool.query(
@@ -1413,7 +1381,11 @@ saasAccountsRouter.post('/by-code/:code/change-password', async (req, res) => {
         mobile: String(rows[0].mobile),
         mustChangePassword: false,
         isAccountAdmin: rows[0].is_account_admin === true,
-        menuAccess: Array.isArray(rows[0].menu_access) ? rows[0].menu_access.map(String) : [],
+        menuAccess: clipMenuAccessForLoginType(
+          Array.isArray(rows[0].menu_access) ? rows[0].menu_access.map(String) : [],
+          rows[0].login_type,
+          rows[0].is_account_admin === true,
+        ),
       },
       csrfToken: authSession.csrfToken,
     });

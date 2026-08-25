@@ -8,6 +8,7 @@ import {
   writeDemoStore,
   type DemoStore,
 } from './applicationDemo';
+import { COACH_LOGIN_PAGE_KEYS, parseLoginType } from './menuCatalog';
 
 function parseUrl(url: string) {
   try {
@@ -283,6 +284,9 @@ function handlePoolCoreInfo(method: string, body: Record<string, unknown>, store
       ...store.poolCoreInfo,
       poolName: formString(body, 'poolName') || String(store.poolCoreInfo.poolName ?? ''),
       poolAddress: formString(body, 'poolAddress') || String(store.poolCoreInfo.poolAddress ?? ''),
+      poolState: formString(body, 'poolState'),
+      poolDistrict: formString(body, 'poolDistrict'),
+      pinCode: formString(body, 'pinCode'),
       swimmerTerms: String(body.swimmerTerms ?? store.poolCoreInfo.swimmerTerms ?? ''),
       staffTerms: String(body.staffTerms ?? store.poolCoreInfo.staffTerms ?? ''),
       upiDetails: formString(body, 'upiDetails'),
@@ -469,6 +473,195 @@ function handleWaterQuality(
   return jsonResponse({ error: 'Method not allowed' }, 405);
 }
 
+function isCompetitiveDemoSwimmer(
+  row: Record<string, unknown>,
+  store: DemoStore,
+) {
+  const batch = String(row.batch ?? '');
+  if (/advance/i.test(batch)) return true;
+  const passName = String(row.pass_type ?? row.passType ?? '');
+  return store.passTypes.some(
+    (pass) =>
+      String(pass.passName ?? '') === passName &&
+      /competitive/i.test(String(pass.forAudience ?? '')),
+  );
+}
+
+function last10Digits(value: unknown) {
+  return String(value ?? '').replace(/\D/g, '').slice(-10);
+}
+
+function demoSessionUser(store: DemoStore) {
+  try {
+    const code = sessionStorage.getItem('swimIT.activeAccountCode');
+    if (!code) return null;
+    const raw = sessionStorage.getItem(`swimIT.accountSession.${code}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const userName = String(parsed.userName ?? parsed.user_name ?? '').trim();
+    const id = Number(parsed.id);
+    const fromStore = store.users.find(
+      (row) =>
+        (Number.isFinite(id) && id > 0 && Number(row.id) === id) ||
+        (userName && String(row.userName ?? row.user_name ?? '').trim() === userName),
+    );
+    return {
+      isAccountAdmin:
+        parsed.isAccountAdmin === true ||
+        parsed.is_account_admin === true ||
+        fromStore?.isAccountAdmin === true ||
+        fromStore?.is_account_admin === true,
+      email: String(fromStore?.email ?? parsed.email ?? '').trim().toLowerCase(),
+      mobile: last10Digits(fromStore?.mobile ?? parsed.mobile),
+      loginType: parseLoginType(fromStore?.loginType ?? fromStore?.login_type ?? parsed.loginType),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function demoAssignedCoachNames(store: DemoStore): string[] | null {
+  const user = demoSessionUser(store);
+  if (!user || user.isAccountAdmin || user.loginType !== 'coach') return null;
+  const names = store.staffRegistrations
+    .filter((row) => String(row.registration_for ?? row.registrationFor ?? '').toLowerCase() === 'coach')
+    .filter((row) => {
+      const email = String(row.email ?? '').trim().toLowerCase();
+      const mobile = last10Digits(row.whatsapp_mobile ?? row.whatsappMobile);
+      const other = last10Digits(row.other_mobile ?? row.otherMobile);
+      return (
+        (user.email && email === user.email) ||
+        (user.mobile.length === 10 && (mobile === user.mobile || other === user.mobile))
+      );
+    })
+    .map((row) => String(row.full_name ?? row.fullName ?? '').trim().toLowerCase())
+    .filter(Boolean);
+  const unique = [...new Set(names)];
+  return unique;
+}
+
+function assignedToDemoCoach(row: Record<string, unknown>, names: string[] | null) {
+  if (!names) return true;
+  return names.includes(String(row.coach ?? '').trim().toLowerCase());
+}
+
+function handleSwimmerProgress(
+  method: string,
+  pathname: string,
+  searchParams: URLSearchParams,
+  body: Record<string, unknown>,
+  store: DemoStore,
+) {
+  if (!Array.isArray(store.swimmerProgress)) store.swimmerProgress = [];
+  const recordDate = String(body.recordDate ?? searchParams.get('recordDate') ?? '').slice(0, 10);
+  const stroke = String(body.stroke ?? searchParams.get('stroke') ?? 'Free Style');
+  const distanceM = Number(body.distanceM ?? searchParams.get('distanceM') ?? 50);
+
+  if (method === 'GET' && pathname.endsWith('/trend')) {
+    const coachNames = demoAssignedCoachNames(store);
+    const dateSet = new Set<string>();
+    const swimmers = store.registrations
+      .filter((row) => row.is_active !== false && row.isActive !== false)
+      .filter((row) => isCompetitiveDemoSwimmer(row, store))
+      .filter((row) => assignedToDemoCoach(row, coachNames))
+      .map((row) => {
+        const id = Number(row.id);
+        const times: Record<string, string> = {};
+        for (const entry of store.swimmerProgress) {
+          if (
+            Number(entry.registrationId) === id &&
+            String(entry.stroke) === stroke &&
+            Number(entry.distanceM) === distanceM &&
+            String(entry.timeText ?? '').trim()
+          ) {
+            const date = String(entry.recordDate).slice(0, 10);
+            times[date] = String(entry.timeText);
+            dateSet.add(date);
+          }
+        }
+        return {
+          id,
+          name: String(row.full_name ?? row.fullName ?? ''),
+          batch: String(row.batch ?? ''),
+          coach: String(row.coach ?? ''),
+          times,
+        };
+      });
+    return jsonResponse({
+      stroke,
+      distanceM,
+      dates: [...dateSet].sort(),
+      swimmers,
+    });
+  }
+
+  if (method === 'GET') {
+    const coachNames = demoAssignedCoachNames(store);
+    const swimmers = store.registrations
+      .filter((row) => row.is_active !== false && row.isActive !== false)
+      .filter((row) => isCompetitiveDemoSwimmer(row, store))
+      .filter((row) => assignedToDemoCoach(row, coachNames))
+      .map((row) => {
+        const id = Number(row.id);
+        const saved = store.swimmerProgress.find(
+          (entry) =>
+            Number(entry.registrationId) === id &&
+            String(entry.recordDate) === recordDate &&
+            String(entry.stroke) === stroke &&
+            Number(entry.distanceM) === distanceM,
+        );
+        return {
+          id,
+          name: String(row.full_name ?? row.fullName ?? ''),
+          batch: String(row.batch ?? ''),
+          coach: String(row.coach ?? ''),
+          timeText: String(saved?.timeText ?? ''),
+        };
+      });
+    return jsonResponse({ recordDate, stroke, distanceM, swimmers });
+  }
+
+  if (method === 'PUT') {
+    const coachNames = demoAssignedCoachNames(store);
+    const allowedIds = new Set(
+      store.registrations
+        .filter((row) => row.is_active !== false && row.isActive !== false)
+        .filter((row) => isCompetitiveDemoSwimmer(row, store))
+        .filter((row) => assignedToDemoCoach(row, coachNames))
+        .map((row) => Number(row.id)),
+    );
+    const entries = Array.isArray(body.entries) ? body.entries : [];
+    for (const item of entries) {
+      const row = item as Record<string, unknown>;
+      const registrationId = Number(row.registrationId ?? row.id);
+      if (!allowedIds.has(registrationId)) continue;
+      const timeText = String(row.timeText ?? '').trim();
+      store.swimmerProgress = store.swimmerProgress.filter(
+        (entry) =>
+          !(
+            Number(entry.registrationId) === registrationId &&
+            String(entry.recordDate) === recordDate &&
+            String(entry.stroke) === stroke &&
+            Number(entry.distanceM) === distanceM
+          ),
+      );
+      if (timeText) {
+        store.swimmerProgress.push({
+          registrationId,
+          recordDate,
+          stroke,
+          distanceM,
+          timeText,
+        });
+      }
+    }
+    writeDemoStore(store);
+    return jsonResponse({ ok: true, recordDate, stroke, distanceM });
+  }
+
+  return jsonResponse({ error: 'Method not allowed' }, 405);
+}
+
 function handleUsers(method: string, pathname: string, body: Record<string, unknown>, store: DemoStore) {
   if (pathname === '/api/users/session-timeout') {
     if (method === 'GET') {
@@ -494,12 +687,20 @@ function handleUsers(method: string, pathname: string, body: Record<string, unkn
     return user ? jsonResponse(user) : jsonResponse({ error: 'Not found' }, 404);
   }
   if (method === 'POST' && pathname === '/api/users') {
+    const loginType = parseLoginType(body.loginType);
+    const menuAccess =
+      loginType === 'coach'
+        ? [...COACH_LOGIN_PAGE_KEYS]
+        : Array.isArray(body.menuAccess)
+          ? body.menuAccess.map(String)
+          : [];
     const row = {
       id: allocDemoId(store),
       userName: formString(body, 'userName'),
       mobile: formString(body, 'mobile'),
       email: formString(body, 'email'),
-      menuAccess: Array.isArray(body.menuAccess) ? body.menuAccess.map(String) : [],
+      menuAccess,
+      loginType,
       mustChangePassword: true,
       isAccountAdmin: false,
       saasAccountId: null,
@@ -520,9 +721,17 @@ function handleUsers(method: string, pathname: string, body: Record<string, unkn
     const id = Number(access[1]);
     const idx = store.users.findIndex((u) => Number(u.id) === id);
     if (idx < 0) return jsonResponse({ error: 'Not found' }, 404);
+    const loginType = parseLoginType(body.loginType ?? store.users[idx].loginType);
+    const menuAccess =
+      loginType === 'coach'
+        ? [...COACH_LOGIN_PAGE_KEYS]
+        : Array.isArray(body.menuAccess)
+          ? body.menuAccess.map(String)
+          : [];
     store.users[idx] = {
       ...store.users[idx],
-      menuAccess: Array.isArray(body.menuAccess) ? body.menuAccess.map(String) : [],
+      menuAccess,
+      loginType,
     };
     writeDemoStore(store);
     return jsonResponse(store.users[idx]);
@@ -784,6 +993,9 @@ export async function handleDemoApiRequest(
   }
   if (pathname.startsWith('/api/water-quality')) {
     return handleWaterQuality(method, pathname, searchParams, body, store);
+  }
+  if (pathname.startsWith('/api/swimmer-progress')) {
+    return handleSwimmerProgress(method, pathname, searchParams, body, store);
   }
   if (pathname === '/api/activity-log' || pathname === '/api/activity-log/platform') {
     if (method === 'GET') {

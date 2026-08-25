@@ -5,12 +5,6 @@ import { navigateToCurrentVersion } from './clientVersion';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { useT } from './i18n';
 import { LoginCaptchaField, useLoginCaptcha } from './LoginCaptcha';
-import {
-  captureLoginLocation,
-  parseRemoteAccessRequired,
-  RemoteAccessRequiredError,
-  type RemoteAccessPending,
-} from './loginLocation';
 import { MobileField } from './MobileField';
 import { passwordPolicyError } from './passwordPolicy';
 import { isSaasManagementCode, setPlatformSession } from './platformSession';
@@ -150,9 +144,8 @@ export function AccountPortal() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [remotePending, setRemotePending] = useState<RemoteAccessPending | null>(null);
   const captcha = useLoginCaptcha(
-    !sessionUser && !remotePending && loginMode === 'login' && loginMethod === 'password',
+    !sessionUser && loginMode === 'login' && loginMethod === 'password',
   );
 
   useEffect(() => {
@@ -415,42 +408,6 @@ export function AccountPortal() {
     }
   }
 
-  useEffect(() => {
-    if (!remotePending) return;
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const params = new URLSearchParams({
-          requestId: String(remotePending.requestId),
-          statusToken: remotePending.statusToken,
-        });
-        const res = await fetch(`/api/remote-login/status?${params.toString()}`);
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok || cancelled) return;
-        const status = String(body.status ?? '');
-        if (status === 'approved') {
-          setRemotePending(null);
-          setSuccess(
-            t('Remote access approved. Sign in again to continue.'),
-          );
-          void captcha.refresh();
-        } else if (status === 'denied') {
-          setRemotePending(null);
-          setError(t('Remote access was denied by an admin.'));
-          void captcha.refresh();
-        }
-      } catch {
-        // keep waiting
-      }
-    };
-    void tick();
-    const id = window.setInterval(() => void tick(), 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [remotePending, t, captcha.refresh]);
-
   async function onLogin(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -486,7 +443,6 @@ export function AccountPortal() {
       if (!captcha.value) {
         throw new Error(t('Enter the captcha code'));
       }
-      const geo = await captureLoginLocation();
       const res = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -495,19 +451,10 @@ export function AccountPortal() {
           password: loginPassword,
           captchaId: captcha.value.captchaId,
           captchaAnswer: captcha.value.captchaAnswer,
-          latitude: geo?.latitude ?? null,
-          longitude: geo?.longitude ?? null,
-          accuracyM: geo?.accuracyM ?? null,
         }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const pending = parseRemoteAccessRequired(body as Record<string, unknown>);
-        if (pending) {
-          setRemotePending(pending);
-          void captcha.refresh();
-          return;
-        }
         throw new Error(body.error ?? 'Login failed');
       }
       const user: SessionUser = {
@@ -531,11 +478,6 @@ export function AccountPortal() {
       }
       finishAuthenticatedSession(user, { offerBiometric: true });
     } catch (err) {
-      if (err instanceof RemoteAccessRequiredError) {
-        setRemotePending(err.pending);
-        if (loginMethod === 'password') void captcha.refresh();
-        return;
-      }
       setError(err instanceof Error ? err.message : 'Login failed');
       if (loginMethod === 'password') void captcha.refresh();
     } finally {
@@ -815,39 +757,7 @@ export function AccountPortal() {
                 />
                 <p className="platform-login-account-name">{account.accountName}</p>
               </div>
-              {loginMode === 'login' && remotePending ? (
-                <div className="platform-login-form remote-login-pending">
-                  <h2 className="biometric-offer-title">{t('Waiting for admin approval')}</h2>
-                  <p className="muted">
-                    {remotePending.distanceKm == null
-                      ? t(
-                          'Your location could not be verified near the pool. An admin was notified by email and WhatsApp.',
-                        )
-                      : t(
-                          'You are about {distance} km from the pool (limit {limit} km). An admin was notified by email and WhatsApp.',
-                        )
-                          .replace(
-                            '{distance}',
-                            String(remotePending.distanceKm.toFixed(1)),
-                          )
-                          .replace('{limit}', String(remotePending.thresholdKm))}
-                  </p>
-                  <p className="muted">{t('This page updates automatically when they approve or deny.')}</p>
-                  <div className="platform-login-actions">
-                    <button
-                      type="button"
-                      className="ghost-btn"
-                      onClick={() => {
-                        setRemotePending(null);
-                        setError('');
-                        void captcha.refresh();
-                      }}
-                    >
-                      {t('Back to login')}
-                    </button>
-                  </div>
-                </div>
-              ) : loginMode === 'login' ? (
+              {loginMode === 'login' ? (
                 <form className="platform-login-form" onSubmit={onLogin}>
                   {showBiometricChoice ? (
                     <div
@@ -893,12 +803,13 @@ export function AccountPortal() {
                   ) : null}
                   <label className="field">
                     <span className="label">
-                      {t('User name')} <span className="req">*</span>
+                      {t('Login ID')} <span className="req">*</span>
                     </span>
                     <input
                       value={loginUserName}
                       onChange={(e) => setLoginUserName(e.target.value)}
                       autoComplete="username"
+                      placeholder={t('User name, mobile, or email')}
                       required
                     />
                   </label>

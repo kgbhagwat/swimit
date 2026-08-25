@@ -54,7 +54,8 @@ export function extractPaymentAmounts(text: string): number[] {
   const found = new Set<number>();
   const patterns = [
     /(?:₹|rs\.?|inr|rupees?|re\.?|¥|\$)\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
-    /(?:amount|paid|payment|total|amt)\s*[:=]?\s*(?:₹|rs\.?|¥|\$)?\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
+    // Do not treat "Paid in 1.9 Seconds" as a rupee amount.
+    /(?:(?:amount|payment|total|amt)\b|paid(?!\s*in))\s*[:=]?\s*(?:₹|rs\.?|¥|\$)?\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
     /\b([0-9]{2,7}(?:\.[0-9]{1,2})?)\b/g,
   ];
 
@@ -79,15 +80,16 @@ export function extractPaymentAmounts(text: string): number[] {
   return beside != null ? [beside, ...rest] : rest;
 }
 
-export function amountsMatch(expected: number, found: number[], tolerance = 1) {
+export function amountsMatch(expected: number, found: number[], tolerance = 0.05) {
   const target = Math.round(Number(expected) * 100) / 100;
+  if (!Number.isFinite(target) || target <= 0 || !found.length) return false;
+  const primary = found[0];
+  if (Math.abs(primary - target) <= tolerance) return true;
+  const rupeeOneOcr = target === 1 && (primary === 3 || primary === 21 || primary === 71);
+  // Largest/transferred amount is the payment. Do not let leftover OCR (₹1, 1.9s) match a cheaper pass.
+  if (!rupeeOneOcr && primary >= 10 && Math.abs(primary - target) > 1) return false;
   if (found.some((a) => Math.abs(a - target) <= tolerance)) return true;
-  if (target > 0 && target < 10) {
-    // ₹1 is often read as 3 (rupee+1 glyph) or 21 / 71 (₹ → 2 or 7).
-    if (found.some((a) => a < 10 && Math.abs(a - target) <= 2)) return true;
-    if (found.some((a) => a === 20 + target || a === 70 + target)) return true;
-    if (target === 1 && found.some((a) => a === 3 || a === 7)) return true;
-  }
+  if (target === 1 && found.some((a) => a === 3 || a === 21 || a === 71)) return true;
   return false;
 }
 
@@ -106,60 +108,49 @@ export function extractTransactionId(text: string): string | null {
   return null;
 }
 
-function levenshtein(a: string, b: string) {
-  const m = a.length;
-  const n = b.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
+export function normalizeUpiId(value: string) {
+  return latinDigits(String(value ?? ''))
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/\.+$/, '');
+}
+
+export function extractUpiIds(text: string): string[] {
+  const hay = latinDigits(String(text ?? '')).toLowerCase().replace(/\s*@\s*/g, '@');
+  const found = new Set<string>();
+  const re = /[a-z0-9][a-z0-9._-]{1,254}@[a-z][a-z0-9.-]{1,63}/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(hay)) != null) {
+    found.add(normalizeUpiId(match[0]));
   }
-  return dp[m][n];
+  return [...found];
 }
 
-function maxUpiEdits(value: string) {
-  return Math.max(2, Math.floor(value.length * 0.35));
+function upiIdsEqual(a: string, b: string) {
+  const left = normalizeUpiId(a);
+  const right = normalizeUpiId(b);
+  if (!left || !right) return false;
+  return left === right;
 }
 
-/** True if configured UPI appears in screenshot/caption text (or no UPI configured). */
+/** True if configured payee VPA appears as a UPI ID in the screenshot/caption. Empty config never matches. */
 export function upiIdPresentInText(configuredUpi: string, text: string) {
-  const upi = String(configuredUpi ?? '').trim().toLowerCase();
-  if (!upi) return true;
-  const hay = latinDigits(String(text ?? '')).toLowerCase().replace(/\s+/g, '');
-  const needle = upi.replace(/\s+/g, '');
-  if (hay.includes(needle)) return true;
-  const local = needle.split('@')[0] ?? '';
-  const handle = needle.split('@')[1] ?? '';
-  if (local.length >= 3 && hay.includes(local)) return true;
-  if (handle.length >= 3 && hay.includes(handle) && local.length >= 6) {
-    const alpha = local.replace(/[^a-z]/g, '');
-    if (alpha.length >= 6 && hay.includes(alpha.slice(0, 6))) return true;
-  }
+  const want = normalizeUpiId(configuredUpi);
+  if (!want.includes('@')) return false;
+  return extractUpiIds(text).some((id) => upiIdsEqual(id, want));
+}
 
-  const tokens = hay.match(/[a-z0-9]{8,32}/g) ?? [];
-  if (local.length >= 8) {
-    const alpha = local.replace(/[^a-z]/g, '');
-    for (const token of tokens) {
-      if (levenshtein(local, token) <= maxUpiEdits(local)) return true;
-      const tokenAlpha = token.replace(/[0-9]/g, '');
-      if (alpha.length >= 8 && tokenAlpha.length >= 8 && levenshtein(alpha, tokenAlpha) <= maxUpiEdits(alpha)) {
-        return true;
-      }
-    }
-  }
-
-  // Dark BHIM/GPay receipts often OCR the banking name but garble the VPA.
-  const alpha = local.replace(/[^a-z]/g, '');
-  if (alpha.length >= 10) {
-    const prefix = alpha.slice(0, 6);
-    const suffix = alpha.slice(-6);
-    if (hay.includes(prefix) && hay.includes(suffix)) return true;
+/** True when the screenshot was paid to platform UPI, not the pool UPI. */
+export function paymentIsToPlatformUpi(text: string, platformUpi: string, poolUpi: string) {
+  const platformOk = upiIdPresentInText(platformUpi, text);
+  if (!platformOk) return false;
+  if (!upiIdPresentInText(poolUpi, text)) return true;
+  const labeled = /(?:to|payee|paid to)\s*[:\-]?\s*([a-z0-9._-]+@[a-z0-9.-]+)/i.exec(
+    latinDigits(String(text ?? '')).toLowerCase().replace(/\s*@\s*/g, '@'),
+  );
+  if (labeled?.[1] && upiIdsEqual(labeled[1], platformUpi) && !upiIdsEqual(labeled[1], poolUpi)) {
+    return true;
   }
   return false;
 }

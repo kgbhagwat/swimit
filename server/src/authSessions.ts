@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { pool } from './db/pool.js';
+import { clipMenuAccessForLoginType } from './menuAccess.js';
 
 const COOKIE_NAME = 'swimit_session';
 const CSRF_COOKIE_NAME = 'swimit_csrf';
@@ -177,7 +178,7 @@ export async function loadAuth(req: Request): Promise<AuthContext | null> {
   const { rows } = await pool.query(
     `SELECT s.id, s.saas_account_id, s.user_id, s.actor_user_id, s.session_kind,
             s.csrf_hash, a.account_code, a.status, a.login_session_timeout_minutes,
-            u.user_name, u.is_account_admin, u.menu_access, u.saas_account_id AS user_account_id,
+            u.user_name, u.is_account_admin, u.menu_access, u.login_type, u.saas_account_id AS user_account_id,
             actor.user_name AS actor_user_name, actor.is_account_admin AS actor_is_admin,
             actor_account.account_code AS actor_account_code
      FROM auth_sessions s
@@ -230,7 +231,11 @@ export async function loadAuth(req: Request): Promise<AuthContext | null> {
       ? String(row.actor_user_name ?? 'Platform admin')
       : String(row.user_name ?? ''),
     isAccountAdmin: impersonating || row.is_account_admin === true,
-    menuAccess: Array.isArray(row.menu_access) ? row.menu_access.map(String) : [],
+    menuAccess: clipMenuAccessForLoginType(
+      Array.isArray(row.menu_access) ? row.menu_access.map(String) : [],
+      row.login_type,
+      impersonating || row.is_account_admin === true,
+    ),
     kind,
   };
   void pool.query(`UPDATE auth_sessions SET last_seen_at = NOW() WHERE id = $1`, [row.id]);

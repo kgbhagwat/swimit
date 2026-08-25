@@ -58,6 +58,9 @@ function mapRow(row: Record<string, unknown>) {
   return {
     poolName: String(row.pool_name ?? ''),
     poolAddress: String(row.pool_address ?? ''),
+    poolState: String(row.pool_state ?? ''),
+    poolDistrict: String(row.pool_district ?? ''),
+    pinCode: String(row.pin_code ?? ''),
     googleMapsUrl: String(row.google_maps_url ?? ''),
     locationSet: hasCoords,
     latitude: hasCoords ? lat : null,
@@ -115,6 +118,9 @@ poolCoreInfoRouter.put(
 
       const poolName = String(body.poolName ?? '').trim();
       const poolAddress = String(body.poolAddress ?? '').trim();
+      const poolState = String(body.poolState ?? '').trim();
+      const poolDistrict = String(body.poolDistrict ?? '').trim();
+      const pinCode = String(body.pinCode ?? '').trim();
       const swimmerTerms = String(body.swimmerTerms ?? '');
       const staffTerms = String(body.staffTerms ?? '');
       const upiDetails = String(body.upiDetails ?? '').trim();
@@ -159,6 +165,10 @@ poolCoreInfoRouter.put(
       }
       if (!poolAddress) {
         res.status(400).json({ error: 'Pool address is required' });
+        return;
+      }
+      if (pinCode && !/^[1-9][0-9]{5}$/.test(pinCode)) {
+        res.status(400).json({ error: 'Enter a 6-digit PIN code' });
         return;
       }
       if (!paymentAcceptCash && !paymentAcceptOnline) {
@@ -206,23 +216,29 @@ poolCoreInfoRouter.put(
         `UPDATE pool_core_info SET
            pool_name = $1,
            pool_address = $2,
-           latitude = $3,
-           longitude = $4,
-           google_maps_url = $5,
-           pool_logo_path = $6,
-           swimmer_terms = $7,
-           staff_terms = $8,
-           payment_accept_cash = $9,
-           payment_accept_online = $10,
-           payment_qr_path = $11,
-           upi_details = $12,
+           pool_state = $3,
+           pool_district = $4,
+           pin_code = $5,
+           latitude = $6,
+           longitude = $7,
+           google_maps_url = $8,
+           pool_logo_path = $9,
+           swimmer_terms = $10,
+           staff_terms = $11,
+           payment_accept_cash = $12,
+           payment_accept_online = $13,
+           payment_qr_path = $14,
+           upi_details = $15,
            setup_completed = TRUE,
            updated_at = NOW()
-         WHERE saas_account_id = $13
+         WHERE saas_account_id = $16
          RETURNING *`,
         [
           poolName,
           poolAddress,
+          poolState,
+          poolDistrict,
+          pinCode,
           nextLatitude,
           nextLongitude,
           nextGoogleMapsUrl,
@@ -247,6 +263,9 @@ poolCoreInfoRouter.put(
         details: {
           poolName: saved.poolName,
           poolAddress: saved.poolAddress,
+          poolState: saved.poolState,
+          poolDistrict: saved.poolDistrict,
+          pinCode: saved.pinCode,
           googleMapsUrl: saved.googleMapsUrl,
           locationSet: saved.locationSet,
           paymentAcceptCash: saved.paymentAcceptCash,

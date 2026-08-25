@@ -38,6 +38,12 @@ const PoolExpenses = lazy(() =>
 const WaterQuality = lazy(() =>
   import('./WaterQuality').then((m) => ({ default: m.WaterQuality })),
 );
+const SwimmerProgress = lazy(() =>
+  import('./SwimmerProgress').then((m) => ({ default: m.SwimmerProgress })),
+);
+const ProgressTrend = lazy(() =>
+  import('./ProgressTrend').then((m) => ({ default: m.ProgressTrend })),
+);
 const ActivityLog = lazy(() =>
   import('./ActivityLog').then((m) => ({ default: m.ActivityLog })),
 );
@@ -148,6 +154,8 @@ function appFeatureRoutes() {
       <Route path="whatsapp" element={<WhatsAppMessaging />} />
       <Route path="pool-expenses" element={<PoolExpenses />} />
       <Route path="water-quality" element={<WaterQuality />} />
+      <Route path="swimmer-progress" element={<SwimmerProgress />} />
+      <Route path="progress-trend" element={<ProgressTrend />} />
       <Route path="activity-log" element={<ActivityLog />} />
       <Route path="pass-scanner" element={<PassScanner />} />
       <Route path="coach-payment" element={<CoachPayment />} />
@@ -182,6 +190,8 @@ const legacyFeatureRedirects = (
     <Route path="/whatsapp" element={<RedirectToApplication />} />
     <Route path="/pool-expenses" element={<RedirectToApplication />} />
     <Route path="/water-quality" element={<RedirectToApplication />} />
+    <Route path="/swimmer-progress" element={<RedirectToApplication />} />
+    <Route path="/progress-trend" element={<RedirectToApplication />} />
     <Route path="/activity-log" element={<RedirectToApplication />} />
     <Route path="/pass-scanner" element={<RedirectToApplication />} />
     <Route path="/coach-payment" element={<RedirectToApplication />} />

@@ -149,6 +149,9 @@ export function ApplicationGuide() {
             <li>
               <strong>Water Quality</strong> — record water quality checks <em>(Full)</em>
             </li>
+            <li>
+              <strong>Swimmer Progress</strong> — record competitive batch race times
+            </li>
           </ul>
 
           <p>
@@ -169,6 +172,9 @@ export function ApplicationGuide() {
             </li>
             <li>
               <strong>Balance Sheet</strong> — credits, debits, closing view <em>(Full)</em>
+            </li>
+            <li>
+              <strong>Progress Trend</strong> — times by date for a selected stroke and distance
             </li>
           </ul>
 

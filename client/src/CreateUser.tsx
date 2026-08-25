@@ -2,6 +2,8 @@ import { FormEvent, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
 import { useT } from './i18n';
+import { InPageSelect } from './InPageSelect';
+import { parseLoginType, type UserLoginType } from './menuCatalog';
 import { MobileField } from './MobileField';
 import {
   isPlatformUsersPath,
@@ -13,14 +15,14 @@ type FormState = {
   userName: string;
   mobile: string;
   email: string;
-  loginRadiusKm: string;
+  loginType: UserLoginType;
 };
 
 const emptyForm: FormState = {
   userName: '',
   mobile: '',
   email: '',
-  loginRadiusKm: '',
+  loginType: 'normal',
 };
 
 type CreateUserFormProps = {
@@ -32,7 +34,7 @@ type CreateUserFormProps = {
     menuAccess: string[];
     createdAt: string;
     isAccountAdmin?: boolean;
-    loginRadiusKm?: number | null;
+    loginType?: UserLoginType;
   }) => void;
 };
 
@@ -68,13 +70,6 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
       setError('Enter a valid email address');
       return;
     }
-    if (!platformMode) {
-      const km = Number(form.loginRadiusKm);
-      if (!Number.isFinite(km) || km < 1 || km > 500) {
-        setError('Enter allowed login distance between 1 and 500 km');
-        return;
-      }
-    }
 
     setSaving(true);
     try {
@@ -85,7 +80,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
           userName: form.userName.trim(),
           mobile: form.mobile.trim(),
           email: form.email.trim(),
-          ...(platformMode ? {} : { loginRadiusKm: Number(form.loginRadiusKm) }),
+          ...(platformMode ? {} : { loginType: form.loginType }),
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -106,10 +101,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
         menuAccess: Array.isArray(body.menuAccess) ? body.menuAccess.map(String) : [],
         createdAt: String(body.createdAt ?? new Date().toISOString()),
         isAccountAdmin: Boolean(body.isAccountAdmin),
-        loginRadiusKm:
-          body.loginRadiusKm == null || body.loginRadiusKm === ''
-            ? null
-            : Number(body.loginRadiusKm),
+        loginType: parseLoginType(body.loginType),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user');
@@ -177,21 +169,19 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
           </label>
 
           {!platformMode ? (
-            <label className="field field-beside create-user-login-distance">
+            <label className="field field-beside create-user-login-type">
               <span className="label">
-                {t('Allowed login distance (km)')} <span className="req">*</span>
+                {t('Login type')} <span className="req">*</span>
               </span>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                step={1}
-                className="create-user-login-radius-input"
-                value={form.loginRadiusKm}
-                onChange={(e) => setField('loginRadiusKm', e.target.value)}
-                placeholder={t('e.g. 5')}
-                inputMode="numeric"
+              <InPageSelect
+                value={form.loginType}
+                onChange={(value) => setField('loginType', parseLoginType(value))}
+                options={[
+                  { value: 'normal', label: t('Normal') },
+                  { value: 'coach', label: t('Coach') },
+                ]}
                 required
+                aria-label={t('Login type')}
               />
             </label>
           ) : null}
@@ -213,10 +203,10 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
             </button>
           </div>
         </div>
-        {!platformMode ? (
+        {!platformMode && form.loginType === 'coach' ? (
           <p className="hint create-user-login-geo-hint">
             {t(
-              'How far from the pool this user may sign in without admin approval. Farther logins need approval.',
+              'Coach logins can open only Swimmer Progress and Progress Trend for their assigned swimmers.',
             )}
           </p>
         ) : null}

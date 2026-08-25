@@ -20,8 +20,10 @@ export type MenuPageKey =
   | 'coach-payment'
   | 'pool-expenses'
   | 'water-quality'
+  | 'swimmer-progress'
   | 'balance-sheet'
   | 'payment-details'
+  | 'progress-trend'
   | 'pool-core-info'
   | 'holiday-management'
   | 'whatsapp'
@@ -55,17 +57,28 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'coach-payment', section: 'Operations', to: '/coach-payment', label: 'Coach Payment' },
   { key: 'pool-expenses', section: 'Operations', to: '/pool-expenses', label: 'Pool Expenses' },
   { key: 'water-quality', section: 'Operations', to: '/water-quality', label: 'Water Quality' },
+  { key: 'swimmer-progress', section: 'Operations', to: '/swimmer-progress', label: 'Swimmer Progress' },
   { key: 'dashboard', section: 'Information', to: '/dashboard', label: 'Dashboard' },
   { key: 'swimmers', section: 'Information', to: '/swimmers', label: "Swimmer's List" },
   { key: 'attendance-sheet', section: 'Information', to: '/attendance-sheet', label: 'Attendance Sheet' },
   { key: 'coaches', section: 'Information', to: '/coaches', label: 'Staff List' },
   { key: 'balance-sheet', section: 'Information', to: '/balance-sheet', label: 'Balance Sheet' },
   { key: 'payment-details', section: 'Information', to: '/payment-details', label: 'Payment Details' },
+  { key: 'progress-trend', section: 'Information', to: '/progress-trend', label: 'Progress Trend' },
   { key: 'register', section: 'Forms', to: '/register', label: 'Registration form' },
   { key: 'staff-register', section: 'Forms', to: '/staff-register', label: 'Staff registration' },
 ];
 
 export const ALL_PAGE_KEYS = ACCESS_PAGES.map((page) => page.key);
+
+/** Pages granted to Coach login type (not editable in User Management). */
+export const COACH_LOGIN_PAGE_KEYS: MenuPageKey[] = ['swimmer-progress', 'progress-trend'];
+
+export type UserLoginType = 'normal' | 'coach';
+
+export function parseLoginType(value: unknown): UserLoginType {
+  return String(value ?? '').trim().toLowerCase() === 'coach' ? 'coach' : 'normal';
+}
 
 /** Pages included in Trial / Starter (modules: core). */
 export const CORE_PAGE_KEYS: MenuPageKey[] = [
@@ -80,6 +93,8 @@ export const CORE_PAGE_KEYS: MenuPageKey[] = [
   'attendance-sheet',
   'pool-core-info',
   'coaches',
+  'swimmer-progress',
+  'progress-trend',
 ];
 
 /** Extra pages for Professional / Enterprise (modules: full). */

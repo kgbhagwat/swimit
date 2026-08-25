@@ -3,7 +3,6 @@ import { isApplicationDemo } from './applicationDemo';
 import { useT } from './i18n';
 import { InPageSelect } from './InPageSelect';
 import { PlatformPage } from './PlatformPage';
-import { WhatsAppChargesCard } from './WhatsAppChargesCard';
 
 type PassType = {
   id: number;
@@ -492,8 +491,6 @@ export function PassTypePage() {
           </div>
         )}
       </section>
-
-      <WhatsAppChargesCard />
 
       <section className="pass-form-card payment-calculation-card">
         <h2>{t('Payment calculation')}</h2>

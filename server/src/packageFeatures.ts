@@ -32,7 +32,7 @@ export const PACKAGE_FEATURE_DEFS: readonly PackageFeatureDef[] = [
     id: 'swimmer-info',
     label: "Swimmer list & attendance",
     level: 'core',
-    pageKeys: ['swimmers', 'attendance-sheet', 'coaches'],
+    pageKeys: ['swimmers', 'attendance-sheet', 'coaches', 'swimmer-progress', 'progress-trend'],
   },
   {
     id: 'pool-core',
