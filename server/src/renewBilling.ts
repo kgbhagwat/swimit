@@ -146,7 +146,7 @@ export async function listPaidPackages() {
     `SELECT id, package_name, price, discounted_rate, billing_period
      FROM service_packages
      WHERE COALESCE(is_active, TRUE) = TRUE
-       AND LOWER(package_name) <> 'trial'
+       AND LOWER(package_name) IN ('volume', 'standard')
        AND COALESCE(trial_days, 0) = 0
      ORDER BY price ASC, id ASC`,
   );

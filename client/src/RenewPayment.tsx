@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FilePreview } from './FilePreview';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
+import { isCurrentServicePackageName } from './packageFeatures';
 import { PlatformPage } from './PlatformPage';
 import { QrImage } from './QrImage';
 import { buildUpiPayUri } from './upiPay';
@@ -138,9 +139,11 @@ function isTrialPackage(pkg: { packageName: string; trialDays?: number }) {
   );
 }
 
-/** Paid packages only — Trial is never offered for renewal. */
+/** Paid current packages only — Trial and legacy SKUs are never offered for renewal. */
 function renewPackageOptions(all: ServicePackage[]) {
-  return all.filter((p) => p.isActive && !isTrialPackage(p));
+  return all.filter(
+    (p) => p.isActive && !isTrialPackage(p) && isCurrentServicePackageName(p.packageName),
+  );
 }
 
 function defaultRenewPackageId(
@@ -150,8 +153,8 @@ function defaultRenewPackageId(
   if (!renewOptions.length) return '';
 
   if (current.packageName.trim().toLowerCase() === 'trial') {
-    const starter = renewOptions.find((p) => p.packageName.trim().toLowerCase() === 'starter');
-    return String((starter ?? renewOptions[0]).id);
+    const volume = renewOptions.find((p) => p.packageName.trim().toLowerCase() === 'volume');
+    return String((volume ?? renewOptions[0]).id);
   }
 
   if (
@@ -548,7 +551,7 @@ export function RenewPayment() {
                       )}
                       alt={t('SwimIT SaaS payment QR code')}
                       className="online-payment-qr"
-                      size={220}
+                      size={180}
                     />
                     <UpiPayAppButton
                       uri={buildUpiPayUri(

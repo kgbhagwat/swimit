@@ -58,7 +58,7 @@ function mapSwimmerDetail(row: Record<string, unknown>) {
 }
 
 const SWIMMER_DETAIL_SELECT = `id, full_name, whatsapp_mobile, batch, coach, pass_type, pass_valid_until, created_at`;
-const DASHBOARD_DETAIL_KINDS = ['active', 'present', 'expiring', 'users', 'admissions'] as const;
+const DASHBOARD_DETAIL_KINDS = ['active', 'present', 'expiring', 'users', 'admissions', 'renewals'] as const;
 type DashboardDetailKind = (typeof DASHBOARD_DETAIL_KINDS)[number];
 
 async function deactivateExpiredPasses(accountId: number) {
@@ -106,6 +106,7 @@ dashboardRouter.get('/', async (req, res) => {
       newByCoach,
       newByPassType,
       newOnDate,
+      renewalsOnDate,
       poolInfo,
     ] = await Promise.all([
       pool.query<{
@@ -264,6 +265,23 @@ dashboardRouter.get('/', async (req, res) => {
            AND created_at::date = $2::date`,
         [accountId, asOf],
       ),
+      pool.query<{ count: string | number }>(
+        `SELECT COUNT(DISTINCT p.registration_id)::int AS count
+         FROM pass_payments p
+         WHERE p.saas_account_id = $1
+           AND p.payment_date = $2::date
+           AND EXISTS (
+             SELECT 1
+             FROM pass_payments prev
+             WHERE prev.saas_account_id = p.saas_account_id
+               AND prev.registration_id = p.registration_id
+               AND (
+                 prev.payment_date < p.payment_date
+                 OR (prev.payment_date = p.payment_date AND prev.id < p.id)
+               )
+           )`,
+        [accountId, asOf],
+      ),
       pool.query<{ pool_name: string | null; city: string | null }>(
         `SELECT pci.pool_name, a.city
          FROM saas_accounts a
@@ -329,6 +347,7 @@ dashboardRouter.get('/', async (req, res) => {
         expiringSoon,
         expiryNoticeDays: noticeDays,
         newAdmissionsToday: Number(newOnDate.rows[0]?.count ?? 0),
+        renewalsToday: Number(renewalsOnDate.rows[0]?.count ?? 0),
       },
       paymentsToday: {
         cash,
@@ -423,6 +442,32 @@ dashboardRouter.get('/details', async (req, res) => {
          WHERE saas_account_id = $1
            AND created_at::date = $2::date
          ORDER BY LOWER(full_name) ASC, id ASC
+         LIMIT 500`,
+        [accountId, asOf],
+      );
+    } else if (kind === 'renewals') {
+      result = await pool.query(
+        `SELECT ${SWIMMER_DETAIL_SELECT}
+         FROM registrations r
+         WHERE r.saas_account_id = $1
+           AND EXISTS (
+             SELECT 1
+             FROM pass_payments p
+             WHERE p.saas_account_id = r.saas_account_id
+               AND p.registration_id = r.id
+               AND p.payment_date = $2::date
+               AND EXISTS (
+                 SELECT 1
+                 FROM pass_payments prev
+                 WHERE prev.saas_account_id = p.saas_account_id
+                   AND prev.registration_id = p.registration_id
+                   AND (
+                     prev.payment_date < p.payment_date
+                     OR (prev.payment_date = p.payment_date AND prev.id < p.id)
+                   )
+               )
+           )
+         ORDER BY LOWER(r.full_name) ASC, r.id ASC
          LIMIT 500`,
         [accountId, asOf],
       );

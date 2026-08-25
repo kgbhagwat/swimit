@@ -40,6 +40,7 @@ type BatchCoach = {
 
 const BATCH_TYPES = ['General', 'Ladies', 'Advance'];
 const SESSIONS: Session[] = ['Morning', 'Afternoon', 'Evening', 'Complete Day'];
+const NAMED_SESSIONS: Session[] = ['Morning', 'Afternoon', 'Evening'];
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
@@ -70,16 +71,29 @@ function parseSession(value: unknown): Session {
   return SESSIONS.includes(value as Session) ? (value as Session) : 'Morning';
 }
 
-function defaultSchedule(session: Session = 'Morning'): ScheduleSettings {
+function defaultSchedule(
+  session: Session = 'Morning',
+  from?: Pick<ScheduleSettings, 'batchMinutes' | 'breakMinutes'>,
+): ScheduleSettings {
   const times = SESSION_DEFAULTS[session];
   return {
     id: createId(),
     session,
-    batchMinutes: '',
-    breakMinutes: '',
+    batchMinutes: from?.batchMinutes ?? '',
+    breakMinutes: from?.breakMinutes ?? '',
     firstStart: { ...times.firstStart },
     lastEnd: { ...times.lastEnd },
   };
+}
+
+function nextNamedSession(existing: Session[]): Session | null {
+  const used = new Set(existing);
+  return NAMED_SESSIONS.find((session) => !used.has(session)) ?? null;
+}
+
+function canAddSessionRow(rows: ScheduleSettings[]) {
+  if (rows.some((row) => row.session === 'Complete Day')) return rows.length === 1;
+  return nextNamedSession(rows.map((row) => row.session)) != null;
 }
 
 function resolveBatchMinutes(value: number | '') {
@@ -410,7 +424,25 @@ export function BatchList() {
   }
 
   function addScheduleRow() {
-    setSchedules((prev) => [...prev, defaultSchedule()]);
+    setSchedules((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last) return [defaultSchedule()];
+
+      if (last.session === 'Complete Day') {
+        const morning = SESSION_DEFAULTS.Morning;
+        const converted: ScheduleSettings = {
+          ...last,
+          session: 'Morning',
+          firstStart: { ...morning.firstStart },
+          lastEnd: { ...morning.lastEnd },
+        };
+        return [converted, defaultSchedule('Afternoon', last)];
+      }
+
+      const next = nextNamedSession(prev.map((row) => row.session));
+      if (!next) return prev;
+      return [...prev, defaultSchedule(next, last)];
+    });
   }
 
   function removeScheduleRow(id: string) {
@@ -750,7 +782,7 @@ export function BatchList() {
                   </label>
                   <div className="schedule-row-actions">
                     {isLast ? (
-                      schedule.session !== 'Complete Day' ? (
+                      canAddSessionRow(schedules) ? (
                         <button
                           type="button"
                           className="schedule-add-session"

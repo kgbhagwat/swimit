@@ -7,8 +7,6 @@ import {
   PACKAGE_FEATURE_DEFS,
   resolvedFeatureKeys,
 } from './packageFeatures';
-import { PlatformPage } from './PlatformPage';
-import { PlatformShell } from './PlatformShell';
 import { getPlatformSession } from './platformSession';
 
 type ServicePackage = {
@@ -56,12 +54,15 @@ const emptyForm: PackageForm = {
   maxUsers: '5',
   maxActiveSwimmers: '100',
   trialDays: '0',
-  modules: 'core',
+  modules: 'full',
   supportLevel: 'whatsapp',
   features: '',
-  featureKeys: defaultFeatureKeysForModules('core'),
+  featureKeys: defaultFeatureKeysForModules('full'),
   isActive: true,
 };
+
+/** Public pricing is the draft seat plans. Hide the old package editor on this page. */
+const SHOW_PACKAGE_ADMIN = false;
 
 function formatMoney(value: number) {
   return `₹${value.toLocaleString('en-IN')}`;
@@ -143,8 +144,9 @@ export function ServicePackages() {
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (SHOW_PACKAGE_ADMIN && canManagePackages) void load();
+    else setLoading(false);
+  }, [canManagePackages]);
 
   function setField<K extends keyof PackageForm>(key: K, value: PackageForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -303,30 +305,278 @@ export function ServicePackages() {
     }
   }
 
+  const packageCatalog = (
+    <>
+      {loading ? (
+        <p className="muted pricing-status">{t('Loading…')}</p>
+      ) : pricingPackages.length === 0 ? (
+        <p className="pass-empty pricing-status">{t('No service packages yet.')}</p>
+      ) : (
+        <section className="pricing-cards" aria-label={t('Previous pricing (package plans)')}>
+          {pricingPackages.map((item) => {
+            const popular = isPopularPlan(item, pricingPackages);
+            const hasDiscount =
+              item.discountedRate != null && item.discountedRate > 0;
+            const displayPrice = hasDiscount ? item.discountedRate! : item.price;
+            const highlights = [
+              item.maxActiveSwimmers == null
+                ? t('Unlimited swimmers')
+                : `${item.maxActiveSwimmers} ${t('active swimmers')}`,
+              `${item.maxUsers} ${t('users')}`,
+              t('All modules included'),
+            ];
+            if (item.trialDays > 0) {
+              highlights.push(`${item.trialDays}-${t('day trial')}`);
+            }
+            if (item.supportLevel === 'onboarding') {
+              highlights.push(t('Onboarding support'));
+            } else {
+              highlights.push('WhatsApp');
+            }
+
+            return (
+              <article
+                key={item.id}
+                className={`pricing-card${popular ? ' is-popular' : ''}`}
+              >
+                {popular ? <span className="pricing-card-badge">{t('Most popular')}</span> : null}
+                <h2 className="pricing-card-name">{item.packageName}</h2>
+                <p className="pricing-card-desc">
+                  {item.description || t('SwimIT service package for pool operations.')}
+                </p>
+                <div className="pricing-card-price">
+                  {item.price === 0 && !hasDiscount ? (
+                    <span className="pricing-card-amount">{t('Free')}</span>
+                  ) : (
+                    <>
+                      {hasDiscount ? (
+                        <span className="pricing-card-was">{formatMoney(item.price)}</span>
+                      ) : null}
+                      <span className="pricing-card-amount">{formatMoney(displayPrice)}</span>
+                      <span className="pricing-card-period">/ {t(item.billingPeriod)}</span>
+                    </>
+                  )}
+                </div>
+                <ul className="pricing-card-points">
+                  {highlights.map((line) => (
+                    <li key={line}>
+                      <span className="pricing-card-check" aria-hidden>
+                        ✓
+                      </span>
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to={`/create-account?package=${item.id}`}
+                  className={`marketing-btn pricing-card-cta${
+                    popular ? ' marketing-btn--primary' : ' marketing-btn--outline'
+                  }`}
+                >
+                  {t('Get Started')}
+                </Link>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      {!loading && pricingPackages.length > 0 ? (
+        <section className="pricing-compare" aria-labelledby="pricing-compare-heading">
+          <h2 id="pricing-compare-heading">{t('Compare plans')}</h2>
+          <p className="pricing-compare-lead">
+            {t('See what is included in each SwimIT package.')}
+          </p>
+          <div className="pricing-compare-wrap">
+            <table className="pricing-compare-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t('Features')}</th>
+                  {pricingPackages.map((item) => (
+                    <th key={item.id} scope="col">
+                      {item.packageName}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">{t('Price')}</th>
+                  {pricingPackages.map((item) => (
+                    <td key={item.id}>
+                      {item.price === 0
+                        ? t('Free')
+                        : `${formatMoney(
+                            item.discountedRate != null && item.discountedRate > 0
+                              ? item.discountedRate
+                              : item.price,
+                          )} / ${t(item.billingPeriod)}`}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">{t('Max active swimmers')}</th>
+                  {pricingPackages.map((item) => (
+                    <td key={item.id}>
+                      {item.maxActiveSwimmers == null ? t('Unlimited') : item.maxActiveSwimmers}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">{t('Max users')}</th>
+                  {pricingPackages.map((item) => (
+                    <td key={item.id}>{item.maxUsers}</td>
+                  ))}
+                </tr>
+                {PACKAGE_FEATURE_DEFS.map((feature) => (
+                  <tr key={feature.id}>
+                    <th scope="row">{t(feature.label)}</th>
+                    {pricingPackages.map((item) => (
+                      <td key={item.id}>
+                        <FeatureTick on={packageIncludesFeature(item, feature.id)} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
+
   const pageBody = (
       <div className={`pricing-page${canManagePackages ? ' pricing-page--platform' : ''}`}>
-        {canManagePackages ? null : (
         <header className="pricing-hero">
           <p className="marketing-eyebrow">{t('Pricing')}</p>
-          <h1>{t('Simple plans for every pool')}</h1>
+          <p className="pricing-draft-note">{t('Draft pricing — we will update these numbers later.')}</p>
+          <h1>{t('Pay for the swimmers you run')}</h1>
           <p className="pricing-hero-lead">
             {t(
-              'Choose a SwimIT plan that fits your pool size and operations. Start free, upgrade anytime.',
+              'Every plan includes every SwimIT module. Pay in advance for expected active swimmers, then recharge if you grow during the month.',
             )}
           </p>
         </header>
-        )}
+
+        <section className="pricing-cards pricing-cards--new" aria-label={t('Pricing')}>
+            <article className="pricing-card">
+              <h2 className="pricing-card-name">{t('Trial')}</h2>
+              <p className="pricing-card-desc">
+                {t('Try the full product for 30 days. Convert to Standard or Volume before the trial ends.')}
+              </p>
+              <div className="pricing-card-price">
+                <span className="pricing-card-amount">{t('Free')}</span>
+                <span className="pricing-card-period">/ {t('30 days')}</span>
+              </div>
+              <ul className="pricing-card-points">
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>{t('All modules included')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>50 {t('billable swimmers')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>{t('3 broadcasts and 3 pass reminders included')}</span>
+                </li>
+              </ul>
+              <Link to="/create-account" className="marketing-btn pricing-card-cta marketing-btn--outline">
+                {t('Get Started')}
+              </Link>
+            </article>
+
+            <article className="pricing-card">
+              <h2 className="pricing-card-name">{t('Standard')}</h2>
+              <p className="pricing-card-desc">
+                {t('For a single pool. Floor covers 50 billable swimmers; extras billed per head.')}
+              </p>
+              <div className="pricing-card-price">
+                <span className="pricing-card-amount">₹1,999</span>
+                <span className="pricing-card-period">/ {t('Month')}</span>
+              </div>
+              <ul className="pricing-card-points">
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>{t('All modules included')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>50 {t('billable swimmers included')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>₹25 {t('per extra swimmer per month')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>{t('3 broadcasts and 3 pass reminders included')}</span>
+                </li>
+              </ul>
+              <Link to="/create-account" className="marketing-btn pricing-card-cta marketing-btn--outline">
+                {t('Get Started')}
+              </Link>
+            </article>
+
+            <article className="pricing-card is-popular">
+              <span className="pricing-card-badge">{t('Most popular')}</span>
+              <h2 className="pricing-card-name">{t('Volume')}</h2>
+              <p className="pricing-card-desc">
+                {t('Same full product, lower extra-swimmer rate as the pool grows.')}
+              </p>
+              <div className="pricing-card-price">
+                <span className="pricing-card-amount">₹3,499</span>
+                <span className="pricing-card-period">/ {t('Month')}</span>
+              </div>
+              <ul className="pricing-card-points">
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>{t('All modules included')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>100 {t('billable swimmers included')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>₹20 {t('per extra swimmer per month')}</span>
+                </li>
+                <li>
+                  <span className="pricing-card-check" aria-hidden>✓</span>
+                  <span>{t('3 broadcasts and 3 pass reminders included')}</span>
+                </li>
+              </ul>
+              <Link to="/create-account" className="marketing-btn pricing-card-cta marketing-btn--primary">
+                {t('Get Started')}
+              </Link>
+            </article>
+          </section>
+
+          <section className="pricing-rules" aria-labelledby="pricing-rules-heading">
+            <h2 id="pricing-rules-heading">{t('How we count swimmers')}</h2>
+            <ul>
+              <li>{t('A monthly or longer pass that overlaps the month counts as 1 billable swimmer.')}</li>
+              <li>{t('30 daily passes count as 1 billable swimmer.')}</li>
+              <li>{t('Pay in advance for the seats you expect. We will ask you to recharge extra seats if you are close to the pack.')}</li>
+              <li>{t('Extra WhatsApp messages beyond the included bundle are ₹1 each, billed on the next recharge.')}</li>
+            </ul>
+          </section>
 
         {error ? <p className="error pricing-status">{t(error)}</p> : null}
         {success ? <p className="success pricing-status">{t(success)}</p> : null}
 
-        {canManagePackages ? (
+        {SHOW_PACKAGE_ADMIN && canManagePackages ? (
           <section className="pricing-admin" aria-label={t('Service Packages')}>
             <div className="pricing-admin-head">
               <div>
                 <h2>{t('Manage packages')}</h2>
                 <p>{t('Platform tools for creating and editing SwimIT plans.')}</p>
               </div>
+              <button type="button" className="submit" onClick={startCreate}>
+                {t('Create package')}
+              </button>
             </div>
 
             {showForm ? (
@@ -569,146 +819,16 @@ export function ServicePackages() {
           </section>
         ) : null}
 
-        {loading ? (
-          <p className="muted pricing-status">{t('Loading…')}</p>
-        ) : pricingPackages.length === 0 ? (
-          <p className="pass-empty pricing-status">{t('No service packages yet.')}</p>
-        ) : (
-          <section className="pricing-cards" aria-label={t('Pricing')}>
-            {pricingPackages.map((item) => {
-              const popular = isPopularPlan(item, pricingPackages);
-              const hasDiscount =
-                item.discountedRate != null && item.discountedRate > 0;
-              const displayPrice = hasDiscount ? item.discountedRate! : item.price;
-              const highlights = [
-                item.maxActiveSwimmers == null
-                  ? t('Unlimited swimmers')
-                  : `${item.maxActiveSwimmers} ${t('active swimmers')}`,
-                `${item.maxUsers} ${t('users')}`,
-                item.trialDays > 0
-                  ? `${item.trialDays}-${t('day trial')}`
-                  : item.modules === 'full'
-                    ? t('Full modules')
-                    : t('Core modules'),
-              ];
-              if (item.supportLevel === 'onboarding') {
-                highlights.push(t('Onboarding support'));
-              } else if (item.supportLevel === 'whatsapp' && item.modules === 'full') {
-                // Skip WhatsApp on Trial/Starter (core); keep it on full plans like Enterprise.
-                highlights.push('WhatsApp');
-              }
-
-              return (
-                <article
-                  key={item.id}
-                  className={`pricing-card${popular ? ' is-popular' : ''}`}
-                >
-                  {popular ? <span className="pricing-card-badge">{t('Most popular')}</span> : null}
-                  <h2 className="pricing-card-name">{item.packageName}</h2>
-                  <p className="pricing-card-desc">
-                    {item.description || t('SwimIT service package for pool operations.')}
-                  </p>
-                  <div className="pricing-card-price">
-                    {item.price === 0 && !hasDiscount ? (
-                      <span className="pricing-card-amount">{t('Free')}</span>
-                    ) : (
-                      <>
-                        {hasDiscount ? (
-                          <span className="pricing-card-was">{formatMoney(item.price)}</span>
-                        ) : null}
-                        <span className="pricing-card-amount">{formatMoney(displayPrice)}</span>
-                        <span className="pricing-card-period">/ {t(item.billingPeriod)}</span>
-                      </>
-                    )}
-                  </div>
-                  <ul className="pricing-card-points">
-                    {highlights.map((line) => (
-                      <li key={line}>
-                        <span className="pricing-card-check" aria-hidden>
-                          ✓
-                        </span>
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    to={`/create-account?package=${item.id}`}
-                    className={`marketing-btn pricing-card-cta${
-                      popular ? ' marketing-btn--primary' : ' marketing-btn--outline'
-                    }`}
-                  >
-                    {t('Get Started')}
-                  </Link>
-                </article>
-              );
-            })}
-          </section>
-        )}
-
-        {!loading && pricingPackages.length > 0 ? (
-          <section className="pricing-compare" aria-labelledby="pricing-compare-heading">
-            <h2 id="pricing-compare-heading">{t('Compare plans')}</h2>
-            <p className="pricing-compare-lead">
-              {t('See what is included in each SwimIT package.')}
+        {SHOW_PACKAGE_ADMIN ? (
+          <details className="pricing-legacy">
+            <summary>{t('Previous pricing (package plans)')}</summary>
+            <p className="pricing-legacy-lead">
+              {t('These were the older flat monthly packages with swimmer caps. New accounts should use the seat-based plans above.')}
             </p>
-            <div className="pricing-compare-wrap">
-              <table className="pricing-compare-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t('Features')}</th>
-                    {pricingPackages.map((item) => (
-                      <th key={item.id} scope="col">
-                        {item.packageName}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">{t('Price')}</th>
-                    {pricingPackages.map((item) => (
-                      <td key={item.id}>
-                        {item.price === 0
-                          ? t('Free')
-                          : `${formatMoney(
-                              item.discountedRate != null && item.discountedRate > 0
-                                ? item.discountedRate
-                                : item.price,
-                            )} / ${t(item.billingPeriod)}`}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th scope="row">{t('Max active swimmers')}</th>
-                    {pricingPackages.map((item) => (
-                      <td key={item.id}>
-                        {item.maxActiveSwimmers == null ? t('Unlimited') : item.maxActiveSwimmers}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th scope="row">{t('Max users')}</th>
-                    {pricingPackages.map((item) => (
-                      <td key={item.id}>{item.maxUsers}</td>
-                    ))}
-                  </tr>
-                  {PACKAGE_FEATURE_DEFS.map((feature) => (
-                    <tr key={feature.id}>
-                      <th scope="row">{t(feature.label)}</th>
-                      {pricingPackages.map((item) => (
-                        <td key={item.id}>
-                          <FeatureTick on={packageIncludesFeature(item, feature.id)} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+            {packageCatalog}
+          </details>
         ) : null}
 
-        {canManagePackages ? null : (
         <section className="pricing-footer-cta">
           <h2>{t('Ready to run your pool better?')}</h2>
           <p>{t('Create your SwimIT account and start with the plan that fits you.')}</p>
@@ -716,26 +836,8 @@ export function ServicePackages() {
             {t('Get Started')}
           </Link>
         </section>
-        )}
       </div>
   );
-
-  if (canManagePackages) {
-    return (
-      <PlatformShell>
-        <PlatformPage
-          title="Service Packages"
-          actions={
-            <button type="button" className="submit" onClick={startCreate}>
-              {t('Create package')}
-            </button>
-          }
-        >
-          {pageBody}
-        </PlatformPage>
-      </PlatformShell>
-    );
-  }
 
   return <MarketingLayout>{pageBody}</MarketingLayout>;
 }

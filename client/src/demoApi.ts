@@ -1125,6 +1125,7 @@ function sampleCountForKind(kind: string, asOf: string) {
   const seed = Number(String(asOf).replace(/\D/g, '')) || 1;
   if (kind === 'present') return 12 + (seed % 17);
   if (kind === 'admissions') return 1 + (seed % 5);
+  if (kind === 'renewals') return 1 + (seed % 4);
   if (kind === 'expiring') return 2 + (seed % 8);
   if (kind === 'users') return 4;
   return 36 + (seed % 20);
@@ -1227,6 +1228,13 @@ function buildDemoDashboardDetails(store: DemoStore, kind: string, asOfRaw?: str
       const created = String(row.created_at ?? row.createdAt ?? '').slice(0, 10);
       return created === asOf;
     });
+  } else if (kind === 'renewals') {
+    selected = store.registrations
+      .filter((row) => {
+        const created = String(row.created_at ?? row.createdAt ?? '').slice(0, 10);
+        return Boolean(created) && created < asOf;
+      })
+      .slice(0, sampleCountForKind('renewals', asOf));
   }
 
   if (!store.registrations.length) {
@@ -1300,9 +1308,10 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
     const seed = Number(asOf.replace(/\D/g, '')) || 1;
     const present = 12 + (seed % 17);
     const newAdmissions = 1 + (seed % 5);
+    const renewals = 1 + (seed % 4);
     const cash = 1000 * (2 + (seed % 6));
     const online = 1000 * (3 + (seed % 8));
-    const count = 2 + (seed % 7);
+    const count = newAdmissions + renewals;
     const activeSwimmers = 36 + (seed % 20);
     const expiringSoonSample = 2 + (seed % 8);
     return {
@@ -1316,6 +1325,7 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
         expiringSoon: expiringSoonSample,
         expiryNoticeDays: noticeDays,
         newAdmissionsToday: newAdmissions,
+        renewalsToday: renewals,
       },
       paymentsToday: { cash, online, total: cash + online, count },
       activeBy: {
@@ -1386,6 +1396,13 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
       expiringSoon,
       expiryNoticeDays: noticeDays,
       newAdmissionsToday: newToday.length,
+      renewalsToday: Math.min(
+        store.registrations.filter((row) => {
+          const created = String(row.created_at ?? row.createdAt ?? '').slice(0, 10);
+          return Boolean(created) && created < asOf;
+        }).length,
+        sampleCountForKind('renewals', asOf),
+      ),
     },
     paymentsToday: { cash: 0, online: 0, total: 0, count: 0 },
     activeBy: {

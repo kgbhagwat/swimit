@@ -67,20 +67,7 @@ function createEmptyForm(): PassForm {
   };
 }
 
-type CoachOption = {
-  name: string;
-  teachStrokes: string[];
-};
-
 type PaymentBasis = 'pass' | 'month' | 'day';
-
-const STROKE_FILTER_OPTIONS = [
-  'Free Style',
-  'Back Stroke',
-  'Breast Stroke',
-  'Butterfly',
-  'Competitive',
-] as const;
 
 function formatMoney(value: number) {
   return `₹${value.toLocaleString('en-IN')}`;
@@ -154,27 +141,15 @@ function toggleForOption(current: string[], option: string): string[] {
   return [...current, option];
 }
 
-function selectedStrokeFilters(forOptions: string[]) {
-  if (forOptions.includes('Any Stroke')) return [...STROKE_FILTER_OPTIONS];
-  return forOptions.filter((option) =>
-    (STROKE_FILTER_OPTIONS as readonly string[]).includes(option),
-  );
-}
-
-function coachesForSelection(coaches: CoachOption[], forOptions: string[]) {
-  const strokes = selectedStrokeFilters(forOptions);
-  if (strokes.length === 0) {
-    return coaches.map((coach) => coach.name);
-  }
-  return coaches
-    .filter((coach) => strokes.some((stroke) => coach.teachStrokes.includes(stroke)))
-    .map((coach) => coach.name);
+function passTypeCoachChoice(coach: string) {
+  const value = String(coach ?? '').trim() || 'Not Required';
+  if (value === 'Not Required' || value === 'Any') return value;
+  return 'Any';
 }
 
 export function PassTypePage() {
   const t = useT();
   const [items, setItems] = useState<PassType[]>([]);
-  const [coaches, setCoaches] = useState<CoachOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -185,14 +160,13 @@ export function PassTypePage() {
   const [basisSaving, setBasisSaving] = useState(false);
   const [basisError, setBasisError] = useState('');
 
-  const coachSelectOptions = useMemo(() => {
-    const matching = coachesForSelection(coaches, form.forOptions);
-    return [
+  const coachSelectOptions = useMemo(
+    () => [
       { value: 'Not Required', label: t('Not Required') },
       { value: 'Any', label: t('Any') },
-      ...matching.map((name) => ({ value: name, label: name })),
-    ];
-  }, [coaches, form.forOptions, t]);
+    ],
+    [t],
+  );
   const durationUnitOptions = useMemo(
     () => DURATION_UNITS.map((unit) => ({ value: unit, label: t(unit) })),
     [t],
@@ -233,35 +207,6 @@ export function PassTypePage() {
         )
         .finally(() => setBasisLoading(false));
     }
-    void fetch('/api/staff-registrations')
-      .then((res) => (res.ok ? res.json() : []))
-      .then(
-        (
-          rows: Array<{
-            registration_for?: string;
-            full_name?: string;
-            teach_strokes?: string[] | null;
-          }>,
-        ) => {
-          const byName = new Map<string, CoachOption>();
-          for (const row of rows) {
-            if (row.registration_for !== 'Coach' || !row.full_name?.trim()) continue;
-            const name = row.full_name.trim();
-            const teachStrokes = Array.isArray(row.teach_strokes) ? row.teach_strokes : [];
-            const existing = byName.get(name);
-            if (existing) {
-              byName.set(name, {
-                name,
-                teachStrokes: [...new Set([...existing.teachStrokes, ...teachStrokes])],
-              });
-            } else {
-              byName.set(name, { name, teachStrokes });
-            }
-          }
-          setCoaches([...byName.values()].sort((a, b) => a.name.localeCompare(b.name)));
-        },
-      )
-      .catch(() => setCoaches([]));
   }, []);
 
   async function savePaymentBasis(basis: PaymentBasis) {
@@ -287,18 +232,9 @@ export function PassTypePage() {
   }
 
   function updateForOptions(option: string) {
-    const forOptions = toggleForOption(form.forOptions, option);
-    const nextCoaches = coachesForSelection(coaches, forOptions);
-    const coachStillValid =
-      form.coach === 'Not Required' ||
-      form.coach === 'Any' ||
-      nextCoaches.includes(form.coach);
     setForm({
       ...form,
-      forOptions,
-      coach: coachStillValid ? form.coach : 'Not Required',
-      coachingCharges:
-        coachStillValid && form.coach !== 'Not Required' ? form.coachingCharges : '',
+      forOptions: toggleForOption(form.forOptions, option),
     });
   }
 
@@ -315,7 +251,7 @@ export function PassTypePage() {
       durationUnit,
       passCharges: String(item.passCharges),
       coachingCharges: String(item.coachingCharges),
-      coach: item.coach || 'Not Required',
+      coach: passTypeCoachChoice(item.coach),
       testRequired: Boolean(item.testRequired),
       maxSwimmersPerCoach: formatMaxSwimmers(item.maxSwimmersPerCoach),
       exceedingLimitAllowed: item.exceedingLimitAllowed === false ? 'No' : 'Yes',
@@ -464,7 +400,7 @@ export function PassTypePage() {
                 <div className="pass-block-row">
                   <span data-label="Pass Charges">{formatMoney(item.passCharges)}</span>
                   <span data-label="Coaching Charges">{formatMoney(item.coachingCharges)}</span>
-                  <span data-label="Coach">{t(item.coach || 'Not Required')}</span>
+                  <span data-label="Coach">{t(passTypeCoachChoice(item.coach))}</span>
                   <span className="pass-actions" data-label="Actions">
                     <button
                       type="button"

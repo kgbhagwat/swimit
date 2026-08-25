@@ -34,7 +34,7 @@ export function MarketingHome() {
             )}
           </p>
           <div className="marketing-hero-actions">
-            <Link to="/create-account" className="marketing-btn marketing-btn--primary marketing-btn--lg">
+            <Link to="/service-packages" className="marketing-btn marketing-btn--primary marketing-btn--lg">
               {t('Get Started')}
               <span className="marketing-btn-arrow" aria-hidden>
                 →

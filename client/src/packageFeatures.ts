@@ -1,5 +1,4 @@
 import type { MenuPageKey } from './menuCatalog';
-import { resolvePackageModules } from './menuCatalog';
 
 export type PackageFeatureDef = {
   id: string;
@@ -108,35 +107,41 @@ export function sanitizeFeatureKeys(value: unknown): string[] {
   return [...unique];
 }
 
-export function defaultFeatureKeysForModules(
-  modules?: string | null,
-  packageName?: string | null,
-): string[] {
-  const full = resolvePackageModules(modules, packageName) === 'full';
-  return PACKAGE_FEATURE_DEFS.filter((f) => full || f.level === 'core').map((f) => f.id);
+export function allPackageFeatureKeys(): string[] {
+  return PACKAGE_FEATURE_DEFS.map((f) => f.id);
 }
 
-export function resolvedFeatureKeys(opts: {
+const CURRENT_SERVICE_PACKAGE_NAMES = new Set(['trial', 'standard', 'volume']);
+
+/** Trial / Standard / Volume — hide legacy Starter / Professional / Business / Enterprise. */
+export function isCurrentServicePackageName(name: unknown) {
+  return CURRENT_SERVICE_PACKAGE_NAMES.has(String(name ?? '').trim().toLowerCase());
+}
+
+/** Every plan includes every module. Keep the args for older call sites. */
+export function defaultFeatureKeysForModules(
+  _modules?: string | null,
+  _packageName?: string | null,
+): string[] {
+  return allPackageFeatureKeys();
+}
+
+export function resolvedFeatureKeys(_opts?: {
   modules?: string | null;
   packageName?: string | null;
   featureKeys?: unknown;
 }): string[] {
-  const selected = sanitizeFeatureKeys(opts.featureKeys);
-  return selected.length > 0
-    ? selected
-    : defaultFeatureKeysForModules(opts.modules, opts.packageName);
+  return allPackageFeatureKeys();
 }
 
-/** Menu page keys allowed for a service package (custom features or modules fallback). */
-export function pageKeysForPackage(opts: {
+/** Menu page keys allowed for a service package. Every plan includes every module. */
+export function pageKeysForPackage(_opts?: {
   modules?: string | null;
   packageName?: string | null;
   featureKeys?: unknown;
 }): MenuPageKey[] {
-  const ids = resolvedFeatureKeys(opts);
   const pages = new Set<MenuPageKey>(['dashboard']);
   for (const def of PACKAGE_FEATURE_DEFS) {
-    if (!ids.includes(def.id)) continue;
     for (const pageKey of def.pageKeys) pages.add(pageKey);
   }
   return [...pages];

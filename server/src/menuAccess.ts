@@ -55,7 +55,7 @@ export function clipMenuAccessForLoginType(
 }
 
 export function menuAccessForLoginType(
-  keys: string[],
+  keys: unknown,
   loginType: unknown,
   packageKeys: AccessPageKey[],
   isAccountAdmin?: boolean,

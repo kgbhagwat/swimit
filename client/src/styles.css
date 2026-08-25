@@ -2519,6 +2519,27 @@ html[data-theme='dark'] .swimmer-row > *::before {
   margin-top: 1rem;
 }
 
+.renew-pay-card .online-payment-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.platform-page .renew-pay-card .qr-pay-link,
+.platform-page .renew-pay-card .online-payment-qr {
+  display: block;
+  width: min(180px, 70vw);
+  max-width: 180px;
+  height: min(180px, 40vh);
+  max-height: min(180px, 40vh);
+}
+
+.platform-page .renew-pay-card .online-payment-qr {
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
 .renew-confirm-card {
   margin-bottom: 1rem;
   border-color: #9fd5b8;
@@ -16635,13 +16656,13 @@ html.sensitive-screen-cover-on::before {
 
 .dashboard-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 0.55rem;
 }
 
 @media (max-width: 900px) {
   .dashboard-kpi-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow-x: visible;
   }
 
@@ -16688,6 +16709,11 @@ html.sensitive-screen-cover-on::before {
 .dashboard-kpi--admissions {
   background: #fce4ef;
   border-color: #e8b0c8;
+}
+
+.dashboard-kpi--renewals {
+  background: #e6f4d8;
+  border-color: #b5d89a;
 }
 
 .dashboard-kpi--cash {
@@ -18612,6 +18638,54 @@ body:has(.marketing-site),
   line-height: 1.55;
 }
 
+.pricing-rules {
+  max-width: 46rem;
+  margin: 0 auto 2.5rem;
+  padding: 1.15rem 1.3rem;
+  border: 1px solid #b7d4de;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.pricing-rules h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.15rem;
+  color: #143867;
+}
+
+.pricing-rules ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #355072;
+  line-height: 1.55;
+}
+
+.pricing-rules li + li {
+  margin-top: 0.4rem;
+}
+
+.pricing-legacy {
+  margin: 0 0 2.5rem;
+  padding: 0.85rem 1rem 1rem;
+  border: 1px dashed #9bb4c8;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.pricing-legacy > summary {
+  cursor: pointer;
+  font-weight: 750;
+  color: #163a6b;
+  font-size: 1rem;
+}
+
+.pricing-legacy-lead {
+  margin: 0.65rem 0 1.1rem;
+  color: var(--mkt-muted, #4a6484);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .pricing-status {
   text-align: center;
 }
@@ -18622,6 +18696,12 @@ body:has(.marketing-site),
   gap: 0.75rem;
   align-items: stretch;
   margin-bottom: 2.75rem;
+}
+
+.pricing-cards.pricing-cards--new {
+  grid-template-columns: repeat(3, minmax(16rem, 22rem));
+  justify-content: center;
+  width: 100%;
 }
 
 .pricing-card {
@@ -18982,12 +19062,28 @@ html[data-theme='dark'] .pricing-admin-feature.is-off {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .pricing-cards.pricing-cards--new {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .pricing-cards--new .pricing-card {
+    width: 100%;
+    max-width: 22rem;
+  }
+
   /* 2, 1, 2 — middle card centered on its own row */
   .pricing-card:nth-child(3) {
     grid-column: 1 / -1;
     width: 100%;
     max-width: calc((100% - 0.75rem) / 2);
     justify-self: center;
+  }
+
+  .pricing-cards.pricing-cards--new .pricing-card:nth-child(3) {
+    grid-column: auto;
+    max-width: none;
+    justify-self: stretch;
   }
 
   .pricing-card.is-popular {
@@ -20854,6 +20950,27 @@ html[data-theme='dark'] .pricing-compare-table .package-tick-off {
 html[data-theme='dark'] .pricing-footer-cta {
   background: linear-gradient(180deg, #172a42 0%, #12263d 100%) !important;
   border-color: rgba(75, 132, 245, 0.22) !important;
+}
+
+html[data-theme='dark'] .pricing-hero h1,
+html[data-theme='dark'] .pricing-rules h2 {
+  color: #e8f0fa;
+}
+
+html[data-theme='dark'] .pricing-hero-lead,
+html[data-theme='dark'] .pricing-legacy-lead,
+html[data-theme='dark'] .pricing-rules li {
+  color: #9bb0c9;
+}
+
+html[data-theme='dark'] .pricing-rules,
+html[data-theme='dark'] .pricing-legacy {
+  background: #172a42;
+  border-color: rgba(75, 132, 245, 0.22);
+}
+
+html[data-theme='dark'] .pricing-legacy > summary {
+  color: #e8f0fa;
 }
 
 html[data-theme='dark'] .pricing-admin {

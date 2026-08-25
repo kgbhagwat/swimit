@@ -412,7 +412,6 @@ export function AccountPortal() {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setRemotePending(null);
     setLoggingIn(true);
     try {
       if (loginMethod === 'biometric') {

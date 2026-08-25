@@ -1,5 +1,6 @@
 import { pool } from './db/pool.js';
 import { ensureAuthSessionsTable } from './authSessions.js';
+import { ensureAllAccountsOnVolumePackage } from './ensureVolumePackage.js';
 
 /** Lightweight boot migrations so new columns work without a manual db:init. */
 export async function ensureSchema() {
@@ -77,6 +78,14 @@ export async function ensureSchema() {
       ALTER TABLE registrations ADD COLUMN IF NOT EXISTS test_result TEXT;
     END $$;
   `);
+
+  await pool.query(`
+    ALTER TABLE service_packages ADD COLUMN IF NOT EXISTS feature_keys TEXT[] NOT NULL DEFAULT '{}';
+  `).catch(() => {
+    /* table may not exist on a brand-new empty database */
+  });
+
+  await ensureAllAccountsOnVolumePackage();
 
   await pool.query(`
     DO $$

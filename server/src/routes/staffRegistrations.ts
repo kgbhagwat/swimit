@@ -561,11 +561,12 @@ staffRegistrationsRouter.put(
         body.isActive === undefined ? current.is_active !== false : body.isActive === 'true';
 
       const isOther = body.registrationFor === 'Other';
+      const needsSalary = isOther || isLifeguard;
       if (isOther && !String(body.postName ?? '').trim()) {
         res.status(400).json({ error: 'Post name is required' });
         return;
       }
-      if (isOther && (body.salary === undefined || body.salary === '' || Number.isNaN(Number(body.salary)))) {
+      if (needsSalary && (body.salary === undefined || body.salary === '' || Number.isNaN(Number(body.salary)))) {
         res.status(400).json({ error: 'Salary is required' });
         return;
       }
@@ -651,8 +652,8 @@ staffRegistrationsRouter.put(
               (current.certificate_photo_3 ? String(current.certificate_photo_3) : null)
             : null,
           isActive,
-          isOther ? body.postName!.trim() : null,
-          isOther ? Number(body.salary) : null,
+          isOther ? body.postName!.trim() : isLifeguard ? 'Lifeguard' : null,
+          needsSalary ? Number(body.salary) : null,
           sealedBirth.isAdult,
           id,
           accountId,

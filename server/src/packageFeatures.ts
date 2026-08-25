@@ -1,5 +1,4 @@
 import type { AccessPageKey } from './menuAccess.js';
-import { resolvePackageModules } from './menuAccess.js';
 
 export type PackageFeatureDef = {
   id: string;
@@ -108,28 +107,33 @@ export function sanitizeFeatureKeys(value: unknown): string[] {
   return [...unique];
 }
 
-export function defaultFeatureKeysForModules(
-  modules?: string | null,
-  packageName?: string | null,
-): string[] {
-  const full = resolvePackageModules(modules, packageName) === 'full';
-  return PACKAGE_FEATURE_DEFS.filter((f) => full || f.level === 'core').map((f) => f.id);
+export function allPackageFeatureKeys(): string[] {
+  return PACKAGE_FEATURE_DEFS.map((f) => f.id);
 }
 
-/** Resolve menu page keys for a service package (custom features or modules fallback). */
-export function pageKeysForPackage(opts: {
+const CURRENT_SERVICE_PACKAGE_NAMES = new Set(['trial', 'standard', 'volume']);
+
+/** Trial / Standard / Volume — hide legacy Starter / Professional / Business / Enterprise. */
+export function isCurrentServicePackageName(name: unknown) {
+  return CURRENT_SERVICE_PACKAGE_NAMES.has(String(name ?? '').trim().toLowerCase());
+}
+
+/** Every plan includes every module. Keep the args for older call sites. */
+export function defaultFeatureKeysForModules(
+  _modules?: string | null,
+  _packageName?: string | null,
+): string[] {
+  return allPackageFeatureKeys();
+}
+
+/** Resolve menu page keys for a service package. Every plan includes every module. */
+export function pageKeysForPackage(_opts?: {
   modules?: string | null;
   packageName?: string | null;
   featureKeys?: unknown;
 }): AccessPageKey[] {
-  const selected = sanitizeFeatureKeys(opts.featureKeys);
-  const ids =
-    selected.length > 0
-      ? selected
-      : defaultFeatureKeysForModules(opts.modules, opts.packageName);
   const pages = new Set<AccessPageKey>(['dashboard']);
   for (const def of PACKAGE_FEATURE_DEFS) {
-    if (!ids.includes(def.id)) continue;
     for (const pageKey of def.pageKeys) pages.add(pageKey);
   }
   return [...pages];

@@ -13,6 +13,7 @@ import {
   sanitizeMobileInput,
   sanitizeNameInput,
 } from './formValidation';
+import { isCurrentServicePackageName } from './packageFeatures';
 import { MarketingLayout } from './MarketingLayout';
 import { MobileField } from './MobileField';
 import { PlatformPage } from './PlatformPage';
@@ -140,10 +141,8 @@ function accountLoginUrl(code: string) {
 function defaultPackageId(packages: ServicePackageOption[]) {
   const active = packages.filter((p) => p.isActive);
   const list = active.length ? active : packages;
-  const trial =
-    list.find((p) => p.packageName.trim().toLowerCase() === 'trial') ||
-    list.find((p) => p.trialDays > 0);
-  return String((trial ?? list[0])?.id ?? '');
+  const volume = list.find((p) => p.packageName.trim().toLowerCase() === 'volume');
+  return String((volume ?? list[0])?.id ?? '');
 }
 
 function GetStartedShell({
@@ -791,7 +790,11 @@ export function CreateAccount() {
             >
               {packages.length === 0 ? <option value="">{t('Loading packages…')}</option> : null}
               {packages
-                .filter((p) => p.isActive || String(p.id) === form.servicePackageId)
+                .filter(
+                  (p) =>
+                    (p.isActive && isCurrentServicePackageName(p.packageName)) ||
+                    String(p.id) === form.servicePackageId,
+                )
                 .map((pkg) => (
                   <option key={pkg.id} value={pkg.id}>
                     {pkg.packageName}

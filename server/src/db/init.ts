@@ -2,6 +2,7 @@ import { pool } from './pool.js';
 import { allowlistedSqlIdentifier } from './sqlSafety.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { defaultFeatureKeysForModules } from '../packageFeatures.js';
+import { ensureAllAccountsOnVolumePackage } from '../ensureVolumePackage.js';
 
 const sql = `
 CREATE TABLE IF NOT EXISTS registrations (
@@ -995,33 +996,20 @@ async function ensureDefaultServicePackages() {
   if (featureBackfill > 0) {
     console.log(`Backfilled feature_keys on ${featureBackfill} service package(s)`);
   }
-}
 
-/** Assign Trial package to any account that has no service package. */
-async function ensureAccountsHaveTrialPackage() {
-  const trial = await pool.query<{ id: number; trial_days: number }>(
-    `SELECT id, trial_days FROM service_packages WHERE LOWER(package_name) = 'trial' LIMIT 1`,
+  const allKeys = defaultFeatureKeysForModules('full');
+  const granted = await pool.query(
+    `UPDATE service_packages
+     SET modules = 'full',
+         feature_keys = $1::text[]
+     WHERE LOWER(COALESCE(modules, '')) IS DISTINCT FROM 'full'
+        OR cardinality(COALESCE(feature_keys, '{}'::text[])) < $2`,
+    [allKeys, allKeys.length],
   );
-  if (!trial.rows[0]) return;
-
-  const trialId = Number(trial.rows[0].id);
-  const trialDays = Math.max(0, Number(trial.rows[0].trial_days ?? 30));
-
-  const result = await pool.query(
-    `UPDATE saas_accounts a
-     SET service_package_id = $1,
-         subscription_expires_at = COALESCE(
-           a.subscription_expires_at,
-           CASE
-             WHEN $2::int > 0 THEN (a.created_at::date + ($2::int * INTERVAL '1 day'))::date
-             ELSE NULL
-           END
-         )
-     WHERE a.service_package_id IS NULL`,
-    [trialId, trialDays],
-  );
-  const n = result.rowCount ?? 0;
-  if (n > 0) console.log(`Assigned Trial package to ${n} account(s) without a package`);
+  const grantedN = granted.rowCount ?? 0;
+  if (grantedN > 0) {
+    console.log(`Granted all modules on ${grantedN} service package(s)`);
+  }
 }
 
 /** Unique mobile within one SaaS account; same mobile OK in another account. Skip if duplicates already exist. */
@@ -1194,7 +1182,7 @@ async function init() {
   await ensureAccountAppShells();
   await backfillPoolCoreSetupCompleted();
   await ensureDefaultServicePackages();
-  await ensureAccountsHaveTrialPackage();
+  await ensureAllAccountsOnVolumePackage();
 
   const { rows: missing } = await pool.query(
     `SELECT a.id, a.mobile, a.account_code

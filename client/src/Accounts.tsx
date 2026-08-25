@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useT } from './i18n';
+import { isCurrentServicePackageName } from './packageFeatures';
 import { PlatformPage } from './PlatformPage';
 import { PlatformShell } from './PlatformShell';
 import { hasPlatformAccess } from './platformAccess';
@@ -559,9 +560,9 @@ export function Accounts() {
                                 <option value="">{t('Select package')}</option>
                                 {packages
                                   .filter(
-                                    (p) =>
-                                      p.isActive ||
-                                      String(p.id) === editDraft.servicePackageId,
+                                  (p) =>
+                                    (p.isActive && isCurrentServicePackageName(p.packageName)) ||
+                                    String(p.id) === editDraft.servicePackageId,
                                   )
                                   .map((pkg) => (
                                     <option key={pkg.id} value={pkg.id}>
@@ -788,7 +789,8 @@ export function Accounts() {
                               {packages
                                 .filter(
                                   (p) =>
-                                    p.isActive || String(p.id) === editDraft.servicePackageId,
+                                    (p.isActive && isCurrentServicePackageName(p.packageName)) ||
+                                    String(p.id) === editDraft.servicePackageId,
                                 )
                                 .map((pkg) => (
                                   <option key={pkg.id} value={pkg.id}>

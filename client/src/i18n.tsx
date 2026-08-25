@@ -122,6 +122,36 @@ const mr: Record<string, string> = {
   Home: 'मुख्यपृष्ठ',
   Pricing: 'किंमत',
   'Simple plans for every pool': 'प्रत्येक पूलसाठी सोप्या योजना',
+  'Pay for the swimmers you run': 'तुम्ही चालवता त्या पोहणाऱ्यांसाठी पैसे द्या',
+  'Every plan includes every SwimIT module. Pay in advance for expected active swimmers, then recharge if you grow during the month.':
+    'प्रत्येक योजनेत सर्व SwimIT मॉड्यूल्स आहेत. अपेक्षित सक्रिय पोहणाऱ्यांसाठी आधी पैसे द्या; महिन्यात वाढ झाली तर रिचार्ज करा.',
+  Standard: 'स्टँडर्ड',
+  Volume: 'व्हॉल्यूम',
+  'All modules included': 'सर्व मॉड्यूल्स समाविष्ट',
+  'billable swimmers': 'बिल करण्यायोग्य पोहणारे',
+  'billable swimmers included': 'बिल करण्यायोग्य पोहणारे समाविष्ट',
+  'per extra swimmer per month': 'प्रत्येक अतिरिक्त पोहणारा / महिना',
+  '3 broadcasts and 3 pass reminders included':
+    '३ ब्रॉडकास्ट आणि ३ पास रिमाइंडर्स समाविष्ट',
+  'Try the full product for 30 days. Convert to Standard or Volume before the trial ends.':
+    '३० दिवस पूर्ण उत्पादन वापरा. ट्रायल संपण्यापूर्वी स्टँडर्ड किंवा व्हॉल्यूम निवडा.',
+  'For a single pool. Floor covers 50 billable swimmers; extras billed per head.':
+    'एका पूलसाठी. पायाभूत किंमतीत ५० बिल करण्यायोग्य पोहणारे; अतिरिक्त प्रति व्यक्ती.',
+  'Same full product, lower extra-swimmer rate as the pool grows.':
+    'तोच पूर्ण उत्पादन, पूल वाढला की अतिरिक्त पोहणाऱ्याचा दर कमी.',
+  '30 days': '३० दिवस',
+  'How we count swimmers': 'पोहणारे कसे मोजतो',
+  'A monthly or longer pass that overlaps the month counts as 1 billable swimmer.':
+    'महिन्यात लागू असलेला मासिक किंवा त्याहून जास्त काळाचा पास = १ बिल करण्यायोग्य पोहणारा.',
+  '30 daily passes count as 1 billable swimmer.':
+    '३० दैनिक पास = १ बिल करण्यायोग्य पोहणारा.',
+  'Pay in advance for the seats you expect. We will ask you to recharge extra seats if you are close to the pack.':
+    'अपेक्षित जागांसाठी आधी पैसे द्या. पॅक जवळ आला तर अतिरिक्त जागांसाठी रिचार्ज करण्यास सांगू.',
+  'Extra WhatsApp messages beyond the included bundle are ₹1 each, billed on the next recharge.':
+    'समाविष्ट बंडलच्या पुढील WhatsApp संदेश ₹१ प्रति, पुढील रिचार्जवर.',
+  'Previous pricing (package plans)': 'जुनी किंमत (पॅकेज योजना)',
+  'These were the older flat monthly packages with swimmer caps. New accounts should use the seat-based plans above.':
+    'ही जुनी ठरावीक मासिक पॅकेजेस होती. नवीन खात्यांनी वरील सीट-आधारित योजना वापराव्यात.',
   'Choose a SwimIT plan that fits your pool size and operations. Start free, upgrade anytime.':
     'तुमच्या पूलच्या आकार आणि कामकाजानुसार SwimIT योजना निवडा. मोफत सुरू करा, हवे तेव्हा अपग्रेड करा.',
   'Most popular': 'सर्वाधिक लोकप्रिय',
@@ -691,7 +721,6 @@ const mr: Record<string, string> = {
   "Checking…": "तपासत आहे…",
   "City": "शहर",
   "Clear": "साफ करा",
-  "Coach": "कोच",
   "coach": "कोच",
   "Coach (activate a coach for this batch in Staff List)": "प्रशिक्षक (स्टाफ यादीत या बॅचसाठी प्रशिक्षक सक्रिय करा)",
   "Coach name": "प्रशिक्षकाचे नाव",
@@ -1184,7 +1213,6 @@ const mr: Record<string, string> = {
   "Pool expenses": "पूल खर्च",
   "Pool Logo": "पूल लोगो",
   "Pool Name": "पूलचे नाव",
-  "Pool name, address, terms, payment options, and branding images.": "पूलचे नाव, पत्ता, अटी, पेमेंट पर्याय आणि ब्रँडिंग प्रतिमा.",
   "Post": "पद",
   "Post details": "पद तपशील",
   "Post name": "पदाचे नाव",
@@ -1210,6 +1238,8 @@ const mr: Record<string, string> = {
   "Mirrored session": "प्रतिबिंबित सत्र",
   "Renew again": "पुन्हा नूतनीकरण",
   "Renew package": "पॅकेज नूतनीकरण",
+  "Renewals": "नूतनीकरणे",
+  "Renewals today": "आजची नूतनीकरणे",
   "Return to Platform": "प्लॅटफॉर्मवर परत जा",
   "Renewal confirmed. Complete payment below, then send the screenshot on WhatsApp to the same chat.": "नूतनीकरण पुष्ट. खाली पेमेंट पूर्ण करा, मग त्याच चॅटवर स्क्रीनशॉट WhatsApp वर पाठवा.",
   "Renewal saved, but WhatsApp failed": "नूतनीकरण जतन झाले, पण WhatsApp अयशस्वी",
@@ -1439,7 +1469,6 @@ const mr: Record<string, string> = {
   "Trial": "ट्रायल",
   "Try another": "दुसरा वापरा",
   "Tuesday": "मंगळवार",
-  "Type": "प्रकार",
   "type": "प्रकार",
   "Type or Upload .doc or .txt file.":
     "वर्ड, Pages, OpenDocument किंवा .txt फाइल टाइप किंवा अपलोड करा.",

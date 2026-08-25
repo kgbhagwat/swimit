@@ -24,6 +24,7 @@ type DashboardData = {
     expiringSoon: number;
     expiryNoticeDays: number;
     newAdmissionsToday: number;
+    renewalsToday: number;
   };
   paymentsToday: {
     cash: number;
@@ -44,7 +45,7 @@ type DashboardData = {
   waterQuality?: WaterQualityPoint[];
 };
 
-type DashboardDetailKind = 'active' | 'present' | 'expiring' | 'users' | 'admissions';
+type DashboardDetailKind = 'active' | 'present' | 'expiring' | 'users' | 'admissions' | 'renewals';
 
 type DashboardDetailRow = {
   id: number;
@@ -140,9 +141,10 @@ function sampleDashboard(asOf: string): DashboardData {
   const seed = Number(asOf.replace(/\D/g, '')) || 1;
   const present = 12 + (seed % 17);
   const newAdmissions = 1 + (seed % 5);
+  const renewals = 1 + (seed % 4);
   const cash = 1000 * (2 + (seed % 6));
   const online = 1000 * (3 + (seed % 8));
-  const count = 2 + (seed % 7);
+  const count = newAdmissions + renewals;
   const active = 36 + (seed % 20);
   const expiring = 2 + (seed % 8);
 
@@ -157,6 +159,7 @@ function sampleDashboard(asOf: string): DashboardData {
       expiringSoon: expiring,
       expiryNoticeDays: 3,
       newAdmissionsToday: newAdmissions,
+      renewalsToday: renewals,
     },
     paymentsToday: {
       cash,
@@ -479,6 +482,10 @@ export function Dashboard() {
             ? isToday
               ? t('New admissions today')
               : t('New admissions')
+            : detailKind === 'renewals'
+              ? isToday
+                ? t('Renewals today')
+                : t('Renewals')
             : t('Active swimmers');
 
   function countForKind(kind: DashboardDetailKind) {
@@ -487,6 +494,7 @@ export function Dashboard() {
     if (kind === 'expiring') return summary.expiringSoon;
     if (kind === 'users') return summary.activeUsers;
     if (kind === 'admissions') return summary.newAdmissionsToday;
+    if (kind === 'renewals') return summary.renewalsToday;
     return summary.activeSwimmers;
   }
 
@@ -598,6 +606,13 @@ export function Dashboard() {
                 label={isToday ? t('New admissions today') : t('New admissions')}
                 value={summary.newAdmissionsToday}
                 onOpen={() => void openDetails('admissions')}
+                openLabel={t('Show details')}
+              />
+              <KpiCard
+                className="dashboard-kpi--renewals"
+                label={isToday ? t('Renewals today') : t('Renewals')}
+                value={summary.renewalsToday ?? 0}
+                onOpen={() => void openDetails('renewals')}
                 openLabel={t('Show details')}
               />
               <article className="dashboard-kpi dashboard-kpi--cash">

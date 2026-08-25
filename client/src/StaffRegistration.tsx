@@ -429,6 +429,8 @@ export function StaffRegistration() {
 
     if (isEdit && form.registrationFor === 'Other') {
       if (!form.postName.trim()) fields.add('postName');
+    }
+    if (isEdit && (form.registrationFor === 'Other' || form.registrationFor === 'Lifeguard')) {
       if (form.salary === '' || Number.isNaN(Number(form.salary))) fields.add('salary');
     }
 
@@ -1031,22 +1033,24 @@ export function StaffRegistration() {
           </>
         ) : null}
 
-        {isEdit && form.registrationFor === 'Other' ? (
+        {isEdit && (form.registrationFor === 'Other' || form.registrationFor === 'Lifeguard') ? (
           <section className="registration-section">
-            <h2>{t("Post details")}</h2>
+            <h2>{form.registrationFor === 'Other' ? t('Post details') : t('Salary')}</h2>
             <div className="grid-2">
+              {form.registrationFor === 'Other' ? (
+                <label className="field field-beside">
+                  <Label required>{t('Post name')}</Label>
+                  <input
+                    value={form.postName}
+                    onChange={(e) => setField('postName', e.target.value)}
+                    placeholder={t('e.g. Manager, Accountant, Cleaner')}
+                    required
+                    aria-invalid={isInvalid('postName')}
+                  />
+                </label>
+              ) : null}
               <label className="field field-beside">
-                <Label required>{t("Post name")}</Label>
-                <input
-                  value={form.postName}
-                  onChange={(e) => setField('postName', e.target.value)}
-                  placeholder={t("e.g. Manager, Accountant, Cleaner")}
-                  required
-                  aria-invalid={isInvalid('postName')}
-                />
-              </label>
-              <label className="field field-beside">
-                <Label required>{t("Salary")}</Label>
+                <Label required>{t('Salary')}</Label>
                 <div className="money-input">
                   <span className="money-prefix" aria-hidden="true">
                     ₹
@@ -1057,9 +1061,9 @@ export function StaffRegistration() {
                     step="1"
                     value={form.salary}
                     onChange={(e) => setField('salary', e.target.value)}
-                    placeholder={t("e.g. 15000")}
+                    placeholder={t('e.g. 15000')}
                     required
-                    aria-label={t("Salary")}
+                    aria-label={t('Salary')}
                     aria-invalid={isInvalid('salary')}
                   />
                 </div>

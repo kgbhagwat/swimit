@@ -485,12 +485,12 @@ saasAccountsRouter.post('/', async (req, res) => {
         ? null
         : Number(body.servicePackageId);
 
-    // Default new accounts to Trial when no package is selected.
+    // Default new accounts to Volume when no package is selected.
     if (packageId == null || !Number.isFinite(packageId) || packageId <= 0) {
-      const trial = await client.query(
-        `SELECT id FROM service_packages WHERE LOWER(package_name) = 'trial' LIMIT 1`,
+      const volume = await client.query(
+        `SELECT id FROM service_packages WHERE LOWER(package_name) = 'volume' LIMIT 1`,
       );
-      packageId = trial.rows[0] ? Number(trial.rows[0].id) : null;
+      packageId = volume.rows[0] ? Number(volume.rows[0].id) : null;
     }
 
     let packageMeta: {

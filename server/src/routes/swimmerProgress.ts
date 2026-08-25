@@ -37,7 +37,10 @@ function normalizeTimeText(value: unknown) {
   return `${Number(match[1])}:${match[2]}`;
 }
 
-function parseStrokeDistance(query: Record<string, unknown>) {
+type StrokeDistanceOk = { stroke: string; distanceM: number };
+type ParseErr = { error: string };
+
+function parseStrokeDistance(query: Record<string, unknown>): StrokeDistanceOk | ParseErr {
   const stroke = String(query.stroke ?? STROKES[0]).trim();
   const distanceM = Number(query.distanceM ?? query.distance ?? 50);
   if (!(STROKES as readonly string[]).includes(stroke)) return { error: 'Select a stroke' };
@@ -47,7 +50,9 @@ function parseStrokeDistance(query: Record<string, unknown>) {
   return { stroke, distanceM };
 }
 
-function parseFilters(query: Record<string, unknown>) {
+function parseFilters(
+  query: Record<string, unknown>,
+): (StrokeDistanceOk & { recordDate: string }) | ParseErr {
   const recordDate = String(query.recordDate ?? query.date ?? todayIsoLocal()).trim().slice(0, 10);
   const strokeDistance = parseStrokeDistance(query);
   if ('error' in strokeDistance) return strokeDistance;

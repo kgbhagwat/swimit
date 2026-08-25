@@ -220,7 +220,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     lifeguardExpiry: '2027-03-31',
     certificateDetails: '',
     postName: 'Lifeguard',
-    salary: '',
+    salary: '15000',
     isActive: true,
   },
   {
@@ -250,7 +250,7 @@ export const SAMPLE_STAFF_DETAILS: SampleStaffDetail[] = [
     lifeguardExpiry: '2026-11-30',
     certificateDetails: '',
     postName: 'Lifeguard',
-    salary: '',
+    salary: '15000',
     isActive: true,
   },
   {
