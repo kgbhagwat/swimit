@@ -3,6 +3,7 @@ import { isApplicationDemo } from './applicationDemo';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
+import { normalizeRaceTimeText, raceTimeToMs, sanitizeRaceTimeInput } from './swimmerRaceTime';
 
 const STROKES = [
   'Free Style',
@@ -26,6 +27,7 @@ type ProgressColumn = {
   recordDate: string;
   stroke: string;
   distanceM: number;
+  eventName: string;
   times: Record<number, string>;
 };
 
@@ -35,20 +37,6 @@ function todayIso() {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-function sanitizeTimeInput(value: string) {
-  const digits = value.replace(/[^\d]/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, digits.length - 2)}:${digits.slice(-2)}`;
-}
-
-function normalizeTimeText(value: string) {
-  const raw = value.trim();
-  if (!raw) return '';
-  const match = raw.match(/^(\d{1,2}):([0-5]\d)$/);
-  if (!match) return null;
-  return `${Number(match[1])}:${match[2]}`;
 }
 
 function sampleCompetitiveSwimmers(): ProgressSwimmer[] {
@@ -79,13 +67,6 @@ function sampleCompetitiveSwimmers(): ProgressSwimmer[] {
 
 function emptyTimes(rows: ProgressSwimmer[]) {
   return Object.fromEntries(rows.map((row) => [row.id, '']));
-}
-
-function timeToSeconds(value: string) {
-  const normalized = normalizeTimeText(value);
-  if (!normalized) return null;
-  const [minutes, seconds] = normalized.split(':').map(Number);
-  return minutes * 60 + seconds;
 }
 
 type RowSort =
@@ -128,20 +109,26 @@ function nextColumnSettings(columns: ProgressColumn[]): Omit<ProgressColumn, 'id
   const last = columns[columns.length - 1];
   const distIdx = DISTANCES.indexOf(last.distanceM as (typeof DISTANCES)[number]);
   if (distIdx >= 0 && distIdx < DISTANCES.length - 1) {
-    return { recordDate: last.recordDate, stroke: last.stroke, distanceM: DISTANCES[distIdx + 1] };
+    return {
+      recordDate: last.recordDate,
+      stroke: last.stroke,
+      distanceM: DISTANCES[distIdx + 1],
+      eventName: last.eventName,
+    };
   }
   const strokeIdx = STROKES.indexOf(last.stroke as (typeof STROKES)[number]);
   return {
     recordDate: last.recordDate,
     stroke: STROKES[(strokeIdx + 1) % STROKES.length],
     distanceM: DISTANCES[0],
+    eventName: last.eventName,
   };
 }
 
 export function SwimmerProgress() {
   const t = useT();
   const [columns, setColumns] = useState<ProgressColumn[]>(() => [
-    { id: 1, recordDate: todayIso(), stroke: STROKES[0], distanceM: 50, times: {} },
+    { id: 1, recordDate: todayIso(), stroke: STROKES[0], distanceM: 50, eventName: '', times: {} },
   ]);
   const [nextColumnId, setNextColumnId] = useState(2);
   const [swimmers, setSwimmers] = useState<ProgressSwimmer[]>([]);
@@ -170,8 +157,8 @@ export function SwimmerProgress() {
         return rowSort.dir === 'asc' ? cmp : -cmp;
       }
       const col = columns.find((item) => item.id === rowSort.columnId);
-      const left = timeToSeconds(col?.times[a.id] ?? '');
-      const right = timeToSeconds(col?.times[b.id] ?? '');
+      const left = raceTimeToMs(col?.times[a.id] ?? '');
+      const right = raceTimeToMs(col?.times[b.id] ?? '');
       if (left == null && right == null) {
         return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
       }
@@ -200,10 +187,17 @@ export function SwimmerProgress() {
     const rows = Array.isArray(body.swimmers) ? (body.swimmers as ProgressSwimmer[]) : [];
     const useSample = isApplicationDemo() && rows.length === 0;
     const nextRows = useSample ? sampleCompetitiveSwimmers() : rows;
+    const times = Object.fromEntries(
+      nextRows.map((row) => {
+        const raw = row.timeText ?? '';
+        return [row.id, normalizeRaceTimeText(raw) || raw];
+      }),
+    );
     return {
       rows: nextRows,
-      times: Object.fromEntries(nextRows.map((row) => [row.id, row.timeText ?? ''])),
+      times,
       sample: useSample,
+      eventName: String(body.eventName ?? body.event ?? '').trim().slice(0, 80),
     };
   }
 
@@ -216,7 +210,9 @@ export function SwimmerProgress() {
       const session = await fetchSession(first.recordDate, first.stroke, first.distanceM);
       setSwimmers(session.rows);
       setSampleMode(session.sample);
-      setColumns((prev) => prev.map((col, index) => (index === 0 ? { ...col, times: session.times } : col)));
+      setColumns((prev) =>
+        prev.map((col, index) => (index === 0 ? { ...col, times: session.times, eventName: session.eventName } : col)),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
       setSwimmers([]);
@@ -232,7 +228,11 @@ export function SwimmerProgress() {
       const session = await fetchSession(recordDate, stroke, distanceM);
       if (session.rows.length) setSwimmers(session.rows);
       setColumns((prev) =>
-        prev.map((col) => (col.id === columnId ? { ...col, recordDate, stroke, distanceM, times: session.times } : col)),
+        prev.map((col) =>
+          col.id === columnId
+            ? { ...col, recordDate, stroke, distanceM, times: session.times, eventName: session.eventName }
+            : col,
+        ),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
@@ -249,8 +249,17 @@ export function SwimmerProgress() {
     setNextColumnId((prev) => prev + 1);
     const session = await fetchSession(settings.recordDate, settings.stroke, settings.distanceM).catch(() => ({
       times: emptyTimes(swimmers),
+      eventName: settings.eventName,
     }));
-    setColumns((prev) => [...prev, { id, ...settings, times: session.times }]);
+    setColumns((prev) => [
+      ...prev,
+      {
+        id,
+        ...settings,
+        times: session.times,
+        eventName: session.eventName || settings.eventName,
+      },
+    ]);
   }
 
   function removeColumn(columnId: number) {
@@ -258,10 +267,16 @@ export function SwimmerProgress() {
     setRowSort((prev) => (prev?.kind === 'time' && prev.columnId === columnId ? null : prev));
   }
 
+  function setColumnEvent(columnId: number, eventName: string) {
+    setColumns((prev) =>
+      prev.map((col) => (col.id === columnId ? { ...col, eventName: eventName.slice(0, 80) } : col)),
+    );
+  }
+
   function setColumnTime(columnId: number, swimmerId: number, value: string) {
     setColumns((prev) =>
       prev.map((col) =>
-        col.id === columnId ? { ...col, times: { ...col.times, [swimmerId]: sanitizeTimeInput(value) } } : col,
+        col.id === columnId ? { ...col, times: { ...col.times, [swimmerId]: sanitizeRaceTimeInput(value) } } : col,
       ),
     );
   }
@@ -271,9 +286,9 @@ export function SwimmerProgress() {
     setError('');
     setSuccess('');
     for (const col of columns) {
-      const invalid = swimmers.some((row) => normalizeTimeText(col.times[row.id] ?? '') === null);
+      const invalid = swimmers.some((row) => normalizeRaceTimeText(col.times[row.id] ?? '') === null);
       if (invalid) {
-        setError('Enter timing as min:sec (e.g. 1:23)');
+        setError('Enter timing as mm:ss:msec (e.g. 01:23:45)');
         return;
       }
     }
@@ -287,9 +302,10 @@ export function SwimmerProgress() {
             recordDate: col.recordDate,
             stroke: col.stroke,
             distanceM: col.distanceM,
+            eventName: col.eventName.trim().slice(0, 80),
             entries: swimmers.map((row) => ({
               registrationId: row.id,
-              timeText: normalizeTimeText(col.times[row.id] ?? ''),
+              timeText: normalizeRaceTimeText(col.times[row.id] ?? ''),
             })),
           }),
         });
@@ -314,7 +330,7 @@ export function SwimmerProgress() {
       }
     >
       <p className="lede batch-list-lede">
-        {t('Record race times for competitive batch swimmers. Select date, stroke, and distance, then enter min:sec for each swimmer.')}
+        {t('Record race times for competitive batch swimmers. Select date, stroke, and distance, then enter mm:ss:msec for each swimmer.')}
       </p>
       {error ? <p className="error">{t(error)}</p> : null}
       {success ? <p className="success">{t(success)}</p> : null}
@@ -343,6 +359,17 @@ export function SwimmerProgress() {
           </span>
           {columns.map((col) => (
             <div className="swimmer-progress-filters" key={col.id}>
+              <label className="swimmer-progress-head-field">
+                <span className="label">{t('Event')}</span>
+                <input
+                  type="text"
+                  className="field-control-sm"
+                  value={col.eventName}
+                  maxLength={80}
+                  onChange={(e) => setColumnEvent(col.id, e.target.value)}
+                  aria-label={t('Event')}
+                />
+              </label>
               <label className="swimmer-progress-head-field">
                 <span className="label">{t('Date')}</span>
                 <input
@@ -415,25 +442,24 @@ export function SwimmerProgress() {
               <div className="swimmer-progress-row" key={row.id}>
                 <div className="swimmer-progress-name">
                   <strong>{row.name}</strong>
-                  {row.batch ? <span className="muted">{row.batch}</span> : null}
                 </div>
                 {columns.map((col) => {
                   const timeValue = col.times[row.id] ?? '';
-                  const invalid = Boolean(timeValue && normalizeTimeText(timeValue) === null);
+                  const invalid = Boolean(timeValue && normalizeRaceTimeText(timeValue) === null);
                   return (
                     <label className="swimmer-progress-time" key={`${col.id}-${row.id}`}>
                       <span className="swimmer-progress-time-label">{t('Time')}</span>
                       <input
                         value={timeValue}
                         onChange={(e) => setColumnTime(col.id, row.id, e.target.value)}
-                        placeholder="0:00"
+                        placeholder="MM:SS:mm"
                         inputMode="numeric"
                         autoComplete="off"
                         aria-label={`${t('Time')} ${row.name}`}
                         aria-invalid={invalid}
                       />
                       {invalid ? (
-                        <span className="field-error">{t('Enter timing as min:sec (e.g. 1:23)')}</span>
+                        <span className="field-error">{t('Enter timing as mm:ss:msec (e.g. 01:23:45)')}</span>
                       ) : null}
                     </label>
                   );

@@ -4,6 +4,7 @@ import { indiaDaysAgoIso, indiaTodayIso } from './indiaDate';
 import { InPageSelect } from './InPageSelect';
 import { useT } from './i18n';
 import { PlatformPage } from './PlatformPage';
+import { normalizeRaceTimeText, raceTimeToMs } from './swimmerRaceTime';
 
 const STROKES = [
   'Free Style',
@@ -32,10 +33,10 @@ function formatDisplayDate(value: string) {
   return `${match[3]}-${match[2]}-${match[1]}`;
 }
 
-function timeToSeconds(value: string) {
-  const match = value.trim().match(/^(\d{1,2}):([0-5]\d)$/);
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
+function displayRaceTime(value: string) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '—';
+  return normalizeRaceTimeText(raw) || raw;
 }
 
 function SortArrows({
@@ -77,12 +78,12 @@ const LINE_HEIGHT = 56;
 
 function lineScale(swimmers: TrendSwimmer[], dates: string[]) {
   const values = swimmers.flatMap((row) =>
-    dates.map((date) => timeToSeconds(row.times[date] ?? '')).filter((value): value is number => value != null),
+    dates.map((date) => raceTimeToMs(row.times[date] ?? '')).filter((value): value is number => value != null),
   );
   if (values.length === 0) return null;
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const pad = Math.max((maxValue - minValue) * 0.18, 2);
+  const pad = Math.max((maxValue - minValue) * 0.18, 200);
   return {
     yMin: Math.max(0, minValue - pad),
     yMax: maxValue + pad,
@@ -107,7 +108,7 @@ function RowTrendLine({
 }) {
   const points = dates
     .map((date, dateIndex) => {
-      const seconds = timeToSeconds(times[date] ?? '');
+      const seconds = raceTimeToMs(times[date] ?? '');
       return seconds == null ? null : { dateIndex, seconds };
     })
     .filter((point): point is { dateIndex: number; seconds: number } => point != null);
@@ -153,21 +154,21 @@ function sampleTrend(stroke: string, distanceM: number) {
       name: 'Aarav Patil',
       batch: 'Morning — Advance — 06:00 to 07:00',
       coach: 'Riya Kulkarni',
-      times: { [dates[0]]: '0:42', [dates[1]]: '0:40', [dates[2]]: '0:38' },
+      times: { [dates[0]]: '00:42:38', [dates[1]]: '00:40:12', [dates[2]]: '00:38:05' },
     },
     {
       id: -102,
       name: 'Sana Joshi',
       batch: 'Morning — Advance — 06:00 to 07:00',
       coach: 'Riya Kulkarni',
-      times: { [dates[0]]: '0:48', [dates[1]]: '0:46', [dates[2]]: '0:45' },
+      times: { [dates[0]]: '00:48:21', [dates[1]]: '00:46:09', [dates[2]]: '00:45:40' },
     },
     {
       id: -103,
       name: 'Vihaan Deshmukh',
       batch: 'Evening — Advance — 17:00 to 18:00',
       coach: 'Amit Sharma',
-      times: { [dates[0]]: '0:51', [dates[1]]: '0:49', [dates[2]]: '0:47' },
+      times: { [dates[0]]: '00:51:64', [dates[1]]: '00:49:30', [dates[2]]: '00:47:08' },
     },
   ];
   return { stroke, distanceM, dates, swimmers };
@@ -209,8 +210,8 @@ export function ProgressTrend() {
         const cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
         return rowSort.dir === 'asc' ? cmp : -cmp;
       }
-      const left = timeToSeconds(a.times[rowSort.date] ?? '');
-      const right = timeToSeconds(b.times[rowSort.date] ?? '');
+      const left = raceTimeToMs(a.times[rowSort.date] ?? '');
+      const right = raceTimeToMs(b.times[rowSort.date] ?? '');
       if (left == null && right == null) {
         return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
       }
@@ -366,21 +367,20 @@ export function ProgressTrend() {
               >
                 <div className="swimmer-progress-name">
                   <strong>{row.name}</strong>
-                  {row.batch ? <span className="muted">{row.batch}</span> : null}
                 </div>
                 {viewType === 'line' && scale ? (
                   <div className="progress-trend-line-track">
                     <RowTrendLine dates={dates} times={row.times} yMin={scale.yMin} yMax={scale.yMax} />
                     <div className="progress-trend-line-times">
                       {dates.map((date) => {
-                        const seconds = timeToSeconds(row.times[date] ?? '');
-                        const label = row.times[date] || '—';
+                        const millis = raceTimeToMs(row.times[date] ?? '');
+                        const label = displayRaceTime(row.times[date] ?? '');
                         return (
                           <span className="progress-trend-time-slot" key={`${row.id}-${date}`}>
-                            {seconds != null ? (
+                            {millis != null ? (
                               <span
                                 className="progress-trend-time progress-trend-time--on-line"
-                                style={{ top: `${yRatio(seconds, scale.yMin, scale.yMax) * 100}%` }}
+                                style={{ top: `${yRatio(millis, scale.yMin, scale.yMax) * 100}%` }}
                               >
                                 {label}
                               </span>
@@ -395,7 +395,7 @@ export function ProgressTrend() {
                 ) : (
                   dates.map((date) => (
                     <span className="progress-trend-time-slot" key={`${row.id}-${date}`}>
-                      <span className="progress-trend-time">{row.times[date] || '—'}</span>
+                      <span className="progress-trend-time">{displayRaceTime(row.times[date] ?? '')}</span>
                     </span>
                   ))
                 )}

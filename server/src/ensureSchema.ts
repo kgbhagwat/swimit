@@ -187,6 +187,16 @@ export async function ensureSchema() {
   `);
 
   await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.swimmer_progress') IS NULL THEN
+        RETURN;
+      END IF;
+      ALTER TABLE swimmer_progress ADD COLUMN IF NOT EXISTS event_name TEXT NOT NULL DEFAULT '';
+    END $$;
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS whatsapp_password_resets (
       from_mobile TEXT PRIMARY KEY,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

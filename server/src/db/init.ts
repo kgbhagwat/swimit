@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS swimmer_progress (
   stroke TEXT NOT NULL,
   distance_m INT NOT NULL,
   time_text TEXT NOT NULL DEFAULT '',
+  event_name TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -192,6 +193,7 @@ CREATE TABLE IF NOT EXISTS swimmer_progress (
 CREATE UNIQUE INDEX IF NOT EXISTS swimmer_progress_entry_unique
   ON swimmer_progress (saas_account_id, registration_id, record_date, stroke, distance_m);
 ALTER TABLE swimmer_progress ALTER COLUMN saas_account_id SET NOT NULL;
+ALTER TABLE swimmer_progress ADD COLUMN IF NOT EXISTS event_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE water_quality ADD COLUMN IF NOT EXISTS tester_name TEXT NOT NULL DEFAULT '';
 DO $$
 BEGIN

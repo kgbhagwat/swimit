@@ -5868,7 +5868,7 @@ html[data-theme='dark'] .biometric-offer-title {
   justify-content: center;
   min-height: 1.85rem;
   font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  font-weight: 400;
 }
 
 .progress-trend-empty-head {
@@ -5959,10 +5959,10 @@ html[data-theme='dark'] .progress-trend-dot {
 
 .swimmer-progress-time {
   display: grid;
-  grid-template-columns: 4.4rem 8.25rem;
+  grid-template-columns: 4.4rem 9.25rem;
   column-gap: 0.35rem;
   align-items: center;
-  width: 13.5rem;
+  width: 14.5rem;
 }
 
 .swimmer-progress-time input,
@@ -5983,8 +5983,8 @@ html[data-theme='dark'] .progress-trend-dot {
 }
 
 .swimmer-progress-row input {
-  width: 8.25rem;
-  max-width: 8.25rem;
+  width: 9.25rem;
+  max-width: 9.25rem;
 }
 
 @media (max-width: 720px) {
@@ -7385,7 +7385,7 @@ html[data-theme='dark'] .progress-trend-dot {
 .balance-row {
   display: grid;
   gap: 0;
-  grid-template-columns: 0.9fr 2fr 0.9fr 0.9fr 0.9fr;
+  grid-template-columns: 0.9fr 2fr 0.95fr 0.85fr 0.85fr 0.9fr;
   align-items: stretch;
 }
 
@@ -7525,13 +7525,14 @@ html[data-theme='dark'] .progress-trend-dot {
     box-sizing: border-box;
   }
 
-  /* Row ends: debit (4) ends first detail row; balance (5) alone on last row */
+  /* Row ends: credit (4) ends first detail row; debit+balance on last row */
   .balance-row > span:nth-child(4),
-  .balance-row > span:nth-child(5) {
+  .balance-row > span:nth-child(6) {
     border-right: none;
   }
 
-  .balance-row > span:nth-child(5) {
+  .balance-row > span:nth-child(5),
+  .balance-row > span:nth-child(6) {
     border-bottom: none;
   }
 

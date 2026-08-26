@@ -618,7 +618,20 @@ function handleSwimmerProgress(
           timeText: String(saved?.timeText ?? ''),
         };
       });
-    return jsonResponse({ recordDate, stroke, distanceM, swimmers });
+    const eventName =
+      store.swimmerProgress
+        .map((entry) => {
+          if (
+            String(entry.recordDate) === recordDate &&
+            String(entry.stroke) === stroke &&
+            Number(entry.distanceM) === distanceM
+          ) {
+            return String(entry.eventName ?? entry.event ?? '').trim();
+          }
+          return '';
+        })
+        .find(Boolean) ?? '';
+    return jsonResponse({ recordDate, stroke, distanceM, eventName, swimmers });
   }
 
   if (method === 'PUT') {
@@ -631,6 +644,7 @@ function handleSwimmerProgress(
         .map((row) => Number(row.id)),
     );
     const entries = Array.isArray(body.entries) ? body.entries : [];
+    const eventName = String(body.eventName ?? body.event ?? '').trim().slice(0, 80);
     for (const item of entries) {
       const row = item as Record<string, unknown>;
       const registrationId = Number(row.registrationId ?? row.id);
@@ -652,11 +666,21 @@ function handleSwimmerProgress(
           stroke,
           distanceM,
           timeText,
+          eventName,
         });
       }
     }
+    for (const entry of store.swimmerProgress) {
+      if (
+        String(entry.recordDate) === recordDate &&
+        String(entry.stroke) === stroke &&
+        Number(entry.distanceM) === distanceM
+      ) {
+        entry.eventName = eventName;
+      }
+    }
     writeDemoStore(store);
-    return jsonResponse({ ok: true, recordDate, stroke, distanceM });
+    return jsonResponse({ ok: true, recordDate, stroke, distanceM, eventName });
   }
 
   return jsonResponse({ error: 'Method not allowed' }, 405);

@@ -390,13 +390,14 @@ const mr: Record<string, string> = {
   'Swimmer Progress': 'पोहणाऱ्याची प्रगती',
   'Progress Trend': 'प्रगती कल',
   Stroke: 'स्ट्रोक',
+  Event: 'स्पर्धा',
   Distance: 'अंतर',
   Type: 'प्रकार',
   Counter: 'काउंटर',
   Line: 'रेषा',
   mtr: 'मीटर',
-  'Record race times for competitive batch swimmers. Select date, stroke, and distance, then enter min:sec for each swimmer.':
-    'स्पर्धात्मक बॅचमधील पोहणाऱ्यांसाठी रेस वेळ नोंदवा. तारीख, स्ट्रोक आणि अंतर निवडा, नंतर प्रत्येक पोहणाऱ्यासाठी मिनिट:सेकंद टाका.',
+  'Record race times for competitive batch swimmers. Select date, stroke, and distance, then enter mm:ss:msec for each swimmer.':
+    'स्पर्धात्मक बॅचमधील पोहणाऱ्यांसाठी रेस वेळ नोंदवा. तारीख, स्ट्रोक आणि अंतर निवडा, नंतर प्रत्येक पोहणाऱ्यासाठी mm:ss:msec टाका.',
   'Select stroke and distance to see times across all recorded dates.':
     'निवडलेल्या स्ट्रोक आणि अंतराच्या सर्व नोंदवलेल्या तारखांवरील वेळ पहा.',
   'No timings recorded for this stroke and distance yet.':
@@ -404,7 +405,7 @@ const mr: Record<string, string> = {
   'Failed to load progress trend': 'प्रगती कल लोड करता आली नाही',
   'No competitive batch swimmers found. Add an Advance batch or a Competitive pass.':
     'स्पर्धात्मक बॅचमधील पोहणारे सापडले नाहीत. Advance बॅच किंवा Competitive पास जोडा.',
-  'Enter timing as min:sec (e.g. 1:23)': 'वेळ मिनिट:सेकंद मध्ये टाका (उदा. 1:23)',
+  'Enter timing as mm:ss:msec (e.g. 01:23:45)': 'वेळ mm:ss:msec मध्ये टाका (उदा. 01:23:45)',
   'Swimmer progress saved.': 'पोहणाऱ्याची प्रगती जतन झाली.',
   'Failed to load swimmer progress': 'पोहणाऱ्याची प्रगती लोड करता आली नाही',
   'Failed to save swimmer progress': 'पोहणाऱ्याची प्रगती जतन करता आली नाही',
@@ -562,6 +563,7 @@ const mr: Record<string, string> = {
   'Transaction ID': 'व्यवहार क्रमांक',
   'Payment date': 'पेमेंट दिनांक',
   Particulars: 'तपशील',
+  'Mode of payment': 'पेमेंट पद्धत',
   Credit: 'जमा',
   Debit: 'नावे',
   Balance: 'शिल्लक',

@@ -11,11 +11,12 @@ type LedgerItem = {
   id: string;
   entryDate: string;
   particulars: string;
+  paymentMode: string;
   credit: number;
   debit: number;
   balance: number;
   type: 'credit' | 'debit';
-  source: 'pass' | 'expense' | 'coach';
+  source: 'pass' | 'expense';
 };
 
 type SheetResult = {
@@ -26,11 +27,12 @@ type SheetResult = {
   closingBalance: number;
 };
 
-type BalanceColumnKey = 'date' | 'particulars' | 'credit' | 'debit' | 'balance';
+type BalanceColumnKey = 'date' | 'particulars' | 'paymentMode' | 'credit' | 'debit' | 'balance';
 
 const BALANCE_COLUMNS: Array<{ key: BalanceColumnKey; label: string }> = [
   { key: 'date', label: 'Date' },
   { key: 'particulars', label: 'Particulars' },
+  { key: 'paymentMode', label: 'Mode of payment' },
   { key: 'credit', label: 'Credit' },
   { key: 'debit', label: 'Debit' },
   { key: 'balance', label: 'Balance' },
@@ -79,9 +81,15 @@ function formatDisplayDate(value: string) {
   return `${match[3]}-${match[2]}-${match[1]}`;
 }
 
+function formatPaymentMode(value: string) {
+  const mode = String(value ?? '').trim();
+  return mode || '—';
+}
+
 function balanceCellValue(item: LedgerItem, key: BalanceColumnKey) {
   if (key === 'date') return formatDisplayDate(item.entryDate);
   if (key === 'particulars') return item.particulars;
+  if (key === 'paymentMode') return formatPaymentMode(item.paymentMode);
   if (key === 'credit') return item.credit ? formatMoney(item.credit) : '—';
   if (key === 'debit') return item.debit ? formatMoney(item.debit) : '—';
   return formatMoney(item.balance);
@@ -92,6 +100,11 @@ function compareBalanceItems(a: LedgerItem, b: LedgerItem, key: BalanceColumnKey
   if (key === 'particulars') {
     return a.particulars.localeCompare(b.particulars, undefined, {
       numeric: true,
+      sensitivity: 'base',
+    });
+  }
+  if (key === 'paymentMode') {
+    return formatPaymentMode(a.paymentMode).localeCompare(formatPaymentMode(b.paymentMode), undefined, {
       sensitivity: 'base',
     });
   }
@@ -118,6 +131,7 @@ function sampleBalanceSheet(month: string): SheetResult {
       id: 'sample-pass-1',
       entryDate: `${month}-03`,
       particulars: 'Pass payment — Aarav Patil (Monthly Swim)',
+      paymentMode: 'Cash',
       credit: 2000,
       debit: 0,
       type: 'credit',
@@ -127,6 +141,7 @@ function sampleBalanceSheet(month: string): SheetResult {
       id: 'sample-pass-2',
       entryDate: `${month}-05`,
       particulars: 'Pass payment — Sana Joshi (Quarterly Swim)',
+      paymentMode: 'Online',
       credit: 5000,
       debit: 0,
       type: 'credit',
@@ -136,6 +151,7 @@ function sampleBalanceSheet(month: string): SheetResult {
       id: 'sample-exp-1',
       entryDate: `${month}-08`,
       particulars: 'Pool chemicals & chlorine',
+      paymentMode: 'Cash',
       credit: 0,
       debit: 1200,
       type: 'debit',
@@ -145,24 +161,17 @@ function sampleBalanceSheet(month: string): SheetResult {
       id: 'sample-pass-3',
       entryDate: `${month}-12`,
       particulars: 'Pass payment — Vihaan Kulkarni (Monthly Swim)',
+      paymentMode: 'Online',
       credit: 2000,
       debit: 0,
       type: 'credit',
       source: 'pass',
     },
     {
-      id: 'sample-coach-1',
-      entryDate: `${month}-20`,
-      particulars: 'Coach payment — Riya Kulkarni',
-      credit: 0,
-      debit: 3500,
-      type: 'debit',
-      source: 'coach',
-    },
-    {
       id: 'sample-exp-2',
       entryDate: `${month}-25`,
       particulars: 'Electricity & pump maintenance',
+      paymentMode: 'Online',
       credit: 0,
       debit: 1800,
       type: 'debit',
@@ -280,12 +289,17 @@ export function BalanceSheet() {
     return displayedSheet.items;
   }, [displayedSheet, filter]);
 
+  function cellDisplay(item: LedgerItem, key: BalanceColumnKey) {
+    if (key === 'paymentMode') return item.paymentMode ? t(item.paymentMode) : '—';
+    return balanceCellValue(item, key);
+  }
+
   const visibleItems = useMemo(() => {
     const filtered = typeItems.filter((item) =>
       BALANCE_COLUMNS.every(({ key }) => {
         const selected = columnSelected[key];
         if (!selected) return true;
-        return selected.has(balanceCellValue(item, key));
+        return selected.has(cellDisplay(item, key));
       }),
     );
     if (!sortKey || !sortDir) return filtered;
@@ -293,7 +307,7 @@ export function BalanceSheet() {
       const comparison = compareBalanceItems(a, b, sortKey);
       return sortDir === 'asc' ? comparison : -comparison;
     });
-  }, [typeItems, columnSelected, sortKey, sortDir]);
+  }, [typeItems, columnSelected, sortKey, sortDir, t]);
 
   const dateBounds = useMemo(() => monthDateBounds(month), [month]);
 
@@ -316,13 +330,14 @@ export function BalanceSheet() {
     const exportedCredit = rows.reduce((sum, item) => sum + item.credit, 0);
     const exportedDebit = rows.reduce((sum, item) => sum + item.debit, 0);
     const exportedBalance = exportedCredit - exportedDebit;
-    const header = ['Date', 'Particulars', 'Credit', 'Debit', 'Balance'];
+    const header = ['Date', 'Particulars', 'Mode of payment', 'Credit', 'Debit', 'Balance'];
     const lines = [
       header.join(','),
       ...rows.map((item) =>
         [
           formatDisplayDate(item.entryDate),
           item.particulars,
+          formatPaymentMode(item.paymentMode),
           item.credit ? String(item.credit) : '',
           item.debit ? String(item.debit) : '',
           String(item.balance),
@@ -330,13 +345,7 @@ export function BalanceSheet() {
           .map(csvEscape)
           .join(','),
       ),
-      [
-        '',
-        'Total',
-        String(exportedCredit),
-        String(exportedDebit),
-        String(exportedBalance),
-      ]
+      ['', 'Total', '', String(exportedCredit), String(exportedDebit), String(exportedBalance)]
         .map(csvEscape)
         .join(','),
     ];
@@ -471,7 +480,7 @@ export function BalanceSheet() {
                   <div className="balance-col-head" key={key}>
                     <TableColumnFilter
                       label={label}
-                      values={typeItems.map((item) => balanceCellValue(item, key))}
+                      values={typeItems.map((item) => cellDisplay(item, key))}
                       selected={columnSelected[key] ?? null}
                       sortDir={sortKey === key ? sortDir : null}
                       open={openColumnFilter === key}
@@ -518,6 +527,9 @@ export function BalanceSheet() {
                     <span data-label={t('Date')}>{formatDisplayDate(item.entryDate)}</span>
                     <span className="balance-row-title" data-label={t('Particulars')}>
                       {item.particulars}
+                    </span>
+                    <span data-label={t('Mode of payment')}>
+                      {item.paymentMode ? t(item.paymentMode) : '—'}
                     </span>
                     <span data-label={t('Credit')} className="balance-credit">
                       {item.credit ? formatMoney(item.credit) : '—'}

@@ -29,12 +29,28 @@ function formatDateValue(value: unknown) {
   return String(value).slice(0, 10);
 }
 
+function twoDigitMs(raw: string) {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  if (digits.length <= 2) return digits.padStart(2, '0');
+  return String(Math.min(99, Math.floor(Number(digits.slice(0, 3)) / 10))).padStart(2, '0');
+}
+
 function normalizeTimeText(value: unknown) {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
-  const match = raw.match(/^(\d{1,2}):([0-5]\d)$/);
-  if (!match) return null;
-  return `${Number(match[1])}:${match[2]}`;
+  const full = raw.match(/^(\d{1,2}):([0-5]\d):(\d{1,3})$/);
+  if (full) {
+    return `${String(Number(full[1])).padStart(2, '0')}:${full[2]}:${twoDigitMs(full[3])}`;
+  }
+  const legacy = raw.match(/^(\d{1,2}):([0-5]\d)$/);
+  if (legacy) {
+    return `${String(Number(legacy[1])).padStart(2, '0')}:${legacy[2]}:00`;
+  }
+  return null;
+}
+
+function parseEventName(raw: unknown) {
+  return String(raw ?? '').trim().slice(0, 80);
 }
 
 type StrokeDistanceOk = { stroke: string; distanceM: number };
@@ -215,7 +231,7 @@ swimmerProgressRouter.get('/', async (req, res) => {
       : '';
 
     const swimmers = await pool.query(
-      `SELECT r.id, r.full_name, r.batch, r.coach, p.time_text
+      `SELECT r.id, r.full_name, r.batch, r.coach, p.time_text, p.event_name
        FROM registrations r
        LEFT JOIN swimmer_progress p
          ON p.saas_account_id = r.saas_account_id
@@ -230,10 +246,14 @@ swimmerProgressRouter.get('/', async (req, res) => {
       params,
     );
 
+    const eventName =
+      swimmers.rows.map((row) => String(row.event_name ?? '').trim()).find(Boolean) ?? '';
+
     res.json({
       recordDate: filters.recordDate,
       stroke: filters.stroke,
       distanceM: filters.distanceM,
+      eventName,
       swimmers: swimmers.rows.map((row) => ({
         id: Number(row.id),
         name: String(row.full_name ?? ''),
@@ -263,6 +283,7 @@ swimmerProgressRouter.put('/', async (req, res) => {
     }
 
     const entries = Array.isArray(body.entries) ? body.entries : [];
+    const eventName = parseEventName(body.eventName ?? body.event);
     const saved: Array<{ registrationId: number; timeText: string }> = [];
     const coachNames = await assignedCoachNames(req, accountId);
     for (const item of entries) {
@@ -271,7 +292,7 @@ swimmerProgressRouter.put('/', async (req, res) => {
       if (!Number.isInteger(registrationId) || registrationId <= 0) continue;
       const timeText = normalizeTimeText(row.timeText ?? row.time);
       if (timeText === null) {
-        res.status(400).json({ error: 'Enter timing as min:sec (e.g. 1:23)' });
+        res.status(400).json({ error: 'Enter timing as mm:ss:msec (e.g. 01:23:45)' });
         return;
       }
 
@@ -304,14 +325,35 @@ swimmerProgressRouter.put('/', async (req, res) => {
 
       await pool.query(
         `INSERT INTO swimmer_progress
-           (saas_account_id, registration_id, record_date, stroke, distance_m, time_text, updated_at)
-         VALUES ($1, $2, $3::date, $4, $5, $6, NOW())
+           (saas_account_id, registration_id, record_date, stroke, distance_m, time_text, event_name, updated_at)
+         VALUES ($1, $2, $3::date, $4, $5, $6, $7, NOW())
          ON CONFLICT (saas_account_id, registration_id, record_date, stroke, distance_m)
-         DO UPDATE SET time_text = EXCLUDED.time_text, updated_at = NOW()`,
-        [accountId, registrationId, filters.recordDate, filters.stroke, filters.distanceM, timeText],
+         DO UPDATE SET
+           time_text = EXCLUDED.time_text,
+           event_name = EXCLUDED.event_name,
+           updated_at = NOW()`,
+        [
+          accountId,
+          registrationId,
+          filters.recordDate,
+          filters.stroke,
+          filters.distanceM,
+          timeText,
+          eventName,
+        ],
       );
       saved.push({ registrationId, timeText });
     }
+
+    await pool.query(
+      `UPDATE swimmer_progress
+          SET event_name = $1, updated_at = NOW()
+        WHERE saas_account_id = $2
+          AND record_date = $3::date
+          AND stroke = $4
+          AND distance_m = $5`,
+      [eventName, accountId, filters.recordDate, filters.stroke, filters.distanceM],
+    );
 
     await recordAudit(req, {
       action: 'update',
@@ -323,11 +365,12 @@ swimmerProgressRouter.put('/', async (req, res) => {
         recordDate: filters.recordDate,
         stroke: filters.stroke,
         distanceM: filters.distanceM,
+        eventName,
         count: saved.length,
       },
     });
 
-    res.json({ ok: true, ...filters, saved });
+    res.json({ ok: true, ...filters, eventName, saved });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save swimmer progress' });
