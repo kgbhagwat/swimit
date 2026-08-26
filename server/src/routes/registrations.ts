@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
+import { parsePaging, wantsPaging } from '../db/paging.js';
 import {
   allowPublicOrPages,
   hasEditAccess,
@@ -206,8 +207,28 @@ registrationsRouter.get('/', requirePages('swimmers'), async (req, res) => {
     const accountId = tenantId(req);
     await ensureInactiveAtColumn();
     await deactivateExpiredPasses(accountId);
-    const { rows } = await pool.query(
-      `SELECT id, full_name, email, whatsapp_mobile, birthdate, sex, blood_group,
+    const paged = wantsPaging(req.query);
+    const paging = parsePaging(req.query);
+    const status = String(req.query.status ?? '').trim().toLowerCase();
+    const params: unknown[] = [accountId];
+    const where = ['saas_account_id = $1'];
+    if (status === 'active') {
+      where.push(
+        `COALESCE(is_active, TRUE) = TRUE
+         AND pass_valid_until IS NOT NULL
+         AND pass_valid_until >= ${INDIA_SQL_TODAY}`,
+      );
+    } else if (status === 'inactive') {
+      where.push(
+        `NOT (
+           COALESCE(is_active, TRUE) = TRUE
+           AND pass_valid_until IS NOT NULL
+           AND pass_valid_until >= ${INDIA_SQL_TODAY}
+         )`,
+      );
+    }
+    const selectSql = `
+      SELECT id, full_name, email, whatsapp_mobile, birthdate, sex, blood_group,
               is_active, pass_type, batch, coach, pass_valid_until, inactive_at, created_at,
               test_result,
               COALESCE((
@@ -218,11 +239,26 @@ registrationsRouter.get('/', requirePages('swimmers'), async (req, res) => {
                 LIMIT 1
               ), FALSE) AS test_required
        FROM registrations
-       WHERE saas_account_id = $1
-       ORDER BY created_at DESC`,
-      [accountId],
+       WHERE ${where.join(' AND ')}
+       ORDER BY created_at DESC, id DESC`;
+    if (!paged) {
+      const { rows } = await pool.query(selectSql, params);
+      res.json(rows.map(mapRegistrationRow));
+      return;
+    }
+    params.push(paging.pageSize, paging.offset);
+    const { rows } = await pool.query(
+      `${selectSql.replace('SELECT id,', 'SELECT COUNT(*) OVER()::int AS _total, id,')}
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
     );
-    res.json(rows.map(mapRegistrationRow));
+    const total = Number(rows[0]?._total ?? 0);
+    res.json({
+      items: rows.map(mapRegistrationRow),
+      total,
+      page: paging.page,
+      pageSize: paging.pageSize,
+    });
   } catch (err) {
     console.error('[registrations] GET / failed', err);
     res.status(500).json({

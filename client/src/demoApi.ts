@@ -755,8 +755,30 @@ function handleRegistrations(
   pathname: string,
   body: Record<string, unknown>,
   store: DemoStore,
+  searchParams?: URLSearchParams,
 ) {
   if (method === 'GET' && pathname === '/api/registrations') {
+    const pageRaw = searchParams?.get('page');
+    if (pageRaw != null && pageRaw !== '') {
+      const page = Math.max(1, Math.trunc(Number(pageRaw)) || 1);
+      const pageSize = Math.min(100, Math.max(1, Math.trunc(Number(searchParams?.get('pageSize') || 50)) || 50));
+      const status = String(searchParams?.get('status') ?? '').trim().toLowerCase();
+      const today = new Date().toISOString().slice(0, 10);
+      const filtered = store.registrations.filter((row) => {
+        const until = String(row.pass_valid_until ?? '').slice(0, 10);
+        const active = row.is_active !== false && Boolean(until) && until >= today;
+        if (status === 'active') return active;
+        if (status === 'inactive') return !active;
+        return true;
+      });
+      const start = (page - 1) * pageSize;
+      return jsonResponse({
+        items: filtered.slice(start, start + pageSize),
+        total: filtered.length,
+        page,
+        pageSize,
+      });
+    }
     return jsonResponse(store.registrations);
   }
   if (method === 'GET' && pathname === '/api/registrations/pending-payment') {
@@ -1056,7 +1078,7 @@ export async function handleDemoApiRequest(
   }
   if (pathname.startsWith('/api/users')) return handleUsers(method, pathname, body, store);
   if (pathname.startsWith('/api/registrations')) {
-    return handleRegistrations(method, pathname, body, store);
+    return handleRegistrations(method, pathname, body, store, searchParams);
   }
   if (pathname.startsWith('/api/staff-registrations')) {
     return handleStaff(method, pathname, body, store);
@@ -1092,7 +1114,25 @@ export async function handleDemoApiRequest(
   if (pathname === '/api/dashboard/details') {
     const asOf = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
     const kind = String(searchParams.get('kind') ?? '').trim();
-    return jsonResponse(buildDemoDashboardDetails(store, kind, asOf));
+    const page = Math.max(1, Math.trunc(Number(searchParams.get('page') || 1)) || 1);
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Math.trunc(Number(searchParams.get('pageSize') || 50)) || 50),
+    );
+    const result = buildDemoDashboardDetails(store, kind, asOf) as {
+      kind: string;
+      asOf: string;
+      rows: unknown[];
+    };
+    const rows = Array.isArray(result.rows) ? result.rows : [];
+    const start = (page - 1) * pageSize;
+    return jsonResponse({
+      ...result,
+      total: rows.length,
+      page,
+      pageSize,
+      rows: rows.slice(start, start + pageSize),
+    });
   }
   if (pathname === '/api/dashboard') {
     const asOf = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);

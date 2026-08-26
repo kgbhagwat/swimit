@@ -53,6 +53,7 @@ import { ensureSchema } from './ensureSchema.js';
 import { startSubscriptionExpiryReminders } from './subscriptionReminders.js';
 import { startSubscriptionChatExpiryReminders } from './subscriptionChatReminders.js';
 import { startPassExpiryReminders } from './passExpiryReminders.js';
+import { startDashboardSnapshotWorker } from './dashboardSnapshotHost.js';
 import { startServerMonitorSampler } from './serverMonitor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -366,6 +367,7 @@ void ensureSchema()
       startSubscriptionChatExpiryReminders();
       startPassExpiryReminders();
       startServerMonitorSampler();
+      startDashboardSnapshotWorker();
     });
   })
   .catch((err) => {

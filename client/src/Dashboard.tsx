@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isApplicationDemo } from './applicationDemo';
 import { useT } from './i18n';
+import { ListPager } from './ListPager';
 import { PlatformPage } from './PlatformPage';
 
 type NamedCount = { name: string; count: number };
@@ -60,6 +61,8 @@ type DashboardDetailRow = {
   email?: string;
   isAccountAdmin?: boolean;
 };
+
+const DETAIL_PAGE_SIZE = 50;
 
 const WQ_PARAMS = [
   { key: 'phLevel' as const, label: 'pH Level', unit: '', min: 7.2, max: 7.6 },
@@ -423,6 +426,8 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [detailKind, setDetailKind] = useState<DashboardDetailKind | null>(null);
   const [detailRows, setDetailRows] = useState<DashboardDetailRow[]>([]);
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailTotal, setDetailTotal] = useState(0);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
   const demo = isApplicationDemo();
@@ -498,30 +503,39 @@ export function Dashboard() {
     return summary.activeSwimmers;
   }
 
-  async function openDetails(kind: DashboardDetailKind) {
+  async function openDetails(kind: DashboardDetailKind, nextPage = 1) {
     setDetailKind(kind);
+    setDetailPage(nextPage);
     setDetailRows([]);
     setDetailError('');
     setDetailLoading(true);
     try {
       const res = await fetch(
-        `/api/dashboard/details?kind=${encodeURIComponent(kind)}&date=${encodeURIComponent(asOf)}`,
+        `/api/dashboard/details?kind=${encodeURIComponent(kind)}&date=${encodeURIComponent(asOf)}&page=${nextPage}&pageSize=${DETAIL_PAGE_SIZE}`,
       );
       const body = (await res.json().catch(() => ({}))) as {
         rows?: DashboardDetailRow[];
+        total?: number;
         error?: string;
       };
       if (!res.ok) {
         if (demo) {
-          setDetailRows(sampleDetailRows(kind, asOf, countForKind(kind)));
+          const sample = sampleDetailRows(kind, asOf, countForKind(kind));
+          const start = (nextPage - 1) * DETAIL_PAGE_SIZE;
+          setDetailTotal(sample.length);
+          setDetailRows(sample.slice(start, start + DETAIL_PAGE_SIZE));
           return;
         }
         throw new Error(body.error || 'Failed to load dashboard details');
       }
       setDetailRows(Array.isArray(body.rows) ? body.rows : []);
+      setDetailTotal(Number(body.total ?? (Array.isArray(body.rows) ? body.rows.length : 0)));
     } catch (err) {
       if (demo) {
-        setDetailRows(sampleDetailRows(kind, asOf, countForKind(kind)));
+        const sample = sampleDetailRows(kind, asOf, countForKind(kind));
+        const start = (nextPage - 1) * DETAIL_PAGE_SIZE;
+        setDetailTotal(sample.length);
+        setDetailRows(sample.slice(start, start + DETAIL_PAGE_SIZE));
         return;
       }
       setDetailError(err instanceof Error ? err.message : 'Failed to load dashboard details');
@@ -533,6 +547,8 @@ export function Dashboard() {
   function closeDetails() {
     setDetailKind(null);
     setDetailRows([]);
+    setDetailPage(1);
+    setDetailTotal(0);
     setDetailError('');
     setDetailLoading(false);
   }
@@ -771,6 +787,15 @@ export function Dashboard() {
                   </table>
                 </div>
               ) : null}
+              <ListPager
+                page={detailPage}
+                pageSize={DETAIL_PAGE_SIZE}
+                total={detailTotal}
+                onPage={(next) => {
+                  if (detailKind) void openDetails(detailKind, next);
+                }}
+                disabled={detailLoading}
+              />
             </div>
             <div className="modal-footer">
               <button type="button" className="ghost-btn" onClick={closeDetails}>

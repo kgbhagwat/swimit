@@ -240,7 +240,12 @@ export async function loadAuth(req: Request): Promise<AuthContext | null> {
     ),
     kind,
   };
-  noteLiveSession(req.auth.sessionId);
+  const personKey = req.auth.userId
+    ? `user:${req.auth.userId}`
+    : req.auth.actorUserId
+      ? `actor:${req.auth.actorUserId}`
+      : `session:${req.auth.sessionId}`;
+  noteLiveSession(personKey);
   void pool.query(`UPDATE auth_sessions SET last_seen_at = NOW() WHERE id = $1`, [row.id]);
   return req.auth;
 }

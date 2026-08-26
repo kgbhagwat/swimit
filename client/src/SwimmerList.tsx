@@ -12,6 +12,7 @@ import { csvPlain, saveCsvFile } from './csvDownload';
 import { formatBatchDisplay } from './IdCard';
 import { downloadSelectedPassQrPdf } from './printPassQrPdf';
 import { InPageSelect } from './InPageSelect';
+import { ListPager } from './ListPager';
 import { canEditPage } from './pageAccess';
 import { PlatformPage } from './PlatformPage';
 import { openPassPopup } from './swimmerPass';
@@ -382,10 +383,14 @@ const SAMPLE_BATCHES: BatchSlot[] = [
   },
 ];
 
+const SWIMMER_PAGE_SIZE = 50;
+
 export function SwimmerList() {
   const t = useT();
   const navigate = useNavigate();
   const [status, setStatus] = useState<SwimmerStatus>('active');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [rows, setRows] = useState<SwimmerRow[]>([]);
   const [batches, setBatches] = useState<BatchSlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -578,13 +583,20 @@ export function SwimmerList() {
         setSuccess('');
         return;
       }
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(SWIMMER_PAGE_SIZE),
+        status,
+      });
       const [swimmerRes, batchesRes] = await Promise.all([
-        fetch('/api/registrations'),
+        fetch(`/api/registrations?${params.toString()}`),
         fetch('/api/batches'),
       ]);
       const swimmerBody = (await swimmerRes.json().catch(() => ({}))) as {
         error?: string;
         detail?: string;
+        items?: RegistrationApiRow[];
+        total?: number;
       } & RegistrationApiRow[];
       if (!swimmerRes.ok) {
         const detail = typeof swimmerBody.detail === 'string' ? swimmerBody.detail.trim() : '';
@@ -594,8 +606,20 @@ export function SwimmerList() {
             : swimmerBody.error ?? 'Failed to load swimmers',
         );
       }
-      const data = swimmerBody as RegistrationApiRow[];
+      const data = Array.isArray(swimmerBody.items)
+        ? swimmerBody.items
+        : Array.isArray(swimmerBody)
+          ? swimmerBody
+          : [];
       setRows(data.map(mapRow));
+      setTotal(
+        Array.isArray(swimmerBody.items)
+          ? Number(swimmerBody.total ?? data.length)
+          : data.length,
+      );
+      if (Array.isArray(swimmerBody.items) && data.length === 0 && page > 1) {
+        setPage(page - 1);
+      }
       setSampleMode(false);
 
       if (batchesRes.ok) {
@@ -622,7 +646,7 @@ export function SwimmerList() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [page, status]);
 
   useEffect(() => {
     setOpenFilter(null);
@@ -637,6 +661,7 @@ export function SwimmerList() {
       sampleMode ? getSamplePassPaymentQueue().map((row) => row.id) : [],
     );
     const visible = rows.filter((row) => !isAwaitingPassPayment(row, queuedIds));
+    if (!sampleMode) return visible;
     if (status === 'active') return visible.filter((row) => belongsOnActiveList(row));
     return visible.filter((row) => !belongsOnActiveList(row));
   }, [rows, status, sampleMode]);
@@ -738,10 +763,11 @@ export function SwimmerList() {
     }
   }
 
+  const summaryCount = sampleMode ? visibleRows.length : total;
   const summary =
     status === 'active'
-      ? `${visibleRows.length} ${visibleRows.length === 1 ? t('active swimmer') : t('active swimmers')}`
-      : `${visibleRows.length} ${visibleRows.length === 1 ? t('inactive swimmer') : t('inactive swimmers')}`;
+      ? `${summaryCount} ${summaryCount === 1 ? t('active swimmer') : t('active swimmers')}`
+      : `${summaryCount} ${summaryCount === 1 ? t('inactive swimmer') : t('inactive swimmers')}`;
 
   function sampleProfileFor(row: SwimmerRow): SwimmerProfile {
     return {
@@ -1041,7 +1067,10 @@ export function SwimmerList() {
                     type="radio"
                     name="swimmerStatus"
                     checked={status === 'active'}
-                    onChange={() => setStatus('active')}
+                    onChange={() => {
+                      setPage(1);
+                      setStatus('active');
+                    }}
                   />
                   <span>{t('Active Swimmer')}</span>
                 </label>
@@ -1050,7 +1079,10 @@ export function SwimmerList() {
                     type="radio"
                     name="swimmerStatus"
                     checked={status === 'inactive'}
-                    onChange={() => setStatus('inactive')}
+                    onChange={() => {
+                      setPage(1);
+                      setStatus('inactive');
+                    }}
                   />
                   <span>{t('Inactive Swimmer')}</span>
                 </label>
@@ -1297,6 +1329,15 @@ export function SwimmerList() {
                   })}
                 </div>
               )}
+              {!sampleMode ? (
+                <ListPager
+                  page={page}
+                  pageSize={SWIMMER_PAGE_SIZE}
+                  total={total}
+                  onPage={setPage}
+                  disabled={loading}
+                />
+              ) : null}
             </section>
           </>
         ) : (

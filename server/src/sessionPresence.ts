@@ -28,9 +28,9 @@ function noteCount(count: number) {
   }
 }
 
-/** Sample concurrent sessions on each authenticated API call (in-process, resets on restart). */
-export function noteLiveSession(sessionId: string) {
-  const id = String(sessionId ?? '').trim();
+/** Sample concurrent people on each authenticated API call (in-process, resets on restart). */
+export function noteLiveSession(personId: string) {
+  const id = String(personId ?? '').trim();
   if (!id) return;
   const now = Date.now();
   lastSeen.set(id, now);

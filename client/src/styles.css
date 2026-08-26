@@ -7720,6 +7720,19 @@ button.coach-payment-back {
   margin: 0;
 }
 
+.list-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 0.5rem 0.35rem;
+}
+
+html[data-theme='dark'] .list-pager {
+  color: #c5d4e6;
+}
+
 .swimmer-table-card,
 .coach-table-card {
   border-radius: 12px;

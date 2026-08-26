@@ -15,8 +15,13 @@ type LiveStats = {
   memory: { usedBytes: number; totalBytes: number; freeBytes: number; percent: number };
   disk: { usedBytes: number; totalBytes: number; freeBytes: number; percent: number };
   process: { rssBytes: number; heapUsedBytes: number };
-  postgres: { used: number; max: number };
-  api: { inBytesPerSec: number; outBytesPerSec: number };
+  postgres: { used: number; max: number; idle?: number; waiting?: number };
+  api: {
+    inBytesPerSec: number;
+    outBytesPerSec: number;
+    inBytesToday?: number;
+    outBytesToday?: number;
+  };
 };
 
 type DailyPeak = {
@@ -192,6 +197,7 @@ export function ServerMonitor() {
     session && hasPlatformAccess(session.menuAccess, 'server-monitor', session.isAccountAdmin),
   );
   const [data, setData] = useState<ServerStats | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -225,6 +231,7 @@ export function ServerMonitor() {
             today: body.today,
             history: Array.isArray(body.history) ? body.history : [],
           });
+          setUpdatedAt(new Date().toISOString());
           setError('');
         }
       } catch (err) {
@@ -270,23 +277,86 @@ export function ServerMonitor() {
       {loading && !data ? <p className="muted">{t('Loading…')}</p> : null}
 
       {current ? (
-        <p className="server-monitor-host">
-          <strong>{current.hostname}</strong>
-          <span>
-            {t('Running')}: {formatUptime(current.uptimeSeconds)}
-          </span>
-          <span>
-            {current.cpuCount} {t('CPU')}
-          </span>
-          <span>
-            {t('Started')}: {formatWhen(current.startedAt, locale)}
-          </span>
-          <span>
-            {t('Now')}: {current.sessions.active} · {clampPercent(current.cpu.percent).toFixed(0)}%{' '}
-            {t('CPU')} · {clampPercent(current.memory.percent).toFixed(1)}% {t('RAM')} ·{' '}
-            {formatBytes(current.process.rssBytes)}
-          </span>
-        </p>
+        <>
+          <p className="server-monitor-host">
+            <strong>{current.hostname}</strong>
+            <span>
+              {t('Running')}: {formatUptime(current.uptimeSeconds)}
+            </span>
+            <span>
+              {current.cpuCount} {t('CPU')}
+            </span>
+            <span>
+              {t('Started')}: {formatWhen(current.startedAt, locale)}
+            </span>
+          </p>
+
+          <div className="server-monitor-section-head">
+            <h2>{t('Current stats')}</h2>
+            <p className="muted">
+              {updatedAt
+                ? `${t('Updated')}: ${formatWhen(updatedAt, locale)}`
+                : t('Auto-updates every 30 seconds')}
+            </p>
+          </div>
+          <div className="server-monitor-grid">
+            <MetricCard
+              label={t('Concurrent users')}
+              value={String(current.sessions.active)}
+              detail={t('People online now')}
+            />
+            <MetricCard
+              label={t('Total logins today')}
+              value={String(current.sessions.uniqueToday)}
+              detail={t('Unique users who accessed today')}
+            />
+            <MetricCard
+              label={t('CPU')}
+              value={`${clampPercent(current.cpu.percent).toFixed(0)}%`}
+              detail={`load 1 ${Number(current.cpu.load1 || 0).toFixed(2)}`}
+              percent={current.cpu.percent}
+            />
+            <MetricCard
+              label={t('RAM')}
+              value={`${clampPercent(current.memory.percent).toFixed(0)}% • ${formatBytes(current.memory.usedBytes)}`}
+              detail={`${t('free')} ${formatBytes(current.memory.freeBytes)}`}
+              percent={current.memory.percent}
+            />
+            <MetricCard
+              label={t('Disk')}
+              value={`${clampPercent(current.disk.percent).toFixed(1)}%`}
+              detail={`${formatBytes(current.disk.usedBytes)} / ${formatBytes(current.disk.totalBytes)}`}
+              percent={current.disk.percent}
+            />
+            <MetricCard
+              label={t('Node API')}
+              value={formatBytes(current.process.rssBytes)}
+              detail={`${t('heap')} ${formatBytes(current.process.heapUsedBytes)}`}
+            />
+            <MetricCard
+              label={t('DB pool (active)')}
+              value={`${current.postgres.used} / ${current.postgres.max}`}
+              detail={
+                current.postgres.idle != null
+                  ? `${t('Idle')} ${current.postgres.idle}`
+                  : undefined
+              }
+              percent={
+                current.postgres.max ? (current.postgres.used / current.postgres.max) * 100 : 0
+              }
+            />
+            <MetricCard
+              label={t('Incoming API')}
+              value={formatRate(current.api.inBytesPerSec)}
+              detail={`${t('Total')} ${formatBytes(current.api.inBytesToday ?? 0)}`}
+            />
+            <MetricCard
+              label={t('Outgoing API')}
+              value={formatRate(current.api.outBytesPerSec)}
+              detail={`${t('Total')} ${formatBytes(current.api.outBytesToday ?? 0)}`}
+            />
+          </div>
+        </>
       ) : null}
 
       {today ? (
@@ -299,7 +369,7 @@ export function ServerMonitor() {
             <MetricCard
               label={t('Concurrent users max')}
               value={String(today.concurrentMax)}
-              detail={t('Maximum concurrent users today')}
+              detail={t('People online at once — same person signing in again still counts as 1')}
               extra={
                 today.concurrentMaxAt
                   ? `${t('Time')}: ${formatWhen(today.concurrentMaxAt, locale)}`

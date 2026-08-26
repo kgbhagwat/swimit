@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { apiTrafficSnapshot } from './apiTraffic.js';
-import { pool } from './db/pool.js';
+import { DB_POOL_MAX, pool } from './db/pool.js';
 import { INDIA_SQL_TODAY, INDIA_TIME_ZONE, indiaDaysAgoIso, indiaTodayIso } from './indiaDate.js';
-import { sessionPeakSnapshot } from './sessionPresence.js';
+import { noteConcurrentCount, sessionPeakSnapshot } from './sessionPresence.js';
 
 const SAMPLE_MS = 30_000;
 const RETAIN_DAYS = 30;
@@ -148,6 +148,11 @@ function isoOrNull(value: Date | string | null | undefined) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function capConcurrentUsers(concurrent: number, uniqueUsers: number) {
+  if (uniqueUsers > 0) return Math.min(concurrent, uniqueUsers);
+  return concurrent;
+}
+
 function peakAt(prevValue: number, prevAt: string | null, nextValue: number, nowIso: string) {
   if (nextValue > prevValue) return nowIso;
   return prevAt;
@@ -216,7 +221,7 @@ async function collectLiveSample(): Promise<LiveSample> {
   const freeMem = os.freemem();
   const usedMem = Math.max(0, totalMem - freeMem);
   const load = os.loadavg();
-  const poolMax = Number(pool.options.max ?? 10) || 10;
+  const poolMax = Number(pool.options.max ?? DB_POOL_MAX) || DB_POOL_MAX;
   const poolTotal = pool.totalCount;
   const poolIdle = pool.idleCount;
   const poolWaiting = pool.waitingCount;
@@ -226,10 +231,11 @@ async function collectLiveSample(): Promise<LiveSample> {
   try {
     const sessions = await pool.query<{ active: number; unique_today: number }>(
       `SELECT
-         COUNT(*) FILTER (
+         COUNT(DISTINCT COALESCE(user_id, actor_user_id)) FILTER (
            WHERE revoked_at IS NULL
              AND expires_at > NOW()
              AND last_seen_at > NOW() - INTERVAL '15 minutes'
+             AND COALESCE(user_id, actor_user_id) IS NOT NULL
          )::int AS active,
          COUNT(DISTINCT user_id) FILTER (
            WHERE user_id IS NOT NULL
@@ -239,6 +245,7 @@ async function collectLiveSample(): Promise<LiveSample> {
     );
     active = num(sessions.rows[0]?.active);
     uniqueToday = num(sessions.rows[0]?.unique_today);
+    noteConcurrentCount(capConcurrentUsers(active, uniqueToday));
   } catch (err) {
     console.error('[server-monitor] Session counts failed', err);
   }
@@ -318,18 +325,24 @@ function emptyPeak(day: string): DailyPeak {
 function mergeLiveIntoPeak(prev: DailyPeak, live: LiveSample): DailyPeak {
   const nowIso = new Date().toISOString();
   const sampled = sessionPeakSnapshot();
-  const concurrent = Math.max(live.sessions.active, sampled.peakToday);
+  const uniqueUsers = Math.max(prev.uniqueUsers, live.sessions.uniqueToday);
+  const concurrentMax = capConcurrentUsers(
+    Math.max(prev.concurrentMax, live.sessions.active, sampled.peakToday),
+    uniqueUsers,
+  );
   return {
     day: prev.day || indiaTodayIso(),
     samples: Math.max(prev.samples, 1),
-    concurrentMax: Math.max(prev.concurrentMax, concurrent),
+    concurrentMax,
     concurrentMaxAt:
-      concurrent > prev.concurrentMax
+      concurrentMax > prev.concurrentMax
         ? sampled.peakToday >= live.sessions.active
           ? sampled.peakAt ?? nowIso
           : nowIso
-        : prev.concurrentMaxAt ?? (concurrent > 0 ? nowIso : null),
-    uniqueUsers: Math.max(prev.uniqueUsers, live.sessions.uniqueToday),
+        : concurrentMax < prev.concurrentMax
+          ? sampled.peakAt ?? nowIso
+          : prev.concurrentMaxAt ?? (concurrentMax > 0 ? nowIso : null),
+    uniqueUsers,
     cpuMaxPercent: Math.max(prev.cpuMaxPercent, live.cpu.percent),
     cpuMaxLoad1: live.cpu.percent >= prev.cpuMaxPercent ? live.cpu.load1 : prev.cpuMaxLoad1,
     cpuMaxAt: peakAt(prev.cpuMaxPercent, prev.cpuMaxAt, live.cpu.percent, nowIso),
@@ -424,18 +437,25 @@ async function writePeaks(live: LiveSample) {
   const prev = existing.rows[0] ? mapPeakRow(existing.rows[0] as Record<string, unknown>) : emptyPeak(day);
 
   const sampled = sessionPeakSnapshot();
-  const concurrent = Math.max(live.sessions.active, sampled.peakToday);
+  const uniqueUsers = Math.max(prev.uniqueUsers, live.sessions.uniqueToday);
+  const concurrent = capConcurrentUsers(
+    Math.max(live.sessions.active, sampled.peakToday),
+    uniqueUsers,
+  );
+  const concurrentMax = capConcurrentUsers(Math.max(prev.concurrentMax, concurrent), uniqueUsers);
   const next: DailyPeak = {
     day,
     samples: prev.samples + 1,
-    concurrentMax: Math.max(prev.concurrentMax, concurrent),
+    concurrentMax,
     concurrentMaxAt:
-      concurrent > prev.concurrentMax
+      concurrentMax > prev.concurrentMax
         ? sampled.peakToday >= live.sessions.active
           ? sampled.peakAt ?? nowIso
           : nowIso
-        : prev.concurrentMaxAt,
-    uniqueUsers: Math.max(prev.uniqueUsers, live.sessions.uniqueToday),
+        : concurrentMax < prev.concurrentMax
+          ? sampled.peakAt ?? nowIso
+          : prev.concurrentMaxAt,
+    uniqueUsers,
     cpuMaxPercent: Math.max(prev.cpuMaxPercent, live.cpu.percent),
     cpuMaxLoad1: live.cpu.percent > prev.cpuMaxPercent ? live.cpu.load1 : prev.cpuMaxLoad1,
     cpuMaxAt: peakAt(prev.cpuMaxPercent, prev.cpuMaxAt, live.cpu.percent, nowIso),
