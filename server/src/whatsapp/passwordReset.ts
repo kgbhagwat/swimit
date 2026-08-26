@@ -2,7 +2,7 @@ import { pool } from '../db/pool.js';
 import { generateTempPassword, hashPassword } from '../password.js';
 import { sendWhatsAppText } from './client.js';
 import { getWhatsAppConfig } from './config.js';
-import { notifyLoginCredentials } from './notify.js';
+import { isOpenChatKeyword, notifyLoginCredentials } from './notify.js';
 
 const SESSION_MINUTES = 15;
 const RESET_COOLDOWN = '10 minutes';
@@ -134,6 +134,7 @@ export async function replyIfWhatsAppPasswordReset(params: {
   const text = String(params.text ?? '').trim();
   const mobile = params.fromMobileLast10;
   if (!mobile || mobile.length < 10) return false;
+  if (isOpenChatKeyword(text)) return false;
 
   if (isPasswordKeyword(text)) {
     const login = await findLoginByMobile(mobile);
@@ -151,6 +152,7 @@ export async function replyIfWhatsAppPasswordReset(params: {
 
   const email = extractEmail(text);
   if (!email) {
+    if (isOpenChatKeyword(text)) return false;
     await reply(mobile, INVALID_EMAIL, 'password_reset_invalid_email');
     return true;
   }
@@ -226,6 +228,7 @@ export async function replyIfWhatsAppPasswordReset(params: {
     userName: String(user.user_name ?? ''),
     temporaryPassword,
     saasAccountId: Number(user.saas_account_id),
+    preferFreeText: true,
   });
 
   await logOutbound({
@@ -245,12 +248,13 @@ export async function replyIfWhatsAppPasswordReset(params: {
     [
       `Your SwimIT password was reset.`,
       `Code: ${accountCode}`,
-      `User: ${String(user.user_name ?? '')}`,
-      `Temporary password: ${temporaryPassword}`,
+      `Login id: ${String(user.user_name ?? '')}`,
+      `Password: ${temporaryPassword}`,
       'Please update it after first sign-in.',
     ].join('\n'),
     'password_reset_credentials_text',
     Number(user.saas_account_id),
   );
+  await reply(mobile, temporaryPassword, 'login_password_copy', Number(user.saas_account_id));
   return true;
 }

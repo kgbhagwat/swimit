@@ -1,9 +1,17 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { pool } from '../db/pool.js';
 import { indiaTodayIso } from '../indiaDate.js';
 import { renderPassCardPng, renderUrlQrPng } from '../passCardImage.js';
 import { renderPassInvoicePng } from '../invoiceImage.js';
-import { formatInvoiceInr, loadLatestPassInvoice } from '../passInvoice.js';
-import { buildUpiHttpsLaunchUrl, buildUpiPayUri, renderUpiPayQrPng } from '../upiPayQr.js';
+import { formatInvoiceInr, formatPaymentDate, loadLatestPassInvoice } from '../passInvoice.js';
+import { loadLatestPassRenewQuote, nextPassValidUntil } from '../passAutoRenew.js';
+import { uploadAbsolutePath } from '../paymentAmount.js';
+import {
+  buildUpiHttpsLaunchUrl,
+  buildUpiPayUri,
+  renderUpiPayQrPng,
+} from '../upiPayQr.js';
 import { getWhatsAppConfig } from './config.js';
 import { ensureFormQrTemplates, ensurePassPayQrTemplate, ensureRegistrationHiTemplate, formQrTemplateStatus, passPayQrTemplateStatus } from './ensureFormQrTemplate.js';
 import { WA_TEMPLATES } from './templateCatalog.js';
@@ -216,6 +224,8 @@ export async function notifyLoginCredentials(params: {
   userName: string;
   temporaryPassword: string;
   saasAccountId?: number;
+  /** Prefer session text (e.g. password reset after the person already replied). */
+  preferFreeText?: boolean;
 }): Promise<NotifyCredentialsResult> {
   const passwordLine = String(params.temporaryPassword).trim();
   const loginIdLabel = 'Mobile/Email';
@@ -223,8 +233,8 @@ export async function notifyLoginCredentials(params: {
     `Your SwimIT account ${params.accountName} is ready.`,
     `Code: ${params.accountCode}`,
     `Sign-in link: ${params.loginUrl}`,
-    `Login ID: ${loginIdLabel}`,
-    `Temporary password: ${passwordLine}`,
+    `Login id: ${loginIdLabel}`,
+    `Password: ${passwordLine}`,
     'Please update it after first sign-in.',
   ].join('\n');
 
@@ -248,13 +258,43 @@ export async function notifyLoginCredentials(params: {
     templateText(loginIdLabel, 32),
     templateText(passwordLine, 32),
   ];
-  // Older 4-variable template: keep password in the last slot.
+  // Older 4-variable template cannot put Password on its own line; password is sent next.
   const loginInfoTexts = [
     templateText(params.accountName),
     templateText(params.accountCode, 32),
     templateText(params.loginUrl, 200),
-    templateText(`${loginIdLabel}. Password: ${passwordLine}`, 60),
+    templateText(`Login id: ${loginIdLabel}`, 60),
   ];
+
+  async function sendPasswordCopyFollowUp() {
+    if (!passwordLine) return;
+    try {
+      const extra = await sendWhatsAppText(params.mobile, passwordLine);
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_password_copy',
+        body: passwordLine,
+        status: extra.skipped ? 'skipped' : 'sent',
+      });
+    } catch (err) {
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_password_copy',
+        body: passwordLine,
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Send failed',
+      });
+    }
+  }
+
+  async function finishOk(result: NotifyCredentialsResult): Promise<NotifyCredentialsResult> {
+    if (result.ok && !result.skipped) {
+      await sendPasswordCopyFollowUp();
+    }
+    return result;
+  }
 
   async function sent(templateName: string, to: string, messageId: string): Promise<NotifyCredentialsResult> {
     await logOutbound({
@@ -278,7 +318,35 @@ export async function notifyLoginCredentials(params: {
     });
   }
 
-  try {
+  async function tryFreeText(): Promise<NotifyCredentialsResult> {
+    const result = await sendWhatsAppText(params.mobile, body);
+    if (result.skipped) {
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind: 'login_credentials',
+        body,
+        status: 'skipped',
+      });
+      return { ok: true, skipped: true };
+    }
+
+    await logOutbound({
+      saasAccountId: params.saasAccountId,
+      toMobile: params.mobile,
+      kind: 'login_credentials',
+      body,
+      status: 'sent',
+    });
+    return {
+      ok: true,
+      skipped: false,
+      to: result.to,
+      messageId: result.messageId,
+    };
+  }
+
+  async function tryTemplates(): Promise<NotifyCredentialsResult | null> {
     const readyTemplate = String(
       process.env.WHATSAPP_ACCOUNT_LOGIN_READY_TEMPLATE ?? WA_TEMPLATES.accountLoginReady,
     ).trim();
@@ -341,30 +409,35 @@ export async function notifyLoginCredentials(params: {
       }
     }
 
-    const result = await sendWhatsAppText(params.mobile, body);
-    if (result.skipped) {
-      await logOutbound({
-        saasAccountId: params.saasAccountId,
-        toMobile: params.mobile,
-        kind: 'login_credentials',
-        body,
-        status: 'skipped',
-      });
-      return { ok: true, skipped: true };
+    return null;
+  }
+
+  try {
+    if (params.preferFreeText) {
+      try {
+        return await finishOk(await tryFreeText());
+      } catch (textErr) {
+        await logOutbound({
+          saasAccountId: params.saasAccountId,
+          toMobile: params.mobile,
+          kind: 'login_credentials',
+          body,
+          status: 'failed',
+          error: textErr instanceof Error ? textErr.message : 'Send failed',
+        });
+      }
     }
 
-    await logOutbound({
-      saasAccountId: params.saasAccountId,
-      toMobile: params.mobile,
-      kind: 'login_credentials',
-      body,
-      status: 'sent',
-    });
+    const templated = await tryTemplates();
+    if (templated) return await finishOk(templated);
+
+    if (!params.preferFreeText) {
+      return await finishOk(await tryFreeText());
+    }
+
     return {
-      ok: true,
-      skipped: false,
-      to: result.to,
-      messageId: result.messageId,
+      ok: false,
+      error: formatWhatsAppUserError('Send failed', params.mobile),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Send failed';
@@ -499,8 +572,44 @@ function isPassRequestText(text: string) {
   return /^(pass|my pass|send pass|send my pass|पास)[\s!.]*$/i.test(String(text ?? '').trim());
 }
 
+function isRenewRequestText(text: string) {
+  return /^(renew|renew pass|renew my pass|renewal|रिन्यू|नवीनीकरण)[\s!.]*$/i.test(
+    String(text ?? '').trim(),
+  );
+}
+
+/** Keywords that should not be consumed by an in-progress password-reset email prompt. */
+export function isOpenChatKeyword(text: string) {
+  return isRegistrationHiText(text) || isPassRequestText(text) || isRenewRequestText(text);
+}
+
 const NO_ACTIVE_PASS_REPLY =
   'No active SwimIT pass was found for this number. Please visit the pool desk.';
+
+const NO_PASS_TO_RENEW_REPLY =
+  'No SwimIT pass was found to renew for this number. Please visit the pool desk.';
+
+const RENEW_ONLINE_UNAVAILABLE_REPLY =
+  'Online pass renewal is not available. Please visit the pool desk.';
+
+async function resolveRegistrationId(
+  saasAccountId: number,
+  last10: string,
+  preferredId: number | null,
+) {
+  if (preferredId != null) return preferredId;
+  if (!last10) return null;
+  const found = await pool.query<{ id: number }>(
+    `SELECT id
+       FROM registrations
+      WHERE saas_account_id = $1
+        AND RIGHT(regexp_replace(COALESCE(whatsapp_mobile, ''), '\\D', '', 'g'), 10) = $2
+      ORDER BY CASE WHEN COALESCE(is_active, TRUE) THEN 0 ELSE 1 END, id DESC
+      LIMIT 1`,
+    [saasAccountId, last10],
+  );
+  return found.rows[0] ? Number(found.rows[0].id) : null;
+}
 
 export async function notifyRegistrationConfirmation(params: {
   mobile: string;
@@ -529,14 +638,19 @@ export async function replyIfRegistrationHi(params: {
   text: string;
 }) {
   if (!isRegistrationHiText(params.text)) return false;
-  if (params.registrationId == null) return false;
+  const registrationId = await resolveRegistrationId(
+    params.saasAccountId,
+    params.fromMobileLast10,
+    params.registrationId,
+  );
+  if (registrationId == null) return false;
 
   const swimmer = await pool.query<{ id: number; pass_valid_until: string | null }>(
     `SELECT id, pass_valid_until
      FROM registrations
      WHERE id = $1 AND saas_account_id = $2
      LIMIT 1`,
-    [params.registrationId, params.saasAccountId],
+    [registrationId, params.saasAccountId],
   );
   const row = swimmer.rows[0];
   if (!row || row.pass_valid_until != null) return false;
@@ -586,7 +700,12 @@ export async function replyIfPassRequest(params: {
   text: string;
 }) {
   if (!isPassRequestText(params.text)) return false;
-  if (params.registrationId == null) return false;
+  const registrationId = await resolveRegistrationId(
+    params.saasAccountId,
+    params.fromMobileLast10,
+    params.registrationId,
+  );
+  if (registrationId == null) return false;
 
   const swimmer = await pool.query<{
     id: number;
@@ -603,12 +722,12 @@ export async function replyIfPassRequest(params: {
        JOIN saas_accounts a ON a.id = r.saas_account_id
       WHERE r.id = $1 AND r.saas_account_id = $2
       LIMIT 1`,
-    [params.registrationId, params.saasAccountId],
+    [registrationId, params.saasAccountId],
   );
   const row = swimmer.rows[0];
   if (!row) return false;
 
-  const until = String(row.pass_valid_until ?? '').slice(0, 10);
+  const until = formatPaymentDate(row.pass_valid_until);
   const today = indiaTodayIso();
   const active =
     row.is_active !== false && /^\d{4}-\d{2}-\d{2}$/.test(until) && until >= today;
@@ -618,7 +737,7 @@ export async function replyIfPassRequest(params: {
        FROM whatsapp_outbound
       WHERE saas_account_id = $1
         AND RIGHT(regexp_replace(to_mobile, '\\D', '', 'g'), 10) = $2
-        AND kind IN ('pass_issued_card', 'pass_request_none')
+        AND kind = 'pass_issued_card'
         AND status = 'sent'
         AND created_at > NOW() - INTERVAL '10 minutes'
       LIMIT 1`,
@@ -651,7 +770,7 @@ export async function replyIfPassRequest(params: {
     }
   }
 
-  const mobile = String(row.whatsapp_mobile ?? '').trim() || params.fromMobileLast10;
+  const mobile = params.fromMobileLast10 || String(row.whatsapp_mobile ?? '').trim();
   const sent = await notifyPassIssued({
     mobile,
     fullName: String(row.full_name ?? '').trim() || 'swimmer',
@@ -663,6 +782,134 @@ export async function replyIfPassRequest(params: {
     sendInvoice: false,
   });
   return !sent.skipped;
+}
+
+async function replyRenewStatus(
+  fromMobileLast10: string,
+  saasAccountId: number,
+  body: string,
+  kind: 'pass_renew_none' | 'pass_renew_unavailable',
+) {
+  try {
+    const result = await sendWhatsAppText(fromMobileLast10, body);
+    await logOutbound({
+      saasAccountId,
+      toMobile: fromMobileLast10,
+      kind,
+      body,
+      status: result.skipped ? 'skipped' : 'sent',
+    });
+    return !result.skipped;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Send failed';
+    await logOutbound({
+      saasAccountId,
+      toMobile: fromMobileLast10,
+      kind,
+      body,
+      status: 'failed',
+      error: message,
+    });
+    return false;
+  }
+}
+
+/** After a swimmer sends "renew", send latest pass details, amount, UPI ID, and payment QR. */
+export async function replyIfRenewRequest(params: {
+  fromMobileLast10: string;
+  saasAccountId: number;
+  registrationId: number | null;
+  text: string;
+}) {
+  if (!isRenewRequestText(params.text)) return false;
+  const registrationId = await resolveRegistrationId(
+    params.saasAccountId,
+    params.fromMobileLast10,
+    params.registrationId,
+  );
+  if (registrationId == null) return false;
+
+  const recent = await pool.query(
+    `SELECT 1
+       FROM whatsapp_outbound
+      WHERE saas_account_id = $1
+        AND RIGHT(regexp_replace(to_mobile, '\\D', '', 'g'), 10) = $2
+        AND kind IN ('pass_renew_request', 'pass_renew_none', 'pass_renew_unavailable')
+        AND status = 'sent'
+        AND created_at > NOW() - INTERVAL '10 minutes'
+      LIMIT 1`,
+    [params.saasAccountId, params.fromMobileLast10],
+  );
+  if (recent.rows[0]) return false;
+
+  const quote = await loadLatestPassRenewQuote({
+    saasAccountId: params.saasAccountId,
+    registrationId,
+  });
+  if (!quote) {
+    return replyRenewStatus(
+      params.fromMobileLast10,
+      params.saasAccountId,
+      NO_PASS_TO_RENEW_REPLY,
+      'pass_renew_none',
+    );
+  }
+
+  if (!quote.paymentAcceptOnline || !quote.paymentQrPath) {
+    return replyRenewStatus(
+      params.fromMobileLast10,
+      params.saasAccountId,
+      RENEW_ONLINE_UNAVAILABLE_REPLY,
+      'pass_renew_unavailable',
+    );
+  }
+
+  const newValidUntil = nextPassValidUntil(quote.currentValidUntil, quote.passDuration);
+  const mobile = quote.mobile.replace(/\D/g, '').slice(-10) || params.fromMobileLast10;
+
+  await pool.query(
+    `UPDATE pass_payment_intents
+        SET status = 'cancelled', notes = 'Superseded by WhatsApp renew request'
+      WHERE registration_id = $1 AND status = 'pending'`,
+    [registrationId],
+  );
+
+  await pool.query(
+    `INSERT INTO pass_payment_intents
+       (saas_account_id, registration_id, from_mobile, pass_type, batch, coach,
+        pass_valid_until, expected_amount, pass_charges, coaching_charges, status, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, 'pending', $11)`,
+    [
+      params.saasAccountId,
+      registrationId,
+      mobile,
+      quote.passType,
+      quote.batch,
+      quote.coach ?? '',
+      newValidUntil,
+      quote.expectedAmount,
+      quote.passCharges,
+      quote.coachingCharges,
+      'Requested by swimmer WhatsApp renew',
+    ],
+  );
+
+  const sent = await notifyPassPaymentRequest({
+    mobile,
+    fullName: quote.fullName || 'swimmer',
+    passType: quote.passType,
+    amount: quote.expectedAmount,
+    passValidUntil: newValidUntil,
+    upiId: quote.configuredUpi,
+    paymentQrPath: quote.paymentQrPath,
+    saasAccountId: params.saasAccountId,
+    poolName: quote.poolName || undefined,
+    currentValidUntil: quote.currentValidUntil,
+    kind: 'pass_renew_request',
+    preferFreeText: true,
+    useUploadedQr: true,
+  });
+  return Boolean(sent.ok && !sent.skipped);
 }
 
 export async function notifyPassIssued(params: {
@@ -711,7 +958,8 @@ export async function notifyPassIssued(params: {
     );
     const row = rows[0];
     if (!row) throw new Error('Swimmer registration not found');
-    const recipientMobile = String(row.whatsapp_mobile ?? '').trim();
+    const recipientMobile =
+      String(params.mobile ?? '').trim() || String(row.whatsapp_mobile ?? '').trim();
     if (!recipientMobile) throw new Error('Swimmer WhatsApp mobile is missing');
 
     let passSent = false;
@@ -1157,6 +1405,37 @@ export async function notifyPackageRenewalPayment(params: {
   return sent;
 }
 
+function paymentQrMimeType(fileName: string) {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.gif') return 'image/gif';
+  return 'image/jpeg';
+}
+
+async function sendStoredPaymentQr(params: {
+  mobile: string;
+  relativePath: string;
+  caption: string;
+  publicAppUrl?: string;
+}) {
+  const relative = String(params.relativePath ?? '').trim();
+  if (!relative) throw new Error('Payment QR is missing');
+  try {
+    const buffer = await fs.readFile(uploadAbsolutePath(relative));
+    const mediaId = await uploadWhatsAppMedia({
+      buffer,
+      mimeType: paymentQrMimeType(relative),
+      filename: path.basename(relative) || 'payment-qr.png',
+    });
+    return sendWhatsAppImageByMediaId(params.mobile, mediaId, params.caption);
+  } catch (diskErr) {
+    const origin = String(params.publicAppUrl ?? '').replace(/\/$/, '');
+    if (!origin) throw diskErr;
+    return sendWhatsAppImage(params.mobile, `${origin}/uploads/${relative}`, params.caption);
+  }
+}
+
 /** Ask swimmer to pay pool UPI/QR and send payment screenshot on WhatsApp. */
 export async function notifyPassPaymentRequest(params: {
   mobile: string;
@@ -1169,15 +1448,23 @@ export async function notifyPassPaymentRequest(params: {
   saasAccountId: number;
   poolName?: string;
   shareUrl?: string;
+  currentValidUntil?: string;
+  kind?: string;
+  preferFreeText?: boolean;
+  /** Send the pool's uploaded payment QR instead of an amount-locked UPI QR / pay link. */
+  useUploadedQr?: boolean;
 }): Promise<NotifyCredentialsResult & { message: string; payLink: string; qrSent?: boolean }> {
   const cfg = getWhatsAppConfig();
+  const kind = params.kind || 'pass_payment_request';
+  const useUploadedQr = params.useUploadedQr === true;
   const amountLabel = `₹${params.amount.toLocaleString('en-IN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })}`;
-  const hasAmountQr = Boolean(String(params.upiId ?? '').trim()) && params.amount > 0;
+  const hasAmountQr =
+    !useUploadedQr && Boolean(String(params.upiId ?? '').trim()) && params.amount > 0;
   const payeeName = String(params.poolName ?? 'SwimIT').trim() || 'SwimIT';
-  const shareUrl = String(params.shareUrl ?? '').trim();
+  const shareUrl = useUploadedQr ? '' : String(params.shareUrl ?? '').trim();
   const payLink =
     hasAmountQr && shareUrl.startsWith('https://') && !shareUrl.includes('@') ? shareUrl : '';
   const qrPayUrl =
@@ -1191,25 +1478,49 @@ export async function notifyPassPaymentRequest(params: {
           note: `Pass ${params.passType}`.slice(0, 80),
         })
       : '');
-  const body = [
-    `Hello ${params.fullName},`,
-    '',
-    'Please complete your SwimIT pass payment.',
-    `Pass: ${params.passType}`,
-    `Amount: *${amountLabel}*`,
-    `Valid until: ${params.passValidUntil}`,
-    '',
-    hasAmountQr
-      ? payLink
-        ? 'Scan the payment QR below, or tap the link to open your UPI app.'
-        : 'Copy the payment QR and attach it in this chat so they can scan it.'
-      : 'Pay using the pool QR code / UPI shown.',
+  const newUntilLabel = formatWhatsAppPassDate(params.passValidUntil);
+  const currentUntilLabel = params.currentValidUntil
+    ? formatWhatsAppPassDate(params.currentValidUntil)
+    : '';
+  const payLines = [
+    useUploadedQr
+      ? 'Scan the pool payment QR below.'
+      : hasAmountQr
+        ? payLink
+          ? 'Scan the payment QR below, or tap the link to open your UPI app.'
+          : 'Copy the payment QR and attach it in this chat so they can scan it.'
+        : 'Pay using the pool QR code / UPI shown.',
     payLink ? `Pay now:\n\n${payLink}` : '',
     params.upiId
       ? `After paying, send the screenshot with visible *${params.upiId}* on WhatsApp.`
       : 'After paying, send the payment screenshot on WhatsApp.',
     params.upiId ? `UPI ID: *${params.upiId}*` : '',
-  ]
+  ];
+  const body = (
+    currentUntilLabel
+      ? [
+          `Hello ${params.fullName},`,
+          '',
+          'Your latest SwimIT pass:',
+          `Pass type: ${params.passType}`,
+          `Valid until: ${currentUntilLabel}`,
+          '',
+          `Renewal amount: *${amountLabel}*`,
+          `New valid until: ${newUntilLabel}`,
+          '',
+          ...payLines,
+        ]
+      : [
+          `Hello ${params.fullName},`,
+          '',
+          'Please complete your SwimIT pass payment.',
+          `Pass: ${params.passType}`,
+          `Amount: *${amountLabel}*`,
+          `Valid until: ${params.passValidUntil}`,
+          '',
+          ...payLines,
+        ]
+  )
     .filter(Boolean)
     .join('\n');
 
@@ -1248,40 +1559,79 @@ export async function notifyPassPaymentRequest(params: {
   const qrTemplateStatus = mediaId ? await passPayQrTemplateStatus() : 'MISSING';
   const headerImage = mediaId ? { id: mediaId } : undefined;
 
-  let sent: NotifyCredentialsResult;
-  let qrSent = false;
-  if (qrTemplateStatus === 'APPROVED' && headerImage) {
-    sent = await deliverNotice({
-      mobile: params.mobile,
-      saasAccountId: params.saasAccountId,
-      kind: 'pass_payment_request',
-      templateName: WA_TEMPLATES.passPayQr,
-      bodyTexts,
-      fallbackBody: body,
-      headerImage,
-      allowTextFallback: false,
-    });
-    qrSent = Boolean(sent.ok && !sent.skipped);
-    if (!sent.ok) {
+  async function sendViaTemplate(): Promise<{ sent: NotifyCredentialsResult; qrSent: boolean }> {
+    let sent: NotifyCredentialsResult;
+    let qrInTemplate = false;
+    if (qrTemplateStatus === 'APPROVED' && headerImage) {
       sent = await deliverNotice({
         mobile: params.mobile,
         saasAccountId: params.saasAccountId,
-        kind: 'pass_payment_request',
+        kind,
+        templateName: WA_TEMPLATES.passPayQr,
+        bodyTexts,
+        fallbackBody: body,
+        headerImage,
+        allowTextFallback: false,
+      });
+      qrInTemplate = Boolean(sent.ok && !sent.skipped);
+      if (!sent.ok) {
+        sent = await deliverNotice({
+          mobile: params.mobile,
+          saasAccountId: params.saasAccountId,
+          kind,
+          templateName: WA_TEMPLATES.passPay,
+          bodyTexts,
+          fallbackBody: body,
+        });
+        qrInTemplate = false;
+      }
+    } else {
+      sent = await deliverNotice({
+        mobile: params.mobile,
+        saasAccountId: params.saasAccountId,
+        kind,
         templateName: WA_TEMPLATES.passPay,
         bodyTexts,
         fallbackBody: body,
       });
-      qrSent = false;
+    }
+    return { sent, qrSent: qrInTemplate };
+  }
+
+  let sent: NotifyCredentialsResult;
+  let qrSent = false;
+  if (params.preferFreeText) {
+    try {
+      const textResult = await sendWhatsAppText(params.mobile, body, {
+        previewUrl: Boolean(payLink),
+      });
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind,
+        body,
+        status: textResult.skipped ? 'skipped' : 'sent',
+      });
+      sent = textResult.skipped
+        ? { ok: true, skipped: true }
+        : { ok: true, skipped: false, to: textResult.to, messageId: textResult.messageId };
+    } catch (err) {
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.mobile,
+        kind,
+        body,
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Send failed',
+      });
+      const viaTemplate = await sendViaTemplate();
+      sent = viaTemplate.sent;
+      qrSent = viaTemplate.qrSent;
     }
   } else {
-    sent = await deliverNotice({
-      mobile: params.mobile,
-      saasAccountId: params.saasAccountId,
-      kind: 'pass_payment_request',
-      templateName: WA_TEMPLATES.passPay,
-      bodyTexts,
-      fallbackBody: body,
-    });
+    const viaTemplate = await sendViaTemplate();
+    sent = viaTemplate.sent;
+    qrSent = viaTemplate.qrSent;
   }
   if (!sent.ok || sent.skipped) return { ...sent, message: body, payLink, qrSent };
 
@@ -1293,10 +1643,14 @@ export async function notifyPassPaymentRequest(params: {
       console.warn('[whatsapp] amount-locked pass payment QR failed', qrErr);
     }
   }
-  if (!qrSent && cfg.publicAppUrl && params.paymentQrPath) {
-    const qrUrl = `${cfg.publicAppUrl.replace(/\/$/, '')}/uploads/${params.paymentQrPath}`;
+  if (!qrSent && params.paymentQrPath) {
     try {
-      await sendWhatsAppImage(params.mobile, qrUrl, caption);
+      await sendStoredPaymentQr({
+        mobile: params.mobile,
+        relativePath: params.paymentQrPath,
+        caption,
+        publicAppUrl: cfg.publicAppUrl,
+      });
       qrSent = true;
     } catch (qrErr) {
       console.warn('[whatsapp] pass payment QR send failed', qrErr);

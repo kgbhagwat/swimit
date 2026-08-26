@@ -12,10 +12,12 @@ import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { BROADCAST_RATE_INR } from '../renewBilling.js';
 import { replyIfWhatsAppPasswordReset } from '../whatsapp/passwordReset.js';
 import {
+  isOpenChatKeyword,
   notifyPassExpiring,
   notifyOpenFormQr,
   replyIfPassRequest,
   replyIfRegistrationHi,
+  replyIfRenewRequest,
   sendBroadcast,
 } from '../whatsapp/notify.js';
 import { processPackageRenewalInbound } from '../packageRenewal.js';
@@ -447,15 +449,18 @@ whatsappRouter.post('/webhook', async (req, res) => {
               });
             }
             let passwordHandled = false;
-            try {
-              passwordHandled = await replyIfWhatsAppPasswordReset({
-                fromMobileLast10: last10,
-                text: inboundText,
-              });
-            } catch (err) {
-              console.error('[whatsapp] password reset reply failed', err);
+            const swimmerKeyword = isOpenChatKeyword(inboundText);
+            if (!swimmerKeyword) {
+              try {
+                passwordHandled = await replyIfWhatsAppPasswordReset({
+                  fromMobileLast10: last10,
+                  text: inboundText,
+                });
+              } catch (err) {
+                console.error('[whatsapp] password reset reply failed', err);
+              }
             }
-            if (!passwordHandled) {
+            if (swimmerKeyword || !passwordHandled) {
               for (const saasAccountId of accountIds) {
                 const registrationId = swimmerIdForAccount(members, saasAccountId);
                 try {
@@ -477,6 +482,16 @@ whatsappRouter.post('/webhook', async (req, res) => {
                   });
                 } catch (err) {
                   console.error('[whatsapp] pass request reply failed', err);
+                }
+                try {
+                  await replyIfRenewRequest({
+                    fromMobileLast10: last10,
+                    saasAccountId,
+                    registrationId,
+                    text: inboundText,
+                  });
+                } catch (err) {
+                  console.error('[whatsapp] pass renew reply failed', err);
                 }
               }
             }

@@ -44,10 +44,12 @@ function toIsoDate(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-export type AutoRenewCheck = {
-  eligible: boolean;
+export type LatestPassRenewQuote = {
   expectedAmount: number;
   configuredUpi: string;
+  paymentQrPath: string | null;
+  poolName: string;
+  paymentAcceptOnline: boolean;
   passType: string;
   passDuration: string;
   passCharges: number;
@@ -59,6 +61,20 @@ export type AutoRenewCheck = {
   coach: string | null;
 };
 
+export type AutoRenewCheck = LatestPassRenewQuote & {
+  eligible: boolean;
+};
+
+export function nextPassValidUntil(
+  currentValidUntil: string,
+  duration: string,
+  today = indiaTodayIso(),
+) {
+  const expired = currentValidUntil < today;
+  const startDate = expired ? today : currentValidUntil;
+  return addPassDuration(duration, startDate);
+}
+
 function inferPassDuration(duration: string, passName: string) {
   const fromType = String(duration ?? '').trim();
   if (/^(\d+)\s*(Day|Week|Month|Year)s?$/i.test(fromType)) return fromType;
@@ -67,10 +83,10 @@ function inferPassDuration(duration: string, passName: string) {
   return '1 Month';
 }
 
-export async function loadAutoRenewCandidate(params: {
+export async function loadLatestPassRenewQuote(params: {
   saasAccountId: number;
   registrationId: number;
-}): Promise<AutoRenewCheck | null> {
+}): Promise<LatestPassRenewQuote | null> {
   const { rows } = await pool.query(
     `SELECT r.id, r.full_name, r.whatsapp_mobile, r.pass_type, r.batch, r.coach, r.pass_valid_until,
             p.pass_type AS paid_pass_type, p.pass_charges AS paid_pass_charges,
@@ -78,7 +94,8 @@ export async function loadAutoRenewCandidate(params: {
             COALESCE(pt.duration, '') AS pass_duration,
             COALESCE(pt.pass_charges, 0) AS type_pass_charges,
             COALESCE(pt.coaching_charges, 0) AS type_coaching_charges,
-            pci.upi_details
+            pci.upi_details, pci.payment_qr_path, pci.pool_name,
+            COALESCE(pci.payment_accept_online, TRUE) AS payment_accept_online
      FROM registrations r
      LEFT JOIN LATERAL (
        SELECT pass_type, pass_charges, coaching_charges, amount
@@ -97,14 +114,8 @@ export async function loadAutoRenewCandidate(params: {
   const row = rows[0];
   if (!row) return null;
 
-  const today = indiaTodayIso();
   const until = formatPaymentDate(row.pass_valid_until);
   if (!until) return null;
-
-  const windowEnd = indiaDaysAgoIso(-AUTO_RENEW_WITHIN_DAYS);
-  const expired = until < today;
-  const expiringSoon = until >= today && until <= windowEnd;
-  if (!expired && !expiringSoon) return null;
 
   const passType = String(row.paid_pass_type || row.pass_type || '').trim();
   if (!passType) return null;
@@ -115,9 +126,11 @@ export async function loadAutoRenewCandidate(params: {
   if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) return null;
 
   return {
-    eligible: true,
     expectedAmount,
     configuredUpi: String(row.upi_details ?? '').trim(),
+    paymentQrPath: row.payment_qr_path ? String(row.payment_qr_path) : null,
+    poolName: String(row.pool_name ?? '').trim(),
+    paymentAcceptOnline: row.payment_accept_online !== false,
     passType,
     passDuration: inferPassDuration(String(row.pass_duration ?? ''), passType),
     passCharges: Number((paidAmount > 0 ? row.paid_pass_charges : row.type_pass_charges) ?? 0),
@@ -130,6 +143,23 @@ export async function loadAutoRenewCandidate(params: {
     batch: String(row.batch ?? '').trim(),
     coach: row.coach == null ? null : String(row.coach),
   };
+}
+
+export async function loadAutoRenewCandidate(params: {
+  saasAccountId: number;
+  registrationId: number;
+}): Promise<AutoRenewCheck | null> {
+  const quote = await loadLatestPassRenewQuote(params);
+  if (!quote) return null;
+
+  const today = indiaTodayIso();
+  const until = quote.currentValidUntil;
+  const windowEnd = indiaDaysAgoIso(-AUTO_RENEW_WITHIN_DAYS);
+  const expired = until < today;
+  const expiringSoon = until >= today && until <= windowEnd;
+  if (!expired && !expiringSoon) return null;
+
+  return { ...quote, eligible: true };
 }
 
 export async function issueAutoRenewedPass(params: {
