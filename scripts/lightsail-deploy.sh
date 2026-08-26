@@ -122,6 +122,12 @@ docker compose -f docker-compose.lightsail.yml --env-file .env up -d
 echo "==> Status"
 docker compose -f docker-compose.lightsail.yml ps
 
+# Unused BuildKit cache filled this ~40GB disk (~28GB). Keep 2GB for faster
+# rebuilds. Does not touch running images, containers, or named volumes.
+echo "==> Trimming Docker build cache (keep 2GB)"
+docker builder prune -af --keep-storage=2GB || echo "WARNING: builder prune failed"
+docker system df || true
+
 echo ""
 echo "Waiting a few seconds for HTTPS…"
 sleep 5
