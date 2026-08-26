@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { apiTrafficSnapshot } from './apiTraffic.js';
 import { pool } from './db/pool.js';
-import { INDIA_SQL_TODAY, indiaDaysAgoIso, indiaTodayIso } from './indiaDate.js';
+import { INDIA_SQL_TODAY, INDIA_TIME_ZONE, indiaDaysAgoIso, indiaTodayIso } from './indiaDate.js';
 import { sessionPeakSnapshot } from './sessionPresence.js';
 
 const SAMPLE_MS = 30_000;
@@ -315,9 +315,75 @@ function emptyPeak(day: string): DailyPeak {
   };
 }
 
+function mergeLiveIntoPeak(prev: DailyPeak, live: LiveSample): DailyPeak {
+  const nowIso = new Date().toISOString();
+  const sampled = sessionPeakSnapshot();
+  const concurrent = Math.max(live.sessions.active, sampled.peakToday);
+  return {
+    day: prev.day || indiaTodayIso(),
+    samples: Math.max(prev.samples, 1),
+    concurrentMax: Math.max(prev.concurrentMax, concurrent),
+    concurrentMaxAt:
+      concurrent > prev.concurrentMax
+        ? sampled.peakToday >= live.sessions.active
+          ? sampled.peakAt ?? nowIso
+          : nowIso
+        : prev.concurrentMaxAt ?? (concurrent > 0 ? nowIso : null),
+    uniqueUsers: Math.max(prev.uniqueUsers, live.sessions.uniqueToday),
+    cpuMaxPercent: Math.max(prev.cpuMaxPercent, live.cpu.percent),
+    cpuMaxLoad1: live.cpu.percent >= prev.cpuMaxPercent ? live.cpu.load1 : prev.cpuMaxLoad1,
+    cpuMaxAt: peakAt(prev.cpuMaxPercent, prev.cpuMaxAt, live.cpu.percent, nowIso),
+    ramMaxPercent: Math.max(prev.ramMaxPercent, live.memory.percent),
+    ramMaxBytes: Math.max(prev.ramMaxBytes, live.memory.usedBytes),
+    ramTotalBytes: live.memory.totalBytes || prev.ramTotalBytes,
+    ramMaxAt: peakAt(prev.ramMaxPercent, prev.ramMaxAt, live.memory.percent, nowIso),
+    diskMaxPercent: Math.max(prev.diskMaxPercent, live.disk.percent),
+    diskMaxBytes: Math.max(prev.diskMaxBytes, live.disk.usedBytes),
+    diskTotalBytes: live.disk.totalBytes || prev.diskTotalBytes,
+    diskMaxAt: peakAt(prev.diskMaxPercent, prev.diskMaxAt, live.disk.percent, nowIso),
+    nodeRssMaxBytes: Math.max(prev.nodeRssMaxBytes, live.process.rssBytes),
+    nodeRssMaxAt: peakAt(prev.nodeRssMaxBytes, prev.nodeRssMaxAt, live.process.rssBytes, nowIso),
+    dbPoolUsedMax: Math.max(prev.dbPoolUsedMax, live.postgres.used),
+    dbPoolMax: live.postgres.max || prev.dbPoolMax,
+    dbPoolMaxAt: peakAt(prev.dbPoolUsedMax, prev.dbPoolMaxAt, live.postgres.used, nowIso),
+    apiInBpsMax: Math.max(prev.apiInBpsMax, live.api.inBytesPerSec),
+    apiInBytesTotal: Math.max(prev.apiInBytesTotal, live.api.inBytesToday),
+    apiInMaxAt: peakAt(prev.apiInBpsMax, prev.apiInMaxAt, live.api.inBytesPerSec, nowIso),
+    apiOutBpsMax: Math.max(prev.apiOutBpsMax, live.api.outBytesPerSec),
+    apiOutBytesTotal: Math.max(prev.apiOutBytesTotal, live.api.outBytesToday),
+    apiOutMaxAt: peakAt(prev.apiOutBpsMax, prev.apiOutMaxAt, live.api.outBytesPerSec, nowIso),
+  };
+}
+
+const PEAK_SELECT = `
+  to_char(day, 'YYYY-MM-DD') AS day,
+  samples, concurrent_max, concurrent_max_at, unique_users,
+  cpu_max_percent, cpu_max_load1, cpu_max_at,
+  ram_max_percent, ram_max_bytes, ram_total_bytes, ram_max_at,
+  disk_max_percent, disk_max_bytes, disk_total_bytes, disk_max_at,
+  node_rss_max_bytes, node_rss_max_at,
+  db_pool_used_max, db_pool_max, db_pool_max_at,
+  api_in_bps_max, api_in_bytes_total, api_in_max_at,
+  api_out_bps_max, api_out_bytes_total, api_out_max_at
+`;
+
+function dayKey(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toLocaleDateString('en-CA', { timeZone: INDIA_TIME_ZONE });
+  }
+  const raw = String(value ?? '').trim();
+  const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const parsed = new Date(raw);
+  if (raw && !Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('en-CA', { timeZone: INDIA_TIME_ZONE });
+  }
+  return '';
+}
+
 function mapPeakRow(row: Record<string, unknown>): DailyPeak {
   return {
-    day: String(row.day ?? ''),
+    day: dayKey(row.day) || indiaTodayIso(),
     samples: Number(row.samples ?? 0),
     concurrentMax: Number(row.concurrent_max ?? 0),
     concurrentMaxAt: isoOrNull(row.concurrent_max_at as string | Date | null),
@@ -351,9 +417,10 @@ async function writePeaks(live: LiveSample) {
   const day = indiaTodayIso();
   const nowIso = new Date().toISOString();
   const { inDelta, outDelta } = apiByteDeltas(live.api.inBytesToday, live.api.outBytesToday);
-  const existing = await pool.query(`SELECT *, day::text AS day FROM server_monitor_days WHERE day = $1::date`, [
-    day,
-  ]);
+  const existing = await pool.query(
+    `SELECT ${PEAK_SELECT} FROM server_monitor_days WHERE day = $1::date`,
+    [day],
+  );
   const prev = existing.rows[0] ? mapPeakRow(existing.rows[0] as Record<string, unknown>) : emptyPeak(day);
 
   const sampled = sessionPeakSnapshot();
@@ -493,7 +560,7 @@ function enqueuePersist(live: LiveSample) {
 
 export async function loadPeakHistory(): Promise<DailyPeak[]> {
   const { rows } = await pool.query(
-    `SELECT *, day::text AS day
+    `SELECT ${PEAK_SELECT}
      FROM server_monitor_days
      WHERE day >= $1::date
      ORDER BY day DESC`,
@@ -504,6 +571,7 @@ export async function loadPeakHistory(): Promise<DailyPeak[]> {
 
 export async function collectAndRecordServerStats() {
   const current = await collectLiveSample();
+  const day = indiaTodayIso();
   let history: DailyPeak[] = [];
   try {
     await ensureServerMonitorTable();
@@ -512,8 +580,10 @@ export async function collectAndRecordServerStats() {
   } catch (err) {
     console.error('[server-monitor] Failed to persist or load daily peaks', err);
   }
-  const today = history.find((row) => row.day === indiaTodayIso()) ?? emptyPeak(indiaTodayIso());
-  return { current, today, history };
+  const stored = history.find((row) => dayKey(row.day) === day) ?? emptyPeak(day);
+  const today = mergeLiveIntoPeak(stored, current);
+  const rest = history.filter((row) => dayKey(row.day) !== day);
+  return { current, today, history: [today, ...rest] };
 }
 
 let sampler: ReturnType<typeof setInterval> | null = null;
