@@ -185,4 +185,12 @@ export async function ensureSchema() {
       END IF;
     END $$;
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS whatsapp_password_resets (
+      from_mobile TEXT PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+  `);
 }

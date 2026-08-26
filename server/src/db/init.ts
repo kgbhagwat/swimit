@@ -449,6 +449,12 @@ ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS payment_notice_sent BOOLEA
 CREATE INDEX IF NOT EXISTS idx_whatsapp_inbound_account ON whatsapp_inbound (saas_account_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_outbound_account ON whatsapp_outbound (saas_account_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS whatsapp_password_resets (
+  from_mobile TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS support_tickets (
   id SERIAL PRIMARY KEY,
   saas_account_id INT NOT NULL REFERENCES saas_accounts(id) ON DELETE CASCADE,

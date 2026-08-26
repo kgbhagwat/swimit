@@ -10,7 +10,14 @@ import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileVali
 import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
 import { getWhatsAppConfig, toE164 } from '../whatsapp/config.js';
 import { BROADCAST_RATE_INR } from '../renewBilling.js';
-import { notifyPassExpiring, notifyOpenFormQr, replyIfRegistrationHi, sendBroadcast } from '../whatsapp/notify.js';
+import { replyIfWhatsAppPasswordReset } from '../whatsapp/passwordReset.js';
+import {
+  notifyPassExpiring,
+  notifyOpenFormQr,
+  replyIfPassRequest,
+  replyIfRegistrationHi,
+  sendBroadcast,
+} from '../whatsapp/notify.js';
 import { processPackageRenewalInbound } from '../packageRenewal.js';
 import { processPassPaymentInbound } from '../passPaymentVerify.js';
 
@@ -429,25 +436,48 @@ whatsappRouter.post('/webhook', async (req, res) => {
             const last10 = members[0].last10;
             const accountIds = uniqueAccountIds(members);
             for (const saasAccountId of accountIds) {
-              const resolved = {
-                last10,
-                saasAccountId,
-                registrationId: swimmerIdForAccount(members, saasAccountId),
-              };
               await saveInboundText({
                 text: inboundText,
                 waMessageId: msg.id,
-                resolved,
-              });
-              try {
-                await replyIfRegistrationHi({
-                  fromMobileLast10: last10,
+                resolved: {
+                  last10,
                   saasAccountId,
-                  registrationId: resolved.registrationId,
-                  text: inboundText,
-                });
-              } catch (err) {
-                console.error('[whatsapp] registration Hi reply failed', err);
+                  registrationId: swimmerIdForAccount(members, saasAccountId),
+                },
+              });
+            }
+            let passwordHandled = false;
+            try {
+              passwordHandled = await replyIfWhatsAppPasswordReset({
+                fromMobileLast10: last10,
+                text: inboundText,
+              });
+            } catch (err) {
+              console.error('[whatsapp] password reset reply failed', err);
+            }
+            if (!passwordHandled) {
+              for (const saasAccountId of accountIds) {
+                const registrationId = swimmerIdForAccount(members, saasAccountId);
+                try {
+                  await replyIfRegistrationHi({
+                    fromMobileLast10: last10,
+                    saasAccountId,
+                    registrationId,
+                    text: inboundText,
+                  });
+                } catch (err) {
+                  console.error('[whatsapp] registration Hi reply failed', err);
+                }
+                try {
+                  await replyIfPassRequest({
+                    fromMobileLast10: last10,
+                    saasAccountId,
+                    registrationId,
+                    text: inboundText,
+                  });
+                } catch (err) {
+                  console.error('[whatsapp] pass request reply failed', err);
+                }
               }
             }
             continue;

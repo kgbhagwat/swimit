@@ -1,4 +1,5 @@
 import { pool } from '../db/pool.js';
+import { indiaTodayIso } from '../indiaDate.js';
 import { renderPassCardPng, renderUrlQrPng } from '../passCardImage.js';
 import { renderPassInvoicePng } from '../invoiceImage.js';
 import { formatInvoiceInr, loadLatestPassInvoice } from '../passInvoice.js';
@@ -494,6 +495,13 @@ function isRegistrationHiText(text: string) {
   return /^(hi+|hii+|hello|hey)[\s!.]*$/i.test(String(text ?? '').trim());
 }
 
+function isPassRequestText(text: string) {
+  return /^(pass|my pass|send pass|send my pass|पास)[\s!.]*$/i.test(String(text ?? '').trim());
+}
+
+const NO_ACTIVE_PASS_REPLY =
+  'No active SwimIT pass was found for this number. Please visit the pool desk.';
+
 export async function notifyRegistrationConfirmation(params: {
   mobile: string;
   fullName: string;
@@ -568,6 +576,93 @@ export async function replyIfRegistrationHi(params: {
     });
     return false;
   }
+}
+
+/** After an active swimmer sends "pass", resend their pass card on WhatsApp. */
+export async function replyIfPassRequest(params: {
+  fromMobileLast10: string;
+  saasAccountId: number;
+  registrationId: number | null;
+  text: string;
+}) {
+  if (!isPassRequestText(params.text)) return false;
+  if (params.registrationId == null) return false;
+
+  const swimmer = await pool.query<{
+    id: number;
+    full_name: string | null;
+    whatsapp_mobile: string | null;
+    pass_type: string | null;
+    pass_valid_until: string | Date | null;
+    is_active: boolean | null;
+    account_code: string | null;
+  }>(
+    `SELECT r.id, r.full_name, r.whatsapp_mobile, r.pass_type, r.pass_valid_until, r.is_active,
+            a.account_code
+       FROM registrations r
+       JOIN saas_accounts a ON a.id = r.saas_account_id
+      WHERE r.id = $1 AND r.saas_account_id = $2
+      LIMIT 1`,
+    [params.registrationId, params.saasAccountId],
+  );
+  const row = swimmer.rows[0];
+  if (!row) return false;
+
+  const until = String(row.pass_valid_until ?? '').slice(0, 10);
+  const today = indiaTodayIso();
+  const active =
+    row.is_active !== false && /^\d{4}-\d{2}-\d{2}$/.test(until) && until >= today;
+
+  const recent = await pool.query(
+    `SELECT 1
+       FROM whatsapp_outbound
+      WHERE saas_account_id = $1
+        AND RIGHT(regexp_replace(to_mobile, '\\D', '', 'g'), 10) = $2
+        AND kind IN ('pass_issued_card', 'pass_request_none')
+        AND status = 'sent'
+        AND created_at > NOW() - INTERVAL '10 minutes'
+      LIMIT 1`,
+    [params.saasAccountId, params.fromMobileLast10],
+  );
+  if (recent.rows[0]) return false;
+
+  if (!active) {
+    try {
+      const result = await sendWhatsAppText(params.fromMobileLast10, NO_ACTIVE_PASS_REPLY);
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.fromMobileLast10,
+        kind: 'pass_request_none',
+        body: NO_ACTIVE_PASS_REPLY,
+        status: result.skipped ? 'skipped' : 'sent',
+      });
+      return !result.skipped;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Send failed';
+      await logOutbound({
+        saasAccountId: params.saasAccountId,
+        toMobile: params.fromMobileLast10,
+        kind: 'pass_request_none',
+        body: NO_ACTIVE_PASS_REPLY,
+        status: 'failed',
+        error: message,
+      });
+      return false;
+    }
+  }
+
+  const mobile = String(row.whatsapp_mobile ?? '').trim() || params.fromMobileLast10;
+  const sent = await notifyPassIssued({
+    mobile,
+    fullName: String(row.full_name ?? '').trim() || 'swimmer',
+    passType: String(row.pass_type ?? '').trim() || 'Pass',
+    passValidUntil: until,
+    registrationId: Number(row.id),
+    accountCode: String(row.account_code ?? ''),
+    saasAccountId: params.saasAccountId,
+    sendInvoice: false,
+  });
+  return !sent.skipped;
 }
 
 export async function notifyPassIssued(params: {
