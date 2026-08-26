@@ -6,6 +6,7 @@ import { pageKeysForPackage } from '../packageFeatures.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { generateTempPassword, hashPassword, passwordPolicyError } from '../password.js';
+import { hasPageAccess, requireAccountAdmin } from '../accessControl.js';
 import { tenantId } from '../middleware/tenant.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
 
@@ -102,7 +103,7 @@ usersRouter.get('/session-timeout', async (req, res) => {
   }
 });
 
-usersRouter.put('/session-timeout', async (req, res) => {
+usersRouter.put('/session-timeout', requireAccountAdmin, async (req, res) => {
   try {
     const accountId = tenantId(req);
     const minutes = parseSessionTimeoutMinutes((req.body as { minutes?: unknown })?.minutes);
@@ -127,6 +128,11 @@ usersRouter.get('/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id) || id <= 0) {
       res.status(400).json({ error: 'Invalid user id' });
+      return;
+    }
+    const isSelf = req.auth?.userId === id;
+    if (!isSelf && !hasPageAccess(req, 'create-user')) {
+      res.status(403).json({ error: 'Your user account does not have access to this feature' });
       return;
     }
     const { rows } = await pool.query(
@@ -295,6 +301,20 @@ usersRouter.patch('/:id/password', async (req, res) => {
       return;
     }
 
+    const target = await pool.query<{ is_account_admin: boolean }>(
+      `SELECT COALESCE(is_account_admin, FALSE) AS is_account_admin
+       FROM app_users WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    if (!target.rows[0]) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (target.rows[0].is_account_admin === true && req.auth?.isAccountAdmin !== true) {
+      res.status(403).json({ error: 'Only the account administrator can reset the admin password' });
+      return;
+    }
+
     const body = req.body as { password?: string };
     let password = String(body.password ?? '').trim();
     if (!password) {
@@ -404,6 +424,10 @@ usersRouter.patch('/:id/access', async (req, res) => {
       return;
     }
     const isAdmin = current.rows[0].is_account_admin === true;
+    if (isAdmin && req.auth?.isAccountAdmin !== true) {
+      res.status(403).json({ error: 'Only the account administrator can change admin access' });
+      return;
+    }
     const loginType = isAdmin
       ? 'normal'
       : body.loginType !== undefined

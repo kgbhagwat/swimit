@@ -96,7 +96,16 @@ poolCoreInfoRouter.get('/', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const row = await ensureRow(accountId);
-    res.json(mapRow(row));
+    const mapped = mapRow(row);
+    if (req.publicTenantAccess) {
+      res.json({
+        ...mapped,
+        upiDetails: '',
+        paymentQrPath: null,
+      });
+      return;
+    }
+    res.json(mapped);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load pool core info' });

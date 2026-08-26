@@ -5,6 +5,15 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
+import {
+  allowPublicOrPages,
+  hasEditAccess,
+  hasPageAccess,
+  isPassPaymentPatch,
+  requireEditAccess,
+  requirePages,
+  requirePagesOrEdit,
+} from '../accessControl.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
@@ -192,7 +201,7 @@ function mapRegistrationRow(row: Record<string, unknown>) {
   };
 }
 
-registrationsRouter.get('/', async (req, res) => {
+registrationsRouter.get('/', requirePages('swimmers'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     await ensureInactiveAtColumn();
@@ -223,7 +232,7 @@ registrationsRouter.get('/', async (req, res) => {
   }
 });
 
-registrationsRouter.get('/pending-payment', async (req, res) => {
+registrationsRouter.get('/pending-payment', requirePages('pass-payment'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     await ensureInactiveAtColumn();
@@ -299,7 +308,10 @@ registrationsRouter.get('/pending-payment', async (req, res) => {
   }
 });
 
-registrationsRouter.get('/pass-payments/recent', async (req, res) => {
+registrationsRouter.get(
+  '/pass-payments/recent',
+  requirePages('payment-details'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const fromRaw = String(req.query.from ?? '').trim();
@@ -373,7 +385,7 @@ function formatBirthdate(value: unknown) {
   return formatPlainDate(value);
 }
 
-registrationsRouter.get('/assignment-count', async (req, res) => {
+registrationsRouter.get('/assignment-count', requirePages('pass-payment'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const batch = String(req.query.batch ?? '').trim();
@@ -410,7 +422,10 @@ registrationsRouter.get('/assignment-count', async (req, res) => {
   }
 });
 
-registrationsRouter.get('/:id', async (req, res) => {
+registrationsRouter.get(
+  '/:id',
+  requirePages('swimmers', 'register', 'pass-payment'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -442,13 +457,14 @@ registrationsRouter.get('/:id', async (req, res) => {
 
     const row = rows[0];
     const passValidUntil = formatPlainDate(row.pass_valid_until);
+    const revealIdentity = hasPageAccess(req, 'register', 'swimmers');
     res.json({
       id: row.id,
       fullName: row.full_name,
-      fullAddress: row.full_address ?? '',
+      fullAddress: revealIdentity ? (row.full_address ?? '') : '',
       contact: row.whatsapp_mobile ?? '',
       whatsappMobile: row.whatsapp_mobile ?? '',
-      otherMobile: row.other_mobile ?? '',
+      otherMobile: revealIdentity ? (row.other_mobile ?? '') : '',
       email: row.email ?? '',
       birthdate: formatBirthdate(row.birthdate),
       sex: row.sex ?? '',
@@ -460,22 +476,25 @@ registrationsRouter.get('/:id', async (req, res) => {
       coach: row.coach ?? '',
       passValidUntil,
       photoUrl: row.swimmer_photo_path ? `/uploads/${row.swimmer_photo_path}` : null,
-      identityDocument: revealIdentityDocument(row.identity_document),
-      identityNumber: revealIdentityNumber(row.identity_number),
-      identityNumberMasked: maskIdentityNumber(revealIdentityNumber(row.identity_number)),
-      identityPhotoUrl: row.identity_photo_path
-        ? `/api/registrations/${row.id}/identity-photo?accountId=${accountId}`
-        : null,
-      hasHealthIssue: row.has_health_issue ?? '',
-      healthIssueDetails: row.health_issue_details ?? '',
-      doctorName: row.doctor_name ?? '',
-      doctorNo: row.doctor_no ?? '',
-      emergencyName: row.emergency_name ?? '',
-      emergencyRelation: row.emergency_relation ?? '',
-      emergencyMobile: row.emergency_mobile ?? '',
-      parentName: row.parent_name ?? '',
-      parentRelation: row.parent_relation ?? '',
-      parentMobile: row.parent_mobile ?? '',
+      identityDocument: revealIdentity ? revealIdentityDocument(row.identity_document) : '',
+      identityNumber: revealIdentity ? revealIdentityNumber(row.identity_number) : '',
+      identityNumberMasked: revealIdentity
+        ? maskIdentityNumber(revealIdentityNumber(row.identity_number))
+        : '',
+      identityPhotoUrl:
+        revealIdentity && row.identity_photo_path
+          ? `/api/registrations/${row.id}/identity-photo?accountId=${accountId}`
+          : null,
+      hasHealthIssue: revealIdentity ? (row.has_health_issue ?? '') : '',
+      healthIssueDetails: revealIdentity ? (row.health_issue_details ?? '') : '',
+      doctorName: revealIdentity ? (row.doctor_name ?? '') : '',
+      doctorNo: revealIdentity ? (row.doctor_no ?? '') : '',
+      emergencyName: revealIdentity ? (row.emergency_name ?? '') : '',
+      emergencyRelation: revealIdentity ? (row.emergency_relation ?? '') : '',
+      emergencyMobile: revealIdentity ? (row.emergency_mobile ?? '') : '',
+      parentName: revealIdentity ? (row.parent_name ?? '') : '',
+      parentRelation: revealIdentity ? (row.parent_relation ?? '') : '',
+      parentMobile: revealIdentity ? (row.parent_mobile ?? '') : '',
       qrCode: `SWIMIT:${row.id}`,
       hasPass: Boolean(row.pass_type && passValidUntil),
     });
@@ -485,7 +504,10 @@ registrationsRouter.get('/:id', async (req, res) => {
   }
 });
 
-registrationsRouter.get('/:id/invoices', async (req, res) => {
+registrationsRouter.get(
+  '/:id/invoices',
+  requirePages('swimmers', 'pass-payment', 'payment-details'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -531,7 +553,10 @@ registrationsRouter.get('/:id/invoices', async (req, res) => {
   }
 });
 
-registrationsRouter.get('/:id/identity-photo', async (req, res) => {
+registrationsRouter.get(
+  '/:id/identity-photo',
+  requirePages('swimmers', 'register'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -567,7 +592,7 @@ function registrationHasCurrentPass(passType: string | null | undefined, passVal
   return passValidUntil.slice(0, 10) >= indiaDaysAgoIso(3);
 }
 
-registrationsRouter.delete('/:id', async (req, res) => {
+registrationsRouter.delete('/:id', requireEditAccess('swimmers'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -614,7 +639,10 @@ registrationsRouter.delete('/:id', async (req, res) => {
   }
 });
 
-registrationsRouter.patch('/:id', async (req, res) => {
+registrationsRouter.patch(
+  '/:id',
+  requirePagesOrEdit(['pass-payment'], 'swimmers'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     await ensureInactiveAtColumn();
@@ -630,6 +658,16 @@ registrationsRouter.patch('/:id', async (req, res) => {
       upgradePaymentId?: number | null;
       testResult?: string | null;
     };
+
+    const paymentPatch = isPassPaymentPatch(body as Record<string, unknown>);
+    if (paymentPatch && !hasPageAccess(req, 'pass-payment')) {
+      res.status(403).json({ error: 'Your user account does not have access to this feature' });
+      return;
+    }
+    if (!paymentPatch && !hasEditAccess(req, 'swimmers')) {
+      res.status(403).json({ error: 'You do not have permission to edit these records' });
+      return;
+    }
 
     const existing = await pool.query(
       `SELECT id FROM registrations WHERE id = $1 AND saas_account_id = $2`,
@@ -1009,7 +1047,10 @@ registrationsRouter.patch('/:id', async (req, res) => {
   }
 });
 
-registrationsRouter.post('/:id/resend-pass', async (req, res) => {
+registrationsRouter.post(
+  '/:id/resend-pass',
+  requirePagesOrEdit(['pass-payment'], 'swimmers'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -1089,6 +1130,7 @@ registrationsRouter.post('/:id/resend-pass', async (req, res) => {
 
 registrationsRouter.put(
   '/:id',
+  requirePagesOrEdit(['register'], 'swimmers'),
   upload.fields([
     { name: 'identityPhoto', maxCount: 1 },
     { name: 'swimmerPhoto', maxCount: 1 },
@@ -1326,7 +1368,10 @@ registrationsRouter.put(
   },
 );
 
-registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
+registrationsRouter.post(
+  '/:id/pass-payment-intent',
+  requirePages('pass-payment'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -1520,7 +1565,10 @@ registrationsRouter.post('/:id/pass-payment-intent', async (req, res) => {
 });
 
 /** Silent pending intent so inbound screenshots can be checked against the selected pass amount. */
-registrationsRouter.post('/:id/expect-online-payment', async (req, res) => {
+registrationsRouter.post(
+  '/:id/expect-online-payment',
+  requirePages('pass-payment'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -1671,7 +1719,10 @@ registrationsRouter.post('/:id/expect-online-payment', async (req, res) => {
   }
 });
 
-registrationsRouter.get('/:id/payment-screenshot', async (req, res) => {
+registrationsRouter.get(
+  '/:id/payment-screenshot',
+  requirePages('pass-payment'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -1702,6 +1753,7 @@ registrationsRouter.get('/:id/payment-screenshot', async (req, res) => {
 
 registrationsRouter.post(
   '/',
+  allowPublicOrPages('register'),
   upload.fields([
     { name: 'identityPhoto', maxCount: 1 },
     { name: 'swimmerPhoto', maxCount: 1 },

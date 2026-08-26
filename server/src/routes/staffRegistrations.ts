@@ -5,6 +5,13 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
+import {
+  allowPublicOrPages,
+  hasPageAccess,
+  requireEditAccess,
+  requirePages,
+  requirePagesOrEdit,
+} from '../accessControl.js';
 import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
@@ -184,14 +191,20 @@ async function ensureCoachApprovedColumn() {
   approvedColumnReady = true;
 }
 
-staffRegistrationsRouter.get('/', async (req, res) => {
+staffRegistrationsRouter.get('/', requirePages('coaches', 'staff-register', 'batches', 'pass-payment', 'coach-payment'), async (req, res) => {
   try {
     await ensureCoachApprovedColumn();
     const accountId = tenantId(req);
+    const fullList = hasPageAccess(req, 'coaches', 'staff-register');
     const { rows } = await pool.query(
-      `SELECT id, registration_for, full_name, email, whatsapp_mobile, teach_strokes,
+      fullList
+        ? `SELECT id, registration_for, full_name, email, whatsapp_mobile, teach_strokes,
               suitable_batch_ids, post_name, salary, is_active, is_approved, created_at,
               has_lifeguard_cert, lifeguard_expiry, lifeguard_photo_path
+       FROM staff_registrations
+       WHERE saas_account_id = $1
+       ORDER BY created_at DESC`
+        : `SELECT id, registration_for, full_name, suitable_batch_ids, is_active, is_approved
        FROM staff_registrations
        WHERE saas_account_id = $1
        ORDER BY created_at DESC`,
@@ -204,7 +217,7 @@ staffRegistrationsRouter.get('/', async (req, res) => {
   }
 });
 
-staffRegistrationsRouter.get('/:id', async (req, res) => {
+staffRegistrationsRouter.get('/:id', requirePages('coaches', 'staff-register'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -223,7 +236,10 @@ staffRegistrationsRouter.get('/:id', async (req, res) => {
   }
 });
 
-staffRegistrationsRouter.get('/:id/identity-photo', async (req, res) => {
+staffRegistrationsRouter.get(
+  '/:id/identity-photo',
+  requirePages('coaches', 'staff-register'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -252,7 +268,7 @@ staffRegistrationsRouter.get('/:id/identity-photo', async (req, res) => {
   }
 });
 
-staffRegistrationsRouter.patch('/:id/status', async (req, res) => {
+staffRegistrationsRouter.patch('/:id/status', requireEditAccess('coaches'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -286,7 +302,7 @@ staffRegistrationsRouter.patch('/:id/status', async (req, res) => {
   }
 });
 
-staffRegistrationsRouter.patch('/:id/approve', async (req, res) => {
+staffRegistrationsRouter.patch('/:id/approve', requireEditAccess('coaches'), async (req, res) => {
   try {
     await ensureCoachApprovedColumn();
     const accountId = tenantId(req);
@@ -332,7 +348,7 @@ staffRegistrationsRouter.patch('/:id/approve', async (req, res) => {
   }
 });
 
-staffRegistrationsRouter.delete('/:id', async (req, res) => {
+staffRegistrationsRouter.delete('/:id', requireEditAccess('coaches'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const id = Number(req.params.id);
@@ -364,6 +380,7 @@ staffRegistrationsRouter.delete('/:id', async (req, res) => {
 
 staffRegistrationsRouter.put(
   '/:id',
+  requirePagesOrEdit(['staff-register'], 'coaches'),
   upload.fields([
     { name: 'identityPhoto', maxCount: 1 },
     { name: 'staffPhoto', maxCount: 1 },
@@ -690,6 +707,7 @@ staffRegistrationsRouter.put(
 
 staffRegistrationsRouter.post(
   '/',
+  allowPublicOrPages('staff-register'),
   upload.fields([
     { name: 'identityPhoto', maxCount: 1 },
     { name: 'staffPhoto', maxCount: 1 },

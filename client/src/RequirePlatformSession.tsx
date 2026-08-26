@@ -24,7 +24,14 @@ export function RequirePlatformSession({ children }: { children: ReactNode }) {
       .then(({ ok, body }) => {
         if (cancelled) return;
         if (ok && body.auth?.kind === 'platform') {
-          setPlatformSession({ ...stored, csrfToken: String(body.csrfToken ?? '') });
+          setPlatformSession({
+            ...stored,
+            csrfToken: String(body.csrfToken ?? ''),
+            menuAccess: Array.isArray(body.auth.menuAccess)
+              ? body.auth.menuAccess.map(String)
+              : stored.menuAccess,
+            isAccountAdmin: Boolean(body.auth.isAccountAdmin ?? stored.isAccountAdmin),
+          });
           setValid(true);
         } else {
           clearPlatformSession();

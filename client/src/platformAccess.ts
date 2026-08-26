@@ -5,7 +5,8 @@ export type PlatformAccessSection =
   | 'Packages'
   | 'Billing'
   | 'Staff users'
-  | 'Messaging';
+  | 'Messaging'
+  | 'Monitoring';
 
 export type PlatformAccessPageKey =
   | 'accounts'
@@ -14,7 +15,8 @@ export type PlatformAccessPageKey =
   | 'payment'
   | 'platform-users'
   | 'platform-create-user'
-  | 'whatsapp';
+  | 'whatsapp'
+  | 'server-monitor';
 
 export type PlatformAccessPageDef = {
   key: PlatformAccessPageKey;
@@ -29,6 +31,7 @@ export const PLATFORM_ACCESS_SECTIONS: PlatformAccessSection[] = [
   'Billing',
   'Staff users',
   'Messaging',
+  'Monitoring',
 ];
 
 export const PLATFORM_ACCESS_PAGES: PlatformAccessPageDef[] = [
@@ -73,6 +76,12 @@ export const PLATFORM_ACCESS_PAGES: PlatformAccessPageDef[] = [
     section: 'Messaging',
     to: '/platform/whatsapp',
     label: 'WhatsApp',
+  },
+  {
+    key: 'server-monitor',
+    section: 'Monitoring',
+    to: '/platform/server',
+    label: 'Server',
   },
 ];
 

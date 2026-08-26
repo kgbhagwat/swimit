@@ -385,6 +385,37 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_token
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user
   ON auth_sessions (user_id, expires_at DESC);
 
+CREATE TABLE IF NOT EXISTS server_monitor_days (
+  day DATE PRIMARY KEY,
+  samples INT NOT NULL DEFAULT 0,
+  concurrent_max INT NOT NULL DEFAULT 0,
+  concurrent_max_at TIMESTAMPTZ,
+  unique_users INT NOT NULL DEFAULT 0,
+  cpu_max_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+  cpu_max_load1 DOUBLE PRECISION NOT NULL DEFAULT 0,
+  cpu_max_at TIMESTAMPTZ,
+  ram_max_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+  ram_max_bytes BIGINT NOT NULL DEFAULT 0,
+  ram_total_bytes BIGINT NOT NULL DEFAULT 0,
+  ram_max_at TIMESTAMPTZ,
+  disk_max_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+  disk_max_bytes BIGINT NOT NULL DEFAULT 0,
+  disk_total_bytes BIGINT NOT NULL DEFAULT 0,
+  disk_max_at TIMESTAMPTZ,
+  node_rss_max_bytes BIGINT NOT NULL DEFAULT 0,
+  node_rss_max_at TIMESTAMPTZ,
+  db_pool_used_max INT NOT NULL DEFAULT 0,
+  db_pool_max INT NOT NULL DEFAULT 0,
+  db_pool_max_at TIMESTAMPTZ,
+  api_in_bps_max DOUBLE PRECISION NOT NULL DEFAULT 0,
+  api_in_bytes_total BIGINT NOT NULL DEFAULT 0,
+  api_in_max_at TIMESTAMPTZ,
+  api_out_bps_max DOUBLE PRECISION NOT NULL DEFAULT 0,
+  api_out_bytes_total BIGINT NOT NULL DEFAULT 0,
+  api_out_max_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS whatsapp_outbound (
   id SERIAL PRIMARY KEY,
   saas_account_id INT REFERENCES saas_accounts(id) ON DELETE SET NULL,
@@ -1421,6 +1452,15 @@ async function ensureSwimItSuperadmin() {
      WHERE u.saas_account_id = a.id
        AND LOWER(a.account_code) = 'swimit'
        AND NOT ('whatsapp' = ANY (u.menu_access))`,
+  );
+
+  await pool.query(
+    `UPDATE app_users u
+     SET menu_access = array_append(menu_access, 'server-monitor')
+     FROM saas_accounts a
+     WHERE u.saas_account_id = a.id
+       AND LOWER(a.account_code) = 'swimit'
+       AND NOT ('server-monitor' = ANY (u.menu_access))`,
   );
 }
 

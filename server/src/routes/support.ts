@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../db/pool.js';
+import { requirePlatformPageAccess } from '../authSessions.js';
+import { requireAccountAdmin } from '../accessControl.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
 import { randomUploadFilename } from '../uploadFilter.js';
 import {
@@ -15,6 +17,8 @@ import {
 } from '../supportChatRenew.js';
 
 export const supportRouter = Router();
+
+supportRouter.use('/platform', requirePlatformPageAccess('accounts'));
 
 type AuthorRole = 'account_admin' | 'platform';
 type TicketCategory = 'complaint' | 'suggestion';
@@ -211,7 +215,7 @@ async function markAccountInboxRead(accountId: number) {
 }
 
 /** Account admin: unread support replies + package notices for header badge. */
-supportRouter.get('/inbox-summary', requireTenant, async (req, res) => {
+supportRouter.get('/inbox-summary', requireTenant, requireAccountAdmin, async (req, res) => {
   try {
     const accountId = tenantId(req);
     if (await isPlatformAccount(accountId)) {
@@ -404,7 +408,7 @@ supportRouter.post('/mark-read', requireTenant, async (req, res) => {
 });
 
 /** Account admin: list tickets for this tenant only. */
-supportRouter.get('/tickets', requireTenant, async (req, res) => {
+supportRouter.get('/tickets', requireTenant, requireAccountAdmin, async (req, res) => {
   try {
     const accountId = tenantId(req);
     if (await isPlatformAccount(accountId)) {
@@ -515,7 +519,7 @@ supportRouter.post('/tickets', requireTenant, async (req, res) => {
 });
 
 /** Account admin: ticket detail (own account only). */
-supportRouter.get('/tickets/:id', requireTenant, async (req, res) => {
+supportRouter.get('/tickets/:id', requireTenant, requireAccountAdmin, async (req, res) => {
   try {
     const accountId = tenantId(req);
     if (await isPlatformAccount(accountId)) {

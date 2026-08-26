@@ -32,7 +32,15 @@ import { captchaRouter } from './routes/captcha.js';
 import { remoteLoginRouter } from './routes/remoteLogin.js';
 import { authRouter } from './routes/auth.js';
 import { requireTenant } from './middleware/tenant.js';
-import { requireAnyPageAccess, requireAuth, requirePlatformAuth } from './authSessions.js';
+import { requireUploadAccess } from './uploadAccess.js';
+import {
+  requireAnyPageAccess,
+  requireAuth,
+  requirePlatformAuth,
+  requirePlatformPageAccess,
+} from './authSessions.js';
+import { apiTrafficMiddleware } from './apiTraffic.js';
+import { serverStatsRouter } from './routes/serverStats.js';
 import {
   authEnrollmentLimiter,
   biometricLoginLimiter,
@@ -45,6 +53,7 @@ import { ensureSchema } from './ensureSchema.js';
 import { startSubscriptionExpiryReminders } from './subscriptionReminders.js';
 import { startSubscriptionChatExpiryReminders } from './subscriptionChatReminders.js';
 import { startPassExpiryReminders } from './passExpiryReminders.js';
+import { startServerMonitorSampler } from './serverMonitor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -93,6 +102,7 @@ app.use('/api', (_req, res, next) => {
   res.setHeader('Pragma', 'no-cache');
   next();
 });
+app.use('/api', apiTrafficMiddleware);
 const uploadsDir = path.resolve(__dirname, '../uploads');
 app.use('/uploads', (req, res, next) => {
   // Sealed identity proofs must only be served via authenticated API routes.
@@ -106,6 +116,7 @@ app.use('/uploads', (req, res, next) => {
   res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
   next();
 });
+app.use('/uploads', requireUploadAccess(uploadsDir));
 app.use('/uploads', express.static(uploadsDir, { dotfiles: 'deny', index: false }));
 
 app.get('/api/health', (_req, res) => {
@@ -137,24 +148,8 @@ app.use('/api/platform-payment', (req, res, next) => {
 });
 app.post('/api/remote-login/requests/:id/decide', requireAuth);
 app.get('/api/whatsapp/status', requireAuth);
-app.use(
-  '/api/registrations',
-  requireTenant,
-  requireAnyPageAccess(
-    'register',
-    'swimmers',
-    'pass-payment',
-    'pass-scanner',
-    'payment-details',
-  ),
-  registrationsRouter,
-);
-app.use(
-  '/api/staff-registrations',
-  requireTenant,
-  requireAnyPageAccess('staff-register', 'coaches', 'batches', 'coach-payment'),
-  staffRegistrationsRouter,
-);
+app.use('/api/registrations', requireTenant, registrationsRouter);
+app.use('/api/staff-registrations', requireTenant, staffRegistrationsRouter);
 app.use('/api/batches', requireTenant, requireAnyPageAccess('batches'), batchesRouter);
 app.use('/api/pass-types', requireTenant, requireAnyPageAccess('pass-types'), passTypesRouter);
 app.use(
@@ -198,7 +193,18 @@ app.use('/api/dashboard', requireTenant, requireAnyPageAccess('dashboard'), dash
 app.use(
   '/api/pool-core-info',
   requireTenant,
-  requireAnyPageAccess('pool-core-info'),
+  (req, res, next) => {
+    if (req.method === 'GET') {
+      requireAnyPageAccess(
+        'pool-core-info',
+        'pass-payment',
+        'register',
+        'staff-register',
+      )(req, res, next);
+      return;
+    }
+    requireAnyPageAccess('pool-core-info')(req, res, next);
+  },
   poolCoreInfoRouter,
 );
 app.use(
@@ -207,7 +213,14 @@ app.use(
   requireAnyPageAccess('holiday-management'),
   holidaysRouter,
 );
-app.use('/api/users', requireTenant, requireAnyPageAccess('create-user'), usersRouter);
+app.use('/api/users', requireTenant, (req, res, next) => {
+  if (req.method === 'GET' && /^\/\d+$/.test(req.path)) {
+    next();
+    return;
+  }
+  requireAnyPageAccess('create-user')(req, res, next);
+});
+app.use('/api/users', usersRouter);
 app.use(
   '/api/activity-log',
   requireTenant,
@@ -276,12 +289,15 @@ app.use('/api/whatsapp', (req, res, next) => {
     next();
     return;
   }
-  void requireAuth(req, res, () =>
-    requireAnyPageAccess('whatsapp', 'register', 'staff-register')(req, res, next),
-  );
+  void requireAuth(req, res, next);
 });
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/platform-payment', platformPaymentRouter);
+app.use(
+  '/api/platform/server-stats',
+  requirePlatformPageAccess('server-monitor'),
+  serverStatsRouter,
+);
 app.use('/api/support', requireAuth, (req, _res, next) => {
   const actorUserId = req.auth?.actorUserId;
   if (actorUserId) {
@@ -349,6 +365,7 @@ void ensureSchema()
       startSubscriptionExpiryReminders();
       startSubscriptionChatExpiryReminders();
       startPassExpiryReminders();
+      startServerMonitorSampler();
     });
   })
   .catch((err) => {

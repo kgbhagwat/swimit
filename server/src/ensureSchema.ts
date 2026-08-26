@@ -1,10 +1,12 @@
 import { pool } from './db/pool.js';
 import { ensureAuthSessionsTable } from './authSessions.js';
 import { ensureAllAccountsOnVolumePackage } from './ensureVolumePackage.js';
+import { ensureServerMonitorTable } from './serverMonitor.js';
 
 /** Lightweight boot migrations so new columns work without a manual db:init. */
 export async function ensureSchema() {
   await ensureAuthSessionsTable();
+  await ensureServerMonitorTable();
   await pool.query(`
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS remote_access_until TIMESTAMPTZ;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS login_geo_mode TEXT NOT NULL DEFAULT 'pool_only';
@@ -147,5 +149,14 @@ export async function ensureSchema() {
       ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS ocr_transaction_id TEXT NOT NULL DEFAULT '';
       ALTER TABLE whatsapp_inbound ADD COLUMN IF NOT EXISTS payment_notice_sent BOOLEAN NOT NULL DEFAULT FALSE;
     END $$;
+  `);
+
+  await pool.query(`
+    UPDATE app_users u
+       SET menu_access = array_append(menu_access, 'server-monitor')
+      FROM saas_accounts a
+     WHERE u.saas_account_id = a.id
+       AND LOWER(a.account_code) = 'swimit'
+       AND NOT ('server-monitor' = ANY (u.menu_access))
   `);
 }

@@ -108,6 +108,14 @@ const LINKS = [
     requiresAuth: true,
     accessKey: 'whatsapp' as PlatformAccessPageKey,
   },
+  {
+    to: '/platform/server',
+    label: 'Server',
+    match: (path: string) =>
+      path === '/platform/server' || path.startsWith('/platform/server/'),
+    requiresAuth: true,
+    accessKey: 'server-monitor' as PlatformAccessPageKey,
+  },
 ] as const;
 
 /** Sticky SaaS platform menu with active-page highlight and pool login. */

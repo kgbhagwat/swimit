@@ -98,7 +98,8 @@ if [ "$APP_DOCKERFILE" = "Dockerfile.prebuilt" ]; then
 else
   echo "==> WARNING: full Docker build runs Vite on this host."
   echo "    Small Lightsail plans often hang / exhaust CPU burst credits."
-  echo "    Prefer: bash scripts/deploy-staging-from-pc.sh"
+    echo "    Prefer: bash scripts/deploy-staging-from-pc.sh"
+    echo "    Production: SWIMIT_PROD_HOST=<ip> bash scripts/deploy-prod-from-pc.sh"
   if [ "${CONFIRM_FULL_BUILD:-}" != "1" ]; then
     echo "Refusing full in-server Vite build (set CONFIRM_FULL_BUILD=1 to override)."
     exit 1

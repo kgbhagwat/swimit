@@ -960,6 +960,7 @@ export async function handleDemoApiRequest(
   if (
     parsed.pathname.startsWith('/api/saas-accounts') ||
     parsed.pathname.startsWith('/api/service-packages') ||
+    parsed.pathname.startsWith('/api/platform/') ||
     parsed.pathname.startsWith('/api/health') ||
     parsed.pathname.startsWith('/api/open/')
   ) {

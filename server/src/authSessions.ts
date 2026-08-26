@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import type { NextFunction, Request, Response } from 'express';
 import { pool } from './db/pool.js';
 import { clipMenuAccessForLoginType } from './menuAccess.js';
+import { noteLiveSession } from './sessionPresence.js';
 
 const COOKIE_NAME = 'swimit_session';
 const CSRF_COOKIE_NAME = 'swimit_csrf';
@@ -61,6 +62,7 @@ export async function ensureAuthSessionsTable() {
         );
         CREATE INDEX IF NOT EXISTS idx_auth_sessions_token
           ON auth_sessions (token_hash) WHERE revoked_at IS NULL;
+        ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
       `)
       .then(() => undefined)
       .catch((err) => {
@@ -238,6 +240,7 @@ export async function loadAuth(req: Request): Promise<AuthContext | null> {
     ),
     kind,
   };
+  noteLiveSession(req.auth.sessionId);
   void pool.query(`UPDATE auth_sessions SET last_seen_at = NOW() WHERE id = $1`, [row.id]);
   return req.auth;
 }
@@ -268,6 +271,30 @@ export async function requirePlatformAuth(req: Request, res: Response, next: Nex
     }
     next();
   });
+}
+
+/** SwimIT SaaS staff (account code swimit), including non-admin users with a granted page. */
+export function requirePlatformPageAccess(...pageKeys: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    void requireAuth(req, res, () => {
+      const code = String(req.auth?.accountCode ?? '').toLowerCase();
+      const platformStaff =
+        code === 'swimit' &&
+        (req.auth?.kind === 'platform' || req.auth?.isAccountAdmin);
+      if (!platformStaff) {
+        res.status(403).json({ error: 'Platform access is required' });
+        return;
+      }
+      if (
+        req.auth?.isAccountAdmin ||
+        pageKeys.some((key) => req.auth?.menuAccess.includes(key))
+      ) {
+        next();
+        return;
+      }
+      res.status(403).json({ error: 'Your user account does not have access to this feature' });
+    });
+  };
 }
 
 export function requireAnyPageAccess(...pageKeys: string[]) {

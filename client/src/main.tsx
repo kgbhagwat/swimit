@@ -95,6 +95,9 @@ const PlatformUsersLayout = lazy(() =>
 const PlatformPayment = lazy(() =>
   import('./PlatformPayment').then((m) => ({ default: m.PlatformPayment })),
 );
+const ServerMonitor = lazy(() =>
+  import('./ServerMonitor').then((m) => ({ default: m.ServerMonitor })),
+);
 const PublicOpenForm = lazy(() =>
   import('./PublicOpenForm').then((m) => ({ default: m.PublicOpenForm })),
 );
@@ -225,6 +228,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="create-user" element={<CreateUser />} />
                 <Route path="whatsapp" element={<WhatsAppMessaging />} />
                 <Route path="payment" element={<PlatformPayment />} />
+                <Route path="server" element={<ServerMonitor />} />
               </Route>
               <Route path="/application-guide" element={<ApplicationGuide />} />
               <Route path="/remote-access" element={<RemoteAccessPage />} />

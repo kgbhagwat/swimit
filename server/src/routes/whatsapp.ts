@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
+import { requirePages } from '../accessControl.js';
 import { requireTenant, tenantId } from '../middleware/tenant.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
 import { downloadWhatsAppMedia, formatWhatsAppUserError, probeWhatsAppAuth, sendWhatsAppTemplate } from '../whatsapp/client.js';
@@ -464,7 +465,7 @@ whatsappRouter.post('/webhook', async (req, res) => {
   }
 });
 
-whatsappRouter.get('/status', async (_req, res) => {
+whatsappRouter.get('/status', requireTenant, requirePages('whatsapp'), async (_req, res) => {
   const cfg = getWhatsAppConfig();
   const probe = await probeWhatsAppAuth();
   res.json({
@@ -478,7 +479,7 @@ whatsappRouter.get('/status', async (_req, res) => {
   });
 });
 
-whatsappRouter.get('/inbox', requireTenant, async (req, res) => {
+whatsappRouter.get('/inbox', requireTenant, requirePages('whatsapp'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const { rows } = await pool.query(
@@ -509,7 +510,7 @@ whatsappRouter.get('/inbox', requireTenant, async (req, res) => {
 });
 
 /** Send one test message to a mobile (for Application / Meta allow-list testing). */
-whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
+whatsappRouter.post('/send-test', requireTenant, requirePages('whatsapp'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const body = req.body as { mobile?: string; message?: string; mode?: string };
@@ -591,7 +592,11 @@ whatsappRouter.post('/send-test', requireTenant, async (req, res) => {
 });
 
 /** Send public registration/staff form link + QR to a mobile (usually the logged-in desk user). */
-whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
+whatsappRouter.post(
+  '/send-form-qr',
+  requireTenant,
+  requirePages('whatsapp', 'register', 'staff-register'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const body = req.body as { form?: string; mobile?: string };
@@ -679,7 +684,7 @@ whatsappRouter.post('/send-form-qr', requireTenant, async (req, res) => {
   }
 });
 
-whatsappRouter.post('/broadcast', requireTenant, async (req, res) => {
+whatsappRouter.post('/broadcast', requireTenant, requirePages('whatsapp'), async (req, res) => {
   try {
     const requesterAccountId = tenantId(req);
     const body = req.body as { message?: string; audience?: string; accountCode?: string };
@@ -829,7 +834,11 @@ whatsappRouter.get('/pass-expiry-notice', requireTenant, async (req, res) => {
   }
 });
 
-whatsappRouter.put('/pass-expiry-notice', requireTenant, async (req, res) => {
+whatsappRouter.put(
+  '/pass-expiry-notice',
+  requireTenant,
+  requirePages('whatsapp', 'pass-types'),
+  async (req, res) => {
   try {
     const accountId = tenantId(req);
     const body = req.body as {
@@ -925,7 +934,7 @@ whatsappRouter.put('/pass-expiry-notice', requireTenant, async (req, res) => {
 });
 
 /** Send pass-expiry reminders for passes ending within N days (default 7). */
-whatsappRouter.post('/notify-expiring', requireTenant, async (req, res) => {
+whatsappRouter.post('/notify-expiring', requireTenant, requirePages('whatsapp'), async (req, res) => {
   try {
     const accountId = tenantId(req);
     const days = Math.min(30, Math.max(1, Number((req.body as { days?: number }).days ?? 7)));

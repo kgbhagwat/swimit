@@ -16,6 +16,7 @@ import {
   pagesBySection,
 } from './menuCatalog';
 import { pageKeysForPackage } from './packageFeatures';
+import { readTenantSessionAccess } from './pageAccess';
 import {
   PLATFORM_ACCESS_PAGES,
   PLATFORM_ACCESS_SECTIONS,
@@ -116,6 +117,10 @@ function UserRow({
   const [loginType, setLoginType] = useState<UserLoginType>(() => parseLoginType(user.loginType));
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
+  const caller = readTenantSessionAccess();
+  const lockAdminRow =
+    Boolean(user.isAccountAdmin) && caller != null && caller.isAccountAdmin !== true;
+  const controlsLocked = readOnly || lockAdminRow;
   const isCoach = !platformMode && !user.isAccountAdmin && loginType === 'coach';
 
   useEffect(() => {
@@ -260,7 +265,7 @@ function UserRow({
                 { value: 'normal', label: t('Normal') },
                 { value: 'coach', label: t('Coach') },
               ]}
-              disabled={readOnly}
+              disabled={controlsLocked}
               aria-label={t('Login type')}
             />
           </label>
@@ -269,7 +274,7 @@ function UserRow({
           <button
             type="button"
             className="terms-link"
-            disabled={readOnly || savingPassword}
+            disabled={controlsLocked || savingPassword}
             onClick={() => void onResetPassword()}
           >
             {savingPassword ? t('Sending…') : t('Reset Password')}
@@ -291,12 +296,12 @@ function UserRow({
                       <input
                         type="checkbox"
                         checked={allOn}
-                        disabled={readOnly || isCoach}
+                        disabled={controlsLocked || isCoach}
                         ref={(el) => {
                           if (el) el.indeterminate = someOn && !allOn;
                         }}
                         onChange={() => {
-                          if (readOnly || isCoach) return;
+                          if (controlsLocked || isCoach) return;
                           setAccessDraft((prev) => {
                             const next = new Set(prev);
                             for (const page of pages) {
@@ -331,7 +336,7 @@ function UserRow({
                               <input
                                 type="checkbox"
                                 checked={accessDraft.has(page.key)}
-                                disabled={readOnly || isCoach}
+                                disabled={controlsLocked || isCoach}
                                 onChange={() => togglePage(page.key)}
                               />
                               <span>{t(page.label)}</span>
@@ -347,7 +352,7 @@ function UserRow({
                                 <input
                                   type="checkbox"
                                   checked={accessDraft.has(editAccessKey(page.key))}
-                                  disabled={readOnly || isCoach || !accessDraft.has(page.key)}
+                                  disabled={controlsLocked || isCoach || !accessDraft.has(page.key)}
                                   onChange={() => {
                                     if (isEditableInformationPage(page.key)) {
                                       togglePageEdit(page.key);
@@ -379,7 +384,7 @@ function UserRow({
             <button
               type="button"
               className="pass-cancel"
-              disabled={readOnly || savingAccess}
+              disabled={controlsLocked || savingAccess}
               onClick={() => onRequestRemove(user)}
             >
               {t('Remove user')}
@@ -388,7 +393,7 @@ function UserRow({
           <button
             type="button"
             className="submit"
-            disabled={readOnly || savingAccess}
+            disabled={controlsLocked || savingAccess}
             onClick={() => void onSaveAccess()}
           >
             {savingAccess ? t('Saving…') : t('Save access')}
@@ -411,6 +416,8 @@ const SESSION_TIMEOUT_OPTIONS = [
 
 function SessionTimeoutCard() {
   const t = useT();
+  const caller = readTenantSessionAccess();
+  const canSave = !caller || caller.isAccountAdmin;
   const [minutes, setMinutes] = useState('30');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -483,6 +490,7 @@ function SessionTimeoutCard() {
             <InPageSelect
               value={minutes}
               onChange={setMinutes}
+              disabled={!canSave}
               options={SESSION_TIMEOUT_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.labelKey),
@@ -490,6 +498,7 @@ function SessionTimeoutCard() {
               aria-label={t('Login session timeout')}
             />
           </div>
+          {canSave ? (
           <button
             type="button"
             className="submit"
@@ -498,6 +507,7 @@ function SessionTimeoutCard() {
           >
             {saving ? t('Saving…') : t('Save')}
           </button>
+          ) : null}
         </div>
       )}
       {error ? <p className="error">{t(error)}</p> : null}
@@ -543,6 +553,7 @@ const SAMPLE_PLATFORM_USER: AppUser = {
     'platform-users',
     'platform-create-user',
     'whatsapp',
+    'server-monitor',
   ],
   createdAt: '2026-02-01T09:00:00.000Z',
   isAccountAdmin: false,

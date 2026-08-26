@@ -77,6 +77,7 @@ export const PLATFORM_ACCESS_PAGE_KEYS = [
   'platform-users',
   'platform-create-user',
   'whatsapp',
+  'server-monitor',
 ] as const;
 
 export type AccessPageKey = (typeof ACCESS_PAGE_KEYS)[number];
@@ -120,6 +121,7 @@ const ALL_ALLOWED = new Set<string>([
 const CORE_SET = new Set<string>(CORE_PAGE_KEYS);
 const FULL_SET = new Set<string>([...CORE_PAGE_KEYS, ...FULL_ONLY_PAGE_KEYS]);
 const EDITABLE_SET = new Set<string>(INFORMATION_EDITABLE_PAGE_KEYS);
+const PLATFORM_SET = new Set<string>(PLATFORM_ACCESS_PAGE_KEYS);
 
 export function resolvePackageModules(
   modules?: string | null,
@@ -163,6 +165,7 @@ export function clipMenuAccessToPackage(
 ): string[] {
   const allowed = new Set(allowedPageKeys);
   return keys.filter((key) => {
+    if (PLATFORM_SET.has(key)) return true;
     if (allowed.has(key as AccessPageKey)) return true;
     if (!key.endsWith('-edit')) return false;
     const pageKey = key.slice(0, -'-edit'.length);
