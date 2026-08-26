@@ -100,28 +100,51 @@ platformPaymentRouter.get('/transactions', async (req, res) => {
               r.expected_amount,
               r.detected_amount,
               r.transaction_id,
-              p.package_name
+              p.package_name,
+              COALESCE(
+                NULLIF(TRIM(r.screenshot_path), ''),
+                NULLIF(TRIM(w.file_path), ''),
+                NULLIF(TRIM(screenshot.file_path), '')
+              ) AS screenshot_path
        FROM saas_package_renewals r
        JOIN saas_accounts a ON a.id = r.saas_account_id
        JOIN service_packages p ON p.id = r.renew_package_id
+       LEFT JOIN whatsapp_inbound w ON w.id = r.inbound_id
+       LEFT JOIN LATERAL (
+         SELECT wi.file_path
+           FROM whatsapp_inbound wi
+          WHERE wi.saas_account_id = r.saas_account_id
+            AND NULLIF(TRIM(wi.file_path), '') IS NOT NULL
+            AND NULLIF(TRIM(r.transaction_id), '') IS NOT NULL
+            AND LOWER(TRIM(wi.ocr_transaction_id)) = LOWER(TRIM(r.transaction_id))
+          ORDER BY wi.created_at DESC
+          LIMIT 1
+       ) screenshot ON TRUE
        ${where}
        ORDER BY r.verified_at DESC NULLS LAST, r.id DESC
        ${limitSql}`,
       params,
     );
     res.json(
-      rows.map((row) => ({
-        id: Number(row.id),
-        accountName: String(row.account_name ?? ''),
-        accountCode: String(row.account_code ?? ''),
-        paymentDate: row.verified_at
-          ? new Date(row.verified_at as string | Date).toISOString()
-          : null,
-        durationMonths: Number(row.months ?? 0),
-        amount: Number(row.detected_amount ?? row.expected_amount ?? 0),
-        transactionId: String(row.transaction_id ?? '').trim() || '—',
-        packageName: String(row.package_name ?? ''),
-      })),
+      rows.map((row) => {
+        const screenshotPath = String(row.screenshot_path ?? '').trim().replace(/^\/+/, '');
+        return {
+          id: Number(row.id),
+          accountName: String(row.account_name ?? ''),
+          accountCode: String(row.account_code ?? ''),
+          paymentDate: row.verified_at
+            ? new Date(row.verified_at as string | Date).toISOString()
+            : null,
+          durationMonths: Number(row.months ?? 0),
+          amount: Number(row.detected_amount ?? row.expected_amount ?? 0),
+          transactionId: String(row.transaction_id ?? '').trim() || '—',
+          packageName: String(row.package_name ?? ''),
+          screenshotUrl:
+            screenshotPath && !screenshotPath.includes('..')
+              ? `/uploads/${screenshotPath}`
+              : null,
+        };
+      }),
     );
   } catch (err) {
     console.error(err);

@@ -239,6 +239,7 @@ ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN NOT NUL
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(6, 2) NOT NULL DEFAULT 18;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS screenshot_path TEXT;
 
 CREATE TABLE IF NOT EXISTS pool_core_info (
   id SERIAL PRIMARY KEY,
@@ -304,7 +305,7 @@ CREATE TABLE IF NOT EXISTS service_packages (
   CHECK (billing_period IN ('Month', 'Year')),
   CHECK (price >= 0),
   CHECK (max_pools >= 1),
-  CHECK (max_users >= 1)
+  CHECK (max_users >= 1 AND max_users <= 10)
 );
 
 CREATE TABLE IF NOT EXISTS platform_payment_settings (
@@ -592,6 +593,7 @@ CREATE INDEX IF NOT EXISTS idx_saas_package_renewals_pending
   ON saas_package_renewals (saas_account_id, status, created_at DESC);
 
 ALTER TABLE saas_package_renewals ADD COLUMN IF NOT EXISTS transaction_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE saas_package_renewals ADD COLUMN IF NOT EXISTS screenshot_path TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_saas_package_renewals_verified
   ON saas_package_renewals (status, verified_at DESC);
@@ -947,7 +949,7 @@ async function ensureDefaultServicePackages() {
       price: 6999,
       period: 'Month',
       maxPools: 1,
-      maxUsers: 15,
+      maxUsers: 10,
       maxSwimmers: null as number | null,
       trialDays: 0,
       modules: 'full',

@@ -102,6 +102,16 @@ export async function ensureSchema() {
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(6, 2) NOT NULL DEFAULT 18;
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS screenshot_path TEXT;
+    END $$;
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.saas_package_renewals') IS NULL THEN
+        RETURN;
+      END IF;
+      ALTER TABLE saas_package_renewals ADD COLUMN IF NOT EXISTS screenshot_path TEXT;
     END $$;
   `);
   await pool.query(`
@@ -158,5 +168,21 @@ export async function ensureSchema() {
      WHERE u.saas_account_id = a.id
        AND LOWER(a.account_code) = 'swimit'
        AND NOT ('server-monitor' = ANY (u.menu_access))
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.service_packages') IS NULL THEN
+        RETURN;
+      END IF;
+      UPDATE service_packages SET max_users = 10 WHERE max_users > 10;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'service_packages_max_users_le_10'
+      ) THEN
+        ALTER TABLE service_packages
+          ADD CONSTRAINT service_packages_max_users_le_10 CHECK (max_users <= 10);
+      END IF;
+    END $$;
   `);
 }

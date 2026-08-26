@@ -188,11 +188,18 @@ export async function processPackageRenewalInbound(params: {
            inbound_id = $1,
            detected_amount = $2,
            transaction_id = $3,
+           screenshot_path = COALESCE(NULLIF(TRIM($5), ''), screenshot_path),
            verified_at = NOW(),
            notes = 'Payment verified'
        WHERE id = $4 AND status = 'pending'
        RETURNING id`,
-      [params.inboundId, detected ?? expected, transactionId, renewalId],
+      [
+        params.inboundId,
+        detected ?? expected,
+        transactionId,
+        renewalId,
+        String(params.relativeFilePath ?? '').trim() || null,
+      ],
     );
     if ((updated.rowCount ?? 0) === 0) {
       await client.query('ROLLBACK');

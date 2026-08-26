@@ -22,6 +22,7 @@ type PaymentTransaction = {
   amount: number;
   transactionId: string;
   packageName: string;
+  screenshotUrl: string | null;
 };
 
 function uploadUrl(filename: string | null | undefined) {
@@ -157,8 +158,18 @@ export function PlatformPayment() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [preview, setPreview] = useState<PaymentTransaction | null>(null);
 
   const qrPreview = useObjectUrl(qrFile);
+
+  useEffect(() => {
+    if (!preview) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setPreview(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [preview]);
 
   function mapTransactions(rows: unknown[]): PaymentTransaction[] {
     if (!Array.isArray(rows)) return [];
@@ -173,6 +184,7 @@ export function PlatformPayment() {
         amount: Number(r.amount ?? 0),
         transactionId: String(r.transactionId ?? '—'),
         packageName: String(r.packageName ?? ''),
+        screenshotUrl: r.screenshotUrl ? String(r.screenshotUrl) : null,
       };
     });
   }
@@ -488,21 +500,22 @@ export function PlatformPayment() {
                     <th>{t('Duration')}</th>
                     <th>{t('Amount')}</th>
                     <th>{t('Transaction ID')}</th>
+                    <th>{t('Screenshot')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {transactions.map((txn) => (
                     <tr key={txn.id}>
-                      <td>
+                      <td data-label={t('Account name')}>
                         {txn.accountName}
                         {txn.packageName ? (
                           <span className="muted"> · {txn.packageName}</span>
                         ) : null}
                       </td>
-                      <td>
+                      <td data-label={t('Code')}>
                         <code>{txn.accountCode}</code>
                       </td>
-                      <td>
+                      <td data-label={t('Payment date')}>
                         {txn.paymentDate
                           ? new Date(txn.paymentDate).toLocaleString('en-IN', {
                               day: 'numeric',
@@ -513,11 +526,30 @@ export function PlatformPayment() {
                             })
                           : '—'}
                       </td>
-                      <td>
+                      <td data-label={t('Duration')}>
                         {txn.durationMonths} {txn.durationMonths === 1 ? t('month') : t('months')}
                       </td>
-                      <td>₹{txn.amount.toLocaleString('en-IN')}</td>
-                      <td>{txn.transactionId || '—'}</td>
+                      <td data-label={t('Amount')}>₹{txn.amount.toLocaleString('en-IN')}</td>
+                      <td data-label={t('Transaction ID')}>{txn.transactionId || '—'}</td>
+                      <td data-label={t('Screenshot')} className="payment-screenshot-cell">
+                        {txn.screenshotUrl ? (
+                          <button
+                            type="button"
+                            className="payment-screenshot-open"
+                            onClick={() => setPreview(txn)}
+                            aria-label={`${t('View screenshot')} — ${txn.accountName}`}
+                            title={t('View screenshot')}
+                          >
+                            <img
+                              src={txn.screenshotUrl}
+                              alt=""
+                              className="payment-screenshot-thumb"
+                            />
+                          </button>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -525,6 +557,53 @@ export function PlatformPayment() {
             </div>
           )}
         </section>
+      ) : null}
+
+      {preview?.screenshotUrl ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="platform-payment-screenshot-title"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="modal-panel pool-core-image-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pass-popup-panel-head">
+              <h2 id="platform-payment-screenshot-title">{t('Payment screenshot')}</h2>
+              <button
+                type="button"
+                className="pass-popup-close-x"
+                onClick={() => setPreview(null)}
+                aria-label={t('Close')}
+                title={t('Close')}
+              >
+                ×
+              </button>
+            </div>
+            <p className="modal-intro">
+              {preview.accountName}
+              {preview.accountCode ? ` · ${preview.accountCode}` : ''}
+              {preview.transactionId && preview.transactionId !== '—'
+                ? ` · ${preview.transactionId}`
+                : ''}
+            </p>
+            <div className="modal-scroll payment-screenshot-modal-preview">
+              <FilePreview
+                src={preview.screenshotUrl}
+                alt={t('Payment screenshot')}
+                className="preview payment-screenshot-full"
+              />
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="ghost-btn" onClick={() => setPreview(null)}>
+                {t('Close')}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </PlatformPage>
   );

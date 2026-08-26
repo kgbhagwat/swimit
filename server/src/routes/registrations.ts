@@ -375,27 +375,74 @@ registrationsRouter.get(
 
     const { rows } = await pool.query(
       `SELECT p.id, p.swimmer_name, p.pass_type, p.amount, p.payment_date, p.payment_mode,
-              p.transaction_id, r.whatsapp_mobile
+              p.transaction_id, r.whatsapp_mobile,
+              CASE
+                WHEN LOWER(TRIM(COALESCE(p.payment_mode, ''))) IN ('online', 'upi')
+                THEN COALESCE(
+                  NULLIF(TRIM(p.screenshot_path), ''),
+                  NULLIF(TRIM(screenshot.file_path), '')
+                )
+                ELSE NULL
+              END AS screenshot_path
        FROM pass_payments p
        LEFT JOIN registrations r ON r.id = p.registration_id
+       LEFT JOIN LATERAL (
+         SELECT w.file_path
+           FROM whatsapp_inbound w
+          WHERE w.saas_account_id = p.saas_account_id
+            AND NULLIF(TRIM(w.file_path), '') IS NOT NULL
+            AND (
+              (
+                NULLIF(TRIM(p.transaction_id), '') IS NOT NULL
+                AND LOWER(TRIM(w.ocr_transaction_id)) = LOWER(TRIM(p.transaction_id))
+              )
+              OR EXISTS (
+                SELECT 1
+                  FROM pass_payment_intents i
+                 WHERE i.inbound_id = w.id
+                   AND i.saas_account_id = p.saas_account_id
+                   AND i.registration_id = p.registration_id
+                   AND (
+                     NULLIF(TRIM(p.transaction_id), '') IS NULL
+                     OR LOWER(TRIM(COALESCE(i.transaction_id, ''))) = LOWER(TRIM(p.transaction_id))
+                   )
+              )
+            )
+          ORDER BY
+            CASE
+              WHEN NULLIF(TRIM(p.transaction_id), '') IS NOT NULL
+               AND LOWER(TRIM(w.ocr_transaction_id)) = LOWER(TRIM(p.transaction_id))
+              THEN 0
+              ELSE 1
+            END,
+            w.created_at DESC
+          LIMIT 1
+       ) screenshot ON TRUE
        ${where}
        ORDER BY p.payment_date DESC, p.id DESC
        ${limitSql}`,
       params,
     );
     res.json(
-      rows.map((row) => ({
-        id: Number(row.id),
-        swimmerName: String(row.swimmer_name ?? ''),
-        passType: String(row.pass_type ?? ''),
-        amount: Number(row.amount ?? 0),
-        paymentDate: row.payment_date
-          ? String(row.payment_date).slice(0, 10)
-          : null,
-        paymentMode: String(row.payment_mode ?? ''),
-        transactionId: String(row.transaction_id ?? '').trim() || '—',
-        mobile: String(row.whatsapp_mobile ?? ''),
-      })),
+      rows.map((row) => {
+        const screenshotPath = String(row.screenshot_path ?? '').trim().replace(/^\/+/, '');
+        return {
+          id: Number(row.id),
+          swimmerName: String(row.swimmer_name ?? ''),
+          passType: String(row.pass_type ?? ''),
+          amount: Number(row.amount ?? 0),
+          paymentDate: row.payment_date
+            ? String(row.payment_date).slice(0, 10)
+            : null,
+          paymentMode: String(row.payment_mode ?? ''),
+          transactionId: String(row.transaction_id ?? '').trim() || '—',
+          mobile: String(row.whatsapp_mobile ?? ''),
+          screenshotUrl:
+            screenshotPath && !screenshotPath.includes('..')
+              ? `/uploads/${screenshotPath}`
+              : null,
+        };
+      }),
     );
   } catch (err) {
     console.error(err);

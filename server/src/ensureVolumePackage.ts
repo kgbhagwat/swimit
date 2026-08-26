@@ -27,7 +27,7 @@ export async function ensureAllAccountsOnVolumePackage() {
            discounted_rate = NULL,
            billing_period = 'Month',
            max_pools = 1,
-           max_users = 15,
+           max_users = 10,
            max_active_swimmers = 100,
            trial_days = 0,
            modules = 'full',
@@ -43,7 +43,7 @@ export async function ensureAllAccountsOnVolumePackage() {
       `INSERT INTO service_packages
        (package_name, description, price, billing_period, max_pools, max_users,
         max_active_swimmers, trial_days, modules, support_level, features, feature_keys, is_active)
-       VALUES ($1, $2, 3499, 'Month', 1, 15, 100, 0, 'full', 'priority', $3, $4::text[], TRUE)
+       VALUES ($1, $2, 3499, 'Month', 1, 10, 100, 0, 'full', 'priority', $3, $4::text[], TRUE)
        RETURNING id`,
       ['Volume', description, features, allKeys],
     );

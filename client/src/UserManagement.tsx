@@ -570,18 +570,27 @@ export function UserManagement() {
   const [packagePageKeys, setPackagePageKeys] = useState<Set<string> | null>(null);
   const [pendingRemove, setPendingRemove] = useState<AppUser | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [maxUsers, setMaxUsers] = useState(10);
 
   async function load() {
     setLoading(true);
     setError('');
     setInfo('');
     try {
-      const res = await fetch('/api/users');
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? 'Failed to load users');
+      const [usersRes, capRes] = await Promise.all([
+        fetch('/api/users'),
+        fetch('/api/users/capacity'),
+      ]);
+      const body = await usersRes.json().catch(() => ({}));
+      if (!usersRes.ok) throw new Error(body.error ?? 'Failed to load users');
       const rows = (Array.isArray(body) ? body : []) as AppUser[];
       // Never keep client-only sample rows (id < 0) in live data.
       setUsers(rows.filter((u) => Number(u.id) > 0));
+      const capBody = await capRes.json().catch(() => ({}));
+      const capMax = Number((capBody as { max?: unknown })?.max);
+      if (capRes.ok && Number.isFinite(capMax) && capMax >= 1) {
+        setMaxUsers(capMax);
+      }
     } catch (err) {
       setUsers([]);
       setError(err instanceof Error ? err.message : 'Failed to load users');
@@ -666,6 +675,8 @@ export function UserManagement() {
       className={`user-management-page${platformMode ? ' user-management-page--saas' : ''}`}
     >
       <CreateUserForm
+        atLimit={realUsers.length >= maxUsers}
+        maxUsers={maxUsers}
         onCreated={(created) => {
           setError('');
           setInfo('');

@@ -36,9 +36,15 @@ type CreateUserFormProps = {
     isAccountAdmin?: boolean;
     loginType?: UserLoginType;
   }) => void;
+  atLimit?: boolean;
+  maxUsers?: number;
 };
 
-export function CreateUserForm({ onCreated }: CreateUserFormProps) {
+export function CreateUserForm({
+  onCreated,
+  atLimit = false,
+  maxUsers = 10,
+}: CreateUserFormProps) {
   const t = useT();
   const { pathname } = useLocation();
   const platformMode = isPlatformUsersPath(pathname);
@@ -58,6 +64,12 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
     setError('');
     setSuccess('');
 
+    if (atLimit) {
+      setError(
+        `This account already has the maximum of ${maxUsers} users (including admin and coach).`,
+      );
+      return;
+    }
     if (!form.userName.trim()) {
       setError('Enter User Name');
       return;
@@ -123,6 +135,13 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
             {t('(A random password is sent on WhatsApp.)')}
           </span>
         </h2>
+        <p className="hint create-user-limit-hint">
+          {atLimit
+            ? t(
+                `This account already has the maximum of ${maxUsers} users (including admin and coach).`,
+              )
+            : t('Maximum 10 users per account, including admin and coach.')}
+        </p>
 
         <div className="create-user-fields">
           <label className="field field-beside">
@@ -136,6 +155,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
               placeholder={t('User name')}
               autoComplete="username"
               required
+              disabled={atLimit}
             />
           </label>
 
@@ -147,6 +167,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
             className="field field-beside"
             inputClassName="create-user-mobile-input"
             placeholder={t('10-digit number')}
+            disabled={atLimit}
           />
 
           <label className="field field-beside">
@@ -162,6 +183,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
               autoComplete="email"
               aria-invalid={Boolean(emailHint(form.email))}
               required
+              disabled={atLimit}
             />
             {emailHint(form.email) ? (
               <span className="field-error">{t(emailHint(form.email))}</span>
@@ -181,6 +203,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
                   { value: 'coach', label: t('Coach') },
                 ]}
                 required
+                disabled={atLimit}
                 aria-label={t('Login type')}
               />
             </label>
@@ -190,6 +213,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
             <button
               type="button"
               className="pass-cancel"
+              disabled={atLimit}
               onClick={() => {
                 setForm(emptyForm);
                 setError('');
@@ -198,7 +222,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
             >
               {t('Clear')}
             </button>
-            <button type="submit" className="submit" disabled={saving}>
+            <button type="submit" className="submit" disabled={saving || atLimit}>
               {saving ? t('Saving…') : t('Create User')}
             </button>
           </div>

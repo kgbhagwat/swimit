@@ -70,6 +70,10 @@ async function uploadOwnedByAccount(accountId: number, relativePath: string): Pr
             WHERE saas_account_id = $1 AND file_path = $2
          )
          OR EXISTS (
+           SELECT 1 FROM pass_payments
+            WHERE saas_account_id = $1 AND screenshot_path = $2
+         )
+         OR EXISTS (
            SELECT 1 FROM support_ticket_messages
             WHERE saas_account_id = $1
               AND (attachment_path = $2 OR attachment_path = $3)
@@ -86,6 +90,41 @@ function canReadSupportAcrossAccounts(req: Request): boolean {
   if (auth.accountCode.toLowerCase() !== 'swimit') return false;
   if (auth.kind !== 'platform' && !auth.isAccountAdmin) return false;
   return auth.isAccountAdmin || auth.menuAccess.includes('accounts');
+}
+
+function canReadPlatformPaymentScreenshots(req: Request): boolean {
+  const auth = req.auth;
+  if (!auth) return false;
+  if (auth.accountCode.toLowerCase() !== 'swimit') return false;
+  if (auth.kind !== 'platform' && !auth.isAccountAdmin) return false;
+  return auth.isAccountAdmin || auth.menuAccess.includes('payment');
+}
+
+async function isPlatformPaymentScreenshot(relativePath: string): Promise<boolean> {
+  const { rows } = await pool.query<{ ok: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM saas_package_renewals r
+         LEFT JOIN whatsapp_inbound w ON w.id = r.inbound_id
+        WHERE r.status = 'verified'
+          AND (
+            NULLIF(TRIM(r.screenshot_path), '') = $1
+            OR NULLIF(TRIM(w.file_path), '') = $1
+            OR (
+              NULLIF(TRIM(r.transaction_id), '') IS NOT NULL
+              AND EXISTS (
+                SELECT 1
+                  FROM whatsapp_inbound wi
+                 WHERE wi.saas_account_id = r.saas_account_id
+                   AND wi.file_path = $1
+                   AND LOWER(TRIM(wi.ocr_transaction_id)) = LOWER(TRIM(r.transaction_id))
+              )
+            )
+          )
+     ) AS ok`,
+    [relativePath],
+  );
+  return rows[0]?.ok === true;
 }
 
 /** Serve logos/payment QRs publicly; other uploads require a session and tenant ownership. */
@@ -111,6 +150,13 @@ export function requireUploadAccess(uploadsRoot: string) {
         return;
       }
       if (relativePath.startsWith('support/') && canReadSupportAcrossAccounts(req)) {
+        next();
+        return;
+      }
+      if (
+        canReadPlatformPaymentScreenshots(req) &&
+        (await isPlatformPaymentScreenshot(relativePath))
+      ) {
         next();
         return;
       }

@@ -10,6 +10,7 @@ type MobileFieldProps = {
   autoComplete?: string;
   className?: string;
   inputClassName?: string;
+  disabled?: boolean;
   /** Extra invalid state from parent submit checks */
   invalid?: boolean;
 };
@@ -24,6 +25,7 @@ export function MobileField({
   autoComplete = 'tel',
   className = 'field',
   inputClassName,
+  disabled = false,
   invalid = false,
 }: MobileFieldProps) {
   const hint = mobileHint(value);
@@ -47,6 +49,7 @@ export function MobileField({
         autoComplete={autoComplete}
         required={required}
         maxLength={10}
+        disabled={disabled}
         aria-invalid={invalid || Boolean(hint)}
       />
       {hint ? <span className="field-error">{hint}</span> : null}

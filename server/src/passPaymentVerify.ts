@@ -706,6 +706,15 @@ export async function processPassPaymentInbound(params: {
             AND status = 'pending'`,
         [params.inboundId, transactionId, saasAccountId, registrationId],
       );
+      const shot = String(params.relativeFilePath ?? '').trim();
+      if (shot) {
+        await pool.query(
+          `UPDATE pass_payments
+              SET screenshot_path = COALESCE(NULLIF(TRIM(screenshot_path), ''), $1)
+            WHERE id = $2 AND saas_account_id = $3`,
+          [shot, alreadyPaid.rows[0].id, saasAccountId],
+        );
+      }
       return true;
     }
   }

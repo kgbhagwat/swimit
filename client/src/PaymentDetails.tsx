@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useT } from './i18n';
 import { isApplicationDemo } from './applicationDemo';
+import { FilePreview } from './FilePreview';
 import { PlatformPage } from './PlatformPage';
 import { ColumnSortDir, TableColumnFilter } from './TableColumnFilter';
 
@@ -13,6 +14,7 @@ type RecentPassPayment = {
   paymentMode: string;
   transactionId: string;
   mobile: string;
+  screenshotUrl: string | null;
 };
 
 type PaymentColKey =
@@ -34,6 +36,10 @@ const PAYMENT_COLUMNS: Array<{ key: PaymentColKey; label: string }> = [
   { key: 'transactionId', label: 'Transaction ID' },
 ];
 
+function isOnlinePayment(mode: string) {
+  return /^(online|upi)$/i.test(String(mode ?? '').trim());
+}
+
 function formatMoney(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`;
 }
@@ -41,6 +47,18 @@ function formatMoney(value: number) {
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
+
+const SAMPLE_SCREENSHOT_URL =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480" viewBox="0 0 360 480">
+      <rect width="360" height="480" fill="#eef3f9"/>
+      <rect x="24" y="24" width="312" height="432" rx="16" fill="#fff" stroke="#c5d3e4"/>
+      <text x="180" y="88" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#1a3568">UPI payment</text>
+      <text x="180" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="#0a8f4d">Paid</text>
+      <text x="180" y="280" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#5b6b84">Sample screenshot</text>
+    </svg>`,
+  );
 
 function daysAgoIso(days: number) {
   const d = new Date();
@@ -77,6 +95,7 @@ const SAMPLE_PAYMENTS: RecentPassPayment[] = [
     paymentMode: 'Online',
     transactionId: 'SAMPLETXN001',
     mobile: '9876543210',
+    screenshotUrl: SAMPLE_SCREENSHOT_URL,
   },
   {
     id: -2,
@@ -87,6 +106,7 @@ const SAMPLE_PAYMENTS: RecentPassPayment[] = [
     paymentMode: 'Cash',
     transactionId: '—',
     mobile: '9123456780',
+    screenshotUrl: null,
   },
   {
     id: -3,
@@ -97,6 +117,7 @@ const SAMPLE_PAYMENTS: RecentPassPayment[] = [
     paymentMode: 'Online',
     transactionId: 'SAMPLETXN002',
     mobile: '9988776655',
+    screenshotUrl: SAMPLE_SCREENSHOT_URL,
   },
   {
     id: -4,
@@ -107,6 +128,7 @@ const SAMPLE_PAYMENTS: RecentPassPayment[] = [
     paymentMode: 'Cash',
     transactionId: '—',
     mobile: '9012345678',
+    screenshotUrl: null,
   },
   {
     id: -5,
@@ -117,6 +139,7 @@ const SAMPLE_PAYMENTS: RecentPassPayment[] = [
     paymentMode: 'Online',
     transactionId: 'SAMPLETXN003',
     mobile: '9090909091',
+    screenshotUrl: SAMPLE_SCREENSHOT_URL,
   },
 ];
 
@@ -144,6 +167,7 @@ export function PaymentDetails() {
   >({});
   const [sortKey, setSortKey] = useState<PaymentColKey | null>(null);
   const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
+  const [preview, setPreview] = useState<RecentPassPayment | null>(null);
 
   const visiblePayments = useMemo(() => {
     let rows = payments.filter((row) =>
@@ -199,6 +223,7 @@ export function PaymentDetails() {
             paymentMode: String(row.paymentMode ?? ''),
             transactionId: String(row.transactionId ?? '—'),
             mobile: String(row.mobile ?? ''),
+            screenshotUrl: row.screenshotUrl ? String(row.screenshotUrl) : null,
           }))
         : [],
     );
@@ -213,6 +238,15 @@ export function PaymentDetails() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!preview) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setPreview(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [preview]);
 
   function onRangeSubmit(e: FormEvent) {
     e.preventDefault();
@@ -357,12 +391,13 @@ export function PaymentDetails() {
                       />
                     </th>
                   ))}
+                  <th>{t('Screenshot')}</th>
                 </tr>
               </thead>
               <tbody>
                 {visiblePayments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="pass-empty">
+                    <td colSpan={8} className="pass-empty">
                       {t('No payments match these filters.')}
                     </td>
                   </tr>
@@ -378,6 +413,25 @@ export function PaymentDetails() {
                       <td data-label={t('Amount')}>{formatMoney(txn.amount)}</td>
                       <td data-label={t('Mode')}>{txn.paymentMode || '—'}</td>
                       <td data-label={t('Transaction ID')}>{txn.transactionId || '—'}</td>
+                      <td data-label={t('Screenshot')} className="payment-screenshot-cell">
+                        {isOnlinePayment(txn.paymentMode) && txn.screenshotUrl ? (
+                          <button
+                            type="button"
+                            className="payment-screenshot-open"
+                            onClick={() => setPreview(txn)}
+                            aria-label={`${t('View screenshot')} — ${txn.swimmerName}`}
+                            title={t('View screenshot')}
+                          >
+                            <img
+                              src={txn.screenshotUrl}
+                              alt=""
+                              className="payment-screenshot-thumb"
+                            />
+                          </button>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -386,6 +440,52 @@ export function PaymentDetails() {
           </div>
         ) : null}
       </section>
+
+      {preview?.screenshotUrl ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="payment-screenshot-title"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="modal-panel pool-core-image-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pass-popup-panel-head">
+              <h2 id="payment-screenshot-title">{t('Payment screenshot')}</h2>
+              <button
+                type="button"
+                className="pass-popup-close-x"
+                onClick={() => setPreview(null)}
+                aria-label={t('Close')}
+                title={t('Close')}
+              >
+                ×
+              </button>
+            </div>
+            <p className="modal-intro">
+              {preview.swimmerName}
+              {preview.transactionId && preview.transactionId !== '—'
+                ? ` · ${preview.transactionId}`
+                : ''}
+            </p>
+            <div className="modal-scroll payment-screenshot-modal-preview">
+              <FilePreview
+                src={preview.screenshotUrl}
+                alt={t('Payment screenshot')}
+                className="preview payment-screenshot-full"
+              />
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="ghost-btn" onClick={() => setPreview(null)}>
+                {t('Close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PlatformPage>
   );
 }

@@ -569,6 +569,9 @@ const mr: Record<string, string> = {
   'Total debit': 'एकूण नावे',
   'Closing balance': 'शिल्लक रक्कम',
   'Recent payments': 'अलीकडील पेमेंट्स',
+  Screenshot: 'स्क्रीनशॉट',
+  'Payment screenshot': 'पेमेंट स्क्रीनशॉट',
+  'View screenshot': 'स्क्रीनशॉट पहा',
   'More transactions': 'अधिक व्यवहार',
   'Show last 10': 'शेवटचे १० दाखवा',
   'Last 10 confirmed pass payments.': 'शेवटची १० पुष्ट झालेली पास पेमेंट्स.',
@@ -578,6 +581,11 @@ const mr: Record<string, string> = {
   Billing: 'बिलिंग',
   'Max active swimmers': 'कमाल सक्रिय पोहणारे',
   'Max users': 'कमाल वापरकर्ते',
+  'Maximum 10 users per account, including admin and coach.':
+    'प्रत्येक खात्यात कमाल १० वापरकर्ते, अॅडमिन आणि कोच धरून.',
+  'This account already has the maximum of 10 users (including admin and coach).':
+    'या खात्यात आधीच कमाल १० वापरकर्ते आहेत (अॅडमिन आणि कोच धरून).',
+  'Max users cannot be more than 10': 'कमाल वापरकर्ते १० पेक्षा जास्त असू शकत नाहीत',
   'Trial days': 'ट्रायल दिवस',
   'Max pools': 'कमाल पूल्स',
   'Core features': 'मुख्य वैशिष्ट्ये',

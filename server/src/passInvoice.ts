@@ -161,6 +161,44 @@ export async function loadLatestPassInvoice(accountId: number, registrationId: n
   return mapPassInvoice(rows[0] as Record<string, unknown>);
 }
 
+export async function resolvePassPaymentScreenshotPath(
+  db: { query: PoolClient['query'] },
+  params: { accountId: number; registrationId: number; transactionId?: string | null },
+): Promise<string | null> {
+  const txn = String(params.transactionId ?? '').trim();
+  if (txn) {
+    const byTxn = await db.query<{ file_path: string | null }>(
+      `SELECT file_path
+         FROM whatsapp_inbound
+        WHERE saas_account_id = $1
+          AND NULLIF(TRIM(file_path), '') IS NOT NULL
+          AND LOWER(TRIM(ocr_transaction_id)) = LOWER(TRIM($2))
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [params.accountId, txn],
+    );
+    const path = String(byTxn.rows[0]?.file_path ?? '').trim();
+    if (path) return path;
+  }
+  const byIntent = await db.query<{ file_path: string | null }>(
+    `SELECT w.file_path
+       FROM pass_payment_intents i
+       JOIN whatsapp_inbound w ON w.id = i.inbound_id
+      WHERE i.saas_account_id = $1
+        AND i.registration_id = $2
+        AND NULLIF(TRIM(w.file_path), '') IS NOT NULL
+        AND (
+          $3 = ''
+          OR LOWER(TRIM(COALESCE(i.transaction_id, ''))) = LOWER(TRIM($3))
+        )
+      ORDER BY i.verified_at DESC NULLS LAST, i.id DESC
+      LIMIT 1`,
+    [params.accountId, params.registrationId, txn],
+  );
+  const intentPath = String(byIntent.rows[0]?.file_path ?? '').trim();
+  return intentPath || null;
+}
+
 export async function insertPassPayment(params: {
   accountId: number;
   registrationId: number;
@@ -173,6 +211,7 @@ export async function insertPassPayment(params: {
   transactionId: string | null;
   upgradeSourcePaymentId: number | null;
   paymentDate?: string | null;
+  screenshotPath?: string | null;
   client?: PoolClient;
 }) {
   const db = params.client ?? pool;
@@ -181,12 +220,21 @@ export async function insertPassPayment(params: {
     params.paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(params.paymentDate)
       ? params.paymentDate
       : null;
+  const online = /^(online|upi)$/i.test(String(params.paymentMode ?? '').trim());
+  let screenshotPath = String(params.screenshotPath ?? '').trim() || null;
+  if (online && !screenshotPath) {
+    screenshotPath = await resolvePassPaymentScreenshotPath(db, {
+      accountId: params.accountId,
+      registrationId: params.registrationId,
+      transactionId: params.transactionId,
+    });
+  }
   const { rows } = await db.query(
     `INSERT INTO pass_payments
      (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges,
       amount, payment_date, payment_mode, transaction_id, upgrade_source_payment_id,
-      tax_inclusive, gst_percent, gst_amount, taxable_amount)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::date, ${INDIA_SQL_TODAY}), $9, $10, $11, TRUE, $12, $13, $14)
+      tax_inclusive, gst_percent, gst_amount, taxable_amount, screenshot_path)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::date, ${INDIA_SQL_TODAY}), $9, $10, $11, TRUE, $12, $13, $14, $15)
      RETURNING id, payment_date`,
     [
       params.accountId,
@@ -203,6 +251,7 @@ export async function insertPassPayment(params: {
       tax.gstPercent,
       tax.gstAmount,
       tax.taxableAmount,
+      screenshotPath,
     ],
   );
   const id = Number(rows[0].id);

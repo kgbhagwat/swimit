@@ -662,6 +662,7 @@ export function ServicePackages() {
                     <input
                       type="number"
                       min={1}
+                      max={10}
                       value={form.maxUsers}
                       onChange={(e) => setField('maxUsers', e.target.value)}
                     />

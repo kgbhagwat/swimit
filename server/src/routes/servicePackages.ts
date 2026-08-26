@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { MAX_USERS_PER_ACCOUNT } from '../accountUserLimit.js';
 import { pool } from '../db/pool.js';
 import {
   defaultFeatureKeysForModules,
@@ -126,6 +127,9 @@ function validate(body: PackageBody) {
   const maxUsers = Number(body.maxUsers ?? 5);
   if (!Number.isFinite(maxPools) || maxPools < 1) return 'Max pools must be at least 1';
   if (!Number.isFinite(maxUsers) || maxUsers < 1) return 'Max users must be at least 1';
+  if (maxUsers > MAX_USERS_PER_ACCOUNT) {
+    return `Max users cannot be more than ${MAX_USERS_PER_ACCOUNT}`;
+  }
   const swimmers = parseOptionalSwimmerLimit(body.maxActiveSwimmers);
   if (swimmers === undefined) return 'Enter a valid active swimmer limit (or leave blank for unlimited)';
   const trialDays = Number(body.trialDays ?? 0);
@@ -163,7 +167,7 @@ function packageValues(body: PackageBody) {
     discountedRate,
     String(body.billingPeriod).trim(),
     Number(body.maxPools ?? 1),
-    Number(body.maxUsers ?? 5),
+    Math.min(MAX_USERS_PER_ACCOUNT, Math.max(1, Number(body.maxUsers ?? 5))),
     maxActiveSwimmers,
     trialDays,
     modules,

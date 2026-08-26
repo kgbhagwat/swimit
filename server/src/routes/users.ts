@@ -8,6 +8,10 @@ import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileVali
 import { generateTempPassword, hashPassword, passwordPolicyError } from '../password.js';
 import { hasPageAccess, requireAccountAdmin } from '../accessControl.js';
 import { tenantId } from '../middleware/tenant.js';
+import {
+  accountUserCapacity,
+  accountUserLimitMessage,
+} from '../accountUserLimit.js';
 import { notifyLoginCredentials } from '../whatsapp/notify.js';
 
 const USER_SELECT = `id, user_name, mobile, email, menu_access, must_change_password, is_account_admin,
@@ -87,6 +91,16 @@ function parseSessionTimeoutMinutes(value: unknown): number | null {
   if (!Number.isFinite(minutes) || !SESSION_TIMEOUT_ALLOWED.has(minutes)) return null;
   return minutes;
 }
+
+usersRouter.get('/capacity', async (req, res) => {
+  try {
+    const cap = await accountUserCapacity(tenantId(req));
+    res.json(cap);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load user limit' });
+  }
+});
 
 usersRouter.get('/session-timeout', async (req, res) => {
   try {
@@ -206,24 +220,43 @@ usersRouter.post('/', async (req, res) => {
     }
 
     const passwordHash = await hashPassword(password);
-    const { rows } = await pool.query(
-      `INSERT INTO app_users
-       (saas_account_id, user_name, mobile, email, password_hash, menu_access, must_change_password,
-        login_geo_mode, login_radius_km, login_type)
-       VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8, $9)
-       RETURNING ${USER_SELECT}`,
-      [
-        accountId,
-        userName,
-        mobile,
-        email,
-        passwordHash,
-        menuAccess,
-        'pool_only',
-        null,
-        loginType,
-      ],
-    );
+    const client = await pool.connect();
+    let rows: Array<Record<string, unknown>>;
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT id FROM saas_accounts WHERE id = $1 FOR UPDATE`, [accountId]);
+      const cap = await accountUserCapacity(accountId, client);
+      if (cap.count >= cap.max) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: accountUserLimitMessage(cap.max) });
+        return;
+      }
+      const inserted = await client.query(
+        `INSERT INTO app_users
+         (saas_account_id, user_name, mobile, email, password_hash, menu_access, must_change_password,
+          login_geo_mode, login_radius_km, login_type)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8, $9)
+         RETURNING ${USER_SELECT}`,
+        [
+          accountId,
+          userName,
+          mobile,
+          email,
+          passwordHash,
+          menuAccess,
+          'pool_only',
+          null,
+          loginType,
+        ],
+      );
+      await client.query('COMMIT');
+      rows = inserted.rows;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
 
     const account = await pool.query(
       `SELECT account_name, account_code FROM saas_accounts WHERE id = $1`,
