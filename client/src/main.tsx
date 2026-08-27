@@ -60,6 +60,10 @@ const StaffRegistration = lazy(() =>
 const PoolCoreInfo = lazy(() =>
   import('./PoolCoreInfo').then((m) => ({ default: m.PoolCoreInfo })),
 );
+const PoolWebsite = lazy(() =>
+  import('./PoolWebsitePage').then((m) => ({ default: m.PoolWebsite })),
+);
+const FormInfo = lazy(() => import('./FormInfoPage').then((m) => ({ default: m.FormInfo })));
 const HolidayManagement = lazy(() =>
   import('./HolidayManagement').then((m) => ({ default: m.HolidayManagement })),
 );
@@ -167,6 +171,8 @@ function appFeatureRoutes() {
       <Route path="balance-sheet" element={<BalanceSheet />} />
       <Route path="payment-details" element={<PaymentDetails />} />
       <Route path="pool-core-info" element={<PoolCoreInfo />} />
+      <Route path="pool-website" element={<PoolWebsite />} />
+      <Route path="form-info" element={<FormInfo />} />
       <Route path="holiday-management" element={<HolidayManagement />} />
       <Route path="renew-payment" element={<RenewPayment />} />
       <Route path="help" element={<HelpPage />} />
@@ -203,6 +209,8 @@ const legacyFeatureRedirects = (
     <Route path="/balance-sheet" element={<RedirectToApplication />} />
     <Route path="/payment-details" element={<RedirectToApplication />} />
     <Route path="/pool-core-info" element={<RedirectToApplication />} />
+    <Route path="/pool-website" element={<RedirectToApplication />} />
+    <Route path="/form-info" element={<RedirectToApplication />} />
     <Route path="/holiday-management" element={<RedirectToApplication />} />
   </>
 );

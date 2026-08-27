@@ -5,6 +5,7 @@ import { ListPager } from './ListPager';
 import { PlatformPage } from './PlatformPage';
 
 type NamedCount = { name: string; count: number };
+type BatchCoachCount = { batch: string; coach: string; count: number };
 
 type WaterQualityPoint = {
   recordDate: string;
@@ -37,6 +38,7 @@ type DashboardData = {
     batch: NamedCount[];
     coach: NamedCount[];
     passType: NamedCount[];
+    batchCoach?: BatchCoachCount[];
   };
   newAdmissionsBy: {
     batch: NamedCount[];
@@ -101,6 +103,40 @@ function formatMoney(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN', {
     maximumFractionDigits: 0,
   })}`;
+}
+
+function namedCountsFromPairs(cells: BatchCoachCount[], key: 'batch' | 'coach'): NamedCount[] {
+  const map = new Map<string, number>();
+  for (const cell of cells) {
+    map.set(cell[key], (map.get(cell[key]) ?? 0) + cell.count);
+  }
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function sampleBatchCoach(active: number): BatchCoachCount[] {
+  const batches = [
+    'Morning A — Mixed — 06:00 to 07:00',
+    'Evening B — Ladies — 17:00 to 18:00',
+    'Afternoon C — Mixed — 14:00 to 15:00',
+  ];
+  const coaches = ['Riya Kulkarni', 'Amit Shah', 'Unassigned'];
+  const morning = Math.max(8, Math.round(active * 0.38));
+  const evening = Math.max(6, Math.round(active * 0.33));
+  const afternoon = Math.max(0, active - morning - evening);
+  const cells: BatchCoachCount[] = [];
+  [morning, evening, afternoon].forEach((total, batchIndex) => {
+    const riya = Math.round(total * 0.42);
+    const amit = Math.round(total * 0.31);
+    const unassigned = Math.max(0, total - riya - amit);
+    [riya, amit, unassigned].forEach((count, coachIndex) => {
+      if (count > 0) {
+        cells.push({ batch: batches[batchIndex], coach: coaches[coachIndex], count });
+      }
+    });
+  });
+  return cells;
 }
 
 const SAMPLE_DETAIL_PEOPLE = [
@@ -170,23 +206,19 @@ function sampleDashboard(asOf: string): DashboardData {
       total: cash + online,
       count,
     },
-    activeBy: {
-      batch: [
-        { name: 'Morning A — Mixed — 06:00 to 07:00', count: Math.max(8, Math.round(active * 0.38)) },
-        { name: 'Evening B — Ladies — 17:00 to 18:00', count: Math.max(6, Math.round(active * 0.33)) },
-        { name: 'Afternoon C — Mixed — 14:00 to 15:00', count: Math.max(4, active - Math.round(active * 0.71)) },
-      ],
-      coach: [
-        { name: 'Riya Kulkarni', count: Math.max(10, Math.round(active * 0.42)) },
-        { name: 'Amit Shah', count: Math.max(8, Math.round(active * 0.31)) },
-        { name: 'Unassigned', count: Math.max(4, active - Math.round(active * 0.73)) },
-      ],
-      passType: [
-        { name: 'Monthly Swim', count: Math.max(14, Math.round(active * 0.58)) },
-        { name: 'Quarterly Swim', count: Math.max(6, Math.round(active * 0.25)) },
-        { name: 'Trial Pass', count: Math.max(2, active - Math.round(active * 0.83)) },
-      ],
-    },
+    activeBy: (() => {
+      const batchCoach = sampleBatchCoach(active);
+      return {
+        batch: namedCountsFromPairs(batchCoach, 'batch'),
+        coach: namedCountsFromPairs(batchCoach, 'coach'),
+        passType: [
+          { name: 'Monthly Swim', count: Math.max(14, Math.round(active * 0.58)) },
+          { name: 'Quarterly Swim', count: Math.max(6, Math.round(active * 0.25)) },
+          { name: 'Trial Pass', count: Math.max(2, active - Math.round(active * 0.83)) },
+        ],
+        batchCoach,
+      };
+    })(),
     newAdmissionsBy: {
       batch: [
         { name: 'Morning A — Mixed — 06:00 to 07:00', count: Math.max(1, Math.ceil(newAdmissions * 0.6)) },
@@ -415,6 +447,81 @@ function BreakdownList({ items, emptyLabel }: { items: NamedCount[]; emptyLabel:
         </li>
       ))}
     </ul>
+  );
+}
+
+function BatchCoachGrid({
+  batches,
+  coaches,
+  cells,
+  emptyLabel,
+}: {
+  batches: NamedCount[];
+  coaches: NamedCount[];
+  cells: BatchCoachCount[];
+  emptyLabel: string;
+}) {
+  const t = useT();
+  const batchNames = batches.map((item) => item.name);
+  const coachNames = coaches.map((item) => item.name);
+  for (const cell of cells) {
+    if (!batchNames.includes(cell.batch)) batchNames.push(cell.batch);
+    if (!coachNames.includes(cell.coach)) coachNames.push(cell.coach);
+  }
+  if (batchNames.length === 0 || coachNames.length === 0) {
+    return <p className="dashboard-empty muted">{emptyLabel}</p>;
+  }
+  const countAt = new Map(cells.map((cell) => [`${cell.batch}\0${cell.coach}`, cell.count]));
+  const grandTotal = cells.reduce((sum, cell) => sum + cell.count, 0);
+
+  return (
+    <div className="dashboard-batch-coach-wrap">
+      <table className="dashboard-batch-coach-table">
+        <thead>
+          <tr>
+            <th scope="col">{t('Batch')}</th>
+            {coachNames.map((name) => (
+              <th key={name} scope="col">
+                {t(name)}
+              </th>
+            ))}
+            <th scope="col">{t('Total')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {batchNames.map((batch) => {
+            const rowCounts = coachNames.map((coach) => countAt.get(`${batch}\0${coach}`) ?? 0);
+            const rowTotal = rowCounts.reduce((sum, value) => sum + value, 0);
+            return (
+              <tr key={batch}>
+                <th scope="row">{batch}</th>
+                {rowCounts.map((count, index) => (
+                  <td key={coachNames[index]}>{count}</td>
+                ))}
+                <td className="is-total">{rowTotal}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">{t('Total')}</th>
+            {coachNames.map((coach) => {
+              const colTotal = batchNames.reduce(
+                (sum, batch) => sum + (countAt.get(`${batch}\0${coach}`) ?? 0),
+                0,
+              );
+              return (
+                <td key={coach} className="is-total">
+                  {colTotal}
+                </td>
+              );
+            })}
+            <td className="is-total">{grandTotal}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 
@@ -653,17 +760,14 @@ export function Dashboard() {
           <section className="card dashboard-card pool-core-form" aria-label={t('Active swimmers by group')}>
             <h2>{t('Active swimmers')}</h2>
             <div className="dashboard-breakdown-grid">
-              <div className="dashboard-breakdown-panel dashboard-breakdown-panel--batch">
-                <h3>{t('Per batch')}</h3>
-                <BreakdownList
-                  items={data.activeBy.batch}
-                  emptyLabel={t('No active swimmers for this day.')}
-                />
-              </div>
-              <div className="dashboard-breakdown-panel dashboard-breakdown-panel--coach">
-                <h3>{t('Per coach')}</h3>
-                <BreakdownList
-                  items={data.activeBy.coach}
+              <div
+                className="dashboard-breakdown-panel dashboard-breakdown-panel--batch-coach"
+                aria-label={t('Per batch and coach')}
+              >
+                <BatchCoachGrid
+                  batches={data.activeBy.batch}
+                  coaches={data.activeBy.coach}
+                  cells={data.activeBy.batchCoach ?? []}
                   emptyLabel={t('No active swimmers for this day.')}
                 />
               </div>

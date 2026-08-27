@@ -15,6 +15,7 @@ import { clearFormDraft, mergeDraft, readFormDraft, useFormDraft } from './formD
 import { useObjectUrl } from './useObjectUrl';
 import type { SwimmerProfile } from './SwimmerProfileReview';
 import { fileAsDataUrl, saveSampleSwimmerProfile } from './sampleSwimmerEdit';
+import { useFormFieldRequired } from './formInfo';
 
 
 type FormState = {
@@ -166,6 +167,7 @@ export function App() {
   const isEdit = (Number.isFinite(editId) && editId > 0) || isSampleEdit;
 
   const t = useT();
+  const need = useFormFieldRequired('swimmer');
   const savedDraft = !isEdit ? readFormDraft<SwimmerDraft>(SWIMMER_FORM_DRAFT) : null;
   const [form, setForm] = useState<FormState>(() => mergeDraft(initialForm, savedDraft?.form));
   const [identityPhoto, setIdentityPhoto] = useState<File | null>(null);
@@ -301,59 +303,86 @@ export function App() {
   function collectInvalidFields() {
     const fields = new Set<string>();
 
-    if (!form.fullName.trim() || !isValidPersonName(form.fullName)) fields.add('fullName');
-    if (!form.fullAddress.trim()) fields.add('fullAddress');
-    if (!form.whatsappMobile.trim() || !isValidMobile(form.whatsappMobile)) {
-      fields.add('whatsappMobile');
+    if (need('fullName') || form.fullName.trim()) {
+      if (!isValidPersonName(form.fullName)) fields.add('fullName');
     }
+    if (need('fullAddress') && !form.fullAddress.trim()) fields.add('fullAddress');
+    if (need('whatsappMobile') || form.whatsappMobile.trim()) {
+      if (!isValidMobile(form.whatsappMobile)) fields.add('whatsappMobile');
+    }
+    if (need('otherMobile') && !form.otherMobile.trim()) fields.add('otherMobile');
     if (form.otherMobile.trim() && !isValidMobile(form.otherMobile)) {
       fields.add('otherMobile');
     }
+    if (need('email') && !form.email.trim()) fields.add('email');
     if (form.email.trim() && !isValidEmail(form.email)) fields.add('email');
-    if (!form.birthdate) fields.add('birthdate');
-    if (!form.sex) fields.add('sex');
-    if (!form.bloodGroup) fields.add('bloodGroup');
+    if (need('birthdate') && !form.birthdate) fields.add('birthdate');
+    if (need('sex') && !form.sex) fields.add('sex');
+    if (need('bloodGroup') && !form.bloodGroup) fields.add('bloodGroup');
 
     if (needsParentInfo) {
-      if (!form.parentName.trim() || !isValidPersonName(form.parentName)) fields.add('parentName');
-      if (!form.parentRelation) fields.add('parentRelation');
-      if (!form.parentMobile.trim() || !isValidMobile(form.parentMobile)) {
+      if (need('parentName') || form.parentName.trim()) {
+        if (!isValidPersonName(form.parentName)) fields.add('parentName');
+      }
+      if (need('parentRelation') && !form.parentRelation) fields.add('parentRelation');
+      if (need('parentMobile') && !form.parentMobile.trim()) fields.add('parentMobile');
+      if (form.parentMobile.trim() && !isValidMobile(form.parentMobile)) {
         fields.add('parentMobile');
       }
     }
 
-    if (!form.emergencyName.trim() || !isValidPersonName(form.emergencyName)) fields.add('emergencyName');
-    if (!form.emergencyRelation) fields.add('emergencyRelation');
-    if (!form.emergencyMobile.trim() || !isValidMobile(form.emergencyMobile)) {
-      fields.add('emergencyMobile');
-    } else if (
-      !needsParentInfo &&
-      emergencyMatchesApplicant({
-        emergencyMobile: form.emergencyMobile,
-        whatsappMobile: form.whatsappMobile,
-        otherMobile: form.otherMobile,
-      })
-    ) {
-      fields.add('emergencyMobile');
+    if (need('emergencyName') || form.emergencyName.trim()) {
+      if (!isValidPersonName(form.emergencyName)) fields.add('emergencyName');
+    }
+    if (need('emergencyRelation') && !form.emergencyRelation) fields.add('emergencyRelation');
+    if (need('emergencyMobile') && !form.emergencyMobile.trim()) fields.add('emergencyMobile');
+    if (form.emergencyMobile.trim()) {
+      if (!isValidMobile(form.emergencyMobile)) {
+        fields.add('emergencyMobile');
+      } else if (
+        !needsParentInfo &&
+        emergencyMatchesApplicant({
+          emergencyMobile: form.emergencyMobile,
+          whatsappMobile: form.whatsappMobile,
+          otherMobile: form.otherMobile,
+        })
+      ) {
+        fields.add('emergencyMobile');
+      }
     }
 
-    if (form.hasHealthIssue === 'Yes' && !form.healthIssueDetails.trim()) {
+    if (need('hasHealthIssue') && !form.hasHealthIssue) fields.add('hasHealthIssue');
+    if (form.hasHealthIssue === 'Yes' && need('healthIssueDetails') && !form.healthIssueDetails.trim()) {
       fields.add('healthIssueDetails');
+    }
+    if (need('doctorName') && form.hasHealthIssue === 'Yes' && !form.doctorName.trim()) {
+      fields.add('doctorName');
+    }
+    if (need('doctorNo') && form.hasHealthIssue === 'Yes' && !form.doctorNo.trim()) {
+      fields.add('doctorNo');
     }
     if (form.doctorNo.trim() && !isValidMobile(form.doctorNo)) {
       fields.add('doctorNo');
     }
 
-    if (!form.identityDocument) fields.add('identityDocument');
+    if (need('identityDocument') && !form.identityDocument) fields.add('identityDocument');
+    if (need('identityNumber') && !form.identityNumber.trim()) fields.add('identityNumber');
     if (identityNumberError(form.identityNumber)) fields.add('identityNumber');
-    if (isEdit) {
-      if (!identityPhoto && !existingIdentityUrl) fields.add('identityPhoto');
-      if (!swimmerPhoto && !existingSwimmerUrl) fields.add('swimmerPhoto');
-    } else {
-      if (!identityPhoto) fields.add('identityPhoto');
-      if (!swimmerPhoto) fields.add('swimmerPhoto');
+    if (need('identityPhoto')) {
+      if (isEdit) {
+        if (!identityPhoto && !existingIdentityUrl) fields.add('identityPhoto');
+      } else if (!identityPhoto) {
+        fields.add('identityPhoto');
+      }
     }
-    if (!isEdit && !form.acceptedTerms) fields.add('acceptedTerms');
+    if (need('swimmerPhoto')) {
+      if (isEdit) {
+        if (!swimmerPhoto && !existingSwimmerUrl) fields.add('swimmerPhoto');
+      } else if (!swimmerPhoto) {
+        fields.add('swimmerPhoto');
+      }
+    }
+    if (!isEdit && need('acceptedTerms') && !form.acceptedTerms) fields.add('acceptedTerms');
 
     return fields;
   }
@@ -491,14 +520,14 @@ export function App() {
 
           <div className="grid-2">
             <label className="field field-beside">
-              <Label required>{t("Full name")}</Label>
+              <Label required={need('fullName')}>{t("Full name")}</Label>
               <input
                 value={form.fullName}
                 onChange={(e) => setField('fullName', sanitizeNameInput(e.target.value))}
                 placeholder={t("As per identity document")}
                 autoCapitalize="words"
                 autoComplete="name"
-                required
+                required={need('fullName')}
                 aria-invalid={isInvalid('fullName') || Boolean(nameHint(form.fullName))}
               />
               {nameHint(form.fullName) ? (
@@ -510,13 +539,13 @@ export function App() {
             </label>
 
             <label className="field field-beside">
-              <Label required>{t("Full address")}</Label>
+              <Label required={need('fullAddress')}>{t("Full address")}</Label>
               <textarea
                 value={form.fullAddress}
                 onChange={(e) => setField('fullAddress', e.target.value)}
                 placeholder={t("House no., street, city, state, PIN")}
                 rows={3}
-                required
+                required={need('fullAddress')}
                 aria-invalid={isInvalid('fullAddress')}
               />
               <FieldValidationError show={isInvalid('fullAddress')} />
@@ -525,14 +554,14 @@ export function App() {
 
           <div className="grid-3 registration-align-3">
             <label className="field field-beside">
-              <Label required>{t("WhatsApp mobile no.")}</Label>
+              <Label required={need('whatsappMobile')}>{t("WhatsApp mobile no.")}</Label>
               <input
                 value={form.whatsappMobile}
                 onChange={(e) => setField('whatsappMobile', sanitizeMobileInput(e.target.value))}
                 placeholder={t("10-digit mobile number")}
                 inputMode="numeric"
                 pattern="\d{10}"
-                required
+                required={need('whatsappMobile')}
                 aria-invalid={isInvalid('whatsappMobile') || Boolean(mobileHint(form.whatsappMobile))}
               />
               {mobileHint(form.whatsappMobile) ? (
@@ -543,7 +572,7 @@ export function App() {
               />
             </label>
             <label className="field field-beside">
-              <Label>{t("Another mobile no.")}</Label>
+              <Label required={need('otherMobile')}>{t("Another mobile no.")}</Label>
               <input
                 value={form.otherMobile}
                 onChange={(e) => setField('otherMobile', sanitizeMobileInput(e.target.value))}
@@ -557,7 +586,7 @@ export function App() {
               ) : null}
             </label>
             <label className="field field-beside">
-              <Label>{t("Email")}</Label>
+              <Label required={need('email')}>{t("Email")}</Label>
               <input
                 type="email"
                 value={form.email}
@@ -573,12 +602,12 @@ export function App() {
 
           <div className="grid-3 registration-align-3">
             <label className="field field-beside">
-              <Label required>{t("Birth Date")}</Label>
+              <Label required={need('birthdate')}>{t("Birth Date")}</Label>
               <BirthDateField
                 className="field-control-sm"
                 value={form.birthdate}
                 onChange={onBirthdateChange}
-                required
+                required={need('birthdate')}
                 invalid={isInvalid('birthdate')}
               />
               <FieldValidationError
@@ -587,12 +616,12 @@ export function App() {
               />
             </label>
             <label className="field field-beside">
-              <Label required>{t("Sex")}</Label>
+              <Label required={need('sex')}>{t("Sex")}</Label>
               <select
                 className="field-control-sm"
                 value={form.sex}
                 onChange={(e) => setField('sex', e.target.value)}
-                required
+                required={need('sex')}
                 aria-invalid={isInvalid('sex')}
               >
                 <option value="">{t("Select sex")}</option>
@@ -603,12 +632,12 @@ export function App() {
               <FieldValidationError show={isInvalid('sex')} />
             </label>
             <label className="field field-beside">
-              <Label required>{t("Blood group")}</Label>
+              <Label required={need('bloodGroup')}>{t("Blood group")}</Label>
               <select
                 className="field-control-sm"
                 value={form.bloodGroup}
                 onChange={(e) => setField('bloodGroup', e.target.value)}
-                required
+                required={need('bloodGroup')}
                 aria-invalid={isInvalid('bloodGroup')}
               >
                 <option value="">{t("Select blood group")}</option>
@@ -628,14 +657,14 @@ export function App() {
             <h2>{t("Parent information")}</h2>
             <div className="grid-3 registration-align-3 registration-align-3--parent">
               <label className="field field-beside">
-                <Label required>{t("Name")}</Label>
+                <Label required={need('parentName')}>{t("Name")}</Label>
                 <input
                   value={form.parentName}
                   onChange={(e) => setField('parentName', sanitizeNameInput(e.target.value))}
                   placeholder={t("Parent / guardian full name")}
                   autoCapitalize="words"
                   autoComplete="name"
-                  required
+                  required={need('parentName')}
                   aria-invalid={isInvalid('parentName') || Boolean(nameHint(form.parentName))}
                 />
                 {nameHint(form.parentName) ? (
@@ -646,12 +675,12 @@ export function App() {
                 />
               </label>
               <label className="field field-beside">
-                <Label required>{t("Relationship")}</Label>
+                <Label required={need('parentRelation')}>{t("Relationship")}</Label>
                 <select
                   className="field-control-sm"
                   value={form.parentRelation}
                   onChange={(e) => setField('parentRelation', e.target.value)}
-                  required
+                  required={need('parentRelation')}
                   aria-invalid={isInvalid('parentRelation')}
                 >
                   <option value="">{t("Select relationship")}</option>
@@ -663,7 +692,7 @@ export function App() {
                 <FieldValidationError show={isInvalid('parentRelation')} />
               </label>
               <label className="field field-beside">
-                <Label required>{t("Contact no.")}</Label>
+                <Label required={need('parentMobile')}>{t("Contact no.")}</Label>
                 <input
                   value={form.parentMobile}
                   onChange={(e) =>
@@ -672,7 +701,7 @@ export function App() {
                   placeholder={t("10-digit mobile number")}
                   inputMode="numeric"
                   pattern="\d{10}"
-                  required
+                  required={need('parentMobile')}
                   aria-invalid={isInvalid('parentMobile') || Boolean(mobileHint(form.parentMobile))}
                 />
                 {mobileHint(form.parentMobile) ? (
@@ -700,14 +729,14 @@ export function App() {
           ) : null}
           <div className="grid-3">
             <label className="field field-beside">
-              <Label required>{t("Emergency contact name")}</Label>
+              <Label required={need('emergencyName')}>{t("Emergency contact name")}</Label>
               <input
                 value={form.emergencyName}
                 onChange={(e) => setField('emergencyName', sanitizeNameInput(e.target.value))}
                 placeholder={t("Contact person name")}
                 autoCapitalize="words"
                 autoComplete="name"
-                required
+                required={need('emergencyName')}
                 readOnly={parentOnly && needsParentInfo}
                 aria-invalid={isInvalid('emergencyName') || Boolean(nameHint(form.emergencyName))}
               />
@@ -719,12 +748,12 @@ export function App() {
               />
             </label>
             <label className="field field-beside">
-              <Label required>{t("Relation")}</Label>
+              <Label required={need('emergencyRelation')}>{t("Relation")}</Label>
               <select
                 className="field-control-sm"
                 value={form.emergencyRelation}
                 onChange={(e) => setField('emergencyRelation', e.target.value)}
-                required
+                required={need('emergencyRelation')}
                 disabled={parentOnly && needsParentInfo}
                 aria-invalid={isInvalid('emergencyRelation')}
               >
@@ -739,7 +768,7 @@ export function App() {
               <FieldValidationError show={isInvalid('emergencyRelation')} />
             </label>
             <label className="field field-beside">
-              <Label required>{t("Emergency contact no.")}</Label>
+              <Label required={need('emergencyMobile')}>{t("Emergency contact no.")}</Label>
               <input
                 value={form.emergencyMobile}
                 onChange={(e) =>
@@ -748,7 +777,7 @@ export function App() {
                 placeholder={t("10-digit mobile number")}
                 inputMode="numeric"
                 pattern="\d{10}"
-                required
+                required={need('emergencyMobile')}
                 readOnly={parentOnly && needsParentInfo}
                 aria-invalid={isInvalid('emergencyMobile') || Boolean(mobileHint(form.emergencyMobile))}
               />
@@ -780,12 +809,12 @@ export function App() {
         <section className="registration-section registration-section--medical">
           <h2>{t("Medical information")}</h2>
           <label className="field field-beside medical-health-issue">
-            <Label required>{t("Do you have any health issue?")}</Label>
+            <Label required={need('hasHealthIssue')}>{t("Do you have any health issue?")}</Label>
             <select
               className="field-control-sm"
               value={form.hasHealthIssue}
               onChange={(e) => setField('hasHealthIssue', e.target.value)}
-              required
+              required={need('hasHealthIssue')}
             >
               <option value="No">{t("No")}</option>
               <option value="Yes">{t("Yes")}</option>
@@ -794,20 +823,20 @@ export function App() {
           {form.hasHealthIssue === 'Yes' ? (
             <div className="medical-details grid-2">
               <label className="field field-beside medical-details-main">
-                <Label required>{t("Disease / health issue")}</Label>
+                <Label required={need('healthIssueDetails')}>{t("Disease / health issue")}</Label>
                 <textarea
                   value={form.healthIssueDetails}
                   onChange={(e) => setField('healthIssueDetails', e.target.value)}
                   placeholder={t("Asthma, epilepsy, heart condition, etc.")}
                   rows={4}
-                  required
+                  required={need('healthIssueDetails')}
                   aria-invalid={isInvalid('healthIssueDetails')}
                 />
                 <FieldValidationError show={isInvalid('healthIssueDetails')} />
               </label>
               <div className="medical-doctor-col">
                 <label className="field field-beside">
-                  <Label>{t("Doctor name")}</Label>
+                  <Label required={need('doctorName')}>{t("Doctor name")}</Label>
                   <input
                     value={form.doctorName}
                     onChange={(e) => setField('doctorName', e.target.value)}
@@ -815,7 +844,7 @@ export function App() {
                   />
                 </label>
                 <label className="field field-beside">
-                  <Label>{t("Doctor no.")}</Label>
+                  <Label required={need('doctorNo')}>{t("Doctor no.")}</Label>
                   <input
                     value={form.doctorNo}
                     onChange={(e) => setField('doctorNo', sanitizeMobileInput(e.target.value))}
@@ -842,6 +871,9 @@ export function App() {
             onNumberChange={(value) => setField('identityNumber', value)}
             documentInvalid={isInvalid('identityDocument')}
             numberInvalid={isInvalid('identityNumber')}
+            documentRequired={need('identityDocument')}
+            numberRequired={need('identityNumber')}
+            proofRequired={need('identityPhoto')}
             proofFile={identityPhoto}
             proofPreview={identityPreview}
             proofExistingUrl={existingIdentityUrl}
@@ -861,7 +893,7 @@ export function App() {
             <RegistrationPhotoField
               label={t("Swimmer photo")}
               hint={t("Image or PDF (max 200 KB) — recent passport-size photo of the swimmer")}
-              required
+              required={need('swimmerPhoto')}
               protectFromCapture
               file={swimmerPhoto}
               preview={swimmerPreview}
@@ -894,7 +926,7 @@ export function App() {
                   type="checkbox"
                   checked={form.acceptedTerms}
                   onChange={(e) => setField('acceptedTerms', e.target.checked)}
-                  required
+                  required={need('acceptedTerms')}
                   aria-invalid={isInvalid('acceptedTerms')}
                 />
                 <span>

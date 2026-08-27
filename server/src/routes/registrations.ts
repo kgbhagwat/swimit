@@ -19,6 +19,7 @@ import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
 import { isValidPersonName, NAME_INVALID_MSG } from '../nameValidation.js';
+import { getFormRules, isFormFieldRequired } from '../formInfoRules.js';
 import {
   imageOrPdfFileFilter,
   randomUploadFilename,
@@ -1307,6 +1308,8 @@ registrationsRouter.put(
         return;
       }
       const current = existing.rows[0] as Record<string, unknown>;
+      const rules = await getFormRules(accountId);
+      const need = (key: string) => isFormFieldRequired(rules, 'swimmer', key);
 
       const required = [
         'fullName',
@@ -1320,10 +1323,11 @@ registrationsRouter.put(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
-        if (!String(body[key] ?? '').trim()) {
+        if (need(key) && !String(body[key] ?? '').trim()) {
           res.status(400).json({ error: `${key} is required` });
           return;
         }
@@ -1348,8 +1352,12 @@ registrationsRouter.put(
           ? String(current.swimmer_photo_path)
           : null;
 
-      if (!identityPhotoPath || !swimmerPhotoPath) {
-        res.status(400).json({ error: 'Identity proof and swimmer photo are required' });
+      if (!identityPhotoPath && need('identityPhoto')) {
+        res.status(400).json({ error: 'Identity proof is required' });
+        return;
+      }
+      if (!swimmerPhotoPath && need('swimmerPhoto')) {
+        res.status(400).json({ error: 'Swimmer photo is required' });
         return;
       }
 
@@ -1357,11 +1365,25 @@ registrationsRouter.put(
         identityPhotoPath = await sealUploadFile(uploadDir, identityPhoto.filename);
       }
 
-      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+      if ((need('fullName') || String(body.fullName ?? '').trim()) && !isValidPersonName(body.fullName)) {
         res.status(400).json({ error: NAME_INVALID_MSG });
         return;
       }
-      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+      if (
+        (need('emergencyName') || String(body.emergencyName ?? '').trim()) &&
+        !isValidPersonName(body.emergencyName)
+      ) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
+      if ((need('whatsappMobile') || String(body.whatsappMobile ?? '').trim()) && !isValidMobile(body.whatsappMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
+        return;
+      }
+      if (
+        (need('emergencyMobile') || String(body.emergencyMobile ?? '').trim()) &&
+        !isValidMobile(body.emergencyMobile)
+      ) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
@@ -1374,11 +1396,15 @@ registrationsRouter.put(
         return;
       }
       const email = String(body.email ?? '').trim();
+      if (need('email') && !email) {
+        res.status(400).json({ error: 'email is required' });
+        return;
+      }
       if (email && (!email.includes('@') || !email.includes('.') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         res.status(400).json({ error: 'Email must include @ and .' });
         return;
       }
-      if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
+      if (body.hasHealthIssue === 'Yes' && need('healthIssueDetails') && !String(body.healthIssueDetails ?? '').trim()) {
         res.status(400).json({ error: 'Disease / health issue is required' });
         return;
       }
@@ -1390,11 +1416,15 @@ registrationsRouter.put(
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
       const needsParent = !Number.isNaN(birth.getTime()) && age < 18;
       if (needsParent) {
-        if (!isValidPersonName(body.parentName) || !String(body.parentRelation ?? '').trim()) {
+        if (need('parentName') && !isValidPersonName(body.parentName)) {
           res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
           return;
         }
-        if (!isValidMobile(String(body.parentMobile ?? ''))) {
+        if (need('parentRelation') && !String(body.parentRelation ?? '').trim()) {
+          res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
+          return;
+        }
+        if (need('parentMobile') && !isValidMobile(String(body.parentMobile ?? ''))) {
           res.status(400).json({ error: MOBILE_INVALID_MSG });
           return;
         }
@@ -1942,6 +1972,8 @@ registrationsRouter.post(
       const accountId = tenantId(req);
       const body = req.body as Record<string, string>;
       const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const rules = await getFormRules(accountId);
+      const need = (key: string) => isFormFieldRequired(rules, 'swimmer', key);
 
       const required = [
         'fullName',
@@ -1955,10 +1987,11 @@ registrationsRouter.post(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
-        if (!String(body[key] ?? '').trim()) {
+        if (need(key) && !String(body[key] ?? '').trim()) {
           res.status(400).json({ error: `${key} is required` });
           return;
         }
@@ -1970,7 +2003,7 @@ registrationsRouter.post(
         return;
       }
 
-      if (body.acceptedTerms !== 'true') {
+      if (need('acceptedTerms') && body.acceptedTerms !== 'true') {
         res.status(400).json({ error: 'You must accept the Terms & Conditions' });
         return;
       }
@@ -1978,16 +2011,34 @@ registrationsRouter.post(
       const identityPhoto = files?.identityPhoto?.[0];
       const swimmerPhoto = files?.swimmerPhoto?.[0];
 
-      if (!identityPhoto || !swimmerPhoto) {
-        res.status(400).json({ error: 'Identity proof and swimmer photo are required' });
+      if (need('identityPhoto') && !identityPhoto) {
+        res.status(400).json({ error: 'Identity proof is required' });
+        return;
+      }
+      if (need('swimmerPhoto') && !swimmerPhoto) {
+        res.status(400).json({ error: 'Swimmer photo is required' });
         return;
       }
 
-      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+      if ((need('fullName') || String(body.fullName ?? '').trim()) && !isValidPersonName(body.fullName)) {
         res.status(400).json({ error: NAME_INVALID_MSG });
         return;
       }
-      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+      if (
+        (need('emergencyName') || String(body.emergencyName ?? '').trim()) &&
+        !isValidPersonName(body.emergencyName)
+      ) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
+      if ((need('whatsappMobile') || String(body.whatsappMobile ?? '').trim()) && !isValidMobile(body.whatsappMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
+        return;
+      }
+      if (
+        (need('emergencyMobile') || String(body.emergencyMobile ?? '').trim()) &&
+        !isValidMobile(body.emergencyMobile)
+      ) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
@@ -2000,11 +2051,15 @@ registrationsRouter.post(
         return;
       }
       const email = String(body.email ?? '').trim();
+      if (need('email') && !email) {
+        res.status(400).json({ error: 'email is required' });
+        return;
+      }
       if (email && (!email.includes('@') || !email.includes('.') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         res.status(400).json({ error: 'Email must include @ and .' });
         return;
       }
-      if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
+      if (body.hasHealthIssue === 'Yes' && need('healthIssueDetails') && !String(body.healthIssueDetails ?? '').trim()) {
         res.status(400).json({ error: 'Disease / health issue is required' });
         return;
       }
@@ -2016,11 +2071,15 @@ registrationsRouter.post(
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
       const needsParent = !Number.isNaN(birth.getTime()) && age < 18;
       if (needsParent) {
-        if (!isValidPersonName(body.parentName) || !String(body.parentRelation ?? '').trim()) {
+        if (need('parentName') && !isValidPersonName(body.parentName)) {
           res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
           return;
         }
-        if (!isValidMobile(String(body.parentMobile ?? ''))) {
+        if (need('parentRelation') && !String(body.parentRelation ?? '').trim()) {
+          res.status(400).json({ error: 'Parent information is required for swimmers under 18' });
+          return;
+        }
+        if (need('parentMobile') && !isValidMobile(String(body.parentMobile ?? ''))) {
           res.status(400).json({ error: MOBILE_INVALID_MSG });
           return;
         }
@@ -2062,7 +2121,9 @@ registrationsRouter.post(
       }
 
       const sealedBirth = sealBirthdate(body.birthdate);
-      const sealedIdentityPhoto = await sealUploadFile(uploadDir, identityPhoto.filename);
+      const sealedIdentityPhoto = identityPhoto?.filename
+        ? await sealUploadFile(uploadDir, identityPhoto.filename)
+        : '';
 
       const { rows } = await pool.query(
         `INSERT INTO registrations (
@@ -2085,9 +2146,9 @@ registrationsRouter.post(
           sealedBirth.sealed,
           body.sex,
           body.bloodGroup,
-          body.emergencyName.trim(),
+          String(body.emergencyName ?? '').trim(),
           body.emergencyRelation,
-          body.emergencyMobile.trim(),
+          String(body.emergencyMobile ?? '').trim(),
           body.hasHealthIssue,
           body.hasHealthIssue === 'Yes' ? body.healthIssueDetails?.trim() || null : null,
           body.hasHealthIssue === 'Yes' ? body.doctorName?.trim() || null : null,
@@ -2095,10 +2156,10 @@ registrationsRouter.post(
           sealIdentityDocument(body.identityDocument),
           sealIdentityNumber(identityNumber),
           sealedIdentityPhoto,
-          swimmerPhoto.filename,
-          needsParent ? body.parentName.trim() : null,
-          needsParent ? body.parentRelation.trim() : null,
-          needsParent ? body.parentMobile.trim() : null,
+          swimmerPhoto?.filename || '',
+          needsParent ? String(body.parentName ?? '').trim() || null : null,
+          needsParent ? String(body.parentRelation ?? '').trim() || null : null,
+          needsParent ? String(body.parentMobile ?? '').trim() || null : null,
           sealedBirth.isAdult,
         ],
       );

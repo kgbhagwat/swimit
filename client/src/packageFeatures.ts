@@ -13,7 +13,7 @@ export const PACKAGE_FEATURE_DEFS: readonly PackageFeatureDef[] = [
     id: 'registration',
     label: 'Registration & staff forms',
     level: 'core',
-    pageKeys: ['register', 'staff-register'],
+    pageKeys: ['register', 'staff-register', 'form-info'],
   },
   {
     id: 'batches',
@@ -37,7 +37,7 @@ export const PACKAGE_FEATURE_DEFS: readonly PackageFeatureDef[] = [
     id: 'pool-core',
     label: 'Pool core info',
     level: 'core',
-    pageKeys: ['pool-core-info'],
+    pageKeys: ['pool-core-info', 'pool-website'],
   },
   {
     id: 'coach-payment',

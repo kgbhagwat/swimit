@@ -37,6 +37,9 @@ type IdentityCaptureFieldsProps = {
   proofPreview: string | null;
   proofExistingUrl?: string | null;
   proofInvalid?: boolean;
+  documentRequired?: boolean;
+  numberRequired?: boolean;
+  proofRequired?: boolean;
   onPickProof: (file: File | null) => void;
   onClearProofExisting?: () => void;
   children?: ReactNode;
@@ -54,6 +57,9 @@ export function IdentityCaptureFields({
   proofPreview,
   proofExistingUrl,
   proofInvalid,
+  documentRequired = true,
+  numberRequired = false,
+  proofRequired = true,
   onPickProof,
   onClearProofExisting,
   children,
@@ -68,12 +74,12 @@ export function IdentityCaptureFields({
           documentInvalid ? ' field-box-invalid' : ''
         }`}
       >
-        <Label required>{t('Identity document')}</Label>
+        <Label required={documentRequired}>{t('Identity document')}</Label>
         <select
           className="field-control-sm registration-identity-doc-select"
           value={document}
           onChange={(e) => onDocumentChange(e.target.value)}
-          required
+          required={documentRequired}
           aria-invalid={documentInvalid}
         >
           <option value="">{t('Select document type')}</option>
@@ -92,7 +98,7 @@ export function IdentityCaptureFields({
           numberInvalid || Boolean(numberHint) ? ' field-box-invalid' : ''
         }`}
       >
-        <Label>{t('Identity number')}</Label>
+        <Label required={numberRequired}>{t('Identity number')}</Label>
         <input
           className="field-control-sm"
           value={number}
@@ -106,7 +112,7 @@ export function IdentityCaptureFields({
       <RegistrationPhotoField
         label={t('Photo of identity proof')}
         hint={t('Image or PDF (max 200 KB) — upload or take a photo of your identity proof')}
-        required
+        required={proofRequired}
         hideLabel
         protectFromCapture
         cameraFacing="environment"

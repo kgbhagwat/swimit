@@ -16,6 +16,7 @@ import { tenantId } from '../middleware/tenant.js';
 import { duplicateEmailMessage, duplicateMobileMessage, isEmailTakenInAccount, isMobileTakenInAccount } from '../mobileUniqueness.js';
 import { isValidMobile, MOBILE_INVALID_MSG } from '../mobileValidation.js';
 import { isValidPersonName, NAME_INVALID_MSG } from '../nameValidation.js';
+import { getFormRules, isFormFieldRequired } from '../formInfoRules.js';
 import {
   imageOrPdfFileFilter,
   randomUploadFilename,
@@ -405,6 +406,8 @@ staffRegistrationsRouter.put(
         return;
       }
       const current = existing.rows[0] as Record<string, unknown>;
+      const rules = await getFormRules(accountId);
+      const need = (key: string) => isFormFieldRequired(rules, 'staff', key);
 
       const required = [
         'registrationFor',
@@ -419,13 +422,18 @@ staffRegistrationsRouter.put(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
-        if (!String(body[key] ?? '').trim()) {
+        if (need(key) && !String(body[key] ?? '').trim()) {
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      if (need('email') && !String(body.email ?? '').trim()) {
+        res.status(400).json({ error: 'email is required' });
+        return;
       }
       const emailError = staffEmailError(body.email);
       if (emailError) {
@@ -444,11 +452,25 @@ staffRegistrationsRouter.put(
         return;
       }
 
-      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+      if ((need('fullName') || String(body.fullName ?? '').trim()) && !isValidPersonName(body.fullName)) {
         res.status(400).json({ error: NAME_INVALID_MSG });
         return;
       }
-      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+      if (
+        (need('emergencyName') || String(body.emergencyName ?? '').trim()) &&
+        !isValidPersonName(body.emergencyName)
+      ) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
+      if ((need('whatsappMobile') || String(body.whatsappMobile ?? '').trim()) && !isValidMobile(body.whatsappMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
+        return;
+      }
+      if (
+        (need('emergencyMobile') || String(body.emergencyMobile ?? '').trim()) &&
+        !isValidMobile(body.emergencyMobile)
+      ) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
@@ -492,11 +514,11 @@ staffRegistrationsRouter.put(
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
-      if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
+      if (body.hasHealthIssue === 'Yes' && need('healthIssueDetails') && !String(body.healthIssueDetails ?? '').trim()) {
         res.status(400).json({ error: 'Disease / health issue is required' });
         return;
       }
-      if (!isOver18(body.birthdate)) {
+      if ((need('birthdate') || String(body.birthdate ?? '').trim()) && !isOver18(body.birthdate)) {
         res.status(400).json({ error: 'Staff must be more than 18 years old' });
         return;
       }
@@ -512,7 +534,7 @@ staffRegistrationsRouter.put(
         } catch {
           teachStrokes = [];
         }
-        if (!Array.isArray(teachStrokes) || teachStrokes.length === 0) {
+        if (need('teachStrokes') && (!Array.isArray(teachStrokes) || teachStrokes.length === 0)) {
           res.status(400).json({ error: 'Select at least one stroke to teach' });
           return;
         }
@@ -526,7 +548,7 @@ staffRegistrationsRouter.put(
           [accountId],
         );
         if (existingBatches.rowCount && existingBatches.rowCount > 0) {
-          if (!Array.isArray(suitableBatchIds) || suitableBatchIds.length === 0) {
+          if (need('suitableBatchIds') && (!Array.isArray(suitableBatchIds) || suitableBatchIds.length === 0)) {
             res.status(400).json({ error: 'Select at least one suitable batch slot' });
             return;
           }
@@ -550,8 +572,12 @@ staffRegistrationsRouter.put(
       let identityPhotoPath = identityPhotoPathRaw;
       const staffPhotoPath =
         files?.staffPhoto?.[0]?.filename || String(current.staff_photo_path ?? '');
-      if (!identityPhotoPath || !staffPhotoPath) {
-        res.status(400).json({ error: 'Identity proof and photo are required' });
+      if (!identityPhotoPath && need('identityPhoto')) {
+        res.status(400).json({ error: 'Identity proof is required' });
+        return;
+      }
+      if (!staffPhotoPath && need('staffPhoto')) {
+        res.status(400).json({ error: 'Photo is required' });
         return;
       }
 
@@ -561,14 +587,14 @@ staffRegistrationsRouter.put(
 
       let lifeguardPhotoPath: string | null = null;
       if (needsLifeguard && body.hasLifeguardCert === 'Yes') {
-        if (!body.lifeguardExpiry) {
+        if (need('lifeguardExpiry') && !body.lifeguardExpiry) {
           res.status(400).json({ error: 'Lifeguard certificate expiry date is required' });
           return;
         }
         lifeguardPhotoPath =
           files?.lifeguardPhoto?.[0]?.filename ||
           (current.lifeguard_photo_path ? String(current.lifeguard_photo_path) : null);
-        if (!lifeguardPhotoPath) {
+        if (!lifeguardPhotoPath && need('lifeguardPhoto')) {
           res.status(400).json({ error: 'Life Guard certificate photo is required' });
           return;
         }
@@ -579,11 +605,11 @@ staffRegistrationsRouter.put(
 
       const isOther = body.registrationFor === 'Other';
       const needsSalary = isOther || isLifeguard;
-      if (isOther && !String(body.postName ?? '').trim()) {
+      if (isOther && need('postName') && !String(body.postName ?? '').trim()) {
         res.status(400).json({ error: 'Post name is required' });
         return;
       }
-      if (needsSalary && (body.salary === undefined || body.salary === '' || Number.isNaN(Number(body.salary)))) {
+      if (needsSalary && need('salary') && (body.salary === undefined || body.salary === '' || Number.isNaN(Number(body.salary)))) {
         res.status(400).json({ error: 'Salary is required' });
         return;
       }
@@ -721,6 +747,8 @@ staffRegistrationsRouter.post(
       const accountId = tenantId(req);
       const body = req.body as Record<string, string>;
       const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const rules = await getFormRules(accountId);
+      const need = (key: string) => isFormFieldRequired(rules, 'staff', key);
 
       const required = [
         'registrationFor',
@@ -735,13 +763,18 @@ staffRegistrationsRouter.post(
         'emergencyMobile',
         'hasHealthIssue',
         'identityDocument',
+        'identityNumber',
       ] as const;
 
       for (const key of required) {
-        if (!String(body[key] ?? '').trim()) {
+        if (need(key) && !String(body[key] ?? '').trim()) {
           res.status(400).json({ error: `${key} is required` });
           return;
         }
+      }
+      if (need('email') && !String(body.email ?? '').trim()) {
+        res.status(400).json({ error: 'email is required' });
+        return;
       }
       const emailError = staffEmailError(body.email);
       if (emailError) {
@@ -760,7 +793,7 @@ staffRegistrationsRouter.post(
         return;
       }
 
-      if (body.acceptedTerms !== 'true') {
+      if (need('acceptedTerms') && body.acceptedTerms !== 'true') {
         res.status(400).json({ error: 'You must accept the Terms & Conditions' });
         return;
       }
@@ -768,16 +801,34 @@ staffRegistrationsRouter.post(
       const identityPhoto = files?.identityPhoto?.[0];
       const staffPhoto = files?.staffPhoto?.[0];
 
-      if (!identityPhoto || !staffPhoto) {
-        res.status(400).json({ error: 'Identity proof and photo are required' });
+      if (need('identityPhoto') && !identityPhoto) {
+        res.status(400).json({ error: 'Identity proof is required' });
+        return;
+      }
+      if (need('staffPhoto') && !staffPhoto) {
+        res.status(400).json({ error: 'Photo is required' });
         return;
       }
 
-      if (!isValidPersonName(body.fullName) || !isValidPersonName(body.emergencyName)) {
+      if ((need('fullName') || String(body.fullName ?? '').trim()) && !isValidPersonName(body.fullName)) {
         res.status(400).json({ error: NAME_INVALID_MSG });
         return;
       }
-      if (!isValidMobile(body.whatsappMobile) || !isValidMobile(body.emergencyMobile)) {
+      if (
+        (need('emergencyName') || String(body.emergencyName ?? '').trim()) &&
+        !isValidPersonName(body.emergencyName)
+      ) {
+        res.status(400).json({ error: NAME_INVALID_MSG });
+        return;
+      }
+      if ((need('whatsappMobile') || String(body.whatsappMobile ?? '').trim()) && !isValidMobile(body.whatsappMobile)) {
+        res.status(400).json({ error: MOBILE_INVALID_MSG });
+        return;
+      }
+      if (
+        (need('emergencyMobile') || String(body.emergencyMobile ?? '').trim()) &&
+        !isValidMobile(body.emergencyMobile)
+      ) {
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
@@ -819,11 +870,11 @@ staffRegistrationsRouter.post(
         res.status(400).json({ error: MOBILE_INVALID_MSG });
         return;
       }
-      if (body.hasHealthIssue === 'Yes' && !String(body.healthIssueDetails ?? '').trim()) {
+      if (body.hasHealthIssue === 'Yes' && need('healthIssueDetails') && !String(body.healthIssueDetails ?? '').trim()) {
         res.status(400).json({ error: 'Disease / health issue is required' });
         return;
       }
-      if (!isOver18(body.birthdate)) {
+      if ((need('birthdate') || String(body.birthdate ?? '').trim()) && !isOver18(body.birthdate)) {
         res.status(400).json({ error: 'Staff must be more than 18 years old' });
         return;
       }
@@ -839,7 +890,7 @@ staffRegistrationsRouter.post(
         } catch {
           teachStrokes = [];
         }
-        if (!Array.isArray(teachStrokes) || teachStrokes.length === 0) {
+        if (need('teachStrokes') && (!Array.isArray(teachStrokes) || teachStrokes.length === 0)) {
           res.status(400).json({ error: 'Select at least one stroke to teach' });
           return;
         }
@@ -853,7 +904,7 @@ staffRegistrationsRouter.post(
           [accountId],
         );
         if (existingBatches.rowCount && existingBatches.rowCount > 0) {
-          if (!Array.isArray(suitableBatchIds) || suitableBatchIds.length === 0) {
+          if (need('suitableBatchIds') && (!Array.isArray(suitableBatchIds) || suitableBatchIds.length === 0)) {
             res.status(400).json({ error: 'Select at least one suitable batch slot' });
             return;
           }
@@ -871,17 +922,19 @@ staffRegistrationsRouter.post(
           suitableBatchIds = [];
         }
       }
-      if (needsLifeguard && body.hasLifeguardCert === 'Yes' && !body.lifeguardExpiry) {
+      if (needsLifeguard && body.hasLifeguardCert === 'Yes' && need('lifeguardExpiry') && !body.lifeguardExpiry) {
         res.status(400).json({ error: 'Lifeguard certificate expiry date is required' });
         return;
       }
-      if (needsLifeguard && body.hasLifeguardCert === 'Yes' && !files?.lifeguardPhoto?.[0]) {
+      if (needsLifeguard && body.hasLifeguardCert === 'Yes' && need('lifeguardPhoto') && !files?.lifeguardPhoto?.[0]) {
         res.status(400).json({ error: 'Life Guard certificate photo is required' });
         return;
       }
 
       const sealedBirth = sealBirthdate(body.birthdate);
-      const sealedIdentityPhoto = await sealUploadFile(uploadDir, identityPhoto.filename);
+      const sealedIdentityPhoto = identityPhoto?.filename
+        ? await sealUploadFile(uploadDir, identityPhoto.filename)
+        : '';
 
       const { rows } = await pool.query(
         `INSERT INTO staff_registrations (
@@ -916,7 +969,7 @@ staffRegistrationsRouter.post(
           sealIdentityDocument(body.identityDocument),
           sealIdentityNumber(identityNumber),
           sealedIdentityPhoto,
-          staffPhoto.filename,
+          staffPhoto?.filename || '',
           isCoach ? teachStrokes : null,
           isCoach ? suitableBatchIds : null,
           isCoach ? body.achievements?.trim() || null : null,

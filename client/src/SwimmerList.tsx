@@ -27,7 +27,7 @@ import { indiaDaysAgoIso, indiaTodayIso } from './indiaDate';
 
 type SwimmerStatus = 'active' | 'inactive';
 
-type SortKey = 'swimmer' | 'contact' | 'status' | 'passType' | 'batch' | 'coach';
+type SortKey = 'swimmer' | 'passNo' | 'contact' | 'status' | 'passType' | 'batch' | 'coach';
 type PassStatusLabel = 'Pass expired' | 'On hold' | 'Pass' | 'Fail' | '—';
 
 type SwimmerRow = {
@@ -78,6 +78,7 @@ type EditForm = {
 
 const SWIMMER_COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: 'swimmer', label: 'Swimmer' },
+  { key: 'passNo', label: 'Pass No' },
   { key: 'contact', label: 'Contact' },
   { key: 'status', label: 'Status' },
   { key: 'passType', label: 'Pass type' },
@@ -163,7 +164,13 @@ function swimmerStatusClass(label: PassStatusLabel) {
   return '';
 }
 
+function formatPassNo(id: number) {
+  if (!Number.isFinite(id) || id === 0) return '—';
+  return String(Math.abs(id));
+}
+
 function swimmerCellValue(row: SwimmerRow, key: SortKey) {
+  if (key === 'passNo') return formatPassNo(row.id);
   if (key === 'contact') return row.contact || '—';
   if (key === 'status') return swimmerStatusLabel(row);
   if (key === 'passType') {
@@ -209,13 +216,14 @@ function DeleteIcon() {
 
 function downloadCsv(rows: SwimmerRow[], includeStatus: boolean) {
   const header = includeStatus
-    ? ['Swimmer', 'Contact', 'Status', 'Email', 'Pass type', 'Batch', 'Coach']
-    : ['Swimmer', 'Contact', 'Email', 'Pass type', 'Batch', 'Coach'];
+    ? ['Swimmer', 'Pass No', 'Contact', 'Status', 'Email', 'Pass type', 'Batch', 'Coach']
+    : ['Swimmer', 'Pass No', 'Contact', 'Email', 'Pass type', 'Batch', 'Coach'];
   const lines = [
     header.join(','),
     ...rows.map((row) =>
       [
         row.swimmer,
+        formatPassNo(row.id),
         row.contact,
         ...(includeStatus ? [swimmerStatusLabel(row)] : []),
         row.email,
@@ -1179,6 +1187,9 @@ export function SwimmerList() {
                         />
                       </label>
                       <strong data-label={t('Swimmer')}>{row.swimmer}</strong>
+                      <span className="swimmer-pass-no" data-label={t('Pass No')}>
+                        {formatPassNo(row.id)}
+                      </span>
                       <span data-label={t('Contact')}>
                         <span className="coach-contact">{row.contact}</span>
                         {row.email !== '—' ? (

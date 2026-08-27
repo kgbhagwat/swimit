@@ -123,6 +123,13 @@ export function ApplicationGuide() {
               choose how long a login session stays active when nobody is using the app{' '}
               <em>(Full)</em>
             </li>
+            <li>
+              <strong>Pool website</strong> — public webpage copy, photos, and colour: about, batches, coaches, and
+              achievements
+            </li>
+            <li>
+              <strong>Form Info</strong> — list registration fields and mark each one mandatory or optional
+            </li>
           </ul>
 
           <h4>{t("Operations")}</h4>
@@ -131,26 +138,26 @@ export function ApplicationGuide() {
               <strong>Pass Payment</strong> — activate or renew swimmer passes
             </li>
             <li>
-              <strong>WhatsApp Broadcast</strong> — shown after the account admin ticks WhatsApp
-              broadcast message on Pass Type (₹1 per message){' '}
-              <em>(Full)</em>
-            </li>
-            <li>
               <strong>Pass Scanner</strong> — scan QR / ID and mark attendance; if face
               verification is ticked on Pass Type, staff confirm the face matches the pass photo
               before OK
             </li>
             <li>
+              <strong>Pool Expenses</strong> — record day-to-day expenses <em>(Full)</em>
+            </li>
+            <li>
               <strong>Coach Payment</strong> — calculate coach dues <em>(Full)</em>
             </li>
             <li>
-              <strong>Pool Expenses</strong> — record day-to-day expenses <em>(Full)</em>
+              <strong>Swimmer Progress</strong> — record competitive batch race times
             </li>
             <li>
               <strong>Water Quality</strong> — record water quality checks <em>(Full)</em>
             </li>
             <li>
-              <strong>Swimmer Progress</strong> — record competitive batch race times
+              <strong>WhatsApp Broadcast</strong> — shown after the account admin ticks WhatsApp
+              broadcast message on Pass Type (₹1 per message){' '}
+              <em>(Full)</em>
             </li>
           </ul>
 
@@ -231,8 +238,8 @@ export function ApplicationGuide() {
               <strong>Change password</strong> when prompted (required on first login).
             </li>
             <li>
-              Complete <strong>Pool Core Info</strong>, <strong>Batches</strong>, and{' '}
-              <strong>Pass Types</strong>.
+              Complete <strong>Pool Core Info</strong>, <strong>Pool website</strong>,{' '}
+              <strong>Batches</strong>, and <strong>Pass Types</strong>.
             </li>
             <li>Create staff users and grant only the menus they need.</li>
           </ol>

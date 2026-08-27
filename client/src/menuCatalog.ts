@@ -25,6 +25,8 @@ export type MenuPageKey =
   | 'payment-details'
   | 'progress-trend'
   | 'pool-core-info'
+  | 'pool-website'
+  | 'form-info'
   | 'holiday-management'
   | 'whatsapp'
   | 'activity-log';
@@ -50,14 +52,16 @@ export const ACCESS_PAGES: MenuPageDef[] = [
   { key: 'pass-types', section: 'Setup', to: '/pass-types', label: 'Pass Type' },
   { key: 'holiday-management', section: 'Setup', to: '/holiday-management', label: 'Holidays' },
   { key: 'create-user', section: 'Setup', to: '/user-management', label: 'User Management' },
+  { key: 'pool-website', section: 'Setup', to: '/pool-website', label: 'Pool website' },
+  { key: 'form-info', section: 'Setup', to: '/form-info', label: 'Form Info' },
   { key: 'activity-log', section: 'Setup', to: '/activity-log', label: 'Activity Log' },
   { key: 'pass-payment', section: 'Operations', to: '/pass-payment', label: 'Pass Payment' },
-  { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp Broadcast' },
   { key: 'pass-scanner', section: 'Operations', to: '/pass-scanner', label: 'Pass Scanner' },
-  { key: 'coach-payment', section: 'Operations', to: '/coach-payment', label: 'Coach Payment' },
   { key: 'pool-expenses', section: 'Operations', to: '/pool-expenses', label: 'Pool Expenses' },
-  { key: 'water-quality', section: 'Operations', to: '/water-quality', label: 'Water Quality' },
+  { key: 'coach-payment', section: 'Operations', to: '/coach-payment', label: 'Coach Payment' },
   { key: 'swimmer-progress', section: 'Operations', to: '/swimmer-progress', label: 'Swimmer Progress' },
+  { key: 'water-quality', section: 'Operations', to: '/water-quality', label: 'Water Quality' },
+  { key: 'whatsapp', section: 'Operations', to: '/whatsapp', label: 'WhatsApp Broadcast' },
   { key: 'dashboard', section: 'Information', to: '/dashboard', label: 'Dashboard' },
   { key: 'swimmers', section: 'Information', to: '/swimmers', label: "Swimmer's List" },
   { key: 'attendance-sheet', section: 'Information', to: '/attendance-sheet', label: 'Attendance Sheet' },
@@ -92,6 +96,8 @@ export const CORE_PAGE_KEYS: MenuPageKey[] = [
   'swimmers',
   'attendance-sheet',
   'pool-core-info',
+  'pool-website',
+  'form-info',
   'coaches',
   'swimmer-progress',
   'progress-trend',

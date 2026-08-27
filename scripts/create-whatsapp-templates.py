@@ -80,17 +80,17 @@ TEMPLATES = [
     marketing(
         "swimit_login_ready",
         "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nLogin id: {{4}}\nPassword: {{5}}\nPlease update it after first sign-in.",
-        ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "Mobile/Email", "Ab12cd34"],
+        ["SMPool", "smpool", "SMPool", "Mobile/Email", "Ab12cd34"],
     ),
     marketing(
         "swimit_login_info",
         "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nLogin id: {{4}}\nPassword: {{5}}\nPlease update it after first sign-in.",
-        ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "Mobile/Email", "Ab12cd34"],
+        ["SMPool", "smpool", "SMPool", "Mobile/Email", "Ab12cd34"],
     ),
     utility(
         "swimit_login_creds",
         "Your SwimIT account {{1}} is ready.\nCode: {{2}}\nSign-in link: {{3}}\nLogin id: {{4}}\nPassword: {{5}}\nPlease update it after first sign-in.",
-        ["SMPool", "smpool", "https://staging.swimit.co.in/smpool", "Mobile/Email", "Ab12cd34"],
+        ["SMPool", "smpool", "SMPool", "Mobile/Email", "Ab12cd34"],
     ),
     utility(
         "swimit_welcome",

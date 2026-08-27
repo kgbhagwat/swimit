@@ -33,6 +33,15 @@ async function isPublicUpload(relativePath: string): Promise<boolean> {
            SELECT 1 FROM platform_payment_settings
             WHERE payment_qr_path = $1
          )
+         OR EXISTS (
+           SELECT 1 FROM pool_website
+            WHERE banner_photo_path = $1
+               OR history_photo_path = $1
+               OR info_photo_path = $1
+               OR batches_photo_path = $1
+               OR coaches_photo_path = $1
+               OR achievements_photo_path = $1
+         )
        ) AS ok`,
     [relativePath],
   );
@@ -64,6 +73,18 @@ async function uploadOwnedByAccount(accountId: number, relativePath: string): Pr
            SELECT 1 FROM pool_core_info
             WHERE saas_account_id = $1
               AND (pool_logo_path = $2 OR payment_qr_path = $2)
+         )
+         OR EXISTS (
+           SELECT 1 FROM pool_website
+            WHERE saas_account_id = $1
+              AND (
+                banner_photo_path = $2
+                OR history_photo_path = $2
+                OR info_photo_path = $2
+                OR batches_photo_path = $2
+                OR coaches_photo_path = $2
+                OR achievements_photo_path = $2
+              )
          )
          OR EXISTS (
            SELECT 1 FROM whatsapp_inbound

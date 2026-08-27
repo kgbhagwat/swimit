@@ -523,6 +523,8 @@ const SAMPLE_TENANT_USER: AppUser = {
   email: 'anita@example.com',
   menuAccess: [
     'pool-core-info',
+    'pool-website',
+    'form-info',
     'batches',
     'pass-types',
     'holiday-management',

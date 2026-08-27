@@ -22,6 +22,8 @@ export const APPLICATION_FEATURE_PATHS = new Set([
   '/balance-sheet',
   '/payment-details',
   '/pool-core-info',
+  '/pool-website',
+  '/form-info',
   '/holiday-management',
   '/menu',
 ]);
@@ -54,6 +56,26 @@ export type DemoStore = {
   users: Array<Record<string, unknown>>;
   sessionTimeoutMinutes?: number;
   poolCoreInfo: Record<string, unknown>;
+  poolWebsite: {
+    about: string;
+    history: string;
+    openingHours: string;
+    facilities: string;
+    batchesText: string;
+    coachesText: string;
+    achievements: Array<{ title: string; detail: string }>;
+    bannerPhotoUrl: string | null;
+    historyPhotoUrl: string | null;
+    infoPhotoUrl: string | null;
+    batchesPhotoUrl: string | null;
+    coachesPhotoUrl: string | null;
+    achievementsPhotoUrl: string | null;
+    themeColor: string;
+  };
+  formInfo: {
+    swimmer: Record<string, boolean>;
+    staff: Record<string, boolean>;
+  };
   holidaysWeekly: string[];
   holidays: Array<Record<string, unknown>>;
   expenses: Array<Record<string, unknown>>;
@@ -90,6 +112,26 @@ function emptyStore(): DemoStore {
       paymentAcceptOnline: false,
       setupCompleted: false,
       updatedAt: new Date().toISOString(),
+    },
+    poolWebsite: {
+      about: '',
+      history: '',
+      openingHours: '',
+      facilities: '',
+      batchesText: '',
+      coachesText: '',
+      achievements: [],
+      bannerPhotoUrl: null,
+      historyPhotoUrl: null,
+      infoPhotoUrl: null,
+      batchesPhotoUrl: null,
+      coachesPhotoUrl: null,
+      achievementsPhotoUrl: null,
+      themeColor: '#1e88c8',
+    },
+    formInfo: {
+      swimmer: {},
+      staff: {},
     },
     holidaysWeekly: [],
     holidays: [],
@@ -221,6 +263,21 @@ export function readDemoStore(): DemoStore {
     }
     const parsed = JSON.parse(raw) as DemoStore;
     if (!Array.isArray(parsed.auditLogs)) parsed.auditLogs = [];
+    if (!parsed.poolWebsite) {
+      parsed.poolWebsite = emptyStore().poolWebsite;
+    } else {
+      if (!parsed.poolWebsite.history) parsed.poolWebsite.history = '';
+      parsed.poolWebsite.bannerPhotoUrl ??= null;
+      parsed.poolWebsite.historyPhotoUrl ??= null;
+      parsed.poolWebsite.infoPhotoUrl ??= null;
+      parsed.poolWebsite.batchesPhotoUrl ??= null;
+      parsed.poolWebsite.coachesPhotoUrl ??= null;
+      parsed.poolWebsite.achievementsPhotoUrl ??= null;
+      parsed.poolWebsite.themeColor ??= '#1e88c8';
+    }
+    if (!parsed.formInfo) {
+      parsed.formInfo = emptyStore().formInfo;
+    }
     return parsed;
   } catch {
     const fresh = emptyStore();

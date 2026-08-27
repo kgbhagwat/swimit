@@ -17,6 +17,8 @@ import { coachPaymentRouter } from './routes/coachPayment.js';
 import { attendanceSheetRouter } from './routes/attendanceSheet.js';
 import { balanceSheetRouter } from './routes/balanceSheet.js';
 import { poolCoreInfoRouter } from './routes/poolCoreInfo.js';
+import { poolWebsiteRouter } from './routes/poolWebsite.js';
+import { formInfoRouter } from './routes/formInfo.js';
 import { holidaysRouter } from './routes/holidays.js';
 import { usersRouter } from './routes/users.js';
 import { servicePackagesRouter } from './routes/servicePackages.js';
@@ -207,6 +209,24 @@ app.use(
     requireAnyPageAccess('pool-core-info')(req, res, next);
   },
   poolCoreInfoRouter,
+);
+app.use(
+  '/api/pool-website',
+  requireTenant,
+  requireAnyPageAccess('pool-website', 'pool-core-info'),
+  poolWebsiteRouter,
+);
+app.use(
+  '/api/form-info',
+  requireTenant,
+  (req, res, next) => {
+    if (req.method === 'GET') {
+      requireAnyPageAccess('form-info', 'register', 'staff-register')(req, res, next);
+      return;
+    }
+    requireAnyPageAccess('form-info')(req, res, next);
+  },
+  formInfoRouter,
 );
 app.use(
   '/api/holidays',

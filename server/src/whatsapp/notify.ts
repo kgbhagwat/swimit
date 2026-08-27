@@ -229,14 +229,19 @@ export async function notifyLoginCredentials(params: {
 }): Promise<NotifyCredentialsResult> {
   const passwordLine = String(params.temporaryPassword).trim();
   const loginIdLabel = 'Mobile/Email';
+  const poolName = String(params.accountName ?? '').trim() || 'SwimIT';
+  const loginUrl = String(params.loginUrl ?? '').trim();
   const body = [
-    `Your SwimIT account ${params.accountName} is ready.`,
+    `Your SwimIT account ${poolName} is ready.`,
     `Code: ${params.accountCode}`,
-    `Sign-in link: ${params.loginUrl}`,
+    `Sign-in link: ${poolName}`,
+    loginUrl || null,
     `Login id: ${loginIdLabel}`,
     `Password: ${passwordLine}`,
     'Please update it after first sign-in.',
-  ].join('\n');
+  ]
+    .filter((line) => line !== null)
+    .join('\n');
 
   const cfg = getWhatsAppConfig();
   if (!cfg.enabled) {
@@ -252,17 +257,17 @@ export async function notifyLoginCredentials(params: {
   }
 
   const loginWithPasswordTexts = [
-    templateText(params.accountName),
+    templateText(poolName),
     templateText(params.accountCode, 32),
-    templateText(params.loginUrl, 200),
+    templateText(poolName, 200),
     templateText(loginIdLabel, 32),
     templateText(passwordLine, 32),
   ];
   // Older 4-variable template cannot put Password on its own line; password is sent next.
   const loginInfoTexts = [
-    templateText(params.accountName),
+    templateText(poolName),
     templateText(params.accountCode, 32),
-    templateText(params.loginUrl, 200),
+    templateText(poolName, 200),
     templateText(`Login id: ${loginIdLabel}`, 60),
   ];
 
@@ -319,7 +324,7 @@ export async function notifyLoginCredentials(params: {
   }
 
   async function tryFreeText(): Promise<NotifyCredentialsResult> {
-    const result = await sendWhatsAppText(params.mobile, body);
+    const result = await sendWhatsAppText(params.mobile, body, { previewUrl: Boolean(loginUrl) });
     if (result.skipped) {
       await logOutbound({
         saasAccountId: params.saasAccountId,

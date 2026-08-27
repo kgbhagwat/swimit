@@ -164,11 +164,6 @@ function parseDuration(duration: string) {
   return { durationValue: match[1], durationUnit: unit };
 }
 
-function toggleForOption(current: string[], option: string): string[] {
-  if (current.includes(option)) return current.filter((item) => item !== option);
-  return [...current, option];
-}
-
 function passTypeCoachChoice(coach: string) {
   const value = String(coach ?? '').trim() || 'Not Required';
   if (value === 'Not Required' || value === 'Any') return value;
@@ -262,7 +257,7 @@ export function PassTypePage() {
   function updateForOptions(option: string) {
     setForm({
       ...form,
-      forOptions: toggleForOption(form.forOptions, option),
+      forOptions: [option],
     });
   }
 
@@ -274,7 +269,7 @@ export function PassTypePage() {
     setEditingId(item.id);
     setForm({
       passName: item.passName,
-      forOptions: forOptions.length > 0 ? forOptions : ['Swimming'],
+      forOptions: forOptions[0] ? [forOptions[0]] : ['Swimming'],
       gender: formatPassGender(item.gender),
       ageFrom: String(item.ageFrom ?? 0),
       ageTo: formatAgeTo(item.ageTo),
@@ -488,38 +483,6 @@ export function PassTypePage() {
         )}
       </section>
 
-      <section className="pass-form-card payment-calculation-card">
-        <h2>{t('Payment calculation')}</h2>
-        <p className="muted">
-          {t('Select how coaching charges should be calculated on the Coach Payment page.')}
-        </p>
-        <div className="staff-role-radios" role="radiogroup" aria-label={t('Payment calculation')}>
-          {(
-            [
-              ['pass', 'Pass basis'],
-              ['month', 'Month basis'],
-              ['day', 'Day basis'],
-            ] as const
-          ).map(([value, label]) => (
-            <label
-              className={`staff-role-option${paymentBasis === value ? ' selected' : ''}`}
-              key={value}
-            >
-              <input
-                type="radio"
-                name="coachPaymentBasis"
-                checked={paymentBasis === value}
-                disabled={basisLoading || basisSaving}
-                onChange={() => void savePaymentBasis(value)}
-              />
-              {t(label)}
-            </label>
-          ))}
-        </div>
-        {basisLoading ? <p className="muted">{t('Loading…')}</p> : null}
-        {basisError ? <p className="error">{t(basisError)}</p> : null}
-      </section>
-
       <section className="pass-form-card pool-core-form" aria-labelledby="pass-form-title">
         <form className="pass-form" onSubmit={onSubmit}>
           <h2 id="pass-form-title">
@@ -541,19 +504,19 @@ export function PassTypePage() {
 
             <div className="pass-option-row">
               <span className="pass-option-label">{t('For')}</span>
-              <div className="pass-check-rows">
-                <div className="pass-check-row">
-                  {FOR_OPTIONS.map((option) => (
-                    <label className="pass-check" key={option}>
-                      <input
-                        type="checkbox"
-                        checked={form.forOptions.includes(option)}
-                        onChange={() => updateForOptions(option)}
-                      />
-                      <span>{t(option)}</span>
-                    </label>
-                  ))}
-                </div>
+              <div className="pass-yes-no" role="radiogroup" aria-label={t('For')}>
+                {FOR_OPTIONS.map((option) => (
+                  <label key={option} className="pass-yes-no-option">
+                    <input
+                      type="radio"
+                      name="passFor"
+                      value={option}
+                      checked={form.forOptions.includes(option)}
+                      onChange={() => updateForOptions(option)}
+                    />
+                    <span>{t(option)}</span>
+                  </label>
+                ))}
               </div>
             </div>
 
@@ -682,24 +645,26 @@ export function PassTypePage() {
                 <span className="pass-option-label">
                   {t('Coaching Charges')} <span className="req">*</span>
                 </span>
-                <div className="money-input">
-                  <span className="money-prefix" aria-hidden="true">
-                    ₹
+                <div className="pass-coaching-charges-control">
+                  <div className="money-input">
+                    <span className="money-prefix" aria-hidden="true">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={form.coachingCharges}
+                      onChange={(e) => setForm({ ...form, coachingCharges: e.target.value })}
+                      placeholder={t('e.g. 400')}
+                      required
+                      aria-label={t('Coaching charges')}
+                    />
+                  </div>
+                  <span className="pass-coach-charges-note">
+                    {t('(It should be part of pass charges)')}
                   </span>
-                  <input
-                    type="number"
-                    min={0}
-                    step="1"
-                    value={form.coachingCharges}
-                    onChange={(e) => setForm({ ...form, coachingCharges: e.target.value })}
-                    placeholder={t('e.g. 400')}
-                    required
-                    aria-label={t('Coaching charges')}
-                  />
                 </div>
-                <span className="pass-coach-charges-note">
-                  {t('(It should be part of pass charges)')}
-                </span>
               </div>
             ) : (
               <label className="pass-test-required">
@@ -834,6 +799,38 @@ export function PassTypePage() {
             </button>
           </div>
         </form>
+      </section>
+
+      <section className="pass-form-card payment-calculation-card">
+        <h2>{t('Coach Payment Calculation')}</h2>
+        <p className="muted">
+          {t('Select how coaching charges should be calculated on the Coach Payment page.')}
+        </p>
+        <div className="staff-role-radios" role="radiogroup" aria-label={t('Coach Payment Calculation')}>
+          {(
+            [
+              ['pass', 'Pass basis'],
+              ['month', 'Month basis'],
+              ['day', 'Day basis'],
+            ] as const
+          ).map(([value, label]) => (
+            <label
+              className={`staff-role-option${paymentBasis === value ? ' selected' : ''}`}
+              key={value}
+            >
+              <input
+                type="radio"
+                name="coachPaymentBasis"
+                checked={paymentBasis === value}
+                disabled={basisLoading || basisSaving}
+                onChange={() => void savePaymentBasis(value)}
+              />
+              {t(label)}
+            </label>
+          ))}
+        </div>
+        {basisLoading ? <p className="muted">{t('Loading…')}</p> : null}
+        {basisError ? <p className="error">{t(basisError)}</p> : null}
       </section>
     </PlatformPage>
   );

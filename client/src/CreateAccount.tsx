@@ -664,7 +664,7 @@ export function CreateAccount() {
               <dt>{t('Login URL')}</dt>
               <dd>
                 <a className="terms-link" href={created.loginUrl} target="_blank" rel="noreferrer">
-                  {created.loginUrl}
+                  {created.accountName.trim() || created.loginUrl}
                 </a>
               </dd>
             </div>

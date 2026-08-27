@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 import { INDIA_SQL_TODAY, indiaTodayIso } from './indiaDate.js';
 
 export type DashboardNamedCount = { name: string; count: number };
+export type DashboardBatchCoachCount = { batch: string; coach: string; count: number };
 
 export type DashboardSnapshot = {
   asOf: string;
@@ -26,6 +27,7 @@ export type DashboardSnapshot = {
     batch: DashboardNamedCount[];
     coach: DashboardNamedCount[];
     passType: DashboardNamedCount[];
+    batchCoach: DashboardBatchCoachCount[];
   };
   newAdmissionsBy: {
     batch: DashboardNamedCount[];
@@ -46,6 +48,33 @@ function toNamedCounts(rows: Array<{ name: string | null; count: string | number
     name: String(row.name ?? '').trim() || 'Unassigned',
     count: Number(row.count ?? 0),
   }));
+}
+
+function blankLabel(value: string | null | undefined) {
+  return String(value ?? '').trim() || 'Unassigned';
+}
+
+function toBatchCoachCounts(
+  rows: Array<{ batch: string | null; coach: string | null; count: string | number }>,
+): DashboardBatchCoachCount[] {
+  return rows.map((row) => ({
+    batch: blankLabel(row.batch),
+    coach: blankLabel(row.coach),
+    count: Number(row.count ?? 0),
+  }));
+}
+
+function namedCountsFromPairs(
+  cells: DashboardBatchCoachCount[],
+  key: 'batch' | 'coach',
+): DashboardNamedCount[] {
+  const map = new Map<string, number>();
+  for (const cell of cells) {
+    map.set(cell[key], (map.get(cell[key]) ?? 0) + cell.count);
+  }
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 async function runQueryBatches<F extends ReadonlyArray<() => Promise<unknown>>>(
@@ -105,8 +134,7 @@ export async function buildDashboardSnapshot(
     presentOnDate,
     paymentOnDate,
     activeUsers,
-    activeByBatch,
-    activeByCoach,
+    activeByBatchCoach,
     activeByPassType,
     newByBatch,
     newByCoach,
@@ -188,8 +216,8 @@ export async function buildDashboardSnapshot(
         [accountId, asOf],
       ),
     () =>
-      db.query<{ name: string | null; count: string | number }>(
-        `SELECT NULLIF(TRIM(batch), '') AS name, COUNT(*)::int AS count
+      db.query<{ batch: string | null; coach: string | null; count: string | number }>(
+        `SELECT NULLIF(TRIM(batch), '') AS batch, NULLIF(TRIM(coach), '') AS coach, COUNT(*)::int AS count
          FROM registrations
          WHERE saas_account_id = $1
            AND (
@@ -202,27 +230,8 @@ export async function buildDashboardSnapshot(
                AND (inactive_at IS NULL OR inactive_at::date > $2::date)
              )
            )
-         GROUP BY 1
-         ORDER BY count DESC, name ASC NULLS LAST`,
-        [accountId, asOf],
-      ),
-    () =>
-      db.query<{ name: string | null; count: string | number }>(
-        `SELECT NULLIF(TRIM(coach), '') AS name, COUNT(*)::int AS count
-         FROM registrations
-         WHERE saas_account_id = $1
-           AND (
-             ($2::date = ${INDIA_SQL_TODAY} AND COALESCE(is_active, TRUE) = TRUE)
-             OR (
-               $2::date <> ${INDIA_SQL_TODAY}
-               AND created_at::date <= $2::date
-               AND pass_valid_until IS NOT NULL
-               AND pass_valid_until >= $2::date
-               AND (inactive_at IS NULL OR inactive_at::date > $2::date)
-             )
-           )
-         GROUP BY 1
-         ORDER BY count DESC, name ASC NULLS LAST`,
+         GROUP BY 1, 2
+         ORDER BY count DESC, batch ASC NULLS LAST, coach ASC NULLS LAST`,
         [accountId, asOf],
       ),
     () =>
@@ -348,6 +357,7 @@ export async function buildDashboardSnapshot(
   const cash = Number(paymentOnDate.rows[0]?.cash ?? 0);
   const online = Number(paymentOnDate.rows[0]?.online ?? 0);
   const total = Number(paymentOnDate.rows[0]?.total ?? 0);
+  const batchCoach = toBatchCoachCounts(activeByBatchCoach.rows);
 
   return {
     asOf,
@@ -369,9 +379,10 @@ export async function buildDashboardSnapshot(
       count: Number(paymentOnDate.rows[0]?.count ?? 0),
     },
     activeBy: {
-      batch: toNamedCounts(activeByBatch.rows),
-      coach: toNamedCounts(activeByCoach.rows),
+      batch: namedCountsFromPairs(batchCoach, 'batch'),
+      coach: namedCountsFromPairs(batchCoach, 'coach'),
       passType: toNamedCounts(activeByPassType.rows),
+      batchCoach,
     },
     newAdmissionsBy: {
       batch: toNamedCounts(newByBatch.rows),

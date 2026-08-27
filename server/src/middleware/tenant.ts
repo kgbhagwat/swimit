@@ -16,7 +16,10 @@ export async function requireTenant(req: Request, res: Response, next: NextFunct
     const publicToken = verifyPublicAccessToken(String(req.header('x-public-access-token') ?? ''));
     const publicRoute =
       (req.method === 'GET' &&
-        (path.startsWith('/api/pool-core-info') || path.startsWith('/api/batches'))) ||
+        (path.startsWith('/api/pool-core-info') ||
+          path.startsWith('/api/pool-website') ||
+          path.startsWith('/api/form-info') ||
+          path.startsWith('/api/batches'))) ||
       (req.method === 'POST' &&
         (path === '/api/registrations' ||
           path.startsWith('/api/registrations?') ||

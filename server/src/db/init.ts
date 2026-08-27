@@ -351,6 +351,31 @@ CREATE TABLE IF NOT EXISTS saas_accounts (
 
 ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS account_code TEXT;
 ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS pool_address TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS pool_website (
+  saas_account_id INT PRIMARY KEY REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  about_text TEXT NOT NULL DEFAULT '',
+  history_text TEXT NOT NULL DEFAULT '',
+  opening_hours TEXT NOT NULL DEFAULT '',
+  facilities_text TEXT NOT NULL DEFAULT '',
+  batches_text TEXT NOT NULL DEFAULT '',
+  coaches_text TEXT NOT NULL DEFAULT '',
+  banner_photo_path TEXT,
+  history_photo_path TEXT,
+  info_photo_path TEXT,
+  batches_photo_path TEXT,
+  coaches_photo_path TEXT,
+  achievements_photo_path TEXT,
+  theme_color TEXT NOT NULL DEFAULT '#1e88c8',
+  achievements JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS form_info (
+  saas_account_id INT PRIMARY KEY REFERENCES saas_accounts(id) ON DELETE CASCADE,
+  required_fields JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 ALTER TABLE saas_accounts ADD COLUMN IF NOT EXISTS subscription_expires_at DATE;
 CREATE UNIQUE INDEX IF NOT EXISTS saas_accounts_account_code_uidx
   ON saas_accounts (account_code)

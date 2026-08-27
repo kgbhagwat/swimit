@@ -9,6 +9,8 @@ import {
   type DemoStore,
 } from './applicationDemo';
 import { COACH_LOGIN_PAGE_KEYS, parseLoginType } from './menuCatalog';
+import { mergeFormRules } from './formInfo';
+import { parseAchievements, parseThemeColor } from './poolWebsite';
 
 function parseUrl(url: string) {
   try {
@@ -100,6 +102,116 @@ function handleBatches(method: string, body: Record<string, unknown>, store: Dem
       settings: store.batches.schedules[0],
       slots: store.batches.slots,
     });
+  }
+  return jsonResponse({ error: 'Method not allowed' }, 405);
+}
+
+function demoLogoUrl(path: unknown) {
+  const value = String(path ?? '').trim();
+  if (!value) return null;
+  if (
+    value.startsWith('blob:') ||
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('/')
+  ) {
+    return value;
+  }
+  return `/uploads/${value}`;
+}
+
+function websiteFromStore(store: DemoStore) {
+  const site = store.poolWebsite;
+  const core = store.poolCoreInfo;
+  const coaches = store.staffRegistrations
+    .filter((row) => {
+      const active = row.is_active !== false && row.isActive !== false;
+      const forRole = String(row.registration_for ?? row.registrationFor ?? '').toLowerCase();
+      const post = String(row.post_name ?? row.postName ?? '').toLowerCase();
+      return active && (forRole.includes('coach') || post.includes('coach'));
+    })
+    .map((row) => ({
+      name: String(row.full_name ?? row.fullName ?? '').trim(),
+      role: String(row.post_name ?? row.postName ?? row.registration_for ?? row.registrationFor ?? 'Coach').trim() || 'Coach',
+    }))
+    .filter((row) => row.name);
+
+  return {
+    about: site.about,
+    history: site.history ?? '',
+    openingHours: site.openingHours,
+    facilities: site.facilities,
+    batchesText: site.batchesText,
+    coachesText: site.coachesText,
+    achievements: site.achievements,
+    bannerPhotoUrl: site.bannerPhotoUrl ?? null,
+    historyPhotoUrl: site.historyPhotoUrl ?? null,
+    infoPhotoUrl: site.infoPhotoUrl ?? null,
+    batchesPhotoUrl: site.batchesPhotoUrl ?? null,
+    coachesPhotoUrl: site.coachesPhotoUrl ?? null,
+    achievementsPhotoUrl: site.achievementsPhotoUrl ?? null,
+    themeColor: parseThemeColor(site.themeColor),
+    poolName: String(core.poolName ?? ''),
+    poolAddress: String(core.poolAddress ?? ''),
+    poolLogoUrl: demoLogoUrl(core.poolLogoPath),
+    batches: store.batches.slots.map((slot) => ({
+      name: slot.name,
+      type: slot.type,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+    })),
+    coaches,
+  };
+}
+
+function nextDemoPhoto(
+  body: Record<string, unknown>,
+  fileKey: string,
+  clearKey: string,
+  current: string | null | undefined,
+) {
+  if (body[fileKey]) return String(body[fileKey]);
+  if (String(body[clearKey] ?? '') === '1') return null;
+  return current ?? null;
+}
+
+function handleFormInfo(method: string, body: Record<string, unknown>, store: DemoStore) {
+  if (method === 'GET') return jsonResponse(mergeFormRules(store.formInfo));
+  if (method === 'PUT') {
+    store.formInfo = mergeFormRules(body);
+    writeDemoStore(store);
+    return jsonResponse(store.formInfo);
+  }
+  return jsonResponse({ error: 'Method not allowed' }, 405);
+}
+
+function handlePoolWebsite(method: string, body: Record<string, unknown>, store: DemoStore) {
+  if (method === 'GET') return jsonResponse(websiteFromStore(store));
+  if (method === 'PUT') {
+    const current = store.poolWebsite;
+    store.poolWebsite = {
+      about: String(body.about ?? '').slice(0, 2000),
+      history: String(body.history ?? '').slice(0, 4000),
+      openingHours: String(body.openingHours ?? '').trim().slice(0, 200),
+      facilities: String(body.facilities ?? '').slice(0, 1000),
+      batchesText: String(body.batchesText ?? '').slice(0, 1000),
+      coachesText: String(body.coachesText ?? '').slice(0, 1000),
+      achievements: parseAchievements(body.achievements),
+      bannerPhotoUrl: nextDemoPhoto(body, 'bannerPhoto', 'clearBannerPhoto', current.bannerPhotoUrl),
+      historyPhotoUrl: nextDemoPhoto(body, 'historyPhoto', 'clearHistoryPhoto', current.historyPhotoUrl),
+      infoPhotoUrl: nextDemoPhoto(body, 'infoPhoto', 'clearInfoPhoto', current.infoPhotoUrl),
+      batchesPhotoUrl: nextDemoPhoto(body, 'batchesPhoto', 'clearBatchesPhoto', current.batchesPhotoUrl),
+      coachesPhotoUrl: nextDemoPhoto(body, 'coachesPhoto', 'clearCoachesPhoto', current.coachesPhotoUrl),
+      achievementsPhotoUrl: nextDemoPhoto(
+        body,
+        'achievementsPhoto',
+        'clearAchievementsPhoto',
+        current.achievementsPhotoUrl,
+      ),
+      themeColor: parseThemeColor(body.themeColor ?? current.themeColor),
+    };
+    writeDemoStore(store);
+    return jsonResponse(websiteFromStore(store));
   }
   return jsonResponse({ error: 'Method not allowed' }, 405);
 }
@@ -1080,6 +1192,8 @@ export async function handleDemoApiRequest(
     return handlePassTypes(method, pathname, body, store);
   }
   if (pathname === '/api/pool-core-info') return handlePoolCoreInfo(method, body, store);
+  if (pathname === '/api/pool-website') return handlePoolWebsite(method, body, store);
+  if (pathname === '/api/form-info') return handleFormInfo(method, body, store);
   if (pathname.startsWith('/api/holidays')) {
     return handleHolidays(method, pathname, searchParams, body, store);
   }
@@ -1223,6 +1337,21 @@ function countBy(rows: Array<Record<string, unknown>>, key: string) {
   return [...map.entries()]
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function countByBatchCoach(rows: Array<Record<string, unknown>>) {
+  const map = new Map<string, { batch: string; coach: string; count: number }>();
+  for (const row of rows) {
+    const batch = String(row.batch ?? '').trim() || 'Unassigned';
+    const coach = String(row.coach ?? '').trim() || 'Unassigned';
+    const key = `${batch}\0${coach}`;
+    const existing = map.get(key);
+    if (existing) existing.count += 1;
+    else map.set(key, { batch, coach, count: 1 });
+  }
+  return [...map.values()].sort(
+    (a, b) => b.count - a.count || a.batch.localeCompare(b.batch) || a.coach.localeCompare(b.coach),
+  );
 }
 
 const SAMPLE_DASHBOARD_PEOPLE = [
@@ -1441,26 +1570,45 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
         renewalsToday: renewals,
       },
       paymentsToday: { cash, online, total: cash + online, count },
-      activeBy: {
-        batch: [
-          { name: 'Morning A — Mixed — 06:00 to 07:00', count: Math.max(8, Math.round(activeSwimmers * 0.38)) },
-          { name: 'Evening B — Ladies — 17:00 to 18:00', count: Math.max(6, Math.round(activeSwimmers * 0.33)) },
-          {
-            name: 'Afternoon C — Mixed — 14:00 to 15:00',
-            count: Math.max(4, activeSwimmers - Math.round(activeSwimmers * 0.71)),
-          },
-        ],
-        coach: [
-          { name: 'Riya Kulkarni', count: Math.max(10, Math.round(activeSwimmers * 0.42)) },
-          { name: 'Amit Shah', count: Math.max(8, Math.round(activeSwimmers * 0.31)) },
-          { name: 'Unassigned', count: Math.max(4, activeSwimmers - Math.round(activeSwimmers * 0.73)) },
-        ],
-        passType: [
-          { name: 'Monthly Swim', count: Math.max(14, Math.round(activeSwimmers * 0.58)) },
-          { name: 'Quarterly Swim', count: Math.max(6, Math.round(activeSwimmers * 0.25)) },
-          { name: 'Trial Pass', count: Math.max(2, activeSwimmers - Math.round(activeSwimmers * 0.83)) },
-        ],
-      },
+      activeBy: (() => {
+        const morning = Math.max(8, Math.round(activeSwimmers * 0.38));
+        const evening = Math.max(6, Math.round(activeSwimmers * 0.33));
+        const afternoon = Math.max(4, activeSwimmers - morning - evening);
+        const batches = [
+          'Morning A — Mixed — 06:00 to 07:00',
+          'Evening B — Ladies — 17:00 to 18:00',
+          'Afternoon C — Mixed — 14:00 to 15:00',
+        ];
+        const coaches = ['Riya Kulkarni', 'Amit Shah', 'Unassigned'];
+        const batchCoach: Array<{ batch: string; coach: string; count: number }> = [];
+        [morning, evening, afternoon].forEach((total, batchIndex) => {
+          const riya = Math.round(total * 0.42);
+          const amit = Math.round(total * 0.31);
+          const unassigned = Math.max(0, total - riya - amit);
+          [riya, amit, unassigned].forEach((count, coachIndex) => {
+            if (count > 0) {
+              batchCoach.push({ batch: batches[batchIndex], coach: coaches[coachIndex], count });
+            }
+          });
+        });
+        return {
+          batch: [
+            { name: batches[0], count: morning },
+            { name: batches[1], count: evening },
+            { name: batches[2], count: afternoon },
+          ],
+          coach: coaches.map((name) => ({
+            name,
+            count: batchCoach.filter((cell) => cell.coach === name).reduce((sum, cell) => sum + cell.count, 0),
+          })),
+          passType: [
+            { name: 'Monthly Swim', count: Math.max(14, Math.round(activeSwimmers * 0.58)) },
+            { name: 'Quarterly Swim', count: Math.max(6, Math.round(activeSwimmers * 0.25)) },
+            { name: 'Trial Pass', count: Math.max(2, activeSwimmers - Math.round(activeSwimmers * 0.83)) },
+          ],
+          batchCoach,
+        };
+      })(),
       newAdmissionsBy: {
         batch: [
           { name: 'Morning A — Mixed — 06:00 to 07:00', count: Math.max(1, Math.ceil(newAdmissions * 0.6)) },
@@ -1525,6 +1673,7 @@ function buildDemoDashboard(store: DemoStore, asOfRaw?: string) {
         const bySnake = countBy(active, 'pass_type');
         return bySnake.length ? bySnake : countBy(active, 'passType');
       })(),
+      batchCoach: countByBatchCoach(active),
     },
     newAdmissionsBy: {
       batch: countBy(newToday, 'batch'),

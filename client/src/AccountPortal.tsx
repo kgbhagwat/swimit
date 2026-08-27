@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate, useNavigate, useOutlet, useParams } from 'react-router-dom';
+import { AccountPoolLanding } from './AccountPoolLanding';
 import { AppShell } from './AppShell';
 import { navigateToCurrentVersion } from './clientVersion';
 import { emailHint, isValidEmail, isValidMobile, MOBILE_INVALID_MSG } from './formValidation';
@@ -7,10 +9,12 @@ import { useT } from './i18n';
 import { LoginCaptchaField, useLoginCaptcha } from './LoginCaptcha';
 import { MobileField } from './MobileField';
 import { passwordPolicyError } from './passwordPolicy';
+import { emptyWebsiteContent, mapWebsiteResponse, type PoolWebsiteContent } from './poolWebsite';
 import { isSaasManagementCode, setPlatformSession } from './platformSession';
 import {
   clearPlatformImpersonation,
   setActiveTenant,
+  setPublicAccessToken,
   SESSION_TIMEOUT_EVENT,
   touchSessionActivity,
   readSessionActivityAt,
@@ -123,6 +127,9 @@ export function AccountPortal() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loginMode, setLoginMode] = useState<'login' | 'forgot'>('login');
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginOpenedAt, setLoginOpenedAt] = useState(0);
+  const [poolPage, setPoolPage] = useState<PoolWebsiteContent>(emptyWebsiteContent());
   const [loginMethod, setLoginMethod] = useState<'password' | 'biometric'>('password');
   const [loginUserName, setLoginUserName] = useState('admin');
   const [loginPassword, setLoginPassword] = useState('');
@@ -145,7 +152,7 @@ export function AccountPortal() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const captcha = useLoginCaptcha(
-    !sessionUser && loginMode === 'login' && loginMethod === 'password',
+    !sessionUser && loginOpen && loginMode === 'login' && loginMethod === 'password',
   );
 
   useEffect(() => {
@@ -223,6 +230,28 @@ export function AccountPortal() {
           }
         } else {
           setSessionUser(null);
+        }
+
+        try {
+          setActiveTenant({ id: info.id, accountCode: info.accountCode });
+          setPublicAccessToken(String(body.publicAccessToken ?? ''));
+          const siteRes = await fetch('/api/pool-website');
+          const siteBody = await siteRes.json().catch(() => ({}));
+          if (siteRes.ok && !cancelled) {
+            setPoolPage(mapWebsiteResponse(siteBody, info.accountName));
+          } else if (!cancelled) {
+            setPoolPage({
+              ...emptyWebsiteContent(),
+              poolName: info.accountName,
+            });
+          }
+        } catch {
+          if (!cancelled) {
+            setPoolPage({
+              ...emptyWebsiteContent(),
+              poolName: info.accountName,
+            });
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -349,6 +378,46 @@ export function AccountPortal() {
       window.clearInterval(timer);
     };
   }, [account, sessionUser, code, t]);
+
+  function openLogin() {
+    setLoginOpen(true);
+    setLoginOpenedAt(Date.now());
+    setLoginMode('login');
+    setError('');
+    setSuccess('');
+  }
+
+  function closeLogin() {
+    if (loggingIn || biometricBusy) return;
+    if (biometricOfferUser) {
+      onSkipBiometricOffer();
+      return;
+    }
+    setLoginOpen(false);
+    setLoginMode('login');
+    setError('');
+    setSuccess('');
+  }
+
+  function closeLoginFromBackdrop(e: MouseEvent) {
+    if (e.target !== e.currentTarget) return;
+    if (Date.now() - loginOpenedAt < 400) return;
+    closeLogin();
+  }
+
+  useEffect(() => {
+    if (!loginOpen && !biometricOfferUser) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeLogin();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [loginOpen, biometricOfferUser, loggingIn, biometricBusy]);
 
   function finishAuthenticatedSession(user: SessionUser, opts?: { offerBiometric?: boolean }) {
     if (!user.isPlatformImpersonation) clearPlatformImpersonation();
@@ -670,61 +739,78 @@ export function AccountPortal() {
 
   if (biometricOfferUser) {
     return (
-      <div className="account-login-shell">
-        <div
-          className="modal-panel platform-login-panel account-login-panel"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('Biometric login')}
-        >
-          <div className="platform-login-layout">
-            <aside className="platform-login-brand" aria-hidden="true">
-              <img
-                src="/swimit-login.png"
-                alt=""
-                className="platform-login-brand-image"
-              />
-            </aside>
-            <div className="platform-login-content">
-              <div className="platform-login-branding">
-                <img
-                  src="/swimit-logo.png"
-                  alt="SwimIT — Swimming Pool Management System"
-                  className="platform-login-logo"
-                />
-                <p className="platform-login-account-name">{account.accountName}</p>
-              </div>
-              <div className="platform-login-form biometric-offer">
-                <h2 className="biometric-offer-title">{t('Use biometric login?')}</h2>
-                <p className="muted biometric-offer-copy">
-                  {t(
-                    'On this phone you can sign in next time with Face ID or fingerprint instead of typing your password.',
-                  )}
-                </p>
-                {error ? <p className="error">{error}</p> : null}
-                <div className="platform-login-actions platform-login-actions-inline">
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    disabled={biometricBusy}
-                    onClick={onSkipBiometricOffer}
-                  >
-                    {t('Not now')}
-                  </button>
-                  <button
-                    type="button"
-                    className="submit"
-                    disabled={biometricBusy}
-                    onClick={() => void onEnableBiometricOffer()}
-                  >
-                    {biometricBusy ? t('Setting up…') : t('Enable biometric')}
-                  </button>
+      <>
+        <AccountPoolLanding
+          content={{
+            ...poolPage,
+            poolName: poolPage.poolName || account.accountName,
+          }}
+          registerHref={`/${code}/open/register`}
+          onLogin={openLogin}
+        />
+        {createPortal(
+          <div
+            className="modal-backdrop platform-login-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('Biometric login')}
+            onMouseDown={closeLoginFromBackdrop}
+          >
+            <div
+              className="modal-panel platform-login-panel account-login-panel"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="platform-login-layout">
+                <aside className="platform-login-brand" aria-hidden="true">
+                  <img
+                    src="/swimit-login.png"
+                    alt=""
+                    className="platform-login-brand-image"
+                  />
+                </aside>
+                <div className="platform-login-content">
+                  <div className="platform-login-branding">
+                    <img
+                      src="/swimit-logo.png"
+                      alt="SwimIT — Swimming Pool Management System"
+                      className="platform-login-logo"
+                    />
+                    <p className="platform-login-account-name">{account.accountName}</p>
+                  </div>
+                  <div className="platform-login-form biometric-offer">
+                    <h2 className="biometric-offer-title">{t('Use biometric login?')}</h2>
+                    <p className="muted biometric-offer-copy">
+                      {t(
+                        'On this phone you can sign in next time with Face ID or fingerprint instead of typing your password.',
+                      )}
+                    </p>
+                    {error ? <p className="error">{error}</p> : null}
+                    <div className="platform-login-actions platform-login-actions-inline">
+                      <button
+                        type="button"
+                        className="ghost-btn"
+                        disabled={biometricBusy}
+                        onClick={onSkipBiometricOffer}
+                      >
+                        {t('Not now')}
+                      </button>
+                      <button
+                        type="button"
+                        className="submit"
+                        disabled={biometricBusy}
+                        onClick={() => void onEnableBiometricOffer()}
+                      >
+                        {biometricBusy ? t('Setting up…') : t('Enable biometric')}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+          </div>,
+          document.body,
+        )}
+      </>
     );
   }
 
@@ -732,13 +818,28 @@ export function AccountPortal() {
     const showBiometricChoice = biometricSupported;
     const biometricReady = Boolean(biometricPref?.enabled && biometricPref.credentialId);
     return (
-      <div className="account-login-shell">
-        <div
-          className="modal-panel platform-login-panel account-login-panel"
-          role="dialog"
-          aria-modal="true"
-          aria-label={loginMode === 'forgot' ? t('Forgot password') : t('Login')}
-        >
+      <>
+        <AccountPoolLanding
+          content={{
+            ...poolPage,
+            poolName: poolPage.poolName || account.accountName,
+          }}
+          registerHref={`/${code}/open/register`}
+          onLogin={openLogin}
+        />
+        {loginOpen
+          ? createPortal(
+              <div
+                className="modal-backdrop platform-login-backdrop"
+                role="dialog"
+                aria-modal="true"
+                aria-label={loginMode === 'forgot' ? t('Forgot password') : t('Login')}
+                onMouseDown={closeLoginFromBackdrop}
+              >
+                <div
+                  className="modal-panel platform-login-panel account-login-panel"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
           <div className="platform-login-layout">
             <aside className="platform-login-brand" aria-hidden="true">
               <img
@@ -869,7 +970,7 @@ export function AccountPortal() {
                       type="button"
                       className="ghost-btn"
                       disabled={loggingIn}
-                      onClick={() => navigate('/')}
+                      onClick={closeLogin}
                     >
                       {t('Cancel')}
                     </button>
@@ -931,8 +1032,12 @@ export function AccountPortal() {
               )}
             </div>
           </div>
-        </div>
-      </div>
+                </div>
+              </div>,
+              document.body,
+            )
+          : null}
+      </>
     );
   }
 

@@ -89,22 +89,6 @@ export const MENU_ITEMS: MenuItem[] = [
     ),
   },
   {
-    section: 'Operations',
-    to: '/whatsapp',
-    label: 'WhatsApp Broadcast',
-    does: 'Sends messages to active swimmers or staff and reviews inbound WhatsApp images.',
-    helps:
-      'Reaches members quickly for notices, and collects payment screenshots or certificates without email chase-ups.',
-    icon: (
-      <IconWrap>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M12 3.5a8 8 0 0 0-6.9 12.1L4 20.5l5-1.1A8 8 0 1 0 12 3.5z" />
-          <path d="M9.2 9.4c.3-.5.6-.5.9-.5h.3c.2 0 .4 0 .5.4l.7 1.7c.1.2 0 .4-.1.5l-.4.5c-.1.1-.2.3 0 .5.3.5.8 1.1 1.4 1.5.4.3.7.2.9 0l.6-.7c.2-.2.4-.2.6-.1l1.8.5c.3.1.4.2.4.5v.4c0 .3-.2.7-.7.9-.9.4-2.1.3-3.6-.6-1.7-1.1-2.9-2.7-3.3-3.8-.3-.8-.2-1.4.1-1.7z" />
-        </svg>
-      </IconWrap>
-    ),
-  },
-  {
     section: 'Information',
     to: '/dashboard',
     label: 'Dashboard',
@@ -243,6 +227,22 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     section: 'Operations',
+    to: '/pool-expenses',
+    label: 'Pool Expenses',
+    does: 'Records day-to-day pool costs such as chemicals, utilities, and supplies.',
+    helps:
+      'Tracks spending in one place so you can see where money goes and feed the balance sheet.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+          <path d="M14 3v4h4M8 12h8M8 16h6" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
+    section: 'Operations',
     to: '/coach-payment',
     label: 'Coach Payment',
     does: 'Calculates coach payouts from attendance or agreed payment rules for a period.',
@@ -261,16 +261,17 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     section: 'Operations',
-    to: '/pool-expenses',
-    label: 'Pool Expenses',
-    does: 'Records day-to-day pool costs such as chemicals, utilities, and supplies.',
+    to: '/swimmer-progress',
+    label: 'Swimmer Progress',
+    does: 'Records race times for competitive batch swimmers by date, stroke, and distance.',
     helps:
-      'Tracks spending in one place so you can see where money goes and feed the balance sheet.',
+      'Lets coaches track how each competitive swimmer is improving over timed repeats.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
-          <path d="M14 3v4h4M8 12h8M8 16h6" />
+          <circle cx="12" cy="12" r="8.2" />
+          <path d="M12 7.5v5.1l3.2 1.8" />
+          <path d="M5 16.5h3.2l1.1 2.1h5.4l1.1-2.1H19" />
         </svg>
       </IconWrap>
     ),
@@ -293,17 +294,16 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     section: 'Operations',
-    to: '/swimmer-progress',
-    label: 'Swimmer Progress',
-    does: 'Records race times for competitive batch swimmers by date, stroke, and distance.',
+    to: '/whatsapp',
+    label: 'WhatsApp Broadcast',
+    does: 'Sends messages to active swimmers or staff and reviews inbound WhatsApp images.',
     helps:
-      'Lets coaches track how each competitive swimmer is improving over timed repeats.',
+      'Reaches members quickly for notices, and collects payment screenshots or certificates without email chase-ups.',
     icon: (
       <IconWrap>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <circle cx="12" cy="12" r="8.2" />
-          <path d="M12 7.5v5.1l3.2 1.8" />
-          <path d="M5 16.5h3.2l1.1 2.1h5.4l1.1-2.1H19" />
+          <path d="M12 3.5a8 8 0 0 0-6.9 12.1L4 20.5l5-1.1A8 8 0 1 0 12 3.5z" />
+          <path d="M9.2 9.4c.3-.5.6-.5.9-.5h.3c.2 0 .4 0 .5.4l.7 1.7c.1.2 0 .4-.1.5l-.4.5c-.1.1-.2.3 0 .5.3.5.8 1.1 1.4 1.5.4.3.7.2.9 0l.6-.7c.2-.2.4-.2.6-.1l1.8.5c.3.1.4.2.4.5v.4c0 .3-.2.7-.7.9-.9.4-2.1.3-3.6-.6-1.7-1.1-2.9-2.7-3.3-3.8-.3-.8-.2-1.4.1-1.7z" />
         </svg>
       </IconWrap>
     ),
@@ -388,6 +388,40 @@ export const MENU_ITEMS: MenuItem[] = [
           <circle cx="16.5" cy="9" r="2.2" />
           <path d="M3.5 18.5c1-2.7 2.8-4 5.5-4 1.3 0 2.4.3 3.3.9" />
           <path d="M13.2 18.5c.7-1.7 2-2.7 3.8-2.7 1.4 0 2.5.5 3.3 1.6" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
+    section: 'Setup',
+    to: '/pool-website',
+    label: 'Pool website',
+    does: 'Edits the public pool webpage: about, batches, coaches, and achievements.',
+    helps:
+      'Lets visitors see your pool story on the account website, while staff still log in from the top right.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8" />
+          <path d="M4 12h16" />
+          <path d="M12 4c2.5 2.8 2.5 13.2 0 16" />
+          <path d="M12 4c-2.5 2.8-2.5 13.2 0 16" />
+        </svg>
+      </IconWrap>
+    ),
+  },
+  {
+    section: 'Setup',
+    to: '/form-info',
+    label: 'Form Info',
+    does: 'Lists registration form fields and lets you mark each one mandatory or optional.',
+    helps:
+      'Keeps swimmer and staff forms aligned with what your pool actually needs to collect.',
+    icon: (
+      <IconWrap>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="5" y="3.5" width="14" height="17" rx="2" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
         </svg>
       </IconWrap>
     ),

@@ -19,6 +19,52 @@ export async function ensureSchema() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS pool_website (
+      saas_account_id INT PRIMARY KEY REFERENCES saas_accounts(id) ON DELETE CASCADE,
+      about_text TEXT NOT NULL DEFAULT '',
+      opening_hours TEXT NOT NULL DEFAULT '',
+      facilities_text TEXT NOT NULL DEFAULT '',
+      batches_text TEXT NOT NULL DEFAULT '',
+      coaches_text TEXT NOT NULL DEFAULT '',
+      achievements JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS history_text TEXT NOT NULL DEFAULT '';
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS banner_photo_path TEXT;
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS history_photo_path TEXT;
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS info_photo_path TEXT;
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS batches_photo_path TEXT;
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS coaches_photo_path TEXT;
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS achievements_photo_path TEXT;
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS theme_color TEXT NOT NULL DEFAULT '#1e88c8';
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS form_info (
+      saas_account_id INT PRIMARY KEY REFERENCES saas_accounts(id) ON DELETE CASCADE,
+      required_fields JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    UPDATE app_users
+       SET menu_access = array_append(menu_access, 'pool-website')
+     WHERE 'pool-core-info' = ANY (menu_access)
+       AND NOT ('pool-website' = ANY (menu_access));
+  `);
+
+  await pool.query(`
+    UPDATE app_users
+       SET menu_access = array_append(menu_access, 'form-info')
+     WHERE ('register' = ANY (menu_access) OR 'pool-core-info' = ANY (menu_access))
+       AND NOT ('form-info' = ANY (menu_access));
+  `);
+
+  await pool.query(`
     DO $$
     BEGIN
       IF to_regclass('public.app_users') IS NULL THEN

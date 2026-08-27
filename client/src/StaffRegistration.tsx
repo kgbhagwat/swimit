@@ -12,6 +12,7 @@ import { getSampleStaffDetail, SAMPLE_STAFF_BATCHES } from './sampleStaff';
 import { SendFormQrButton } from './SendFormQrButton';
 import { tenantPath } from './tenantSession';
 import { BirthDateField, ageYearsAsOfToday } from './BirthDateField';
+import { useFormFieldRequired } from './formInfo';
 import { clearFormDraft, mergeDraft, readFormDraft, useFormDraft } from './formDraft';
 import { useObjectUrl, useObjectUrls } from './useObjectUrl';
 
@@ -124,6 +125,7 @@ export function StaffRegistration() {
   const viewOnly = isEdit && searchParams.get('view') === '1';
 
   const t = useT();
+  const need = useFormFieldRequired('staff');
   const savedDraft = !isEdit ? readFormDraft<FormState>(STAFF_FORM_DRAFT) : null;
   const [form, setForm] = useState<FormState>(() => mergeDraft(initialForm, savedDraft));
   const [isActive, setIsActive] = useState(true);
@@ -355,55 +357,76 @@ export function StaffRegistration() {
   function collectInvalidFields() {
     const fields = new Set<string>();
 
-    if (!form.registrationFor) fields.add('registrationFor');
-    if (!form.fullName.trim() || !isValidPersonName(form.fullName)) fields.add('fullName');
-    if (!form.fullAddress.trim()) fields.add('fullAddress');
-    if (!form.whatsappMobile.trim() || !isValidMobile(form.whatsappMobile)) {
-      fields.add('whatsappMobile');
+    if (need('registrationFor') && !form.registrationFor) fields.add('registrationFor');
+    if (need('fullName') || form.fullName.trim()) {
+      if (!isValidPersonName(form.fullName)) fields.add('fullName');
     }
+    if (need('fullAddress') && !form.fullAddress.trim()) fields.add('fullAddress');
+    if (need('whatsappMobile') || form.whatsappMobile.trim()) {
+      if (!isValidMobile(form.whatsappMobile)) fields.add('whatsappMobile');
+    }
+    if (need('otherMobile') && !form.otherMobile.trim()) fields.add('otherMobile');
     if (form.otherMobile.trim() && !isValidMobile(form.otherMobile)) {
       fields.add('otherMobile');
     }
+    if (need('email') && !form.email.trim()) fields.add('email');
     if (form.email.trim() && !isValidEmail(form.email)) fields.add('email');
-    if (!form.birthdate) fields.add('birthdate');
-    else {
+    if (need('birthdate') && !form.birthdate) fields.add('birthdate');
+    else if (form.birthdate) {
       const age = getAgeYears(form.birthdate);
       if (age === null || age <= 18) fields.add('birthdate');
     }
-    if (!form.sex) fields.add('sex');
-    if (!form.bloodGroup) fields.add('bloodGroup');
+    if (need('sex') && !form.sex) fields.add('sex');
+    if (need('bloodGroup') && !form.bloodGroup) fields.add('bloodGroup');
 
-    if (!form.emergencyName.trim() || !isValidPersonName(form.emergencyName)) fields.add('emergencyName');
-    if (!form.emergencyRelation) fields.add('emergencyRelation');
-    if (!form.emergencyMobile.trim() || !isValidMobile(form.emergencyMobile)) {
-      fields.add('emergencyMobile');
-    } else if (
-      emergencyMatchesApplicant({
-        emergencyMobile: form.emergencyMobile,
-        whatsappMobile: form.whatsappMobile,
-        otherMobile: form.otherMobile,
-      })
-    ) {
-      fields.add('emergencyMobile');
+    if (need('emergencyName') || form.emergencyName.trim()) {
+      if (!isValidPersonName(form.emergencyName)) fields.add('emergencyName');
+    }
+    if (need('emergencyRelation') && !form.emergencyRelation) fields.add('emergencyRelation');
+    if (need('emergencyMobile') && !form.emergencyMobile.trim()) fields.add('emergencyMobile');
+    if (form.emergencyMobile.trim()) {
+      if (!isValidMobile(form.emergencyMobile)) {
+        fields.add('emergencyMobile');
+      } else if (
+        emergencyMatchesApplicant({
+          emergencyMobile: form.emergencyMobile,
+          whatsappMobile: form.whatsappMobile,
+          otherMobile: form.otherMobile,
+        })
+      ) {
+        fields.add('emergencyMobile');
+      }
     }
 
-    if (form.hasHealthIssue === 'Yes' && !form.healthIssueDetails.trim()) {
+    if (need('hasHealthIssue') && !form.hasHealthIssue) fields.add('hasHealthIssue');
+    if (form.hasHealthIssue === 'Yes' && need('healthIssueDetails') && !form.healthIssueDetails.trim()) {
       fields.add('healthIssueDetails');
+    }
+    if (need('doctorName') && form.hasHealthIssue === 'Yes' && !form.doctorName.trim()) {
+      fields.add('doctorName');
+    }
+    if (need('doctorNo') && form.hasHealthIssue === 'Yes' && !form.doctorNo.trim()) {
+      fields.add('doctorNo');
     }
     if (form.doctorNo.trim() && !isValidMobile(form.doctorNo)) {
       fields.add('doctorNo');
     }
 
-    if (!form.identityDocument) fields.add('identityDocument');
+    if (need('identityDocument') && !form.identityDocument) fields.add('identityDocument');
+    if (need('identityNumber') && !form.identityNumber.trim()) fields.add('identityNumber');
     if (identityNumberError(form.identityNumber)) fields.add('identityNumber');
     if (!isSampleEdit) {
-      if (!identityPhoto && !existingPhotos.identity) fields.add('identityPhoto');
-      if (!staffPhoto && !existingPhotos.staff) fields.add('staffPhoto');
+      if (need('identityPhoto') && !identityPhoto && !existingPhotos.identity) {
+        fields.add('identityPhoto');
+      }
+      if (need('staffPhoto') && !staffPhoto && !existingPhotos.staff) {
+        fields.add('staffPhoto');
+      }
     }
 
     if (form.registrationFor === 'Coach') {
-      if (form.teachStrokes.length === 0) fields.add('teachStrokes');
-      if (availableBatches.length > 0 && form.suitableBatchIds.length === 0) {
+      if (need('teachStrokes') && form.teachStrokes.length === 0) fields.add('teachStrokes');
+      if (need('suitableBatchIds') && availableBatches.length > 0 && form.suitableBatchIds.length === 0) {
         fields.add('suitableBatchIds');
       }
       const selected = availableBatches.filter((batch) =>
@@ -418,23 +441,35 @@ export function StaffRegistration() {
       }
     }
 
+    if (need('achievements') && !form.achievements.trim()) fields.add('achievements');
+    if (need('certificatePhotos') && !isSampleEdit) {
+      const hasCert =
+        certPhotos.some(Boolean) || existingPhotos.certs.some(Boolean);
+      if (!hasCert) fields.add('certificatePhotos');
+    }
+    if (need('certificateDetails') && !form.certificateDetails.trim()) {
+      fields.add('certificateDetails');
+    }
+
     const needsLifeguardSection =
       form.registrationFor === 'Coach' || form.registrationFor === 'Lifeguard';
     if (needsLifeguardSection && form.hasLifeguardCert === 'Yes') {
-      if (!form.lifeguardExpiry) fields.add('lifeguardExpiry');
-      if (!isSampleEdit && !lifeguardPhoto && !existingPhotos.lifeguard) {
+      if (need('lifeguardExpiry') && !form.lifeguardExpiry) fields.add('lifeguardExpiry');
+      if (need('lifeguardPhoto') && !isSampleEdit && !lifeguardPhoto && !existingPhotos.lifeguard) {
         fields.add('lifeguardPhoto');
       }
     }
 
     if (isEdit && form.registrationFor === 'Other') {
-      if (!form.postName.trim()) fields.add('postName');
+      if (need('postName') && !form.postName.trim()) fields.add('postName');
     }
     if (isEdit && (form.registrationFor === 'Other' || form.registrationFor === 'Lifeguard')) {
-      if (form.salary === '' || Number.isNaN(Number(form.salary))) fields.add('salary');
+      if (need('salary') && (form.salary === '' || Number.isNaN(Number(form.salary)))) {
+        fields.add('salary');
+      }
     }
 
-    if (!isEdit && !form.acceptedTerms) fields.add('acceptedTerms');
+    if (!isEdit && need('acceptedTerms') && !form.acceptedTerms) fields.add('acceptedTerms');
 
     return fields;
   }
@@ -647,7 +682,7 @@ export function StaffRegistration() {
           <h2>{t("Personal details")}</h2>
           <div className="grid-2">
             <label className="field field-beside">
-              <Label required>{t("Full name")}</Label>
+              <Label required={need('fullName')}>{t("Full name")}</Label>
               <input
                 value={form.fullName}
                 onChange={(e) => setField('fullName', sanitizeNameInput(e.target.value))}
@@ -662,7 +697,7 @@ export function StaffRegistration() {
               ) : null}
             </label>
             <label className="field field-beside">
-              <Label required>{t("Full address")}</Label>
+              <Label required={need('fullAddress')}>{t("Full address")}</Label>
               <textarea
                 value={form.fullAddress}
                 onChange={(e) => setField('fullAddress', e.target.value)}
@@ -675,7 +710,7 @@ export function StaffRegistration() {
           </div>
           <div className="grid-3 registration-align-3">
             <label className="field field-beside">
-              <Label required>{t("WhatsApp mobile no.")}</Label>
+              <Label required={need('whatsappMobile')}>{t("WhatsApp mobile no.")}</Label>
               <input
                 value={form.whatsappMobile}
                 onChange={(e) => setField('whatsappMobile', sanitizeMobileInput(e.target.value))}
@@ -690,7 +725,7 @@ export function StaffRegistration() {
               ) : null}
             </label>
             <label className="field field-beside">
-              <Label>{t("Another mobile no.")}</Label>
+              <Label required={need('otherMobile')}>{t("Another mobile no.")}</Label>
               <input
                 value={form.otherMobile}
                 onChange={(e) => setField('otherMobile', sanitizeMobileInput(e.target.value))}
@@ -704,7 +739,7 @@ export function StaffRegistration() {
               ) : null}
             </label>
             <label className="field field-beside">
-              <Label>{t("Email")}</Label>
+              <Label required={need('email')}>{t("Email")}</Label>
               <input
                 type="email"
                 value={form.email}
@@ -719,7 +754,7 @@ export function StaffRegistration() {
           </div>
           <div className="grid-3 registration-align-3">
             <label className="field field-beside">
-              <Label required>{t("Birth Date")}</Label>
+              <Label required={need('birthdate')}>{t("Birth Date")}</Label>
               <BirthDateField
                 className="field-control-sm"
                 value={form.birthdate}
@@ -734,7 +769,7 @@ export function StaffRegistration() {
               ) : null}
             </label>
             <label className="field field-beside">
-              <Label required>{t("Sex")}</Label>
+              <Label required={need('sex')}>{t("Sex")}</Label>
               <select
                 className="field-control-sm"
                 value={form.sex}
@@ -749,7 +784,7 @@ export function StaffRegistration() {
               </select>
             </label>
             <label className="field field-beside">
-              <Label required>{t("Blood group")}</Label>
+              <Label required={need('bloodGroup')}>{t("Blood group")}</Label>
               <select
                 className="field-control-sm"
                 value={form.bloodGroup}
@@ -772,7 +807,7 @@ export function StaffRegistration() {
           <h2>{t("Emergency contact")}</h2>
           <div className="grid-3">
             <label className="field field-beside">
-              <Label required>{t("Emergency contact name")}</Label>
+              <Label required={need('emergencyName')}>{t("Emergency contact name")}</Label>
               <input
                 value={form.emergencyName}
                 onChange={(e) => setField('emergencyName', sanitizeNameInput(e.target.value))}
@@ -787,7 +822,7 @@ export function StaffRegistration() {
               ) : null}
             </label>
             <label className="field field-beside">
-              <Label required>{t("Relation")}</Label>
+              <Label required={need('emergencyRelation')}>{t("Relation")}</Label>
               <select
                 className="field-control-sm"
                 value={form.emergencyRelation}
@@ -805,7 +840,7 @@ export function StaffRegistration() {
               </select>
             </label>
             <label className="field field-beside">
-              <Label required>{t("Emergency contact no.")}</Label>
+              <Label required={need('emergencyMobile')}>{t("Emergency contact no.")}</Label>
               <input
                 value={form.emergencyMobile}
                 onChange={(e) =>
@@ -833,7 +868,7 @@ export function StaffRegistration() {
         <section className="registration-section registration-section--medical">
           <h2>{t("Medical information")}</h2>
           <label className="field field-beside medical-health-issue">
-            <Label required>{t("Do you have any health issue?")}</Label>
+            <Label required={need('hasHealthIssue')}>{t("Do you have any health issue?")}</Label>
             <select
               className="field-control-sm"
               value={form.hasHealthIssue}
@@ -847,7 +882,7 @@ export function StaffRegistration() {
           {form.hasHealthIssue === 'Yes' ? (
             <div className="medical-details grid-2">
               <label className="field field-beside medical-details-main">
-                <Label required>{t("Disease / health issue")}</Label>
+                <Label required={need('healthIssueDetails')}>{t("Disease / health issue")}</Label>
                 <textarea
                   value={form.healthIssueDetails}
                   onChange={(e) => setField('healthIssueDetails', e.target.value)}
@@ -859,7 +894,7 @@ export function StaffRegistration() {
               </label>
               <div className="medical-doctor-col">
                 <label className="field field-beside">
-                  <Label>{t("Doctor name")}</Label>
+                  <Label required={need('doctorName')}>{t("Doctor name")}</Label>
                   <input
                     value={form.doctorName}
                     onChange={(e) => setField('doctorName', e.target.value)}
@@ -867,7 +902,7 @@ export function StaffRegistration() {
                   />
                 </label>
                 <label className="field field-beside">
-                  <Label>{t("Doctor no.")}</Label>
+                  <Label required={need('doctorNo')}>{t("Doctor no.")}</Label>
                   <input
                     value={form.doctorNo}
                     onChange={(e) => setField('doctorNo', sanitizeMobileInput(e.target.value))}
@@ -894,6 +929,9 @@ export function StaffRegistration() {
             onNumberChange={(value) => setField('identityNumber', value)}
             documentInvalid={isInvalid('identityDocument')}
             numberInvalid={isInvalid('identityNumber')}
+            documentRequired={need('identityDocument')}
+            numberRequired={need('identityNumber')}
+            proofRequired={need('identityPhoto')}
             proofFile={identityPhoto}
             proofPreview={identityPreview}
             proofExistingUrl={existingPhotos.identity}
@@ -909,7 +947,7 @@ export function StaffRegistration() {
             <RegistrationPhotoField
               label={t("Photo")}
               hint={t("Image or PDF (max 200 KB) — recent passport-size photo for identification")}
-              required
+              required={need('staffPhoto')}
               protectFromCapture
               file={staffPhoto}
               preview={staffPreview}
@@ -976,7 +1014,7 @@ export function StaffRegistration() {
               <div className="coach-teach-row">
                 <h2>
                   {t("Interested to teach")}
-                  <span className="req"> *</span>
+                  {need('teachStrokes') ? <span className="req"> *</span> : null}
                 </h2>
                 <div className="check-row">
                   {(
@@ -1039,7 +1077,7 @@ export function StaffRegistration() {
             <div className="grid-2">
               {form.registrationFor === 'Other' ? (
                 <label className="field field-beside">
-                  <Label required>{t('Post name')}</Label>
+                  <Label required={need('postName')}>{t('Post name')}</Label>
                   <input
                     value={form.postName}
                     onChange={(e) => setField('postName', e.target.value)}
@@ -1050,7 +1088,7 @@ export function StaffRegistration() {
                 </label>
               ) : null}
               <label className="field field-beside">
-                <Label required>{t('Salary')}</Label>
+                <Label required={need('salary')}>{t('Salary')}</Label>
                 <div className="money-input">
                   <span className="money-prefix" aria-hidden="true">
                     ₹
@@ -1107,14 +1145,14 @@ export function StaffRegistration() {
                   <label className="lifeguard-expiry field field-beside">
                     <span className="label">
                       {t("Expiring On")}
-                      <span className="req"> *</span>
+                      {need('lifeguardExpiry') ? <span className="req"> *</span> : null}
                     </span>
                     <input
                       className="field-control-sm"
                       type="date"
                       value={form.lifeguardExpiry}
                       onChange={(e) => setField('lifeguardExpiry', e.target.value)}
-                      required
+                      required={need('lifeguardExpiry')}
                       aria-invalid={isInvalid('lifeguardExpiry')}
                     />
                   </label>
@@ -1122,7 +1160,7 @@ export function StaffRegistration() {
                     <RegistrationPhotoField
                       label={t("Certificate")}
                       hint={t("Image or PDF (max 200 KB) — upload or take a clear photo of the Life Guard certificate")}
-                      required
+                      required={need('lifeguardPhoto')}
                       cameraFacing="environment"
                       file={lifeguardPhoto}
                       preview={lifeguardPreview}
@@ -1154,7 +1192,7 @@ export function StaffRegistration() {
                 type="checkbox"
                 checked={form.acceptedTerms}
                 onChange={(e) => setField('acceptedTerms', e.target.checked)}
-                required
+                required={need('acceptedTerms')}
                 aria-invalid={isInvalid('acceptedTerms')}
               />
               <span>
