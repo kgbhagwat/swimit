@@ -17,8 +17,10 @@ import {
   SwimmerProfile,
   SwimmerProfileReview,
 } from './SwimmerProfileReview';
+import { openPassPopup, rememberSampleIssuedPass } from './swimmerPass';
 import { tenantPath } from './tenantSession';
 import { indiaTodayIso } from './indiaDate';
+import { ageYearsAsOfToday } from './BirthDateField';
 import { isPdfUrl } from './uploadFile';
 import { useObjectUrl } from './useObjectUrl';
 import { PhotoPickerButtons } from './WebcamCapture';
@@ -30,12 +32,14 @@ type PendingSwimmer = {
   fullName: string;
   contact: string;
   email: string;
-  type: 'New' | 'Expired' | 'Test';
+  type: 'New' | 'Expired' | 'Test' | 'Partial';
   passType: string;
   coach: string;
   batch: string;
   awaitingWhatsApp?: boolean;
   upgradePaymentId?: number | null;
+  passBalanceDue?: number;
+  passValidUntil?: string;
 };
 
 type PendingPaymentApiRow = {
@@ -43,12 +47,14 @@ type PendingPaymentApiRow = {
   full_name: string;
   whatsapp_mobile: string;
   email: string;
-  pending_type: 'New' | 'Expired' | 'Test';
+  pending_type: 'New' | 'Expired' | 'Test' | 'Partial';
   pass_type?: string | null;
   coach?: string | null;
   batch?: string | null;
   awaitingWhatsApp?: boolean;
   upgradePaymentId?: number | null;
+  pass_balance_due?: number | string | null;
+  pass_valid_until?: string | null;
 };
 
 function mapPendingPaymentRows(pending: PendingPaymentApiRow[]): PendingSwimmer[] {
@@ -58,12 +64,20 @@ function mapPendingPaymentRows(pending: PendingPaymentApiRow[]): PendingSwimmer[
     contact: row.whatsapp_mobile || '—',
     email: row.email || '—',
     type:
-      row.pending_type === 'Test' ? 'Test' : row.pending_type === 'Expired' ? 'Expired' : 'New',
+      row.pending_type === 'Test'
+        ? 'Test'
+        : row.pending_type === 'Expired'
+          ? 'Expired'
+          : row.pending_type === 'Partial'
+            ? 'Partial'
+            : 'New',
     passType: row.pass_type?.trim() || '',
     coach: row.coach?.trim() || '',
     batch: row.batch?.trim() || '',
     awaitingWhatsApp: Boolean(row.awaitingWhatsApp),
     upgradePaymentId: row.upgradePaymentId == null ? null : Number(row.upgradePaymentId),
+    passBalanceDue: roundMoney(Number(row.pass_balance_due ?? 0) || 0),
+    passValidUntil: String(row.pass_valid_until ?? '').slice(0, 10),
   }));
 }
 
@@ -100,12 +114,18 @@ const PENDING_COLUMNS: Array<{ key: PendingSortKey; label: string }> = [
   { key: 'type', label: 'Type' },
 ];
 
+function pendingTypeLabel(row: PendingSwimmer) {
+  if (row.type === 'Partial') return 'New';
+  return row.type;
+}
+
 function pendingCellValue(row: PendingSwimmer, key: PendingSortKey) {
   if (key === 'contact') return row.contact?.trim() || '—';
   if (key === 'email') return row.email?.trim() || '—';
   if (key === 'type') {
-    const parts: string[] = [row.type];
+    const parts: string[] = [pendingTypeLabel(row)];
     if (row.passType) parts.push(row.passType);
+    if ((row.passBalanceDue ?? 0) > 0) parts.push('Partially paid');
     if (row.awaitingWhatsApp) parts.push('Awaiting WhatsApp payment');
     return parts.join(' · ');
   }
@@ -126,6 +146,9 @@ type PassTypeOption = {
   offerStartDate?: string | null;
   offerEndDate?: string | null;
   testRequired?: boolean;
+  gender?: 'All' | 'Male' | 'Female';
+  ageFrom?: number;
+  ageTo?: number | null;
 };
 
 type BatchSlot = {
@@ -342,6 +365,34 @@ function formatMoney(value: number) {
   return `₹${value.toLocaleString('en-IN')}`;
 }
 
+function roundMoney(value: number) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function parseDiscountInput(raw: string, listAmount: number): { discount: number; error: string | null } {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return { discount: 0, error: null };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return { discount: 0, error: 'Enter a valid discount' };
+  const discount = roundMoney(n);
+  if (discount > listAmount) {
+    return { discount, error: 'Discount cannot be greater than the pass amount' };
+  }
+  return { discount, error: null };
+}
+
+function parseReceivedInput(raw: string, dueAmount: number): { received: number; error: string | null } {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return { received: 0, error: null };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return { received: 0, error: 'Enter a valid received amount' };
+  const received = roundMoney(n);
+  if (received > dueAmount) {
+    return { received, error: 'Received amount cannot be greater than the payable amount' };
+  }
+  return { received, error: null };
+}
+
 function todayIso() {
   return indiaTodayIso();
 }
@@ -350,6 +401,25 @@ function passIsAvailableForPayment(pass: PassTypeOption, today = todayIso()) {
   if (!pass.isOffer) return true;
   if (!pass.offerStartDate || !pass.offerEndDate) return false;
   return pass.offerStartDate <= today && today <= pass.offerEndDate;
+}
+
+function passMatchesSwimmer(
+  pass: PassTypeOption,
+  sex?: string | null,
+  ageYears?: number | null,
+) {
+  const gender = pass.gender && pass.gender !== 'All' ? pass.gender : 'All';
+  if (gender !== 'All') {
+    const swimmerSex = String(sex ?? '').trim();
+    if (swimmerSex && swimmerSex.toLowerCase() !== gender.toLowerCase()) return false;
+  }
+  if (ageYears == null) return true;
+  const from = Number(pass.ageFrom ?? 0) || 0;
+  if (ageYears < from) return false;
+  if (pass.ageTo != null && Number.isFinite(Number(pass.ageTo)) && ageYears > Number(pass.ageTo)) {
+    return false;
+  }
+  return true;
 }
 
 function toIsoDate(date: Date) {
@@ -457,6 +527,9 @@ export function PassPayment() {
   const [batch, setBatch] = useState('');
   const [coach, setCoach] = useState('');
   const [passStartDate, setPassStartDate] = useState(todayIso());
+  const [discountText, setDiscountText] = useState('0');
+  const [receivedText, setReceivedText] = useState('');
+  const [receivedTouched, setReceivedTouched] = useState(false);
   const [paymentMode, setPaymentMode] = useState('');
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [transactionId, setTransactionId] = useState('');
@@ -476,6 +549,17 @@ export function PassPayment() {
   const [samplePhotoFile, setSamplePhotoFile] = useState<File | null>(null);
   const [issueSuccessMessage, setIssueSuccessMessage] = useState('');
   const [dismissedSampleIds, setDismissedSampleIds] = useState<number[]>([]);
+  const [samplePartials, setSamplePartials] = useState<
+    Record<
+      number,
+      {
+        passBalanceDue: number;
+        passType: string;
+        passValidUntil: string;
+        type: PendingSwimmer['type'];
+      }
+    >
+  >({});
   const [openFilter, setOpenFilter] = useState<PendingSortKey | null>(null);
   const [columnSelected, setColumnSelected] = useState<
     Partial<Record<PendingSortKey, Set<string> | null>>
@@ -617,6 +701,9 @@ export function PassPayment() {
     setBatch(resolveBatchValue(row.batch || '', activeBatches));
     setCoach(sample && (row.coach === 'Any' || !row.coach) ? SAMPLE_COACHES[0].fullName : row.coach || '');
     setPassStartDate(todayIso());
+    setDiscountText('0');
+    setReceivedText('');
+    setReceivedTouched(false);
     setPaymentMode(sample ? 'Cash' : '');
     setPaymentReceived(false);
     setTransactionId('');
@@ -629,7 +716,7 @@ export function PassPayment() {
     clearIssueCloseTimer();
     setIssueSuccessMessage('');
     autoIssuedHandledRef.current = false;
-    setDetailsConfirmed(false);
+    setDetailsConfirmed(row.type === 'Expired' && !row.upgradePaymentId);
     if (sample) {
       setSwimmerProfile(savedSampleProfile ?? defaultSampleProfile);
       setProfileLoading(false);
@@ -659,6 +746,9 @@ export function PassPayment() {
     setBatch('');
     setCoach('');
     setPassStartDate(todayIso());
+    setDiscountText('0');
+    setReceivedText('');
+    setReceivedTouched(false);
     setPaymentMode('');
     setPaymentReceived(false);
     setTransactionId('');
@@ -688,10 +778,7 @@ export function PassPayment() {
   function markWhatsAppAutoIssued() {
     if (autoIssuedHandledRef.current) return;
     autoIssuedHandledRef.current = true;
-    setIssueSuccessMessage(
-      t('Pass renewed from WhatsApp payment. Swimmer moved to the Active list.'),
-    );
-    scheduleCloseAfterIssue(() => {
+    finishIssuedPass(() => {
       void load();
     });
   }
@@ -704,7 +791,13 @@ export function PassPayment() {
   const activeCoaches = samplePaying ? SAMPLE_COACHES : coaches;
   const isTestPassUpdate = Boolean(paying?.upgradePaymentId);
   const isTestPassFail = isTestPassUpdate && testOutcome === 'fail';
-  const paymentPassTypes = activePassTypes;
+  const paymentPassTypes = useMemo(() => {
+    const age = swimmerProfile ? ageYearsAsOfToday(swimmerProfile.birthdate) : null;
+    return activePassTypes.filter((pass) => {
+      if (passTypeId && String(pass.id) === passTypeId) return true;
+      return passMatchesSwimmer(pass, swimmerProfile?.sex, age);
+    });
+  }, [activePassTypes, passTypeId, swimmerProfile]);
 
   function openSwimmerEdit() {
     if (!paying || !swimmerProfile) return;
@@ -760,9 +853,34 @@ export function PassPayment() {
   const selectedPass = paymentPassTypes.find((pass) => String(pass.id) === passTypeId) ?? null;
   const isUnpaidTestPassChange = isTestPassUpdate && Boolean(selectedPass?.testRequired);
   const coachingRequired = Boolean(selectedPass && selectedPass.coach !== 'Not Required');
-  const passValidUntil = selectedPass
-    ? addPassDuration(selectedPass.duration, passStartDate)
-    : '';
+  const isCollectRemaining = Boolean(
+    paying &&
+      (paying.passBalanceDue ?? 0) > 0 &&
+      paying.passValidUntil &&
+      paying.passValidUntil >= todayIso(),
+  );
+  const passValidUntil = isCollectRemaining
+    ? paying?.passValidUntil || ''
+    : selectedPass
+      ? addPassDuration(selectedPass.duration, passStartDate)
+      : '';
+  const selectedPassAmount = selectedPass
+    ? roundMoney(Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0))
+    : 0;
+  const discountParsed = isCollectRemaining
+    ? { discount: 0, error: null as string | null }
+    : parseDiscountInput(discountText, selectedPassAmount);
+  const onlinePayAmount = isCollectRemaining
+    ? roundMoney(paying?.passBalanceDue ?? 0)
+    : roundMoney(Math.max(0, selectedPassAmount - discountParsed.discount));
+  const receivedParsed = receivedTouched
+    ? parseReceivedInput(receivedText, onlinePayAmount)
+    : { received: onlinePayAmount, error: null as string | null };
+  const remainingDue = roundMoney(Math.max(0, onlinePayAmount - receivedParsed.received));
+
+  useEffect(() => {
+    if (!receivedTouched) setReceivedText(onlinePayAmount ? String(onlinePayAmount) : '0');
+  }, [onlinePayAmount, receivedTouched]);
 
   const periodHolidays = useMemo(() => {
     if (!passStartDate || !passValidUntil) return [];
@@ -885,7 +1003,7 @@ export function PassPayment() {
     if (samplePaying || paymentMode !== 'Online') return;
     setTransactionId('');
     setPaymentReceived(false);
-  }, [paying?.id, samplePaying, paymentMode, passTypeId, batch, coach]);
+  }, [paying?.id, samplePaying, paymentMode, passTypeId, batch, coach, discountText]);
 
   useEffect(() => {
     if (
@@ -894,7 +1012,8 @@ export function PassPayment() {
       paymentMode !== 'Online' ||
       !selectedPass ||
       !batch.trim() ||
-      !passValidUntil
+      !passValidUntil ||
+      receivedParsed.received <= 0
     ) {
       return;
     }
@@ -944,6 +1063,8 @@ export function PassPayment() {
         batch: batch.trim(),
         coach: coachingRequired ? coach.trim() : '',
         passValidUntil,
+        discountAmount: isCollectRemaining ? 0 : discountParsed.discount,
+        receivedAmount: receivedParsed.received,
       }),
     })
       .then(async (res) => {
@@ -989,6 +1110,9 @@ export function PassPayment() {
     coach,
     coachingRequired,
     passValidUntil,
+    discountParsed.discount,
+    receivedParsed.received,
+    isCollectRemaining,
   ]);
 
   const selectedBatchSlot = useMemo(
@@ -1015,13 +1139,13 @@ export function PassPayment() {
   );
 
   useEffect(() => {
-    if (!batch) return;
+    if (!batch || profileLoading) return;
     const stillAllowed = availableBatches.some((slot) => batchLabel(slot) === batch);
     if (!stillAllowed) {
       setBatch('');
       setCoach('');
     }
-  }, [availableBatches, batch]);
+  }, [availableBatches, batch, profileLoading]);
 
   const coachesForBatch = useMemo(() => {
     if (!selectedBatchSlot) return [];
@@ -1139,7 +1263,13 @@ export function PassPayment() {
 
   function collectSubmitMissing(): string[] {
     const missing = collectSharedMissing();
-    if (isUnpaidTestPassChange || onlinePayAmount <= 0) return missing;
+    if (discountParsed.error) missing.push(discountParsed.error);
+    if (receivedParsed.error) missing.push(receivedParsed.error);
+    if (isCollectRemaining && receivedParsed.received <= 0) {
+      missing.push('Enter a valid received amount');
+      return missing;
+    }
+    if (isUnpaidTestPassChange || receivedParsed.received <= 0) return missing;
     if (paymentMode !== 'Cash' && paymentMode !== 'Online') {
       missing.push('Payment mode');
     }
@@ -1166,11 +1296,41 @@ export function PassPayment() {
       const paidId = paying.id;
       setError('');
       setMissingFields([]);
-      setIssueSuccessMessage('Pass and invoice generated successfully and sent on whatsapp');
-      scheduleCloseAfterIssue(() => {
-        markSampleSwimmerPaid(paidId, selectedPass?.passName || paying.passType || 'Monthly Swim');
-        setDismissedSampleIds((ids) => (ids.includes(paidId) ? ids : [...ids, paidId]));
-      });
+      const afterSampleIssue = () => {
+        const passName = selectedPass?.passName || paying.passType || 'Monthly Swim';
+        markSampleSwimmerPaid(paidId, passName);
+        if (remainingDue <= 0) {
+          setDismissedSampleIds((ids) => (ids.includes(paidId) ? ids : [...ids, paidId]));
+          setSamplePartials((prev) => {
+            if (!(paidId in prev)) return prev;
+            const next = { ...prev };
+            delete next[paidId];
+            return next;
+          });
+          return;
+        }
+        setSamplePartials((prev) => ({
+          ...prev,
+          [paidId]: {
+            passBalanceDue: remainingDue,
+            passType: passName,
+            passValidUntil,
+            type: paying.type === 'Partial' || paying.type === 'Test' ? 'New' : paying.type,
+          },
+        }));
+      };
+      if (!isTestPassFail && !isUnpaidTestPassChange && !isCollectRemaining) {
+        finishIssuedPass(afterSampleIssue);
+        return;
+      }
+      setIssueSuccessMessage(
+        remainingDue > 0
+          ? receivedParsed.received > 0
+            ? 'Pass issued. Partially paid — remaining amount is due.'
+            : 'Pass issued without payment. Remaining amount is due.'
+          : 'Pass and invoice generated successfully and sent on whatsapp',
+      );
+      scheduleCloseAfterIssue(afterSampleIssue);
       return;
     }
     const missing = collectSubmitMissing();
@@ -1206,6 +1366,10 @@ export function PassPayment() {
                 passValidUntil,
                 paymentMode,
                 transactionId: paymentMode === 'Online' ? transactionId.trim() : null,
+                discountAmount: isCollectRemaining ? 0 : discountParsed.discount,
+                receivedAmount: receivedParsed.received,
+                remainingDue,
+                collectRemaining: isCollectRemaining,
                 upgradePaymentId: paying.upgradePaymentId ?? null,
                 isActive: true,
               },
@@ -1213,12 +1377,26 @@ export function PassPayment() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? 'Payment update failed');
+      if (!isTestPassFail && !isUnpaidTestPassChange && !isCollectRemaining) {
+        finishIssuedPass(() => {
+          void load();
+        });
+        return;
+      }
       setIssueSuccessMessage(
         isTestPassFail
           ? 'Test marked as fail. Pass is no longer valid.'
           : isUnpaidTestPassChange
             ? 'Test pass updated.'
-            : 'Pass and invoice generated successfully and sent on whatsapp',
+            : remainingDue > 0
+              ? receivedParsed.received > 0
+                ? isCollectRemaining
+                  ? 'Partial payment recorded.'
+                  : 'Pass issued. Partially paid — remaining amount is due.'
+                : 'Pass issued without payment. Remaining amount is due.'
+              : isCollectRemaining
+                ? 'Remaining payment recorded.'
+                : 'Pass and invoice generated successfully and sent on whatsapp',
       );
       scheduleCloseAfterIssue(() => {
         void load();
@@ -1237,15 +1415,31 @@ export function PassPayment() {
       ? t('Not Required')
       : coach || (selectedPass.coach === 'Any' ? t('Any') : selectedPass.coach) || t('Any');
 
+  function finishIssuedPass(afterClose?: () => void) {
+    if (!paying) {
+      afterClose?.();
+      closePay();
+      return;
+    }
+    const card = {
+      id: paying.id,
+      fullName: paying.fullName,
+      photoUrl: swimmerProfile?.photoUrl ?? null,
+      passType: selectedPass?.passName || paying.passType,
+      duration: selectedPass?.duration || '',
+      batch: batch.trim() || paying.batch,
+      coach: displayCoach || paying.coach,
+      passValidUntil,
+    };
+    afterClose?.();
+    closePay();
+    rememberSampleIssuedPass(card);
+    openPassPopup('pass', card.id, { showOk: true, card });
+  }
+
   const sampleOnlineQrUrl = samplePaying ? SAMPLE_PAYMENT_QR_URL : null;
   const onlineQrUrl = uploadUrl(paymentQrPath) ?? sampleOnlineQrUrl;
   const onlineUpi = samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails;
-  const selectedPassAmount = selectedPass
-    ? Math.round(
-        (Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0)) * 100,
-      ) / 100
-    : 0;
-  const onlinePayAmount = selectedPassAmount;
 
   const queuedSamplePayments = demoMode
     ? getSamplePassPaymentQueue()
@@ -1272,7 +1466,11 @@ export function PassPayment() {
           (row) =>
             !dismissedSampleIds.includes(row.id) &&
             !queuedSamplePayments.some((queued) => queued.id === row.id),
-        ),
+        )
+          .map((row) => {
+            const partial = samplePartials[row.id];
+            return partial ? { ...row, ...partial } : row;
+          }),
       ]
     : rows;
 
@@ -1311,6 +1509,33 @@ export function PassPayment() {
               ? ` — ${t('exceeding not allowed')}`
               : ''
           }`;
+
+  const receivedAmountInput = (
+    <div className="payment-received-amount-input payment-may-field">
+      <span className="payment-received-rupee" aria-hidden="true">
+        ₹
+      </span>
+      <input
+        type="number"
+        className="payment-may-input"
+        min="0"
+        step="0.01"
+        inputMode="decimal"
+        value={receivedTouched ? receivedText : onlinePayAmount ? String(onlinePayAmount) : '0'}
+        onChange={(e) => {
+          setReceivedTouched(true);
+          setReceivedText(e.target.value);
+          if (Number(e.target.value) <= 0) setPaymentReceived(false);
+        }}
+        placeholder={onlinePayAmount ? String(onlinePayAmount) : '0'}
+        aria-label={t('Received amount')}
+        aria-invalid={Boolean(receivedParsed.error)}
+      />
+      {receivedParsed.error ? (
+        <span className="field-error">{t(receivedParsed.error)}</span>
+      ) : null}
+    </div>
+  );
 
   return (
     <PlatformPage title="Pass Payment" className="pass-payment-page">
@@ -1372,8 +1597,11 @@ export function PassPayment() {
                     <span data-label={t('Contact')}>{row.contact}</span>
                     <span data-label={t('Email')}>{row.email !== '—' ? row.email : '—'}</span>
                     <span data-label={t('Type')}>
-                      {t(row.type)}
+                      {t(row.type === 'Partial' ? 'New' : row.type)}
                       {row.passType ? ` · ${row.passType}` : ''}
+                      {(row.passBalanceDue ?? 0) > 0 ? (
+                        <span className="pass-partial-paid"> · {t('Partially paid')}</span>
+                      ) : null}
                       {row.awaitingWhatsApp ? (
                         <span className="pass-wa-wait"> · {t('Awaiting WhatsApp payment')}</span>
                       ) : null}
@@ -1386,7 +1614,13 @@ export function PassPayment() {
                         className="terms-link"
                         onClick={() => openPay(row)}
                       >
-                        {t(row.upgradePaymentId ? 'Edit pass' : 'Pay')}
+                        {t(
+                          row.upgradePaymentId
+                            ? 'Edit pass'
+                            : row.type === 'Expired'
+                              ? 'Renew'
+                              : 'Pay',
+                        )}
                       </button>
                     </span>
                   </div>
@@ -1410,7 +1644,13 @@ export function PassPayment() {
           <div className="swimmer-edit-head">
             <div>
               <h2 id="pay-title">
-                {t(isTestPassUpdate ? 'Update test pass' : 'Collect pass payment')}
+                {t(
+                  isTestPassUpdate
+                    ? 'Update test pass'
+                    : paying.type === 'Expired'
+                      ? 'Renew Payment'
+                      : 'Collect pass payment',
+                )}
               </h2>
               <p className="pass-count">
                 {samplePaying
@@ -1418,11 +1658,26 @@ export function PassPayment() {
                   : `${paying.fullName} · ${t(paying.type)}`}
               </p>
             </div>
-            <button type="button" className="csv-btn" onClick={closePay}>
-              {t('Back to list')}
-            </button>
+            <div className="swimmer-edit-head-actions">
+              {detailsConfirmed ? (
+                <button
+                  type="button"
+                  className="csv-btn"
+                  onClick={() => {
+                    setDetailsConfirmed(false);
+                    setMissingFields([]);
+                  }}
+                >
+                  {t('Review details')}
+                </button>
+              ) : null}
+              <button type="button" className="csv-btn" onClick={closePay}>
+                {t('Back to list')}
+              </button>
+            </div>
           </div>
 
+          {!detailsConfirmed ? (
           <SwimmerProfileReview
             profile={swimmerProfile}
             loading={profileLoading}
@@ -1456,6 +1711,7 @@ export function PassPayment() {
               ) : null
             }
           />
+          ) : null}
 
           {detailsConfirmed ? (
           <form
@@ -1499,7 +1755,8 @@ export function PassPayment() {
 
               {!isTestPassFail ? (
               <>
-              <label className="field payment-pass-type-field">
+              <div className="payment-pass-batch-coach-row">
+              <label className="field payment-pass-type-field payment-must-field">
                 <span className="label">
                   {t('Pass')} <span className="req">*</span>
                 </span>
@@ -1508,10 +1765,14 @@ export function PassPayment() {
                   value={passTypeId}
                   placeholder={t('Select pass')}
                   searchable
+                  required
+                  disabled={isCollectRemaining}
                   onChange={(next) => {
                     setPassTypeId(next);
                     setCoach('');
                     setMissingFields([]);
+                    setDiscountText('0');
+                    setReceivedTouched(false);
                   }}
                   options={paymentPassTypes.map((pass) => ({
                     value: String(pass.id),
@@ -1521,57 +1782,7 @@ export function PassPayment() {
                 />
               </label>
 
-              {selectedPass ? (
-                <div className="payment-summary">
-                  <div className="payment-summary-cell">
-                    <span className="payment-summary-label">{t('Duration of pass')}</span>
-                    <span className="payment-summary-value">{selectedPass.duration}</span>
-                  </div>
-                  <div className="payment-summary-cell">
-                    <span className="payment-summary-label">{t('Pass charges')}</span>
-                    <span className="payment-summary-value">
-                      {formatMoney(selectedPass.passCharges)}
-                    </span>
-                  </div>
-                  <div className="payment-summary-cell">
-                    <span className="payment-summary-label">{t('Coach')}</span>
-                    <span className="payment-summary-value">{displayCoach}</span>
-                  </div>
-                  <div className="payment-summary-cell">
-                    <span className="payment-summary-label">{t('Issue date')}</span>
-                    <input
-                      type="date"
-                      value={passStartDate}
-                      onChange={(e) => setPassStartDate(e.target.value || todayIso())}
-                      aria-label={t('Issue date')}
-                    />
-                  </div>
-                  <div className="payment-summary-cell">
-                    <span className="payment-summary-label">{t('Expiry date')}</span>
-                    <span className="payment-summary-value">{passValidUntil}</span>
-                  </div>
-                  <div className="payment-summary-cell payment-summary-holidays">
-                    <span className="payment-summary-label">{t('Holidays')}</span>
-                    {holidaysLoading ? (
-                      <span className="hint">{t('Loading holidays…')}</span>
-                    ) : periodHolidays.length === 0 ? (
-                      <span className="hint">{t('No holidays in this pass period.')}</span>
-                    ) : (
-                      <ul className="pass-period-holiday-list">
-                        {periodHolidays.map((item) => (
-                          <li key={`${item.date}-${item.name}`}>
-                            <span className="pass-period-holiday-name">{item.name}</span>
-                            <span className="pass-period-holiday-date">{item.date}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="payment-batch-coach-row">
-                <label className="field payment-batch-field">
+                <label className="field payment-batch-field payment-must-field">
                   <span className="label">
                     {t('Batch')} <span className="req">*</span>
                   </span>
@@ -1589,6 +1800,7 @@ export function PassPayment() {
                       aria-label={t('Batch')}
                       value={batch}
                       placeholder={t('Select batch')}
+                      required
                       onChange={(next) => {
                         setBatch(next);
                         setCoach('');
@@ -1602,13 +1814,15 @@ export function PassPayment() {
                   )}
                 </label>
 
-                {coachingRequired && batch ? (
-                  <label className="field payment-coach-field">
+                {coachingRequired ? (
+                  <label className="field payment-coach-field payment-must-field">
                     <span className="label">
                       {t('Coach')} <span className="req">*</span>
                     </span>
                     <div className="payment-coach-select-wrap">
-                      {coachesForBatch.length === 0 ? (
+                      {!batch ? (
+                        <p className="batch-empty">{t('Select a batch to see coaches.')}</p>
+                      ) : coachesForBatch.length === 0 ? (
                         <p className="batch-empty">
                           {t(
                             'No active coaches are available for this batch. Activate coaches in Staff List and assign them to this batch.',
@@ -1619,6 +1833,7 @@ export function PassPayment() {
                           aria-label={t('Coach')}
                           value={coach}
                           placeholder={t('Select coach')}
+                          required
                           onChange={(next) => {
                             setCoach(next);
                             setMissingFields([]);
@@ -1642,6 +1857,89 @@ export function PassPayment() {
                   </label>
                 ) : null}
               </div>
+
+              {selectedPass ? (
+                <div className="payment-summary">
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">{t('Duration of pass')}</span>
+                    <span className="payment-summary-value">{selectedPass.duration}</span>
+                  </div>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">{t('Pass charges')}</span>
+                    <span className="payment-summary-value">
+                      {formatMoney(selectedPass.passCharges)}
+                    </span>
+                  </div>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">{t('Coach')}</span>
+                    <span className="payment-summary-value">{displayCoach}</span>
+                  </div>
+                  <div className="payment-summary-cell payment-may-field">
+                    <span className="payment-summary-label">{t('Issue date')}</span>
+                    <input
+                      type="date"
+                      className="payment-may-input"
+                      value={passStartDate}
+                      onChange={(e) => setPassStartDate(e.target.value || todayIso())}
+                      aria-label={t('Issue date')}
+                      disabled={isCollectRemaining}
+                    />
+                  </div>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">{t('Expiry date')}</span>
+                    <span className="payment-summary-value">{passValidUntil}</span>
+                  </div>
+                  <div className="payment-summary-cell payment-summary-holidays">
+                    <span className="payment-summary-label">{t('Holidays')}</span>
+                    {holidaysLoading ? (
+                      <span className="hint">{t('Loading holidays…')}</span>
+                    ) : periodHolidays.length === 0 ? (
+                      <span className="hint">{t('No holidays in this pass period.')}</span>
+                    ) : (
+                      <ul className="pass-period-holiday-list">
+                        {periodHolidays.map((item) => (
+                          <li key={`${item.date}-${item.name}`}>
+                            <span className="pass-period-holiday-name">{item.name}</span>
+                            <span className="pass-period-holiday-date">{item.date}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">{t('Amount to be paid')}</span>
+                    <span className="payment-summary-value">
+                      {formatMoney(isCollectRemaining ? onlinePayAmount : selectedPassAmount)}
+                    </span>
+                  </div>
+                  {isCollectRemaining ? null : (
+                  <div className="payment-summary-cell payment-may-field">
+                    <span className="payment-summary-label">{t('Discount')}</span>
+                    <input
+                      type="number"
+                      className="payment-may-input"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      value={discountText === '' ? '0' : discountText}
+                      onChange={(e) => setDiscountText(e.target.value === '' ? '0' : e.target.value)}
+                      aria-label={t('Discount')}
+                      aria-invalid={Boolean(discountParsed.error)}
+                    />
+                    {discountParsed.error ? (
+                      <span className="field-error">{t(discountParsed.error)}</span>
+                    ) : null}
+                  </div>
+                  )}
+                  {isCollectRemaining ? null : (
+                  <div className="payment-summary-cell">
+                    <span className="payment-summary-label">{t('Payable')}</span>
+                    <span className="payment-summary-value">{formatMoney(onlinePayAmount)}</span>
+                  </div>
+                  )}
+                </div>
+              ) : null}
+
               </>
               ) : (
                 <p className="muted">
@@ -1649,42 +1947,45 @@ export function PassPayment() {
                 </p>
               )}
 
-              {onlinePayAmount > 0 && !isUnpaidTestPassChange ? (
-                <div
-                  className={`payment-mode-row${
-                    paymentMode === 'Online' ? ' payment-mode-row--online' : ''
-                  }`}
-                >
-                <div className="payment-mode-left">
-                  <div className="field payment-mode-field">
-                    <span className="label">
-                      {t('Payment mode')} <span className="req">*</span>
-                    </span>
-                    <div className="payment-mode-choices" role="radiogroup" aria-label={t('Payment mode')}>
-                      {paymentModes.map((mode) => (
-                        <label
-                          key={mode}
-                          className={`choice-chip${paymentMode === mode ? ' selected' : ''}`}
-                        >
-                          <input
-                            type="radio"
-                            name="paymentMode"
-                            value={mode}
-                            checked={paymentMode === mode}
-                            onChange={() => {
-                              setPaymentMode(mode);
-                              setPaymentReceived(false);
-                              setTransactionId('');
-                            }}
-                            required
-                          />
-                          {t(mode)}
-                        </label>
-                      ))}
+              {isTestPassFail || isUnpaidTestPassChange ? null : (
+                <>
+                <div className="payment-mode-row">
+                  <div className="payment-mode-col">
+                    <div className="field payment-mode-field">
+                      <span className="label">
+                        {t('Payment mode')}
+                        {receivedParsed.received > 0 ? (
+                          <>
+                            {' '}
+                            <span className="req">*</span>
+                          </>
+                        ) : null}
+                      </span>
+                      <div className="payment-mode-choices" role="radiogroup" aria-label={t('Payment mode')}>
+                        {paymentModes.map((mode) => (
+                          <label
+                            key={mode}
+                            className={`choice-chip${paymentMode === mode ? ' selected' : ''}`}
+                          >
+                            <input
+                              type="radio"
+                              name="paymentMode"
+                              value={mode}
+                              checked={paymentMode === mode}
+                              onChange={() => {
+                                setPaymentMode(mode);
+                                setPaymentReceived(false);
+                                setTransactionId('');
+                              }}
+                              required={receivedParsed.received > 0}
+                            />
+                            {t(mode)}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
-
-                  {paymentMode === 'Cash' ? (
+                  <div className="payment-mode-col payment-mode-col--received">
                     <label className="payment-received-check payment-received-check--cash">
                       <input
                         type="checkbox"
@@ -1693,9 +1994,20 @@ export function PassPayment() {
                       />
                       <span>{t('Payment Received')}</span>
                     </label>
-                  ) : null}
+                    {receivedAmountInput}
+                  </div>
+                  <div className="payment-mode-col">
+                    {remainingDue > 0 ? (
+                      <span className="payment-summary-remaining">
+                        {t('Remaining amount')} {formatMoney(remainingDue)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
 
-                  {paymentMode === 'Online' ? (
+                {receivedParsed.received > 0 && paymentMode === 'Online' ? (
+                <div className="payment-mode-row payment-mode-row--online">
+                <div className="payment-mode-left">
                     <div className="payment-mode-online-followup">
                       {onlineDetailsLoading && !samplePaying ? (
                         <p className="muted payment-mode-online-muted">{t('Loading payment details…')}</p>
@@ -1714,25 +2026,10 @@ export function PassPayment() {
                               {t('No UPI ID set in Pool Core Info.')}
                             </p>
                           )}
-                          {onlinePayAmount > 0 ? (
-                            <>
-                              <span className="online-payment-upi-heading">
-                                <span className="label">{t('Amount to pay')}</span>
-                                <span className="online-payment-upi-sep" aria-hidden="true">
-                                  -
-                                </span>
-                              </span>
-                              <span className="online-payment-upi-value">
-                                {formatMoney(onlinePayAmount)}
-                              </span>
-                            </>
-                          ) : null}
                         </>
                       )}
                     </div>
-                  ) : null}
 
-                  {paymentMode === 'Online' ? (
                     <div className="online-payment-details">
                       <label className="field transaction-id-field">
                         <span className="label">
@@ -1756,10 +2053,8 @@ export function PassPayment() {
                         <span>{t('I confirmed amount and upi id of successful payment')}</span>
                       </label>
                     </div>
-                  ) : null}
                 </div>
 
-                {paymentMode === 'Online' ? (
                   <div className="online-payment-qr-panel">
                     {onlineDetailsLoading && !samplePaying ? null : onlineQrUrl ? (
                       isPdfUrl(onlineQrUrl) ? (
@@ -1779,9 +2074,10 @@ export function PassPayment() {
                       <p className="muted">{t('No payment QR code set in Pool Core Info.')}</p>
                     )}
                   </div>
-                ) : null}
                 </div>
-              ) : null}
+                ) : null}
+                </>
+              )}
 
               {error ? <p className="error">{t(error)}</p> : null}
               {missingFields.length > 0 ? (
@@ -1815,7 +2111,7 @@ export function PassPayment() {
                     className="submit"
                     disabled={
                       saving ||
-                      (!isUnpaidTestPassChange && onlinePayAmount > 0 && !paymentReceived) ||
+                      (!isUnpaidTestPassChange && receivedParsed.received > 0 && !paymentReceived) ||
                       Boolean(issueSuccessMessage)
                     }
                   >
@@ -1825,7 +2121,13 @@ export function PassPayment() {
                         : t('Issuing…')
                       : isTestPassFail
                         ? t('Mark as fail')
-                        : t(isUnpaidTestPassChange ? 'Update Pass' : 'Issue Pass')}
+                        : t(
+                            isUnpaidTestPassChange
+                              ? 'Update Pass'
+                              : isCollectRemaining
+                                ? 'Record payment'
+                                : 'Issue Pass',
+                          )}
                   </button>
                 </div>
               </div>

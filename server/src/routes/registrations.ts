@@ -32,8 +32,8 @@ import {
 import { maybeNotifyBatchCoachOverLimit, checkBatchCoachCapacity } from '../batchCapacity.js';
 import { newPaymentShareToken, whatsAppPayShareUrl } from '../upiPayQr.js';
 import { maybeNotifyPackageSwimmerCapacity } from '../packageCapacityWarnings.js';
-import { INDIA_SQL_TODAY, indiaDaysAgoIso } from '../indiaDate.js';
-import { insertPassPayment, loadLatestPassInvoice, poolLogoUrl } from '../passInvoice.js';
+import { INDIA_SQL_TODAY, indiaDaysAgoIso, indiaTodayIso } from '../indiaDate.js';
+import { insertPassPayment, loadLatestPassInvoice, money, parseReceivedAmount, passPayable, poolLogoUrl } from '../passInvoice.js';
 import {
   applyLatestScreenshotToIntent,
   completePendingScreenshotAutoRenews,
@@ -197,6 +197,7 @@ function mapRegistrationRow(row: Record<string, unknown>) {
       : null,
     created_at: row.created_at,
     pending_type: row.pending_type,
+    pass_balance_due: Number(row.pass_balance_due ?? 0) || 0,
     test_result: row.test_result ? String(row.test_result) : null,
     test_required: row.test_required === true,
   };
@@ -277,7 +278,12 @@ registrationsRouter.get('/pending-payment', requirePages('pass-payment'), async 
     const { rows } = await pool.query(
       `SELECT r.id, r.full_name, r.email, r.whatsapp_mobile, r.birthdate, r.sex, r.blood_group,
               r.is_active, r.pass_type, r.batch, r.coach, r.pass_valid_until, r.created_at,
+              COALESCE(r.pass_balance_due, 0) AS pass_balance_due,
               CASE
+                WHEN COALESCE(r.pass_balance_due, 0) > 0
+                 AND r.pass_valid_until IS NOT NULL
+                 AND r.pass_valid_until >= ${INDIA_SQL_TODAY}
+                THEN 'Partial'
                 WHEN test_payment.id IS NOT NULL THEN 'Test'
                 WHEN r.pass_valid_until IS NULL THEN 'New'
                 ELSE 'Expired'
@@ -306,15 +312,13 @@ registrationsRouter.get('/pending-payment', requirePages('pass-payment'), async 
        ) test_payment ON TRUE
        WHERE r.saas_account_id = $1
          AND (
-           -- New / unpaid registrations
-           r.pass_valid_until IS NULL
+           COALESCE(r.pass_balance_due, 0) > 0
+           OR r.pass_valid_until IS NULL
            OR (
-             -- Pass expired within last 3 days
              r.pass_valid_until < ${INDIA_SQL_TODAY}
              AND r.pass_valid_until >= (${INDIA_SQL_TODAY} - INTERVAL '3 days')
            )
            OR (
-             -- Reopened from Inactive after the 3-day expiry window
              COALESCE(r.is_active, FALSE) = FALSE
              AND r.inactive_at IS NOT NULL
              AND r.inactive_at::date >= (${INDIA_SQL_TODAY} - INTERVAL '3 days')
@@ -740,6 +744,10 @@ registrationsRouter.patch(
       transactionId?: string | null;
       upgradePaymentId?: number | null;
       testResult?: string | null;
+      discountAmount?: number | string | null;
+      discount?: number | string | null;
+      receivedAmount?: number | string | null;
+      collectRemaining?: boolean;
     };
 
     const paymentPatch = isPassPaymentPatch(body as Record<string, unknown>);
@@ -831,9 +839,34 @@ registrationsRouter.patch(
       Boolean(String(body.passType ?? '').trim()) &&
       Boolean(body.passValidUntil);
 
-    let selectedPassPrice = 0;
+    const { rows: currentRows } = await pool.query(
+      `SELECT pass_balance_due, pass_valid_until, is_active, pass_type
+         FROM registrations
+        WHERE id = $1 AND saas_account_id = $2`,
+      [id, accountId],
+    );
+    const current = currentRows[0] as
+      | {
+          pass_balance_due?: string | number;
+          pass_valid_until?: string | Date | null;
+          is_active?: boolean;
+          pass_type?: string | null;
+        }
+      | undefined;
+    const currentDue = money(Number(current?.pass_balance_due ?? 0));
+    const currentUntil = formatPlainDate(current?.pass_valid_until);
+    const todayIso = indiaTodayIso();
+    const isCollectRemaining =
+      isPassPayment &&
+      Boolean(body.collectRemaining) &&
+      currentDue > 0 &&
+      Boolean(currentUntil) &&
+      currentUntil >= todayIso;
+
+    let selectedPassDiscount = 0;
+    let selectedPassPayable = 0;
     let selectedPassIsTest = false;
-    if (isPassPayment) {
+    if (isPassPayment && !isCollectRemaining) {
       const passAvailability = await pool.query(
         `SELECT id, pass_charges, coaching_charges, COALESCE(test_required, FALSE) AS test_required
          FROM pass_types
@@ -855,9 +888,35 @@ registrationsRouter.patch(
         return;
       }
       selectedPassIsTest = Boolean(passAvailability.rows[0].test_required);
-      selectedPassPrice =
-        Number(passAvailability.rows[0].pass_charges ?? 0) +
-        Number(passAvailability.rows[0].coaching_charges ?? 0);
+      const payableParsed = passPayable(
+        Number(passAvailability.rows[0].pass_charges ?? 0),
+        Number(passAvailability.rows[0].coaching_charges ?? 0),
+        body.discountAmount ?? body.discount,
+      );
+      if ('error' in payableParsed) {
+        res.status(400).json({ error: payableParsed.error });
+        return;
+      }
+      selectedPassDiscount = payableParsed.discountAmount;
+      selectedPassPayable = payableParsed.payableAmount;
+    } else if (isCollectRemaining) {
+      selectedPassPayable = currentDue;
+      selectedPassDiscount = 0;
+    }
+
+    const dueAmount = isCollectRemaining ? currentDue : selectedPassPayable;
+    const receivedParsed = isPassPayment
+      ? parseReceivedAmount(body.receivedAmount, dueAmount)
+      : { received: 0 };
+    if ('error' in receivedParsed) {
+      res.status(400).json({ error: receivedParsed.error });
+      return;
+    }
+    const receivedAmount = receivedParsed.received;
+    const remainingDue = money(Math.max(0, dueAmount - receivedAmount));
+    if (isCollectRemaining && receivedAmount <= 0) {
+      res.status(400).json({ error: 'Enter a valid received amount' });
+      return;
     }
 
     let originalTestPass = '';
@@ -881,7 +940,7 @@ registrationsRouter.patch(
     if (
       isPassPayment &&
       !isTestPassChange &&
-      selectedPassPrice > 0 &&
+      receivedAmount > 0 &&
       paymentMode !== 'Cash' &&
       paymentMode !== 'Online'
     ) {
@@ -893,7 +952,7 @@ registrationsRouter.patch(
     if (
       isPassPayment &&
       !isTestPassChange &&
-      selectedPassPrice > 0 &&
+      receivedAmount > 0 &&
       paymentMode === 'Online' &&
       !transactionId
     ) {
@@ -903,7 +962,7 @@ registrationsRouter.patch(
     if (
       isPassPayment &&
       !isTestPassChange &&
-      selectedPassPrice > 0 &&
+      receivedAmount > 0 &&
       paymentMode === 'Online' &&
       transactionId
     ) {
@@ -961,7 +1020,7 @@ registrationsRouter.patch(
       values.push(Boolean(body.isActive));
       updates.push(`is_active = $${values.length}`);
     }
-    if (body.passType !== undefined) {
+    if (body.passType !== undefined && !isCollectRemaining) {
       values.push(body.passType?.trim() || null);
       updates.push(`pass_type = $${values.length}`);
     }
@@ -969,9 +1028,13 @@ registrationsRouter.patch(
       values.push(body.coach?.trim() || null);
       updates.push(`coach = $${values.length}`);
     }
-    if (body.passValidUntil !== undefined) {
+    if (body.passValidUntil !== undefined && !isCollectRemaining) {
       values.push(body.passValidUntil || null);
       updates.push(`pass_valid_until = $${values.length}`);
+    }
+    if (isPassPayment) {
+      values.push(remainingDue);
+      updates.push(`pass_balance_due = $${values.length}`);
     }
     if (isPassPayment) {
       values.push(selectedPassIsTest ? 'pass' : null);
@@ -1012,8 +1075,9 @@ registrationsRouter.patch(
       );
       const passCharges = Number(passRes.rows[0]?.pass_charges ?? 0);
       const coachingCharges = Number(passRes.rows[0]?.coaching_charges ?? 0);
-      const amount = passCharges + coachingCharges;
-      if (!isTestPassChange) {
+      const amount = receivedAmount;
+      const discountAmount = isCollectRemaining ? 0 : selectedPassDiscount;
+      if (!isTestPassChange && receivedAmount > 0) {
         await insertPassPayment({
           accountId,
           registrationId: Number(updated.id),
@@ -1022,8 +1086,10 @@ registrationsRouter.patch(
           passCharges,
           coachingCharges,
           amount,
-          paymentMode: amount > 0 ? paymentMode : 'No payment',
-          transactionId: amount > 0 && paymentMode === 'Online' ? transactionId : null,
+          discountAmount,
+          remark: remainingDue > 0 ? 'Partially paid' : '',
+          paymentMode: paymentMode || 'No payment',
+          transactionId: paymentMode === 'Online' ? transactionId : null,
           upgradeSourcePaymentId: upgradePaymentId > 0 ? upgradePaymentId : null,
         });
       }
@@ -1040,7 +1106,9 @@ registrationsRouter.patch(
         `SELECT account_code FROM saas_accounts WHERE id = $1`,
         [accountId],
       );
-      const whatsapp = await notifyPassIssued({
+      const whatsapp = isCollectRemaining
+        ? { skipped: true as const }
+        : await notifyPassIssued({
         mobile: String(updated.whatsapp_mobile),
         fullName: String(updated.full_name),
         passType: passName,
@@ -1048,7 +1116,7 @@ registrationsRouter.patch(
         registrationId: Number(updated.id),
         accountCode: String(account.rows[0]?.account_code ?? ''),
         saasAccountId: accountId,
-        sendInvoice: !isTestPassChange,
+        sendInvoice: !isTestPassChange && receivedAmount > 0,
       }).catch((err) => {
         console.warn('[whatsapp] pass notify failed', err);
         return {
@@ -1468,6 +1536,9 @@ registrationsRouter.post(
       batch?: string;
       coach?: string | null;
       passValidUntil?: string;
+      discountAmount?: number | string;
+      discount?: number | string;
+      receivedAmount?: number | string;
     };
     const passType = String(body.passType ?? '').trim();
     const batch = String(body.batch ?? '').trim();
@@ -1538,7 +1609,18 @@ registrationsRouter.post(
     }
     const passCharges = Number(passRes.rows[0].pass_charges ?? 0);
     const coachingCharges = Number(passRes.rows[0].coaching_charges ?? 0);
-    const expectedAmount = Math.round((passCharges + coachingCharges) * 100) / 100;
+    const payableParsed = passPayable(passCharges, coachingCharges, body.discountAmount ?? body.discount);
+    if ('error' in payableParsed) {
+      res.status(400).json({ error: payableParsed.error });
+      return;
+    }
+    const payableAmount = payableParsed.payableAmount;
+    const receivedParsed = parseReceivedAmount(body.receivedAmount, payableAmount);
+    if ('error' in receivedParsed) {
+      res.status(400).json({ error: receivedParsed.error });
+      return;
+    }
+    const expectedAmount = receivedParsed.received;
     if (expectedAmount <= 0) {
       res.status(400).json({ error: 'Pass amount must be greater than zero' });
       return;
@@ -1665,6 +1747,9 @@ registrationsRouter.post(
       batch?: string;
       coach?: string | null;
       passValidUntil?: string;
+      discountAmount?: number | string;
+      discount?: number | string;
+      receivedAmount?: number | string;
     };
     const passType = String(body.passType ?? '').trim();
     const batch = String(body.batch ?? '').trim();
@@ -1721,9 +1806,20 @@ registrationsRouter.post(
     }
     const passCharges = Number(passRes.rows[0].pass_charges ?? 0);
     const coachingCharges = Number(passRes.rows[0].coaching_charges ?? 0);
-    const expectedAmount = Math.round((passCharges + coachingCharges) * 100) / 100;
+    const payableParsed = passPayable(passCharges, coachingCharges, body.discountAmount ?? body.discount);
+    if ('error' in payableParsed) {
+      res.status(400).json({ error: payableParsed.error });
+      return;
+    }
+    const payableAmount = payableParsed.payableAmount;
+    const receivedParsed = parseReceivedAmount(body.receivedAmount, payableAmount);
+    if ('error' in receivedParsed) {
+      res.status(400).json({ error: receivedParsed.error });
+      return;
+    }
+    const expectedAmount = receivedParsed.received;
     if (expectedAmount <= 0) {
-      res.status(400).json({ error: 'Pass amount must be greater than zero' });
+      res.json({ ok: true, expectedAmount: 0 });
       return;
     }
 

@@ -55,9 +55,14 @@ export async function ensureSchema() {
       ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_start_date DATE;
       ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_end_date DATE;
       ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS saas_account_id INT;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS gender TEXT NOT NULL DEFAULT 'All';
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS age_from INT NOT NULL DEFAULT 0;
+      ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS age_to INT;
       UPDATE pass_types
          SET verification_mode = 'ok_not_ok'
        WHERE verification_mode IS NULL OR TRIM(verification_mode) = '';
+      UPDATE pass_types SET gender = 'All' WHERE gender IS NULL OR TRIM(gender) = '';
+      UPDATE pass_types SET age_from = 0 WHERE age_from IS NULL;
     END $$;
   `);
 
@@ -78,6 +83,7 @@ export async function ensureSchema() {
         RETURN;
       END IF;
       ALTER TABLE registrations ADD COLUMN IF NOT EXISTS test_result TEXT;
+      ALTER TABLE registrations ADD COLUMN IF NOT EXISTS pass_balance_due NUMERIC(12, 2) NOT NULL DEFAULT 0;
     END $$;
   `);
 
@@ -103,6 +109,8 @@ export async function ensureSchema() {
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
       ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS screenshot_path TEXT;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
+      ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS remark TEXT NOT NULL DEFAULT '';
     END $$;
   `);
   await pool.query(`

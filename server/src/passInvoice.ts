@@ -16,6 +16,41 @@ export function money(n: number) {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
+export function parsePassDiscount(raw: unknown, listAmount: number): { discount: number } | { error: string } {
+  if (raw == null || String(raw).trim() === '') return { discount: 0 };
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return { error: 'Enter a valid discount' };
+  const discount = money(n);
+  if (discount > money(listAmount) + 0.001) {
+    return { error: 'Discount cannot be greater than the pass amount' };
+  }
+  return { discount };
+}
+
+export function passPayable(passCharges: number, coachingCharges: number, discountRaw: unknown) {
+  const listAmount = money(Number(passCharges) + Number(coachingCharges));
+  const parsed = parsePassDiscount(discountRaw, listAmount);
+  if ('error' in parsed) return parsed;
+  return {
+    listAmount,
+    discountAmount: parsed.discount,
+    payableAmount: money(listAmount - parsed.discount),
+  };
+}
+
+export function parseReceivedAmount(raw: unknown, dueAmount: number): { received: number } | { error: string } {
+  if (raw === undefined || raw === null) return { received: money(dueAmount) };
+  const trimmed = String(raw).trim();
+  if (trimmed === '') return { received: 0 };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return { error: 'Enter a valid received amount' };
+  const received = money(n);
+  if (received > money(dueAmount) + 0.001) {
+    return { error: 'Received amount cannot be greater than the payable amount' };
+  }
+  return { received };
+}
+
 /** Paid amount already includes tax; reverse out GST. */
 export function splitInclusiveTax(total: number, percent = passGstPercent()) {
   const amount = money(Math.max(0, Number(total) || 0));
@@ -207,6 +242,8 @@ export async function insertPassPayment(params: {
   passCharges: number;
   coachingCharges: number;
   amount: number;
+  discountAmount?: number;
+  remark?: string;
   paymentMode: string;
   transactionId: string | null;
   upgradeSourcePaymentId: number | null;
@@ -216,6 +253,8 @@ export async function insertPassPayment(params: {
 }) {
   const db = params.client ?? pool;
   const tax = splitInclusiveTax(params.amount);
+  const discountAmount = money(Math.max(0, Number(params.discountAmount ?? 0) || 0));
+  const remark = String(params.remark ?? '').trim();
   const paymentDate =
     params.paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(params.paymentDate)
       ? params.paymentDate
@@ -232,9 +271,9 @@ export async function insertPassPayment(params: {
   const { rows } = await db.query(
     `INSERT INTO pass_payments
      (saas_account_id, registration_id, swimmer_name, pass_type, pass_charges, coaching_charges,
-      amount, payment_date, payment_mode, transaction_id, upgrade_source_payment_id,
-      tax_inclusive, gst_percent, gst_amount, taxable_amount, screenshot_path)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::date, ${INDIA_SQL_TODAY}), $9, $10, $11, TRUE, $12, $13, $14, $15)
+      amount, discount_amount, payment_date, payment_mode, transaction_id, upgrade_source_payment_id,
+      tax_inclusive, gst_percent, gst_amount, taxable_amount, screenshot_path, remark)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::date, ${INDIA_SQL_TODAY}), $10, $11, $12, TRUE, $13, $14, $15, $16, $17)
      RETURNING id, payment_date`,
     [
       params.accountId,
@@ -244,6 +283,7 @@ export async function insertPassPayment(params: {
       params.passCharges,
       params.coachingCharges,
       tax.amount,
+      discountAmount,
       paymentDate,
       params.paymentMode,
       params.transactionId,
@@ -252,6 +292,7 @@ export async function insertPassPayment(params: {
       tax.gstAmount,
       tax.taxableAmount,
       screenshotPath,
+      remark,
     ],
   );
   const id = Number(rows[0].id);

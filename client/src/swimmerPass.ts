@@ -1,6 +1,6 @@
 import { isApplicationDemo } from './applicationDemo';
 import { tenantPath } from './tenantSession';
-import { requestPassPopup } from './passPopupEvents';
+import { requestPassPopup, type PassPopupCard } from './passPopupEvents';
 
 export type SwimmerPassDetails = {
   id: number;
@@ -134,7 +134,191 @@ const SAMPLE_PASSES: Record<number, SwimmerPassDetails> = {
     qrCode: 'SWIMIT:-104',
     hasPass: true,
   },
+  [-105]: {
+    id: -105,
+    fullName: 'Rohan Mehta',
+    contact: '9012345678',
+    email: 'rohan@example.com',
+    birthdate: '2004-08-19',
+    sex: 'Male',
+    bloodGroup: 'O+',
+    isActive: false,
+    passType: 'Monthly Swim',
+    duration: '1 Month',
+    batch: 'Morning A — Mixed — 06:00 to 07:00',
+    coach: 'Riya Kulkarni',
+    passValidUntil: endOfMonthIso(),
+    photoUrl: null,
+    emergencyName: 'Parent / Guardian',
+    emergencyRelation: 'Parent',
+    emergencyMobile: '9012345678',
+    parentName: 'Parent / Guardian',
+    parentRelation: 'Parent',
+    parentMobile: '9012345678',
+    qrCode: 'SWIMIT:-105',
+    hasPass: true,
+  },
+  [-106]: {
+    id: -106,
+    fullName: 'Isha Nair',
+    contact: '9090909091',
+    email: 'isha@example.com',
+    birthdate: '2007-12-02',
+    sex: 'Female',
+    bloodGroup: 'B+',
+    isActive: false,
+    passType: 'Quarterly Swim',
+    duration: '3 Months',
+    batch: 'Evening B — Mixed — 18:00 to 19:00',
+    coach: 'Amit Sharma',
+    passValidUntil: endOfMonthIso(),
+    photoUrl: null,
+    emergencyName: 'Parent / Guardian',
+    emergencyRelation: 'Parent',
+    emergencyMobile: '9090909091',
+    parentName: 'Parent / Guardian',
+    parentRelation: 'Parent',
+    parentMobile: '9090909091',
+    qrCode: 'SWIMIT:-106',
+    hasPass: true,
+  },
+  [-107]: {
+    id: -107,
+    fullName: 'Kabir Shah',
+    contact: '9123456781',
+    email: 'kabir@example.com',
+    birthdate: '2009-05-14',
+    sex: 'Male',
+    bloodGroup: 'A+',
+    isActive: false,
+    passType: 'Monthly Swim',
+    duration: '1 Month',
+    batch: 'Morning A — Mixed — 06:00 to 07:00',
+    coach: 'Neha Deshmukh',
+    passValidUntil: endOfMonthIso(),
+    photoUrl: null,
+    emergencyName: 'Parent / Guardian',
+    emergencyRelation: 'Parent',
+    emergencyMobile: '9123456781',
+    parentName: 'Parent / Guardian',
+    parentRelation: 'Parent',
+    parentMobile: '9123456781',
+    qrCode: 'SWIMIT:-107',
+    hasPass: true,
+  },
 };
+
+/** Pass Payment sample queue uses -1 / -2; Swimmer List uses -101… */
+const SAMPLE_PASS_ALIASES: Record<number, number> = {
+  [-1]: -101,
+  [-2]: -104,
+};
+
+const ISSUED_SAMPLE_PASS_PREFIX = 'swimIT.sampleIssuedPass.';
+
+function cloneSamplePass(base: SwimmerPassDetails, id: number, patch?: Partial<SwimmerPassDetails>): SwimmerPassDetails {
+  return {
+    ...base,
+    ...patch,
+    id,
+    qrCode: `SWIMIT:${id}`,
+    hasPass: true,
+    passValidUntil: patch?.passValidUntil || endOfMonthIso(),
+  };
+}
+
+export function passDetailsFromCard(card: PassPopupCard): SwimmerPassDetails {
+  return {
+    id: card.id,
+    fullName: card.fullName,
+    contact: '',
+    email: '',
+    birthdate: '',
+    sex: '',
+    bloodGroup: '',
+    isActive: true,
+    passType: card.passType,
+    duration: card.duration,
+    batch: card.batch,
+    coach: card.coach,
+    passValidUntil: card.passValidUntil || endOfMonthIso(),
+    photoUrl: card.photoUrl,
+    emergencyName: '',
+    emergencyRelation: '',
+    emergencyMobile: '',
+    parentName: '',
+    parentRelation: '',
+    parentMobile: '',
+    qrCode: `SWIMIT:${card.id}`,
+    hasPass: true,
+  };
+}
+
+export function rememberSampleIssuedPass(card: PassPopupCard) {
+  if (!(card.id < 0)) return;
+  try {
+    sessionStorage.setItem(ISSUED_SAMPLE_PASS_PREFIX + card.id, JSON.stringify(passDetailsFromCard(card)));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function readSampleIssuedPass(id: number): SwimmerPassDetails | null {
+  try {
+    const raw = sessionStorage.getItem(ISSUED_SAMPLE_PASS_PREFIX + id);
+    return raw ? (JSON.parse(raw) as SwimmerPassDetails) : null;
+  } catch {
+    return null;
+  }
+}
+
+function samplePassForId(id: number): SwimmerPassDetails {
+  const remembered = readSampleIssuedPass(id);
+  if (remembered) return { ...remembered, passValidUntil: remembered.passValidUntil || endOfMonthIso() };
+
+  const direct = SAMPLE_PASSES[id];
+  if (direct) return cloneSamplePass(direct, id);
+
+  const aliased = SAMPLE_PASSES[SAMPLE_PASS_ALIASES[id]];
+  if (aliased) {
+    if (id === -2) {
+      return cloneSamplePass(aliased, id, {
+        fullName: 'Neha Deshmukh',
+        contact: '9123456780',
+        email: 'neha@example.com',
+        passType: 'Quarterly Swim',
+        duration: '3 Months',
+        isActive: true,
+      });
+    }
+    return cloneSamplePass(aliased, id);
+  }
+
+  return {
+    id,
+    fullName: 'Sample swimmer',
+    contact: '',
+    email: '',
+    birthdate: '',
+    sex: '',
+    bloodGroup: '',
+    isActive: true,
+    passType: 'Monthly Swim',
+    duration: '1 Month',
+    batch: 'Morning A — Mixed — 06:00 to 07:00',
+    coach: 'Riya Kulkarni',
+    passValidUntil: endOfMonthIso(),
+    photoUrl: null,
+    emergencyName: '',
+    emergencyRelation: '',
+    emergencyMobile: '',
+    parentName: '',
+    parentRelation: '',
+    parentMobile: '',
+    qrCode: `SWIMIT:${id}`,
+    hasPass: true,
+  };
+}
 
 export function idCardUrl(id: number) {
   const path = tenantPath(`/id-card/${id}`);
@@ -149,8 +333,12 @@ export function isPassPopupWindow() {
 }
 
 /** Opens Pass QR / Pass / invoices as an in-page popup (not a new browser tab). */
-export function openPassPopup(kind: 'qr' | 'pass' | 'invoice', id: number) {
-  requestPassPopup(kind, id);
+export function openPassPopup(
+  kind: 'qr' | 'pass' | 'invoice',
+  id: number,
+  options?: { showOk?: boolean; card?: PassPopupCard },
+) {
+  requestPassPopup(kind, id, options);
 }
 
 export function formatDisplayDate(value: string) {
@@ -165,10 +353,12 @@ export function formatDisplayDate(value: string) {
 }
 
 export async function fetchSwimmerPass(id: number): Promise<SwimmerPassDetails> {
-  if (isApplicationDemo() && id < 0) {
-    const sample = SAMPLE_PASSES[id];
-    if (sample) return { ...sample, passValidUntil: endOfMonthIso() };
-    throw new Error('Sample pass not found');
+  if (id < 0) {
+    return samplePassForId(id);
+  }
+  if (isApplicationDemo()) {
+    const remembered = readSampleIssuedPass(id);
+    if (remembered) return remembered;
   }
   const res = await fetch(`/api/registrations/${id}`);
   const body = await res.json().catch(() => ({}));

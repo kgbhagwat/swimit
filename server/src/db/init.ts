@@ -43,6 +43,7 @@ ALTER TABLE registrations ADD COLUMN IF NOT EXISTS parent_mobile TEXT;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS inactive_at TIMESTAMPTZ;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS test_result TEXT;
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS pass_balance_due NUMERIC(12, 2) NOT NULL DEFAULT 0;
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS identity_number TEXT NOT NULL DEFAULT '';
 ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS is_adult BOOLEAN;
 ALTER TABLE staff_registrations ADD COLUMN IF NOT EXISTS identity_number TEXT NOT NULL DEFAULT '';
@@ -146,6 +147,11 @@ ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_start_date DATE;
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS offer_end_date DATE;
 ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS verification_mode TEXT NOT NULL DEFAULT 'ok_not_ok';
 UPDATE pass_types SET verification_mode = 'ok_not_ok' WHERE verification_mode IS NULL OR TRIM(verification_mode) = '';
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS gender TEXT NOT NULL DEFAULT 'All';
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS age_from INT NOT NULL DEFAULT 0;
+ALTER TABLE pass_types ADD COLUMN IF NOT EXISTS age_to INT;
+UPDATE pass_types SET gender = 'All' WHERE gender IS NULL OR TRIM(gender) = '';
+UPDATE pass_types SET age_from = 0 WHERE age_from IS NULL;
 
 CREATE TABLE IF NOT EXISTS pool_expenses (
   id SERIAL PRIMARY KEY,
@@ -242,6 +248,8 @@ ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(6, 2) NOT
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
 ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS screenshot_path TEXT;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE pass_payments ADD COLUMN IF NOT EXISTS remark TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS pool_core_info (
   id SERIAL PRIMARY KEY,

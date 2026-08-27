@@ -234,6 +234,10 @@ function handlePassTypes(
       passCharges: Number(body.passCharges) || 0,
       coachingCharges: Number(body.coachingCharges) || 0,
       coach: formString(body, 'coach'),
+      testRequired: Boolean(body.testRequired),
+      gender: formString(body, 'gender') || 'All',
+      ageFrom: body.ageFrom == null || body.ageFrom === '' ? 0 : Number(body.ageFrom) || 0,
+      ageTo: body.ageTo == null || body.ageTo === '' ? null : Number(body.ageTo),
     };
     store.passTypes.push(row);
     writeDemoStore(store);
@@ -252,6 +256,10 @@ function handlePassTypes(
       passCharges: Number(body.passCharges) || 0,
       coachingCharges: Number(body.coachingCharges) || 0,
       coach: formString(body, 'coach'),
+      testRequired: Boolean(body.testRequired),
+      gender: formString(body, 'gender') || 'All',
+      ageFrom: body.ageFrom == null || body.ageFrom === '' ? 0 : Number(body.ageFrom) || 0,
+      ageTo: body.ageTo == null || body.ageTo === '' ? null : Number(body.ageTo),
     };
     writeDemoStore(store);
     return jsonResponse(store.passTypes[idx]);
@@ -806,8 +814,32 @@ function handleRegistrations(
     return jsonResponse(store.registrations);
   }
   if (method === 'GET' && pathname === '/api/registrations/pending-payment') {
+    const today = new Date().toISOString().slice(0, 10);
     return jsonResponse(
-      store.registrations.filter((r) => !r.pass_valid_until || r.pending_type),
+      store.registrations
+        .filter((r) => {
+          const until = String(r.pass_valid_until ?? r.passValidUntil ?? '').slice(0, 10);
+          const due = Number(r.pass_balance_due ?? r.passBalanceDue ?? 0) || 0;
+          return due > 0 || !until || Boolean(r.pending_type) || until < today;
+        })
+        .map((r) => {
+          const until = String(r.pass_valid_until ?? r.passValidUntil ?? '').slice(0, 10);
+          const due = Number(r.pass_balance_due ?? r.passBalanceDue ?? 0) || 0;
+          const pending_type =
+            due > 0 && until && until >= today
+              ? 'Partial'
+              : !until
+                ? 'New'
+                : until < today
+                  ? 'Expired'
+                  : r.pending_type;
+          return {
+            ...r,
+            pending_type,
+            pass_balance_due: due,
+            pass_valid_until: until || r.pass_valid_until,
+          };
+        }),
     );
   }
   const one = pathname.match(/^\/api\/registrations\/(\d+)$/);
@@ -851,7 +883,23 @@ function handleRegistrations(
       coach: body.coach ?? store.registrations[idx].coach,
       pass_valid_until:
         body.pass_valid_until ?? body.passValidUntil ?? store.registrations[idx].pass_valid_until,
-      pending_type: body.pending_type ?? null,
+      pass_balance_due: (() => {
+        if (body.pass_balance_due != null) return Number(body.pass_balance_due) || 0;
+        if (body.passBalanceDue != null) return Number(body.passBalanceDue) || 0;
+        if (body.remainingDue != null) return Math.max(0, Number(body.remainingDue) || 0);
+        if (body.receivedAmount == null) return store.registrations[idx].pass_balance_due;
+        const prevDue = Number(store.registrations[idx].pass_balance_due ?? 0) || 0;
+        const received = Number(body.receivedAmount) || 0;
+        const dueBase = body.collectRemaining && prevDue > 0 ? prevDue : prevDue;
+        return Math.max(0, dueBase - received);
+      })(),
+      pending_type: (() => {
+        const remaining =
+          body.remainingDue != null
+            ? Math.max(0, Number(body.remainingDue) || 0)
+            : Number(store.registrations[idx].pass_balance_due ?? 0) || 0;
+        return remaining > 0 ? 'Partial' : null;
+      })(),
     };
     writeDemoStore(store);
     return jsonResponse(store.registrations[idx]);

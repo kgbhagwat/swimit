@@ -12,6 +12,7 @@ import {
 import {
   fetchSwimmerPass,
   idCardUrl,
+  passDetailsFromCard,
   type SwimmerPassDetails,
 } from './swimmerPass';
 
@@ -28,13 +29,23 @@ export function PassPopupOverlay() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  function closePopup() {
+    setRequest(null);
+  }
+
   useEffect(() => {
     function onRequest(event: Event) {
       const detail = (event as CustomEvent<PassPopupRequest>).detail;
-      if (!detail?.id || (detail.kind !== 'qr' && detail.kind !== 'pass' && detail.kind !== 'invoice')) {
+      const id = Number(detail?.id);
+      if (!Number.isFinite(id) || (detail.kind !== 'qr' && detail.kind !== 'pass' && detail.kind !== 'invoice')) {
         return;
       }
-      setRequest({ kind: detail.kind, id: detail.id });
+      setRequest({
+        kind: detail.kind,
+        id,
+        showOk: Boolean(detail.showOk),
+        card: detail.card,
+      });
     }
     window.addEventListener(PASS_POPUP_EVENT, onRequest);
     return () => window.removeEventListener(PASS_POPUP_EVENT, onRequest);
@@ -51,6 +62,24 @@ export function PassPopupOverlay() {
     }
 
     let cancelled = false;
+    const initial = request.kind === 'pass' && request.card ? passDetailsFromCard(request.card) : null;
+    if (initial) {
+      setPass(initial);
+      setLoading(false);
+      setError('');
+      setBrand(emptyBrand);
+      void fetchPoolBrand()
+        .then((poolBrand) => {
+          if (!cancelled) setBrand(poolBrand);
+        })
+        .catch(() => {
+          /* keep empty brand */
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     setLoading(true);
     setError('');
     setPass(null);
@@ -73,8 +102,10 @@ export function PassPopupOverlay() {
     void load
       .catch((err) => {
         if (cancelled) return;
-        setPass(null);
-        setError(err instanceof Error ? err.message : 'Failed to load pass');
+        if (!initial) {
+          setPass(null);
+          setError(err instanceof Error ? err.message : 'Failed to load pass');
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -88,7 +119,7 @@ export function PassPopupOverlay() {
   useEffect(() => {
     if (!request) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setRequest(null);
+      if (event.key === 'Escape') closePopup();
     }
     window.addEventListener('keydown', onKey);
     const previousOverflow = document.body.style.overflow;
@@ -105,49 +136,55 @@ export function PassPopupOverlay() {
     request.kind === 'qr' ? t('Pass QR') : request.kind === 'invoice' ? t('Invoice') : t('Pass');
   const qrValue = idCardUrl(request.id);
   const invoiceMode = request.kind === 'invoice';
+  const showOk = Boolean(request.showOk);
+  const showCard = !invoiceMode && Boolean(pass) && request.kind === 'pass' && (!loading || Boolean(request.card));
+  const showQr = !invoiceMode && !loading && pass && request.kind === 'qr';
 
   return createPortal(
     <div
       className="modal-backdrop pass-popup-overlay"
       role="presentation"
       onClick={(event) => {
-        if (event.target === event.currentTarget) setRequest(null);
+        if (showOk) return;
+        if (event.target === event.currentTarget) closePopup();
       }}
     >
       <div
         className={`modal-panel pass-popup-panel${
           request.kind === 'pass' ? ' pass-popup-panel-wide' : ''
-        }${invoiceMode ? ' pass-popup-panel-invoice' : ''}`}
+        }${invoiceMode ? ' pass-popup-panel-invoice' : ''}${showOk ? ' pass-popup-panel-ok' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="pass-popup-title"
       >
         <div className="pass-popup-panel-head">
           <h2 id="pass-popup-title">{title}</h2>
-          <button
-            type="button"
-            className="pass-popup-close-x"
-            onClick={() => setRequest(null)}
-            aria-label={t('Close')}
-            title={t('Close')}
-          >
-            ×
-          </button>
+          {showOk ? null : (
+            <button
+              type="button"
+              className="pass-popup-close-x"
+              onClick={closePopup}
+              aria-label={t('Close')}
+              title={t('Close')}
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {invoiceMode ? <PassInvoiceBody swimmerId={request.id} /> : null}
 
-        {!invoiceMode && loading ? <p className="pass-empty">{t('Loading…')}</p> : null}
+        {!invoiceMode && loading && !pass ? <p className="pass-empty">{t('Loading…')}</p> : null}
         {!invoiceMode && error ? <p className="error">{error}</p> : null}
 
-        {!invoiceMode && !loading && pass && request.kind === 'qr' ? (
+        {showQr ? (
           <section className="pass-qr-only" aria-label="Pass QR code">
             <QrImage value={qrValue} alt={`QR code for pass ${pass.id}`} size={240} />
             {pass.fullName ? <p className="pass-qr-hint">{pass.fullName}</p> : null}
           </section>
         ) : null}
 
-        {!invoiceMode && !loading && pass && request.kind === 'pass' ? (
+        {showCard && pass ? (
           <IdCard
             data={{
               id: pass.id,
@@ -163,6 +200,14 @@ export function PassPopupOverlay() {
               poolLogoUrl: brand.poolLogoUrl,
             }}
           />
+        ) : null}
+
+        {showOk ? (
+          <div className="pass-popup-ok-wrap">
+            <button type="button" className="submit" onClick={closePopup}>
+              {t('OK')}
+            </button>
+          </div>
         ) : null}
       </div>
     </div>,

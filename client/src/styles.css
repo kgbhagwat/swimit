@@ -772,6 +772,17 @@ h1 {
   box-shadow: none;
 }
 
+.field .inpage-select-search,
+.field .inpage-select-search:focus {
+  width: auto;
+  border: 0;
+  border-radius: 0;
+  padding: 0.4rem 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
 .create-account-form.registration-form {
   width: 100%;
   max-width: 56rem;
@@ -2559,6 +2570,15 @@ html[data-theme='dark'] .swimmer-row > *::before {
 .pass-wa-wait {
   color: #0b6e4f;
   font-weight: 700;
+}
+
+.pass-partial-paid {
+  color: #d32f2f;
+  font-weight: 700;
+}
+
+html[data-theme='dark'] .pass-partial-paid {
+  color: #ff6b6b;
 }
 
 .pass-manual-online {
@@ -8209,17 +8229,21 @@ html[data-theme='dark'] .list-pager {
   color: #243b66;
 }
 
-.payment-batch-coach-row {
+.payment-batch-coach-row,
+.payment-pass-batch-coach-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.75rem 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
   align-items: start;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .pool-core-form .payment-batch-coach-row > .field,
-.payment-batch-coach-row > .field {
+.payment-batch-coach-row > .field,
+.pool-core-form .payment-pass-batch-coach-row > .field,
+.payment-pass-batch-coach-row > .field {
   margin-bottom: 0;
+  min-width: 0;
 }
 
 .pool-core-form .field.payment-mode-field,
@@ -8229,43 +8253,48 @@ html[data-theme='dark'] .list-pager {
 }
 
 .field.payment-batch-field,
-.field.payment-coach-field {
+.field.payment-coach-field,
+.field.payment-pass-type-field {
   display: flex;
+  flex-direction: column;
   flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 0.55rem 0.75rem;
+  align-items: stretch;
+  gap: 0.35rem;
 }
 
 .field.payment-batch-field > .label,
-.field.payment-coach-field > .label {
+.field.payment-coach-field > .label,
+.field.payment-pass-type-field > .label {
   margin: 0;
   flex: 0 0 auto;
   white-space: nowrap;
-  padding-top: 0.7rem;
+  padding-top: 0;
 }
 
-.field.payment-batch-field .inpage-select {
-  flex: 0 1 auto;
-  width: max-content;
-  max-width: min(20rem, 100%);
-  min-width: 11rem;
+.field.payment-batch-field .inpage-select,
+.field.payment-pass-type-field .inpage-select {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .payment-coach-select-wrap {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 0.25rem;
   overflow: visible;
 }
 
 .payment-coach-select-wrap .inpage-select {
   flex: none;
-  width: max-content;
-  min-width: 11rem;
-  max-width: 16rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .payment-coach-select-wrap .batch-empty {
@@ -8275,9 +8304,9 @@ html[data-theme='dark'] .list-pager {
 .assignment-count.payment-coach-assignment {
   margin: 0;
   padding: 0;
-  white-space: nowrap;
-  width: max-content;
-  max-width: none;
+  white-space: normal;
+  width: 100%;
+  max-width: 100%;
 }
 
 .field.payment-batch-field .batch-empty {
@@ -8308,33 +8337,45 @@ html[data-theme='dark'] .list-pager {
 }
 
 .field.payment-pass-type-field {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem 0.85rem;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   box-sizing: border-box;
 }
 
-.field.payment-pass-type-field > .label {
-  margin: 0;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.field.payment-pass-type-field .inpage-select {
-  flex: 0 1 calc((100% - 2px) / 3);
-  width: calc((100% - 2px) / 3);
-  min-width: min(100%, 12rem);
-  max-width: 100%;
-}
-
-@media (max-width: 700px) {
-  .field.payment-pass-type-field .inpage-select {
-    flex: 1 1 100%;
-    width: 100%;
+@media (max-width: 900px) {
+  .payment-pass-batch-coach-row {
+    grid-template-columns: 1fr;
   }
+
+  .payment-pass-batch-coach-row .field.payment-pass-type-field,
+  .payment-pass-batch-coach-row .field.payment-batch-field,
+  .payment-pass-batch-coach-row .field.payment-coach-field {
+    flex-wrap: wrap;
+  }
+}
+
+.payment-must-field .inpage-select-trigger {
+  background: #ffe8b8;
+  border-color: #e0a84a;
+}
+
+.payment-must-field .inpage-select-menu {
+  background: #ffe8b8;
+  border-color: #e0a84a;
+}
+
+.payment-must-field .inpage-select-option {
+  color: #1a3568;
+}
+
+.payment-must-field .inpage-select-option:hover,
+.payment-must-field .inpage-select-option:focus-visible {
+  background: #f5d68a;
+}
+
+.payment-must-field .inpage-select-option.is-selected {
+  background: #f0c96a;
+  color: #1a3568;
 }
 
 .payment-summary-cell {
@@ -8366,7 +8407,8 @@ html[data-theme='dark'] .list-pager {
   min-width: 0;
 }
 
-.payment-summary-cell input[type='date'] {
+.payment-summary-cell input[type='date'],
+.payment-summary-cell input[type='number'] {
   flex: 1 1 auto;
   width: auto;
   max-width: 11rem;
@@ -8378,6 +8420,37 @@ html[data-theme='dark'] .list-pager {
   background: #fff;
   color: #1a3568;
   box-sizing: border-box;
+}
+
+.payment-may-field input[type='date'],
+.payment-may-field input[type='number'],
+.payment-received-amount-input input[type='number'] {
+  background: #fff6dd;
+  border-color: #efd18a;
+}
+
+.payment-may-field input[type='number'],
+.payment-may-input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.payment-may-field input[type='number']::-webkit-outer-spin-button,
+.payment-may-field input[type='number']::-webkit-inner-spin-button,
+.payment-may-input[type='number']::-webkit-outer-spin-button,
+.payment-may-input[type='number']::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.payment-may-field .field-error {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+.payment-summary-remaining .payment-summary-value {
+  color: #b45309;
+  font-weight: 600;
 }
 
 .payment-summary-holidays {
@@ -8507,15 +8580,57 @@ html[data-theme='dark'] .list-pager {
 
 .payment-mode-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
-  gap: 0.35rem 1rem;
-  margin-bottom: 0.35rem;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0.35rem;
+}
+
+.payment-mode-col {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  padding: 0.15rem 0.35rem 0.15rem 0;
 }
 
 .payment-mode-row--online {
-  grid-template-areas: 'left qr';
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas: 'left left qr';
   align-items: stretch;
+  margin-top: 0.5rem;
+}
+
+.payment-mode-col {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+}
+
+.payment-mode-col .payment-mode-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0;
+  width: 100%;
+}
+
+.payment-mode-col .payment-mode-field > .label,
+.payment-mode-col .payment-mode-choices {
+  grid-column: auto;
+}
+
+.payment-mode-col--received .payment-received-check {
+  margin: 0;
+}
+
+.payment-mode-col .payment-summary-remaining {
+  font-weight: 600;
+  color: #b45309;
 }
 
 .payment-mode-row--online .payment-mode-left {
@@ -8538,7 +8653,7 @@ html[data-theme='dark'] .list-pager {
   min-width: 0;
 }
 
-.payment-mode-row .payment-mode-field {
+.payment-mode-left .payment-mode-field {
   display: contents;
   margin-bottom: 0;
 }
@@ -8562,6 +8677,64 @@ html[data-theme='dark'] .list-pager {
   grid-column: 2;
   margin: 0.1rem 0 0;
   justify-self: start;
+}
+
+.payment-received-amount-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.55rem;
+  min-width: 0;
+}
+
+.payment-received-amount-row .payment-received-check {
+  margin: 0;
+}
+
+.payment-received-amount-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.4rem;
+  min-width: 0;
+}
+
+.payment-received-rupee {
+  font-weight: 600;
+  color: #1a3568;
+}
+
+.payment-received-amount-input input[type='number'] {
+  width: 6.5ch;
+  max-width: 6.5ch;
+  min-width: 6.5ch;
+  min-height: 2.1rem;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid #efd18a;
+  border-radius: 8px;
+  background: #fff6dd;
+  color: #1a3568;
+  box-sizing: content-box;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.payment-received-amount-input input[type='number']::-webkit-outer-spin-button,
+.payment-received-amount-input input[type='number']::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.payment-received-amount-input .payment-summary-remaining {
+  font-weight: 600;
+  color: #b45309;
+}
+
+.payment-received-amount-input .field-error {
+  flex: 1 0 100%;
+  margin: 0;
 }
 
 .payment-mode-online-followup {
@@ -11584,6 +11757,13 @@ html[data-theme='dark'] .list-pager {
   margin-bottom: 1rem;
 }
 
+.swimmer-edit-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .swimmer-edit-head h2 {
   margin: 0;
   color: #1a3568;
@@ -13137,6 +13317,23 @@ button.menu-link {
   color: #1a3568;
 }
 
+.pass-popup-panel-ok {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.pass-popup-ok-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 0.2rem 0.75rem 0.95rem;
+}
+
+.pass-popup-ok-wrap .submit {
+  margin-left: 0;
+  min-width: 7.5rem;
+}
+
 .pass-popup-panel-invoice {
   width: min(46rem, calc(100vw - 1.25rem));
   max-height: min(92vh, 900px);
@@ -13466,6 +13663,7 @@ button.menu-link {
 
 .pass-form-card.pool-core-form .pass-name-field input,
 .pass-form-card.pool-core-form .pass-inline-field input,
+.pass-form-card.pool-core-form .pass-age-group-field input,
 .pass-form-card.pool-core-form .pass-inline-field select,
 .pass-form-card.pool-core-form .pass-coach-field select,
 .pass-form-card.pool-core-form .money-prefix,
@@ -13518,6 +13716,66 @@ button.menu-link {
   gap: 0.15rem;
   min-width: 0;
   max-width: 100%;
+}
+
+.pass-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 1.35rem;
+  row-gap: 0.45rem;
+  align-items: center;
+  margin: 0 0 0.4rem;
+}
+
+.pass-form-grid-span {
+  grid-column: 1 / -1;
+}
+
+.pass-form-grid > .pass-name-field,
+.pass-form-grid > .pass-option-row,
+.pass-form-grid > .pass-inline-field,
+.pass-form-grid > .pass-test-required {
+  min-width: 0;
+  margin: 0;
+  padding: 0.2rem 0;
+}
+
+.pass-form-grid > .pass-name-field input {
+  max-width: none;
+}
+
+.pass-form-grid > .pass-inline-field > .pass-option-label:not(.pass-option-label-wide) {
+  flex: 0 0 var(--pass-label-col, 7.5rem);
+  width: var(--pass-label-col, 7.5rem);
+  padding-top: 0;
+}
+
+.pass-form-grid > .pass-coach-field .inpage-select,
+.pass-form-grid > .pass-coach-field select {
+  width: 100%;
+  max-width: 12rem;
+}
+
+.pass-form-grid > .pass-coaching-charges-field {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pass-form-grid > .pass-coaching-charges-field .pass-coach-charges-note {
+  flex: 1 1 100%;
+  margin-left: var(--pass-label-col, 7.5rem);
+  white-space: normal;
+}
+
+.pass-form-grid:has(.inpage-select.is-open) {
+  position: relative;
+  z-index: 20;
+}
+
+@media (max-width: 820px) {
+  .pass-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .pass-option-row {
@@ -13575,6 +13833,32 @@ button.menu-link {
   height: 0.9rem;
   accent-color: var(--accent);
   flex-shrink: 0;
+}
+
+.pass-age-group {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pass-age-group-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #243b66;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pass-age-group-field input {
+  width: 4.4rem;
+  min-height: 2rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 6px;
 }
 
 @media (max-width: 900px) {
@@ -19595,10 +19879,10 @@ html[data-theme='dark'] .app-shell-body .page {
 }
 
 /* Dark theme: all entry + selection controls */
-html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='range']):not([type='submit']):not([type='button']):not([type='image']),
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='range']):not([type='submit']):not([type='button']):not([type='image']):not(.inpage-select-search):not(.payment-may-input),
 html[data-theme='dark'] select,
 html[data-theme='dark'] textarea,
-html[data-theme='dark'] .field input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='submit']):not([type='button']),
+html[data-theme='dark'] .field input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='submit']):not([type='button']):not(.inpage-select-search):not(.payment-may-input),
 html[data-theme='dark'] .field select,
 html[data-theme='dark'] .field textarea,
 html[data-theme='dark'] .field-control-sm,
@@ -19616,14 +19900,14 @@ html[data-theme='dark'] .pool-core-view-text,
 html[data-theme='dark'] .send-form-qr-mobile,
 html[data-theme='dark'] .password-field input,
 html[data-theme='dark'] .mobile-field input,
-html[data-theme='dark'] input[type='date'],
+html[data-theme='dark'] input[type='date']:not(.payment-may-input),
 html[data-theme='dark'] input[type='time'],
-html[data-theme='dark'] input[type='number'],
+html[data-theme='dark'] input[type='number']:not(.payment-may-input),
 html[data-theme='dark'] input[type='email'],
 html[data-theme='dark'] input[type='tel'],
-html[data-theme='dark'] input[type='text'],
+html[data-theme='dark'] input[type='text']:not(.inpage-select-search),
 html[data-theme='dark'] input[type='password'],
-html[data-theme='dark'] input[type='search'],
+html[data-theme='dark'] input[type='search']:not(.inpage-select-search),
 html[data-theme='dark'] input[type='url'] {
   background: #12263d !important;
   color: #e8f0fa !important;
@@ -20425,6 +20709,7 @@ html[data-theme='dark'] .money-input,
 html[data-theme='dark'] .money-prefix,
 html[data-theme='dark'] .pass-name-field input,
 html[data-theme='dark'] .duration-inputs input,
+html[data-theme='dark'] .pass-age-group-field input,
 html[data-theme='dark'] .pass-inline-field input,
 html[data-theme='dark'] .whatsapp-expiry-days-input,
 html[data-theme='dark'] .pass-yes-no,
@@ -20454,6 +20739,7 @@ html[data-theme='dark'] .money-input input {
 html[data-theme='dark'] .pass-option-label,
 html[data-theme='dark'] .pass-form-card.pool-core-form .pass-option-label,
 html[data-theme='dark'] .pass-form-card.pool-core-form .pass-yes-no-option,
+html[data-theme='dark'] .pass-age-group-field,
 html[data-theme='dark'] .whatsapp-expiry-sentence,
 html[data-theme='dark'] .whatsapp-expiry-check,
 html[data-theme='dark'] .whatsapp-expiry-days-input {
@@ -21200,11 +21486,64 @@ html[data-theme='dark'] .payment-summary-label {
   color: #9bb0c9 !important;
 }
 
+html[data-theme='dark'] .payment-must-field .inpage-select-trigger,
+html[data-theme='dark'] .payment-must-field .inpage-select-menu {
+  background: #4a3a18 !important;
+  border-color: #e0b04a !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-must-field .inpage-select-option {
+  background: transparent !important;
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-must-field .inpage-select-option:hover,
+html[data-theme='dark'] .payment-must-field .inpage-select-option:focus-visible {
+  background: #6b5424 !important;
+  color: #fff6dd !important;
+}
+
+html[data-theme='dark'] .payment-must-field .inpage-select-option.is-selected {
+  background: #6b5424 !important;
+  color: #fff6dd !important;
+}
+
+html[data-theme='dark'] .payment-received-rupee {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-may-field input[type='date'],
+html[data-theme='dark'] .payment-may-field input[type='number'],
+html[data-theme='dark'] .payment-summary-cell.payment-may-field input[type='date'],
+html[data-theme='dark'] .payment-summary-cell.payment-may-field input[type='number'],
+html[data-theme='dark'] .payment-received-amount-input input[type='number'],
+html[data-theme='dark'] input.payment-may-input {
+  background: #d4b87a !important;
+  border-color: #e8c46a !important;
+  color: #2a1f0a !important;
+  color-scheme: dark;
+}
+
+html[data-theme='dark'] .online-payment-upi-value,
+html[data-theme='dark'] .online-payment-upi-sep {
+  color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-mode-online-muted {
+  color: #9bb0c9 !important;
+}
+
 html[data-theme='dark'] .payment-summary-value,
 html[data-theme='dark'] .payment-swimmer-name,
 html[data-theme='dark'] .upi-pay-summary-amount,
 html[data-theme='dark'] .upi-pay-summary-vpa {
   color: #e8f0fa !important;
+}
+
+html[data-theme='dark'] .payment-summary-remaining .payment-summary-value,
+html[data-theme='dark'] .payment-received-amount-input .payment-summary-remaining {
+  color: #f0b429 !important;
 }
 
 html[data-theme='dark'] .payment-summary .hint,

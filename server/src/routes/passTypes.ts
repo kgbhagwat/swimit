@@ -18,7 +18,33 @@ type PassBody = {
   offerStartDate?: string | null;
   offerEndDate?: string | null;
   verificationMode?: string;
+  gender?: string;
+  ageFrom?: number | null;
+  ageTo?: number | null;
 };
+
+type PassGender = 'All' | 'Male' | 'Female';
+
+function parseGender(value: unknown): PassGender {
+  const gender = String(value ?? '').trim();
+  if (gender === 'Male' || gender === 'Female') return gender;
+  return 'All';
+}
+
+function parseAgeFrom(value: unknown): number | 'invalid' {
+  if (value === undefined || value === null || value === '') return 0;
+  const num = Number(value);
+  if (!Number.isInteger(num) || num < 0 || num > 120) return 'invalid';
+  return num;
+}
+
+function parseAgeTo(value: unknown): number | null | 'invalid' {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'string' && /^all$/i.test(value.trim())) return null;
+  const num = Number(value);
+  if (!Number.isInteger(num) || num < 0 || num > 120) return 'invalid';
+  return num;
+}
 
 type VerificationMode = 'ok_not_ok' | 'face';
 type CoachPaymentBasis = 'pass' | 'month' | 'day';
@@ -56,6 +82,9 @@ function mapRow(row: {
   offer_start_date?: string | Date | null;
   offer_end_date?: string | Date | null;
   verification_mode?: string | null;
+  gender?: string | null;
+  age_from?: number | null;
+  age_to?: number | null;
 }) {
   const dateOnly = (value: string | Date | null | undefined) =>
     value ? new Date(value).toISOString().slice(0, 10) : null;
@@ -76,6 +105,9 @@ function mapRow(row: {
     offerStartDate: dateOnly(row.offer_start_date),
     offerEndDate: dateOnly(row.offer_end_date),
     verificationMode: parseVerificationMode(row.verification_mode),
+    gender: parseGender(row.gender),
+    ageFrom: row.age_from == null ? 0 : Number(row.age_from),
+    ageTo: row.age_to == null ? null : Number(row.age_to),
   };
 }
 
@@ -115,6 +147,11 @@ function validate(body: PassBody) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return 'Offer end date is required';
     if (end < start) return 'Offer end date must be on or after the start date';
   }
+  const ageFrom = parseAgeFrom(body.ageFrom);
+  const ageTo = parseAgeTo(body.ageTo);
+  if (ageFrom === 'invalid') return 'From age must be a whole number';
+  if (ageTo === 'invalid') return 'To age must be All or a whole number';
+  if (ageTo != null && ageTo < ageFrom) return 'To age must be All or at least the from age';
   return null;
 }
 
@@ -287,7 +324,7 @@ passTypesRouter.get('/', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
               test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date,
-              offer_end_date, verification_mode
+              offer_end_date, verification_mode, gender, age_from, age_to
        FROM pass_types
        WHERE saas_account_id = $1
        ORDER BY id ASC`,
@@ -321,15 +358,18 @@ passTypesRouter.post('/', async (req, res) => {
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
     const isOffer = Boolean(body.isOffer);
     const verificationMode = parseVerificationMode(body.verificationMode);
+    const gender = parseGender(body.gender);
+    const ageFrom = parseAgeFrom(body.ageFrom);
+    const ageTo = parseAgeTo(body.ageTo);
     const { rows } = await pool.query(
       `INSERT INTO pass_types
        (saas_account_id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
         test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date, offer_end_date,
-        verification_mode)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        verification_mode, gender, age_from, age_to)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
                  test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date,
-                 offer_end_date, verification_mode`,
+                 offer_end_date, verification_mode, gender, age_from, age_to`,
       [
         accountId,
         passName,
@@ -346,6 +386,9 @@ passTypesRouter.post('/', async (req, res) => {
         isOffer ? body.offerStartDate : null,
         isOffer ? body.offerEndDate : null,
         verificationMode,
+        gender,
+        ageFrom === 'invalid' ? 0 : ageFrom,
+        ageTo === 'invalid' ? null : ageTo,
       ],
     );
     const created = mapRow(rows[0]);
@@ -386,6 +429,9 @@ passTypesRouter.put('/:id', async (req, res) => {
     const exceedingAllowed = body.exceedingLimitAllowed !== false;
     const isOffer = Boolean(body.isOffer);
     const verificationMode = parseVerificationMode(body.verificationMode);
+    const gender = parseGender(body.gender);
+    const ageFrom = parseAgeFrom(body.ageFrom);
+    const ageTo = parseAgeTo(body.ageTo);
     const { rows } = await pool.query(
       `UPDATE pass_types
        SET pass_name = $1,
@@ -402,11 +448,14 @@ passTypesRouter.put('/:id', async (req, res) => {
            offer_start_date = $12,
            offer_end_date = $13,
            verification_mode = $14,
+           gender = $15,
+           age_from = $16,
+           age_to = $17,
            updated_at = NOW()
-       WHERE id = $15 AND saas_account_id = $16
+       WHERE id = $18 AND saas_account_id = $19
        RETURNING id, pass_name, for_audience, prerequisite, duration, pass_charges, coaching_charges, coach,
                  test_required, max_swimmers_per_coach, exceeding_limit_allowed, is_offer, offer_start_date,
-                 offer_end_date, verification_mode`,
+                 offer_end_date, verification_mode, gender, age_from, age_to`,
       [
         passName,
         body.forAudience!.trim(),
@@ -422,6 +471,9 @@ passTypesRouter.put('/:id', async (req, res) => {
         isOffer ? body.offerStartDate : null,
         isOffer ? body.offerEndDate : null,
         verificationMode,
+        gender,
+        ageFrom === 'invalid' ? 0 : ageFrom,
+        ageTo === 'invalid' ? null : ageTo,
         id,
         accountId,
       ],
