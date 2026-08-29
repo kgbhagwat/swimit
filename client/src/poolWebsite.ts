@@ -114,10 +114,34 @@ export function websiteThemeStyle(raw: unknown): CSSProperties {
     '--pool-page-to': mix(color, { r: 234, g: 244, b: 251 }, 0.78),
     '--pool-glow': rgba(color, 0.28),
     '--pool-overlay': rgba(mix(color, { r: 8, g: 24, b: 48 }, 0.62), 0.86),
-    '--pool-kicker': mix(color, { r: 177, g: 250, b: 252 }, 0.55),
+    '--pool-kicker': '#ffffff',
     '--pool-cta-hover': mix(color, { r: 255, g: 255, b: 255 }, 0.9),
     '--pool-banner-fill': mix(color, { r: 135, g: 206, b: 235 }, 0.35),
   } as CSSProperties;
+}
+
+/** Convert "HH:MM" / "HH:MM:SS" to "h:mm AM/PM" for public website display. */
+export function formatTimeAmPm(value: string) {
+  const match = String(value ?? '')
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return String(value ?? '').trim();
+  let hour = Number(match[1]);
+  const minute = match[2];
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return String(value ?? '').trim();
+  const period = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${minute} ${period}`;
+}
+
+export function formatBatchTimeRange(startTime: string, endTime: string) {
+  const start = formatTimeAmPm(startTime);
+  const end = formatTimeAmPm(endTime);
+  if (!start && !end) return '';
+  if (!start) return end;
+  if (!end) return start;
+  return `${start} – ${end}`;
 }
 
 export const SAMPLE_WEBSITE_BATCHES: PoolWebsiteBatch[] = [

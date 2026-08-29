@@ -871,6 +871,15 @@ export function AppShell({
           </div>
         ) : null}
         <div className="platform-main-topbar-actions">
+          {tenantAccount ? (
+            <Link
+              className="platform-topbar-website"
+              to={appPath('/site')}
+              title={t('View website')}
+            >
+              {t('View website')}
+            </Link>
+          ) : null}
           {tenantAccount && tenantUser?.isAccountAdmin && tenantUser.id ? (
             <SupportInboxButton
               accountCode={tenantAccount.accountCode}

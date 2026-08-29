@@ -865,7 +865,7 @@ export function PassPayment() {
       ? addPassDuration(selectedPass.duration, passStartDate)
       : '';
   const selectedPassAmount = selectedPass
-    ? roundMoney(Number(selectedPass.passCharges) + Number(selectedPass.coachingCharges ?? 0))
+    ? roundMoney(Number(selectedPass.passCharges))
     : 0;
   const discountParsed = isCollectRemaining
     ? { discount: 0, error: null as string | null }

@@ -27,8 +27,12 @@ export function parsePassDiscount(raw: unknown, listAmount: number): { discount:
   return { discount };
 }
 
-export function passPayable(passCharges: number, coachingCharges: number, discountRaw: unknown) {
-  const listAmount = money(Number(passCharges) + Number(coachingCharges));
+/**
+ * Payable = pass charges − discount.
+ * Coaching charges are a portion of pass charges (for coach payout), not an add-on.
+ */
+export function passPayable(passCharges: number, _coachingCharges: number, discountRaw: unknown) {
+  const listAmount = money(Number(passCharges));
   const parsed = parsePassDiscount(discountRaw, listAmount);
   if ('error' in parsed) return parsed;
   return {

@@ -28,6 +28,12 @@ import {
 } from '../paymentAmount.js';
 import { clipMenuAccessForLoginType } from '../menuAccess.js';
 import { consumeCaptcha } from '../captcha.js';
+import {
+  clearLoginFailures,
+  isLoginCaptchaRequired,
+  loginCaptchaKey,
+  recordLoginFailure,
+} from '../loginCaptchaGate.js';
 import { findAppUserByLogin } from '../appUserLogin.js';
 import {
   createAuthSession,
@@ -1075,9 +1081,21 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
       res.status(400).json({ error: 'Password is required' });
       return;
     }
-    if (!consumeCaptcha(String(body.captchaId ?? ''), String(body.captchaAnswer ?? ''))) {
-      res.status(400).json({ error: 'Invalid or expired captcha' });
-      return;
+
+    const failureKey = loginCaptchaKey({
+      ip: req.ip || req.socket.remoteAddress || 'unknown',
+      accountCode: code,
+      userName: loginId,
+    });
+    const captchaRequired = isLoginCaptchaRequired(failureKey);
+    if (captchaRequired) {
+      if (!consumeCaptcha(String(body.captchaId ?? ''), String(body.captchaAnswer ?? ''))) {
+        res.status(400).json({
+          error: 'Invalid or expired captcha',
+          captchaRequired: true,
+        });
+        return;
+      }
     }
 
     const { rows: accountRows } = await pool.query(
@@ -1100,15 +1118,25 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
     const accountId = Number(accountRows[0].id);
     const userRow = await findAppUserByLogin(accountId, loginId);
     if (!userRow) {
-      res.status(401).json({ error: 'Invalid login ID or password' });
+      const nowRequiresCaptcha = recordLoginFailure(failureKey);
+      res.status(401).json({
+        error: 'Invalid login ID or password',
+        captchaRequired: nowRequiresCaptcha,
+      });
       return;
     }
 
     const valid = await verifyPassword(password, String(userRow.password_hash));
     if (!valid) {
-      res.status(401).json({ error: 'Invalid login ID or password' });
+      const nowRequiresCaptcha = recordLoginFailure(failureKey);
+      res.status(401).json({
+        error: 'Invalid login ID or password',
+        captchaRequired: nowRequiresCaptcha,
+      });
       return;
     }
+
+    clearLoginFailures(failureKey);
 
     const authSession = await createAuthSession({
       accountId,
@@ -1137,6 +1165,7 @@ saasAccountsRouter.post('/by-code/:code/login', async (req, res) => {
         ),
       },
       csrfToken: authSession.csrfToken,
+      captchaRequired: false,
     });
   } catch (err) {
     console.error(err);

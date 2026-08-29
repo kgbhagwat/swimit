@@ -134,7 +134,7 @@ function sampleInvoice(params: {
   paymentMode: string;
   transactionId?: string;
 }): PassInvoice {
-  const tax = inclusiveTax(params.passCharges + params.coachingCharges);
+  const tax = inclusiveTax(params.passCharges);
   return {
     id: params.id,
     invoiceNumber: `INV-${params.paymentDate.slice(0, 4)}-${String(Math.abs(params.id)).padStart(6, '0')}`,

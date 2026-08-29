@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useT } from './i18n';
 import {
   emptyWebsiteContent,
+  formatBatchTimeRange,
   websiteThemeStyle,
   withWebsiteSamples,
   type PoolWebsiteContent,
@@ -22,10 +23,13 @@ export function AccountPoolLanding({
   content,
   registerHref,
   onLogin,
+  appHref,
 }: {
   content: PoolWebsiteContent | null;
   registerHref: string;
   onLogin: () => void;
+  /** When set (logged-in staff), show return to the app instead of Login. */
+  appHref?: string;
 }) {
   const t = useT();
   const raw = content ?? emptyWebsiteContent();
@@ -53,9 +57,15 @@ export function AccountPoolLanding({
           <Link to={registerHref} className="pool-site-cta">
             {t('Join as a swimmer')}
           </Link>
-          <button type="button" className="pool-site-login" onClick={onLogin}>
-            {t('Login')}
-          </button>
+          {appHref ? (
+            <Link to={appHref} className="pool-site-login">
+              {t('Back to application')}
+            </Link>
+          ) : (
+            <button type="button" className="pool-site-login" onClick={onLogin}>
+              {t('Login')}
+            </button>
+          )}
         </div>
       </header>
 
@@ -111,7 +121,7 @@ export function AccountPoolLanding({
                       <span>{batch.type}</span>
                     </div>
                     <span className="pool-site-time">
-                      {batch.startTime} – {batch.endTime}
+                      {formatBatchTimeRange(batch.startTime, batch.endTime)}
                     </span>
                   </li>
                 ))}

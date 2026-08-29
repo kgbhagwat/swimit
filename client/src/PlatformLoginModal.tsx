@@ -84,7 +84,8 @@ export function PlatformLoginModal({
   const [loggingIn, setLoggingIn] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [openedAt, setOpenedAt] = useState(0);
-  const captcha = useLoginCaptcha(open && mode === 'login');
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const captcha = useLoginCaptcha(open && mode === 'login' && captchaRequired);
 
   useEffect(() => {
     if (!open) return;
@@ -120,7 +121,7 @@ export function PlatformLoginModal({
 
     setLoggingIn(true);
     try {
-      if (!captcha.value) {
+      if (captchaRequired && !captcha.value) {
         throw new Error(t('Enter the captcha code'));
       }
       const accountRes = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}`);
@@ -133,14 +134,20 @@ export function PlatformLoginModal({
         body: JSON.stringify({
           userName: form.userName.trim() || 'admin',
           password: form.password,
-          captchaId: captcha.value.captchaId,
-          captchaAnswer: captcha.value.captchaAnswer,
+          ...(captchaRequired && captcha.value
+            ? {
+                captchaId: captcha.value.captchaId,
+                captchaAnswer: captcha.value.captchaAnswer,
+              }
+            : {}),
         }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (body.captchaRequired === true) setCaptchaRequired(true);
         throw new Error(body.error ?? 'Login failed');
       }
+      setCaptchaRequired(false);
 
       const user = {
         id: Number(body.user.id),
@@ -187,7 +194,7 @@ export function PlatformLoginModal({
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
-      void captcha.refresh();
+      if (captchaRequired) void captcha.refresh();
     } finally {
       setLoggingIn(false);
     }
@@ -311,15 +318,17 @@ export function PlatformLoginModal({
                     />
                   </div>
                 </label>
-                <LoginCaptchaField
-                  challenge={captcha.challenge}
-                  answer={captcha.answer}
-                  onAnswerChange={captcha.setAnswer}
-                  onRefresh={() => void captcha.refresh()}
-                  loading={captcha.loading}
-                  loadError={captcha.loadError}
-                  disabled={loggingIn}
-                />
+                {captchaRequired ? (
+                  <LoginCaptchaField
+                    challenge={captcha.challenge}
+                    answer={captcha.answer}
+                    onAnswerChange={captcha.setAnswer}
+                    onRefresh={() => void captcha.refresh()}
+                    loading={captcha.loading}
+                    loadError={captcha.loadError}
+                    disabled={loggingIn}
+                  />
+                ) : null}
                 <div className="platform-login-forgot-row">
                   <button
                     type="button"

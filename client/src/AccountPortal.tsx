@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, Navigate, useNavigate, useOutlet, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useOutlet, useParams } from 'react-router-dom';
 import { AccountPoolLanding } from './AccountPoolLanding';
 import { AppShell } from './AppShell';
 import { navigateToCurrentVersion } from './clientVersion';
@@ -117,8 +117,10 @@ export function AccountPortal() {
   const { accountCode = '' } = useParams();
   const code = normalizeAccountCode(accountCode);
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT();
   const featurePage = useOutlet();
+  const viewingPublicSite = /\/site\/?$/i.test(location.pathname);
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(() =>
     ACCOUNT_CODE_RE.test(code) ? readSession(code) : null,
@@ -151,8 +153,13 @@ export function AccountPortal() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [captchaRequired, setCaptchaRequired] = useState(false);
   const captcha = useLoginCaptcha(
-    !sessionUser && loginOpen && loginMode === 'login' && loginMethod === 'password',
+    !sessionUser &&
+      loginOpen &&
+      loginMode === 'login' &&
+      loginMethod === 'password' &&
+      captchaRequired,
   );
 
   useEffect(() => {
@@ -508,7 +515,7 @@ export function AccountPortal() {
         return;
       }
 
-      if (!captcha.value) {
+      if (captchaRequired && !captcha.value) {
         throw new Error(t('Enter the captcha code'));
       }
       const res = await fetch(`/api/saas-accounts/by-code/${encodeURIComponent(code)}/login`, {
@@ -517,14 +524,20 @@ export function AccountPortal() {
         body: JSON.stringify({
           userName: loginUserName.trim() || 'admin',
           password: loginPassword,
-          captchaId: captcha.value.captchaId,
-          captchaAnswer: captcha.value.captchaAnswer,
+          ...(captchaRequired && captcha.value
+            ? {
+                captchaId: captcha.value.captchaId,
+                captchaAnswer: captcha.value.captchaAnswer,
+              }
+            : {}),
         }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (body.captchaRequired === true) setCaptchaRequired(true);
         throw new Error(body.error ?? 'Login failed');
       }
+      setCaptchaRequired(false);
       const user: SessionUser = {
         id: Number(body.user.id),
         userName: String(body.user.userName),
@@ -547,7 +560,7 @@ export function AccountPortal() {
       finishAuthenticatedSession(user, { offerBiometric: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
-      if (loginMethod === 'password') void captcha.refresh();
+      if (loginMethod === 'password' && captchaRequired) void captcha.refresh();
     } finally {
       setLoggingIn(false);
     }
@@ -937,31 +950,31 @@ export function AccountPortal() {
                       {t('Tap Sign in, then confirm with Face ID or fingerprint on this phone.')}
                     </p>
                   )}
+                  {loginMethod === 'password' && captchaRequired ? (
+                    <LoginCaptchaField
+                      challenge={captcha.challenge}
+                      answer={captcha.answer}
+                      onAnswerChange={captcha.setAnswer}
+                      onRefresh={() => void captcha.refresh()}
+                      loading={captcha.loading}
+                      loadError={captcha.loadError}
+                      disabled={loggingIn}
+                    />
+                  ) : null}
                   {loginMethod === 'password' ? (
-                    <>
-                      <LoginCaptchaField
-                        challenge={captcha.challenge}
-                        answer={captcha.answer}
-                        onAnswerChange={captcha.setAnswer}
-                        onRefresh={() => void captcha.refresh()}
-                        loading={captcha.loading}
-                        loadError={captcha.loadError}
-                        disabled={loggingIn}
-                      />
-                      <div className="platform-login-forgot-row">
-                        <button
-                          type="button"
-                          className="platform-login-forgot-link"
-                          onClick={() => {
-                            setError('');
-                            setSuccess('');
-                            setLoginMode('forgot');
-                          }}
-                        >
-                          {t('Forgot password?')}
-                        </button>
-                      </div>
-                    </>
+                    <div className="platform-login-forgot-row">
+                      <button
+                        type="button"
+                        className="platform-login-forgot-link"
+                        onClick={() => {
+                          setError('');
+                          setSuccess('');
+                          setLoginMode('forgot');
+                        }}
+                      >
+                        {t('Forgot password?')}
+                      </button>
+                    </div>
                   ) : null}
                   {error ? <p className="error">{error}</p> : null}
                   {success ? <p className="platform-login-success">{success}</p> : null}
@@ -1131,6 +1144,20 @@ export function AccountPortal() {
           </form>
         </div>
       </div>
+    );
+  }
+
+  if (viewingPublicSite) {
+    return (
+      <AccountPoolLanding
+        content={{
+          ...poolPage,
+          poolName: poolPage.poolName || account.accountName,
+        }}
+        registerHref={`/${code}/open/register`}
+        onLogin={openLogin}
+        appHref={`/${code}/dashboard`}
+      />
     );
   }
 

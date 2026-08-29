@@ -121,7 +121,8 @@ export async function loadLatestPassRenewQuote(params: {
   if (!passType) return null;
 
   const paidAmount = Number(row.paid_amount ?? 0);
-  const typeAmount = Number(row.type_pass_charges ?? 0) + Number(row.type_coaching_charges ?? 0);
+  // Coaching charges are part of pass charges — do not add them again.
+  const typeAmount = Number(row.type_pass_charges ?? 0);
   const expectedAmount = paidAmount > 0 ? paidAmount : typeAmount;
   if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) return null;
 

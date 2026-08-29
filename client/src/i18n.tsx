@@ -28,6 +28,8 @@ const mr: Record<string, string> = {
   Login: 'लॉगिन',
   'Welcome to': 'आपले स्वागत आहे',
   'Sample website': 'नमुना संकेतस्थळ',
+  'View website': 'संकेतस्थळ पहा',
+  'Back to application': 'अॅप्लिकेशनकडे परत',
   'Swimming pool': 'स्विमिंग पूल',
   'A sample website for this swimming pool. Staff can log in from the top right.':
     'या स्विमिंग पूलसाठी नमुना संकेतस्थळ. कर्मचारी वर उजवीकडे लॉगिन करू शकतात.',

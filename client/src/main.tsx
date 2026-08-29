@@ -168,6 +168,7 @@ function appFeatureRoutes() {
       <Route path="coach-payment" element={<CoachPayment />} />
       <Route path="attendance-sheet" element={<AttendanceSheet />} />
       <Route path="dashboard" element={<Dashboard />} />
+      <Route path="site" element={<></>} />
       <Route path="balance-sheet" element={<BalanceSheet />} />
       <Route path="payment-details" element={<PaymentDetails />} />
       <Route path="pool-core-info" element={<PoolCoreInfo />} />

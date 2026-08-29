@@ -3203,7 +3203,7 @@ html[data-theme='dark'] .pass-partial-paid {
   --pool-page-to: #eaf4fb;
   --pool-glow: rgba(30, 136, 200, 0.28);
   --pool-overlay: rgba(12, 42, 78, 0.86);
-  --pool-kicker: #b1fafc;
+  --pool-kicker: #ffffff;
   --pool-cta-hover: #eef7fc;
   --pool-banner-fill: #87ceeb;
   height: 100svh;
@@ -3358,7 +3358,9 @@ html[data-theme='dark'] .pass-partial-paid {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--pool-kicker);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 10px rgba(0, 0, 0, 0.35);
+  opacity: 0.95;
 }
 
 .pool-site-banner-copy h1 {
@@ -4380,6 +4382,39 @@ button.platform-rail-link {
   justify-content: flex-end;
   gap: 0.55rem;
   margin-left: auto;
+}
+
+.platform-topbar-website {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.32rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(30, 136, 200, 0.35);
+  background: rgba(30, 136, 200, 0.08);
+  color: #1565a0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.platform-topbar-website:hover {
+  background: rgba(30, 136, 200, 0.16);
+  border-color: rgba(30, 136, 200, 0.5);
+  color: #0f4f7a;
+}
+
+html[data-theme='dark'] .platform-topbar-website {
+  border-color: rgba(125, 211, 252, 0.35);
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+}
+
+html[data-theme='dark'] .platform-topbar-website:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #bae6fd;
 }
 
 .platform-mirror-badge {
@@ -19051,7 +19086,7 @@ body:has(.marketing-site),
   top: 0;
   z-index: 40;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
   padding: 0.85rem clamp(1rem, 3vw, 2.5rem);
@@ -19063,6 +19098,7 @@ body:has(.marketing-site),
 .marketing-brand {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
   text-decoration: none;
   color: inherit;
   min-width: 0;
@@ -19084,6 +19120,7 @@ body:has(.marketing-site),
   align-items: center;
   justify-content: center;
   gap: 1.35rem;
+  justify-self: center;
 }
 
 .marketing-nav-link {
@@ -19118,6 +19155,7 @@ body:has(.marketing-site),
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  justify-self: end;
   gap: 0.55rem;
 }
 
