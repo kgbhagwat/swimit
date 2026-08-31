@@ -16,6 +16,7 @@ export async function ensureSchema() {
     ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
     ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
     ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS google_maps_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS shortcut_name TEXT NOT NULL DEFAULT '';
   `);
 
   await pool.query(`
@@ -40,6 +41,8 @@ export async function ensureSchema() {
     ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS coaches_photo_path TEXT;
     ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS achievements_photo_path TEXT;
     ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS theme_color TEXT NOT NULL DEFAULT '#1e88c8';
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS show_coach_photos BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE pool_website ADD COLUMN IF NOT EXISTS layout_config JSONB NOT NULL DEFAULT '{}'::jsonb;
   `);
 
   await pool.query(`

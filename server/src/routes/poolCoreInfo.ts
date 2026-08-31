@@ -58,6 +58,7 @@ function mapRow(row: Record<string, unknown>) {
   return {
     poolName: String(row.pool_name ?? ''),
     poolAddress: String(row.pool_address ?? ''),
+    shortcutName: String(row.shortcut_name ?? ''),
     poolState: String(row.pool_state ?? ''),
     poolDistrict: String(row.pool_district ?? ''),
     pinCode: String(row.pin_code ?? ''),
@@ -127,6 +128,7 @@ poolCoreInfoRouter.put(
 
       const poolName = String(body.poolName ?? '').trim();
       const poolAddress = String(body.poolAddress ?? '').trim();
+      const shortcutName = String(body.shortcutName ?? '').trim().slice(0, 80);
       const poolState = String(body.poolState ?? '').trim();
       const poolDistrict = String(body.poolDistrict ?? '').trim();
       const pinCode = String(body.pinCode ?? '').trim();
@@ -225,26 +227,28 @@ poolCoreInfoRouter.put(
         `UPDATE pool_core_info SET
            pool_name = $1,
            pool_address = $2,
-           pool_state = $3,
-           pool_district = $4,
-           pin_code = $5,
-           latitude = $6,
-           longitude = $7,
-           google_maps_url = $8,
-           pool_logo_path = $9,
-           swimmer_terms = $10,
-           staff_terms = $11,
-           payment_accept_cash = $12,
-           payment_accept_online = $13,
-           payment_qr_path = $14,
-           upi_details = $15,
+           shortcut_name = $3,
+           pool_state = $4,
+           pool_district = $5,
+           pin_code = $6,
+           latitude = $7,
+           longitude = $8,
+           google_maps_url = $9,
+           pool_logo_path = $10,
+           swimmer_terms = $11,
+           staff_terms = $12,
+           payment_accept_cash = $13,
+           payment_accept_online = $14,
+           payment_qr_path = $15,
+           upi_details = $16,
            setup_completed = TRUE,
            updated_at = NOW()
-         WHERE saas_account_id = $16
+         WHERE saas_account_id = $17
          RETURNING *`,
         [
           poolName,
           poolAddress,
+          shortcutName,
           poolState,
           poolDistrict,
           pinCode,
@@ -271,6 +275,7 @@ poolCoreInfoRouter.put(
         summary: 'Updated pool core info',
         details: {
           poolName: saved.poolName,
+          shortcutName: saved.shortcutName,
           poolAddress: saved.poolAddress,
           poolState: saved.poolState,
           poolDistrict: saved.poolDistrict,

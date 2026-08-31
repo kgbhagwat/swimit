@@ -13,6 +13,15 @@ import { PlatformLoginModal, type PlatformLoginFormState } from './PlatformLogin
 import { ThemeToggle, useTheme } from './theme';
 import { setActiveTenant } from './tenantSession';
 import { SidebarRelease } from './SidebarRelease';
+import { downloadPoolLoginShortcut } from './shortcut';
+import {
+  canUseBiometricLogin,
+  clearBiometricPref,
+  enrollBiometricLogin,
+  readBiometricPref,
+  removeBiometricCredential,
+  writeBiometricPref,
+} from './webauthn';
 
 function PasswordEyeButton({
   visible,
@@ -313,7 +322,44 @@ function PlatformProfileMenu({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [shortcutName, setShortcutName] = useState('');
+  const [poolName, setPoolName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/pool-core-info');
+        const body = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        setShortcutName(String(body.shortcutName ?? ''));
+        setPoolName(String(body.poolName ?? ''));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.accountCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const supported = await canUseBiometricLogin();
+      if (cancelled) return;
+      setBiometricSupported(supported);
+      const pref = readBiometricPref(session.accountCode);
+      setBiometricEnabled(Boolean(supported && pref?.enabled && pref.credentialId));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.accountCode, session.userId]);
 
   useEffect(() => {
     if (!open) return;
@@ -346,6 +392,29 @@ function PlatformProfileMenu({
     setChangingPassword(false);
     setEditingProfile(false);
     resetPasswordForm();
+  }
+
+  function createDesktopShortcut() {
+    setError('');
+    setSuccess('');
+    void (async () => {
+      try {
+        const result = await downloadPoolLoginShortcut({
+          accountCode: session.accountCode,
+          shortcutName,
+          poolName,
+          accountName: session.accountName,
+        });
+        setSuccess(
+          result === 'shared'
+            ? t('Shortcut shared. Add it to your home screen from the share menu.')
+            : t('Shortcut downloaded. Move it to your Desktop for quick access.'),
+        );
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : t('Failed to create shortcut'));
+      }
+    })();
   }
 
   async function openProfile() {
@@ -580,9 +649,66 @@ function PlatformProfileMenu({
                   setChangingPassword(true);
                 }}
               >
-                Change password
+                {t('Change password')}
+              </button>
+              {biometricSupported ? (
+                <button
+                  type="button"
+                  className="tenant-profile-action"
+                  disabled={biometricBusy}
+                  onClick={() => {
+                    void (async () => {
+                      setBiometricBusy(true);
+                      setError('');
+                      setSuccess('');
+                      try {
+                        const pref = readBiometricPref(session.accountCode);
+                        if (biometricEnabled && pref?.credentialId) {
+                          await removeBiometricCredential({
+                            accountCode: session.accountCode,
+                            userId: session.userId,
+                            credentialId: pref.credentialId,
+                          });
+                          clearBiometricPref(session.accountCode);
+                          setBiometricEnabled(false);
+                          setSuccess(t('Biometric login turned off on this device'));
+                        } else {
+                          const enrolled = await enrollBiometricLogin({
+                            accountCode: session.accountCode,
+                            userId: session.userId,
+                          });
+                          writeBiometricPref(session.accountCode, enrolled);
+                          setBiometricEnabled(true);
+                          setSuccess(t('Biometric login enabled on this device'));
+                        }
+                      } catch (err) {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : t('Failed to update biometric login'),
+                        );
+                      } finally {
+                        setBiometricBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  {biometricBusy
+                    ? t('Please wait…')
+                    : biometricEnabled
+                      ? t('Turn off biometric login')
+                      : t('Enable biometric login')}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="tenant-profile-action"
+                onClick={createDesktopShortcut}
+              >
+                {t('Create shortcut')}
               </button>
             </div>
+            {!editingProfile && error ? <p className="error">{error}</p> : null}
             </>
           ) : (
             <form className="tenant-password-form" onSubmit={onChangePassword} autoComplete="off">

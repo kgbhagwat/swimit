@@ -74,6 +74,8 @@ const corsOrigin =
       : true;
 const clientDist = path.resolve(__dirname, '../../client/dist');
 const hasClientBuild = fs.existsSync(path.join(clientDist, 'index.html'));
+/** In dev, Vite serves the client on :5173; avoid stale client/dist on :4000. */
+const shouldServeClient = hasClientBuild && process.env.NODE_ENV === 'production';
 
 if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
   app.set('trust proxy', trustProxyHops);
@@ -346,7 +348,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: 'Internal server error' });
 });
 
-if (hasClientBuild) {
+if (shouldServeClient) {
   app.use(
     express.static(clientDist, {
       index: false,
@@ -380,8 +382,12 @@ void ensureSchema()
   .then(() => {
     app.listen(port, '0.0.0.0', () => {
       console.log(`Server running at http://0.0.0.0:${port}`);
-      if (hasClientBuild) {
+      if (shouldServeClient) {
         console.log(`Serving client from ${clientDist}`);
+      } else if (hasClientBuild) {
+        console.log(
+          'Client build found but not served in dev — open http://localhost:5173 for the live UI',
+        );
       }
       startSubscriptionExpiryReminders();
       startSubscriptionChatExpiryReminders();

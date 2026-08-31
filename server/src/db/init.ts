@@ -368,6 +368,7 @@ CREATE TABLE IF NOT EXISTS pool_website (
   achievements_photo_path TEXT,
   theme_color TEXT NOT NULL DEFAULT '#1e88c8',
   achievements JSONB NOT NULL DEFAULT '[]'::jsonb,
+  layout_config JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -797,6 +798,7 @@ ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 /** Google Maps share link used to set pool coordinates (admin-friendly). */
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS google_maps_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS shortcut_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pool_state TEXT NOT NULL DEFAULT '';
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pool_district TEXT NOT NULL DEFAULT '';
 ALTER TABLE pool_core_info ADD COLUMN IF NOT EXISTS pin_code TEXT NOT NULL DEFAULT '';

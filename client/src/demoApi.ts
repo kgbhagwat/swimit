@@ -10,7 +10,7 @@ import {
 } from './applicationDemo';
 import { COACH_LOGIN_PAGE_KEYS, parseLoginType } from './menuCatalog';
 import { mergeFormRules } from './formInfo';
-import { parseAchievements, parseThemeColor } from './poolWebsite';
+import { parseAchievements, parseThemeColor, parseWebsiteLayout } from './poolWebsite';
 
 function parseUrl(url: string) {
   try {
@@ -18,6 +18,16 @@ function parseUrl(url: string) {
   } catch {
     return null;
   }
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `data:${file.type || 'application/octet-stream'};base64,${btoa(binary)}`;
 }
 
 async function readJsonBody(init?: RequestInit): Promise<Record<string, unknown>> {
@@ -31,14 +41,18 @@ async function readJsonBody(init?: RequestInit): Promise<Record<string, unknown>
   }
   if (init.body instanceof FormData) {
     const out: Record<string, unknown> = {};
+    const fileEntries: Array<{ key: string; file: File }> = [];
     init.body.forEach((value, key) => {
       if (value instanceof File) {
-        out[key] = value.size > 0 ? URL.createObjectURL(value) : null;
+        if (value.size > 0) fileEntries.push({ key, file: value });
         out[`${key}Name`] = value.name;
       } else {
         out[key] = value;
       }
     });
+    for (const { key, file } of fileEntries) {
+      out[key] = await fileToDataUrl(file);
+    }
     return out;
   }
   return {};
@@ -111,6 +125,7 @@ function demoLogoUrl(path: unknown) {
   if (!value) return null;
   if (
     value.startsWith('blob:') ||
+    value.startsWith('data:') ||
     value.startsWith('http://') ||
     value.startsWith('https://') ||
     value.startsWith('/')
@@ -130,10 +145,18 @@ function websiteFromStore(store: DemoStore) {
       const post = String(row.post_name ?? row.postName ?? '').toLowerCase();
       return active && (forRole.includes('coach') || post.includes('coach'));
     })
-    .map((row) => ({
-      name: String(row.full_name ?? row.fullName ?? '').trim(),
-      role: String(row.post_name ?? row.postName ?? row.registration_for ?? row.registrationFor ?? 'Coach').trim() || 'Coach',
-    }))
+    .map((row) => {
+      const photoPath = row.staff_photo_path ?? row.staffPhotoPath;
+      const photoUrl =
+        site.showCoachPhotos && photoPath ? demoLogoUrl(photoPath) : null;
+      return {
+        name: String(row.full_name ?? row.fullName ?? '').trim(),
+        role:
+          String(row.post_name ?? row.postName ?? row.registration_for ?? row.registrationFor ?? 'Coach').trim() ||
+          'Coach',
+        ...(photoUrl ? { photoUrl } : {}),
+      };
+    })
     .filter((row) => row.name);
 
   return {
@@ -147,10 +170,10 @@ function websiteFromStore(store: DemoStore) {
     bannerPhotoUrl: site.bannerPhotoUrl ?? null,
     historyPhotoUrl: site.historyPhotoUrl ?? null,
     infoPhotoUrl: site.infoPhotoUrl ?? null,
-    batchesPhotoUrl: site.batchesPhotoUrl ?? null,
-    coachesPhotoUrl: site.coachesPhotoUrl ?? null,
     achievementsPhotoUrl: site.achievementsPhotoUrl ?? null,
     themeColor: parseThemeColor(site.themeColor),
+    showCoachPhotos: Boolean(site.showCoachPhotos),
+    layoutConfig: parseWebsiteLayout(site.layout),
     poolName: String(core.poolName ?? ''),
     poolAddress: String(core.poolAddress ?? ''),
     poolLogoUrl: demoLogoUrl(core.poolLogoPath),
@@ -200,8 +223,6 @@ function handlePoolWebsite(method: string, body: Record<string, unknown>, store:
       bannerPhotoUrl: nextDemoPhoto(body, 'bannerPhoto', 'clearBannerPhoto', current.bannerPhotoUrl),
       historyPhotoUrl: nextDemoPhoto(body, 'historyPhoto', 'clearHistoryPhoto', current.historyPhotoUrl),
       infoPhotoUrl: nextDemoPhoto(body, 'infoPhoto', 'clearInfoPhoto', current.infoPhotoUrl),
-      batchesPhotoUrl: nextDemoPhoto(body, 'batchesPhoto', 'clearBatchesPhoto', current.batchesPhotoUrl),
-      coachesPhotoUrl: nextDemoPhoto(body, 'coachesPhoto', 'clearCoachesPhoto', current.coachesPhotoUrl),
       achievementsPhotoUrl: nextDemoPhoto(
         body,
         'achievementsPhoto',
@@ -209,6 +230,11 @@ function handlePoolWebsite(method: string, body: Record<string, unknown>, store:
         current.achievementsPhotoUrl,
       ),
       themeColor: parseThemeColor(body.themeColor ?? current.themeColor),
+      showCoachPhotos:
+        String(body.showCoachPhotos ?? '') === '1' ||
+        body.showCoachPhotos === true ||
+        String(body.showCoachPhotos ?? '').toLowerCase() === 'true',
+      layout: parseWebsiteLayout(body.layoutConfig ?? current.layout),
     };
     writeDemoStore(store);
     return jsonResponse(websiteFromStore(store));
@@ -404,6 +430,7 @@ function handlePoolCoreInfo(method: string, body: Record<string, unknown>, store
       ...store.poolCoreInfo,
       poolName: formString(body, 'poolName') || String(store.poolCoreInfo.poolName ?? ''),
       poolAddress: formString(body, 'poolAddress') || String(store.poolCoreInfo.poolAddress ?? ''),
+      shortcutName: formString(body, 'shortcutName').slice(0, 80),
       poolState: formString(body, 'poolState'),
       poolDistrict: formString(body, 'poolDistrict'),
       pinCode: formString(body, 'pinCode'),

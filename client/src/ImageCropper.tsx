@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useObjectUrl } from './useObjectUrl';
 
 type Size = { width: number; height: number };
 type Offset = { x: number; y: number };
@@ -106,7 +107,7 @@ export function ImageCropper({
   const dragRef = useRef<{ pointerId: number; x: number; y: number; offset: Offset } | null>(
     null,
   );
-  const objectUrl = useMemo(() => URL.createObjectURL(file), [file]);
+  const objectUrl = useObjectUrl(file);
   const [imageSize, setImageSize] = useState<Size>({ width: 0, height: 0 });
   const [stageSize, setStageSize] = useState<Size>({ width: 0, height: 0 });
   const [zoom, setZoom] = useState(1);
@@ -114,8 +115,6 @@ export function ImageCropper({
   const [corners, setCorners] = useState<Corners>(INITIAL_CORNERS);
   const cornerDragRef = useRef<{ pointerId: number; key: keyof Corners } | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -386,7 +385,7 @@ export function ImageCropper({
         >
           <img
             ref={imageRef}
-            src={objectUrl}
+            src={objectUrl ?? undefined}
             alt="Image to crop"
             draggable={false}
             onLoad={(event) => {

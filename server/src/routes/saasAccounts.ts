@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { recordPlatformAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
+import { standardWebsiteLayoutJson } from '../poolWebsiteLayout.js';
 import { allowDuplicateAccountMobile } from '../envFlags.js';
 import { pageKeysForPackage, sanitizeFeatureKeys } from '../packageFeatures.js';
 import { isValidMobile, MOBILE_INVALID_MSG, sanitizeMobile } from '../mobileValidation.js';
@@ -611,6 +612,11 @@ saasAccountsRouter.post('/', async (req, res) => {
         body.accountName!.trim(),
         String(body.poolAddress ?? '').trim(),
       ],
+    );
+    await client.query(
+      `INSERT INTO pool_website (saas_account_id, layout_config)
+       VALUES ($1, $2::jsonb)`,
+      [accountId, standardWebsiteLayoutJson()],
     );
     await client.query(`INSERT INTO holiday_settings (saas_account_id) VALUES ($1)`, [accountId]);
 

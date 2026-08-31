@@ -7,6 +7,10 @@ import { recordAudit } from '../auditLog.js';
 import { pool } from '../db/pool.js';
 import { tenantId } from '../middleware/tenant.js';
 import {
+  resolveWebsiteLayoutConfig,
+  standardWebsiteLayoutJson,
+} from '../poolWebsiteLayout.js';
+import {
   isAllowedImageOrPdf,
   randomUploadFilename,
   UPLOAD_MAX_BYTES,
@@ -47,8 +51,6 @@ const PHOTO_FIELDS = [
   { file: 'bannerPhoto', clear: 'clearBannerPhoto', column: 'banner_photo_path' },
   { file: 'historyPhoto', clear: 'clearHistoryPhoto', column: 'history_photo_path' },
   { file: 'infoPhoto', clear: 'clearInfoPhoto', column: 'info_photo_path' },
-  { file: 'batchesPhoto', clear: 'clearBatchesPhoto', column: 'batches_photo_path' },
-  { file: 'coachesPhoto', clear: 'clearCoachesPhoto', column: 'coaches_photo_path' },
   { file: 'achievementsPhoto', clear: 'clearAchievementsPhoto', column: 'achievements_photo_path' },
 ] as const;
 
@@ -91,26 +93,97 @@ function photoUrl(filename: unknown) {
   return value ? `/uploads/${value}` : null;
 }
 
+function uploadedFilename(
+  files: Express.Multer.File[] | Record<string, Express.Multer.File[]> | undefined,
+  fieldName: string,
+) {
+  if (Array.isArray(files)) {
+    return files.find((file) => file.fieldname === fieldName)?.filename;
+  }
+  return files?.[fieldName]?.[0]?.filename;
+}
+
 function nextPhotoPath(
-  files: Record<string, Express.Multer.File[]> | undefined,
+  files: Express.Multer.File[] | Record<string, Express.Multer.File[]> | undefined,
   body: Record<string, unknown>,
   current: Record<string, unknown>,
   field: (typeof PHOTO_FIELDS)[number],
 ) {
-  const uploaded = files?.[field.file]?.[0]?.filename;
+  const uploaded = uploadedFilename(files, field.file);
   if (uploaded) return uploaded;
   if (String(body[field.clear] ?? '') === '1') return null;
   const existing = current[field.column];
   return existing ? String(existing) : null;
 }
 
+type StoredCustomBox = {
+  id: string;
+  title: string;
+  body: string;
+  rect: { x: number; y: number; w: number; h: number };
+  photoPath: string | null;
+};
+
+function parseCustomBoxes(raw: unknown): StoredCustomBox[] {
+  const customRaw = Array.isArray(raw) ? raw : [];
+  return customRaw
+    .slice(0, 8)
+    .map((item, index) => {
+      const box = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+      const title = String(box.title ?? '').trim().slice(0, 120);
+      const body = String(box.body ?? '').trim().slice(0, 2000);
+      const photoPath = String(box.photoPath ?? '').trim() || null;
+      if (!title && !body && !photoPath) return null;
+      const id = String(box.id ?? '').trim() || `custom-${index + 1}`;
+      const fallback = { x: 50, y: Math.min(66 + index * 4, 82), w: 33.34, h: 28 };
+      let rect = parseLayoutRect(box.rect, fallback);
+      if (!box.rect && (box.widthFr != null || box.colFr != null)) {
+        const widthPct = Number(box.widthFr ?? box.colFr ?? 100);
+        rect = clampLayoutRect({ ...fallback, w: (widthPct / 100) * 33.34 });
+      }
+      return { id, title, body, rect, photoPath };
+    })
+    .filter((box): box is StoredCustomBox => box !== null);
+}
+
+function mergeCustomBoxPhotos(
+  incoming: StoredCustomBox[],
+  existing: StoredCustomBox[],
+  files: Express.Multer.File[] | Record<string, Express.Multer.File[]> | undefined,
+  body: Record<string, unknown>,
+): StoredCustomBox[] {
+  const existingById = new Map(existing.map((box) => [box.id, box]));
+  return incoming.map((box, index) => {
+    const uploaded = uploadedFilename(files, `customBoxPhoto_${index}`);
+    const cleared = String(body[`clearCustomBoxPhoto_${index}`] ?? '') === '1';
+    const prevPath = existingById.get(box.id)?.photoPath ?? null;
+    let photoPath = prevPath;
+    if (uploaded) photoPath = uploaded;
+    else if (cleared) photoPath = null;
+    return { ...box, photoPath: photoPath || null };
+  });
+}
+
+function layoutConfigForApi(layout: ReturnType<typeof parseLayoutConfig>) {
+  return {
+    ...layout,
+    customBoxes: layout.customBoxes.map((box) => ({
+      id: box.id,
+      title: box.title,
+      body: box.body,
+      rect: box.rect,
+      photoUrl: box.photoPath ? photoUrl(box.photoPath) : null,
+    })),
+  };
+}
+
 async function ensureRow(accountId: number) {
   await pool.query(
-    `INSERT INTO pool_website (saas_account_id)
-     SELECT $1 WHERE NOT EXISTS (
+    `INSERT INTO pool_website (saas_account_id, layout_config)
+     SELECT $1, $2::jsonb WHERE NOT EXISTS (
        SELECT 1 FROM pool_website WHERE saas_account_id = $1
      )`,
-    [accountId],
+    [accountId, standardWebsiteLayoutJson()],
   );
   const { rows } = await pool.query(`SELECT * FROM pool_website WHERE saas_account_id = $1`, [
     accountId,
@@ -118,7 +191,143 @@ async function ensureRow(accountId: number) {
   return rows[0];
 }
 
-async function publicLists(accountId: number) {
+function parseShowCoachPhotos(raw: unknown) {
+  if (raw === true || raw === 1) return true;
+  const value = String(raw ?? '').trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'on' || value === 'yes';
+}
+
+const LAYOUT_RECT_MIN = 6;
+
+function roundRect(n: number) {
+  return Math.round(n * 10) / 10;
+}
+
+function clampLayoutRect(rect: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  hidden?: boolean;
+}) {
+  const w = Math.max(LAYOUT_RECT_MIN, Math.min(100, rect.w));
+  const h = Math.max(LAYOUT_RECT_MIN, Math.min(100, rect.h));
+  const x = Math.max(0, Math.min(100 - w, rect.x));
+  const y = Math.max(0, Math.min(100 - h, rect.y));
+  const next: { x: number; y: number; w: number; h: number; hidden?: boolean } = {
+    x: roundRect(x),
+    y: roundRect(y),
+    w: roundRect(w),
+    h: roundRect(h),
+  };
+  if (rect.hidden) next.hidden = true;
+  return next;
+}
+
+function parseLayoutRect(
+  raw: unknown,
+  fallback: { x: number; y: number; w: number; h: number; hidden?: boolean },
+) {
+  const row = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return clampLayoutRect({
+    x: Number(row.x ?? fallback.x),
+    y: Number(row.y ?? fallback.y),
+    w: Number(row.w ?? fallback.w),
+    h: Number(row.h ?? fallback.h),
+    hidden: row.hidden === true ? true : fallback.hidden,
+  });
+}
+
+function defaultLayoutConfig() {
+  const introH = 14;
+  const colY = introH;
+  const colH = 100 - introH;
+  const colW = 50 / 3;
+  return {
+    banner: { x: 0, y: 0, w: 50, h: 50 },
+    story: { x: 0, y: 50, w: 50, h: 50 },
+    intro: { x: 50, y: 0, w: 50, h: introH },
+    batches: { x: 50, y: colY, w: colW, h: colH },
+    coaches: { x: 50 + colW, y: colY, w: colW, h: colH },
+    achievements: { x: 50 + colW * 2, y: colY, w: colW, h: colH },
+    customBoxes: [] as StoredCustomBox[],
+  };
+}
+
+function migrateFrLayout(row: Record<string, unknown>, defaults: ReturnType<typeof defaultLayoutConfig>) {
+  const leftFr = Number(row.leftColFr ?? 100);
+  const rightFr = Number(row.rightColFr ?? 100);
+  const bannerFr = Number(row.bannerRowFr ?? 100);
+  const storyFr = Number(row.storyRowFr ?? 100);
+  const introFr = Number(row.introRowFr ?? 100);
+  const columnsFr = Number(row.columnsRowFr ?? row.batchesRowFr ?? 100);
+  const customFr = Number(row.customRowFr ?? 80);
+  const customRaw = Array.isArray(row.customBoxes) ? row.customBoxes : [];
+  const hasCustom = customRaw.length > 0;
+  const boardTotal = introFr + columnsFr + (hasCustom ? customFr : 0);
+  const leftW = (leftFr / (leftFr + rightFr)) * 100;
+  const bannerH = (bannerFr / (bannerFr + storyFr)) * 100;
+  const introH = (introFr / boardTotal) * 100;
+  const colsH = (columnsFr / boardTotal) * 100;
+  const customH = hasCustom ? (customFr / boardTotal) * 100 : 0;
+  const bFr = Number(row.batchesColFr ?? 100);
+  const cFr = Number(row.coachesColFr ?? 100);
+  const panelTotal = bFr + cFr + Number(row.achievementsColFr ?? 100);
+  const bW = (bFr / panelTotal) * (100 - leftW);
+  const cW = (cFr / panelTotal) * (100 - leftW);
+
+  return {
+    banner: clampLayoutRect({ x: 0, y: 0, w: leftW, h: bannerH }),
+    story: clampLayoutRect({ x: 0, y: bannerH, w: leftW, h: 100 - bannerH }),
+    intro: clampLayoutRect({ x: leftW, y: 0, w: 100 - leftW, h: introH }),
+    batches: clampLayoutRect({ x: leftW, y: introH, w: bW, h: hasCustom ? colsH : 100 - introH }),
+    coaches: clampLayoutRect({ x: leftW + bW, y: introH, w: cW, h: hasCustom ? colsH : 100 - introH }),
+    achievements: clampLayoutRect({
+      x: leftW + bW + cW,
+      y: introH,
+      w: 100 - leftW - bW - cW,
+      h: hasCustom ? 100 - introH - customH : 100 - introH,
+    }),
+    customBoxes: parseCustomBoxes(row.customBoxes).map((box, i) =>
+      hasCustom && Math.abs(box.rect.y - (66 + i * 4)) < 2
+        ? { ...box, rect: clampLayoutRect({ x: leftW, y: introH + colsH, w: bW + cW, h: customH || 28 }) }
+        : box,
+    ),
+  };
+}
+
+function parseLayoutConfig(raw: unknown) {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      value = {};
+    }
+  }
+  const row = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const defaults = defaultLayoutConfig();
+
+  if (row.banner && typeof row.banner === 'object') {
+    return {
+      banner: parseLayoutRect(row.banner, defaults.banner),
+      story: parseLayoutRect(row.story, defaults.story),
+      intro: parseLayoutRect(row.intro, defaults.intro),
+      batches: parseLayoutRect(row.batches, defaults.batches),
+      coaches: parseLayoutRect(row.coaches, defaults.coaches),
+      achievements: parseLayoutRect(row.achievements, defaults.achievements),
+      customBoxes: parseCustomBoxes(row.customBoxes),
+    };
+  }
+
+  if (row.leftColFr != null || row.bannerRowFr != null) {
+    return migrateFrLayout(row, defaults);
+  }
+
+  return { ...defaults, customBoxes: parseCustomBoxes(row.customBoxes) };
+}
+
+async function publicLists(accountId: number, showCoachPhotos = false) {
   const [batchesRes, coachesRes, poolRes] = await Promise.all([
     pool.query(
       `SELECT name, type, start_time, end_time
@@ -128,7 +337,7 @@ async function publicLists(accountId: number) {
       [accountId],
     ),
     pool.query(
-      `SELECT full_name, registration_for, post_name
+      `SELECT full_name, registration_for, post_name, staff_photo_path
        FROM staff_registrations
        WHERE saas_account_id = $1
          AND COALESCE(is_active, TRUE) = TRUE
@@ -165,6 +374,10 @@ async function publicLists(accountId: number) {
     coaches: coachesRes.rows.map((row) => ({
       name: String(row.full_name ?? '').trim(),
       role: String(row.post_name || row.registration_for || 'Coach').trim() || 'Coach',
+      photoUrl:
+        showCoachPhotos && row.staff_photo_path
+          ? photoUrl(row.staff_photo_path)
+          : null,
     })),
   };
 }
@@ -191,10 +404,12 @@ function mapWebsite(row: Record<string, unknown>, lists: Awaited<ReturnType<type
     bannerPhotoUrl: photoUrl(row.banner_photo_path),
     historyPhotoUrl: photoUrl(row.history_photo_path),
     infoPhotoUrl: photoUrl(row.info_photo_path),
-    batchesPhotoUrl: photoUrl(row.batches_photo_path),
-    coachesPhotoUrl: photoUrl(row.coaches_photo_path),
     achievementsPhotoUrl: photoUrl(row.achievements_photo_path),
     themeColor: parseThemeColor(row.theme_color),
+    showCoachPhotos: row.show_coach_photos === true,
+    layoutConfig: layoutConfigForApi(
+      resolveWebsiteLayoutConfig(parseLayoutConfig(row.layout_config)),
+    ),
     ...lists,
     poolName: lists.poolName,
     poolAddress: lists.poolAddress,
@@ -208,7 +423,7 @@ poolWebsiteRouter.get('/', async (req, res) => {
   try {
     const accountId = tenantId(req);
     const row = await ensureRow(accountId);
-    const lists = await publicLists(accountId);
+    const lists = await publicLists(accountId, row.show_coach_photos === true);
     res.json(mapWebsite(row, lists));
   } catch (err) {
     console.error(err);
@@ -218,7 +433,7 @@ poolWebsiteRouter.get('/', async (req, res) => {
 
 poolWebsiteRouter.put(
   '/',
-  upload.fields(PHOTO_FIELDS.map((field) => ({ name: field.file, maxCount: 1 }))),
+  upload.any(),
   async (req, res) => {
     try {
       if (req.publicTenantAccess) {
@@ -228,8 +443,19 @@ poolWebsiteRouter.put(
       const accountId = tenantId(req);
       const current = await ensureRow(accountId);
       const body = req.body as Record<string, unknown>;
-      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const files = req.files as Express.Multer.File[] | undefined;
       const achievements = parseAchievements(body.achievements);
+      const existingLayout = parseLayoutConfig(current.layout_config);
+      const incomingLayout = parseLayoutConfig(body.layoutConfig);
+      const layoutConfig = {
+        ...incomingLayout,
+        customBoxes: mergeCustomBoxPhotos(
+          incomingLayout.customBoxes,
+          existingLayout.customBoxes,
+          files,
+          body,
+        ),
+      };
       const photos = Object.fromEntries(
         PHOTO_FIELDS.map((field) => [field.column, nextPhotoPath(files, body, current, field)]),
       );
@@ -245,10 +471,12 @@ poolWebsiteRouter.put(
                 banner_photo_path = $9,
                 history_photo_path = $10,
                 info_photo_path = $11,
-                batches_photo_path = $12,
-                coaches_photo_path = $13,
-                achievements_photo_path = $14,
-                theme_color = $15,
+                achievements_photo_path = $12,
+                theme_color = $13,
+                show_coach_photos = $14,
+                layout_config = $15::jsonb,
+                batches_photo_path = NULL,
+                coaches_photo_path = NULL,
                 updated_at = NOW()
           WHERE saas_account_id = $1
           RETURNING *`,
@@ -264,10 +492,10 @@ poolWebsiteRouter.put(
           photos.banner_photo_path,
           photos.history_photo_path,
           photos.info_photo_path,
-          photos.batches_photo_path,
-          photos.coaches_photo_path,
           photos.achievements_photo_path,
           parseThemeColor(body.themeColor),
+          parseShowCoachPhotos(body.showCoachPhotos),
+          JSON.stringify(layoutConfig),
         ],
       );
       await recordAudit(req, {
@@ -276,7 +504,7 @@ poolWebsiteRouter.put(
         entityId: String(accountId),
         summary: 'Updated pool website',
       });
-      const lists = await publicLists(accountId);
+      const lists = await publicLists(accountId, rows[0].show_coach_photos === true);
       res.json(mapWebsite(rows[0], lists));
     } catch (err) {
       console.error(err);

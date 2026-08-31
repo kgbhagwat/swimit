@@ -1,5 +1,7 @@
 /** Ephemeral Application preview: try the app UI; data is discarded when you leave a page. */
 
+import { defaultWebsiteLayout, type PoolWebsiteLayout } from './poolWebsite';
+
 export const APPLICATION_FEATURE_PATHS = new Set([
   '/register',
   '/staff-register',
@@ -67,10 +69,10 @@ export type DemoStore = {
     bannerPhotoUrl: string | null;
     historyPhotoUrl: string | null;
     infoPhotoUrl: string | null;
-    batchesPhotoUrl: string | null;
-    coachesPhotoUrl: string | null;
     achievementsPhotoUrl: string | null;
     themeColor: string;
+    showCoachPhotos: boolean;
+    layout: PoolWebsiteLayout;
   };
   formInfo: {
     swimmer: Record<string, boolean>;
@@ -100,6 +102,7 @@ function emptyStore(): DemoStore {
     poolCoreInfo: {
       poolName: '',
       poolAddress: '',
+      shortcutName: '',
       poolState: '',
       poolDistrict: '',
       pinCode: '',
@@ -124,10 +127,10 @@ function emptyStore(): DemoStore {
       bannerPhotoUrl: null,
       historyPhotoUrl: null,
       infoPhotoUrl: null,
-      batchesPhotoUrl: null,
-      coachesPhotoUrl: null,
       achievementsPhotoUrl: null,
       themeColor: '#1e88c8',
+      showCoachPhotos: false,
+      layout: defaultWebsiteLayout(),
     },
     formInfo: {
       swimmer: {},
@@ -253,6 +256,14 @@ export function markSampleSwimmerPaid(id: number, passType: string) {
   dequeueSamplePassPayment(id);
 }
 
+function stripDeadBlobUrl(url: string | null | undefined): string | null {
+  const value = String(url ?? '').trim();
+  if (!value) return null;
+  // Blob URLs are ephemeral; they break after reload or when revoked.
+  if (value.startsWith('blob:')) return null;
+  return value;
+}
+
 export function readDemoStore(): DemoStore {
   try {
     const raw = sessionStorage.getItem(DEMO_DATA_KEY);
@@ -267,13 +278,17 @@ export function readDemoStore(): DemoStore {
       parsed.poolWebsite = emptyStore().poolWebsite;
     } else {
       if (!parsed.poolWebsite.history) parsed.poolWebsite.history = '';
-      parsed.poolWebsite.bannerPhotoUrl ??= null;
-      parsed.poolWebsite.historyPhotoUrl ??= null;
-      parsed.poolWebsite.infoPhotoUrl ??= null;
-      parsed.poolWebsite.batchesPhotoUrl ??= null;
-      parsed.poolWebsite.coachesPhotoUrl ??= null;
-      parsed.poolWebsite.achievementsPhotoUrl ??= null;
+      parsed.poolWebsite.bannerPhotoUrl = stripDeadBlobUrl(parsed.poolWebsite.bannerPhotoUrl);
+      parsed.poolWebsite.historyPhotoUrl = stripDeadBlobUrl(parsed.poolWebsite.historyPhotoUrl);
+      parsed.poolWebsite.infoPhotoUrl = stripDeadBlobUrl(parsed.poolWebsite.infoPhotoUrl);
+      parsed.poolWebsite.achievementsPhotoUrl = stripDeadBlobUrl(
+        parsed.poolWebsite.achievementsPhotoUrl,
+      );
+      parsed.poolWebsite.showCoachPhotos = Boolean(parsed.poolWebsite.showCoachPhotos);
       parsed.poolWebsite.themeColor ??= '#1e88c8';
+      if (!parsed.poolWebsite.layout) {
+        parsed.poolWebsite.layout = emptyStore().poolWebsite.layout;
+      }
     }
     if (!parsed.formInfo) {
       parsed.formInfo = emptyStore().formInfo;

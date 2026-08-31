@@ -363,6 +363,25 @@ const mr: Record<string, string> = {
   Dashboard: 'डॅशबोर्ड',
   'Core Info': 'मूलभूत माहिती',
   'Pool website': 'पूल संकेतस्थळ',
+  'Website appearance': 'संकेतस्थळ देखावा',
+  'Choose the colour theme visitors see on your public pool website.':
+    'सार्वजनिक पूल संकेतस्थळावर अभ्यागतांना दिसणारा रंग थीम निवडा.',
+  'Welcome banner': 'स्वागत बॅनर',
+  'Welcome message and large image at the top of your public website.':
+    'सार्वजनिक संकेतस्थळाच्या वरच्या भागात स्वागत मजकूर आणि मोठी प्रतिमा.',
+  'History text': 'इतिहास मजकूर',
+  'Your pool’s story and an optional photo beside this section on the website.':
+    'आपल्या पूलाची कथा आणि संकेतस्थळावर या विभागाजवळ पर्यायी फोटो.',
+  'Pool information': 'पूल माहिती',
+  'Opening hours, facilities, and a photo shown with these details on the website.':
+    'सार्वजनिक संकेतस्थळावर दाखवलेले वेळ, सुविधा आणि फोटो.',
+  'Intro text for the batches area. Batch names and times come from your Batches setup.':
+    'बॅचेस विभागाचा मजकूर. बॅच नाव आणि वेळ आपल्या बॅच सेटअपमधून येतात.',
+  'Intro text for coaches. Names come from staff registration; optionally show their photos.':
+    'कोच विभागाचा मजकूर. नावे स्टाफ नोंदणीतून; पर्यायी फोटो दाखवा.',
+  'Medals, programmes, or milestones you want to highlight on the website.':
+    'संकेतस्थळावर दाखवायचे मेडल, कार्यक्रम किंवा उपलब्धी.',
+  'Achievement list': 'उपलब्धी यादी',
   'About the pool': 'पूलाबद्दल',
   'Background & history': 'पार्श्वभूमी आणि इतिहास',
   'Leave blank to show the sample history text.': 'नमुना इतिहास मजकूर दाखवण्यासाठी रिकामे ठेवा.',
@@ -371,6 +390,9 @@ const mr: Record<string, string> = {
   'Pool info photo': 'पूल माहिती फोटो',
   'Batches photo': 'बॅच फोटो',
   'Coaches photo': 'प्रशिक्षक फोटो',
+  'Add photo': 'फोटो जोडा',
+  'When ticked, each coach’s staff registration photo appears beside their name on the website.':
+    'टिक केल्यावर, प्रत्येक प्रशिक्षकाचा स्टाफ नोंदणी फोटो वेबसाइटवर त्याच्या नावाजवळ दिसेल.',
   'Achievements photo': 'उपलब्धी फोटो',
   'Images max 200 KB': 'प्रतिमा कमाल २०० KB',
   'No photo uploaded.': 'फोटो अपलोड नाही.',
@@ -386,6 +408,21 @@ const mr: Record<string, string> = {
   'Leave blank to show the sample welcome text.': 'नमुना स्वागत मजकूर दाखवण्यासाठी रिकामे ठेवा.',
   'These details appear on your public pool website.':
     'हे तपशील तुमच्या सार्वजनिक पूल संकेतस्थळावर दिसतात.',
+  'Page layout': 'पृष्ठ लेआउट',
+  'Drag section borders to set how much space each area uses on the public website.':
+    'सार्वजनिक संकेतस्थळावर प्रत्येक विभागाला किती जागा द्यायची ते सेट करण्यासाठी विभागांच्या कडा ड्रॅग करा.',
+  'Drag the borders between sections to resize. Neighbouring sections adjust automatically.':
+    'आकार बदलण्यासाठी विभागांमधील कडा ड्रॅग करा. शेजारील विभाग आपोआप समायोजित होतात.',
+  'Preview matches your public website. Drag borders between sections to resize.':
+    'पूर्वावलोकन आपल्या सार्वजनिक संकेतस्थळाशी जुळते. आकार बदलण्यासाठी विभागांमधील कडा ड्रॅग करा.',
+  'Custom boxes': 'सानुकूल बॉक्स',
+  'Box title': 'बॉक्स शीर्षक',
+  'Box text': 'बॉक्स मजकूर',
+  'Box size': 'बॉक्स आकार',
+  'Add box': 'बॉक्स जोडा',
+  Small: 'लहान',
+  Medium: 'मध्यम',
+  Large: 'मोठा',
   'Website colour': 'संकेतस्थळ रंग',
   'This colour is used for the public pool website.':
     'हा रंग सार्वजनिक पूल संकेतस्थळासाठी वापरला जातो.',
@@ -1375,6 +1412,14 @@ const mr: Record<string, string> = {
   "Pool expenses": "पूल खर्च",
   "Pool Logo": "पूल लोगो",
   "Pool Name": "पूलचे नाव",
+  "Shortcut name": "शॉर्टकट नाव",
+  "Used as the desktop or mobile shortcut label. Leave blank to use the pool name.":
+    "डेस्कटॉप किंवा मोबाइल शॉर्टकटचे नाव. रिकामे ठेवल्यास पूलचे नाव वापरले जाईल.",
+  "Shortcut shared. Add it to your home screen from the share menu.":
+    "शॉर्टकट शेअर झाला. शेअर मेनूमधून होम स्क्रीनवर जोडा.",
+  "Shortcut downloaded. Move it to your Desktop for quick access.":
+    "शॉर्टकट डाउनलोड झाला. जलद प्रवेशासाठी डेस्कटॉपवर हलवा.",
+  "Failed to create shortcut": "शॉर्टकट तयार करण्यात अयशस्वी",
   "Post": "पद",
   "Post details": "पद तपशील",
   "Post name": "पदाचे नाव",

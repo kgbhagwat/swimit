@@ -16,14 +16,21 @@ export type PlatformImpersonation = {
 };
 
 export function setActiveTenant(account: { id: number; accountCode: string } | null) {
-  sessionStorage.removeItem(PUBLIC_ACCESS_TOKEN_KEY);
   if (!account) {
+    sessionStorage.removeItem(PUBLIC_ACCESS_TOKEN_KEY);
     sessionStorage.removeItem(ACCOUNT_ID_KEY);
     sessionStorage.removeItem(ACCOUNT_CODE_KEY);
     return;
   }
+  const code = account.accountCode.toLowerCase();
+  const sameTenant =
+    sessionStorage.getItem(ACCOUNT_ID_KEY) === String(account.id) &&
+    sessionStorage.getItem(ACCOUNT_CODE_KEY) === code;
+  if (!sameTenant) {
+    sessionStorage.removeItem(PUBLIC_ACCESS_TOKEN_KEY);
+  }
   sessionStorage.setItem(ACCOUNT_ID_KEY, String(account.id));
-  sessionStorage.setItem(ACCOUNT_CODE_KEY, account.accountCode.toLowerCase());
+  sessionStorage.setItem(ACCOUNT_CODE_KEY, code);
 }
 
 export function setPublicAccessToken(token: string | null) {

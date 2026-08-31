@@ -34,6 +34,7 @@ import {
   removeBiometricCredential,
   writeBiometricPref,
 } from './webauthn';
+import { downloadPoolLoginShortcut } from './shortcut';
 
 export type TenantUserInfo = {
   id: number;
@@ -87,7 +88,27 @@ function TenantUserBar({
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
+  const [shortcutName, setShortcutName] = useState('');
+  const [poolName, setPoolName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/pool-core-info');
+        const body = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        setShortcutName(String(body.shortcutName ?? ''));
+        setPoolName(String(body.poolName ?? ''));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [account.accountCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,21 +152,24 @@ function TenantUserBar({
   function createDesktopShortcut() {
     setError('');
     setSuccess('');
-    const code = account.accountCode.toLowerCase();
-    const loginUrl = `${window.location.origin}/${code}`;
-    const safeName =
-      account.accountName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || `SwimIT-${code}`;
-    const content = `[InternetShortcut]\r\nURL=${loginUrl}\r\nIconIndex=0\r\n`;
-    const blob = new Blob([content], { type: 'application/internet-shortcut' });
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = `${safeName}.url`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(href);
-    setSuccess('Shortcut downloaded. Move it to your Desktop for quick access.');
+    void (async () => {
+      try {
+        const result = await downloadPoolLoginShortcut({
+          accountCode: account.accountCode,
+          shortcutName,
+          poolName,
+          accountName: account.accountName,
+        });
+        setSuccess(
+          result === 'shared'
+            ? t('Shortcut shared. Add it to your home screen from the share menu.')
+            : t('Shortcut downloaded. Move it to your Desktop for quick access.'),
+        );
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : t('Failed to create shortcut'));
+      }
+    })();
   }
 
   async function onChangePassword(e: FormEvent) {

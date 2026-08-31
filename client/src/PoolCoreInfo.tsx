@@ -27,6 +27,7 @@ import {
 type PoolCoreInfoData = {
   poolName: string;
   poolAddress: string;
+  shortcutName: string;
   poolState: string;
   poolDistrict: string;
   pinCode: string;
@@ -235,6 +236,7 @@ export function PoolCoreInfo() {
   const [form, setForm] = useState<PoolCoreInfoData>(() => ({
     poolName: '',
     poolAddress: '',
+    shortcutName: '',
     poolState: '',
     poolDistrict: '',
     pinCode: '',
@@ -271,6 +273,7 @@ export function PoolCoreInfo() {
       const next: PoolCoreInfoData = {
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
+        shortcutName: String(body.shortcutName ?? ''),
         poolState: String(body.poolState ?? ''),
         poolDistrict: String(body.poolDistrict ?? ''),
         pinCode: String(body.pinCode ?? ''),
@@ -358,6 +361,7 @@ export function PoolCoreInfo() {
       const data = new FormData();
       data.append('poolName', form.poolName.trim());
       data.append('poolAddress', form.poolAddress.trim());
+      data.append('shortcutName', form.shortcutName.trim());
       data.append('poolState', form.poolState.trim());
       data.append('poolDistrict', form.poolDistrict.trim());
       data.append('pinCode', form.pinCode.trim());
@@ -377,6 +381,7 @@ export function PoolCoreInfo() {
       setForm({
         poolName: body.poolName ?? '',
         poolAddress: body.poolAddress ?? '',
+        shortcutName: String(body.shortcutName ?? ''),
         poolState: String(body.poolState ?? ''),
         poolDistrict: String(body.poolDistrict ?? ''),
         pinCode: String(body.pinCode ?? ''),
@@ -424,6 +429,7 @@ export function PoolCoreInfo() {
                     ...prev,
                     poolName: '',
                     poolAddress: '',
+                    shortcutName: '',
                     poolState: '',
                     poolDistrict: '',
                     pinCode: '',
@@ -479,6 +485,13 @@ export function PoolCoreInfo() {
             <div className="pool-core-view-row">
               <span className="label">{t('Pool Name')}</span>
               <p className="pool-core-view-value">{form.poolName.trim() || '—'}</p>
+            </div>
+
+            <div className="pool-core-view-row">
+              <span className="label">{t('Shortcut name')}</span>
+              <p className="pool-core-view-value">
+                {form.shortcutName.trim() || form.poolName.trim() || '—'}
+              </p>
             </div>
 
             <div className="pool-core-view-row">
@@ -587,6 +600,23 @@ export function PoolCoreInfo() {
               />
             </label>
 
+            <label className="field field-beside">
+              <span className="label">{t('Shortcut name')}</span>
+              <input
+                value={form.shortcutName}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, shortcutName: e.target.value.slice(0, 80) }))
+                }
+                placeholder={form.poolName.trim() || t('e.g. Law College Pool')}
+                maxLength={80}
+              />
+              <span className="muted field-hint">
+                {t('Used as the desktop or mobile shortcut label. Leave blank to use the pool name.')}
+              </span>
+            </label>
+          </div>
+
+          <div className="form-grid-2">
             <label className="field field-beside">
               <span className="label">
                 {t('Pool Address')} <span className="req">*</span>

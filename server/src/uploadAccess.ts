@@ -38,9 +38,25 @@ async function isPublicUpload(relativePath: string): Promise<boolean> {
             WHERE banner_photo_path = $1
                OR history_photo_path = $1
                OR info_photo_path = $1
-               OR batches_photo_path = $1
-               OR coaches_photo_path = $1
                OR achievements_photo_path = $1
+         )
+         OR EXISTS (
+           SELECT 1
+             FROM pool_website pw,
+                  jsonb_array_elements(COALESCE(pw.layout_config->'customBoxes', '[]'::jsonb)) AS box
+            WHERE TRIM(box->>'photoPath') = $1
+         )
+         OR EXISTS (
+           SELECT 1
+             FROM pool_website pw
+             JOIN staff_registrations sr ON sr.saas_account_id = pw.saas_account_id
+            WHERE pw.show_coach_photos = TRUE
+              AND TRIM(sr.staff_photo_path) = $1
+              AND COALESCE(sr.is_active, TRUE) = TRUE
+              AND (
+                sr.registration_for ILIKE '%coach%'
+                OR COALESCE(sr.post_name, '') ILIKE '%coach%'
+              )
          )
        ) AS ok`,
     [relativePath],
@@ -85,6 +101,13 @@ async function uploadOwnedByAccount(accountId: number, relativePath: string): Pr
                 OR coaches_photo_path = $2
                 OR achievements_photo_path = $2
               )
+         )
+         OR EXISTS (
+           SELECT 1
+             FROM pool_website pw,
+                  jsonb_array_elements(COALESCE(pw.layout_config->'customBoxes', '[]'::jsonb)) AS box
+            WHERE pw.saas_account_id = $1
+              AND TRIM(box->>'photoPath') = $2
          )
          OR EXISTS (
            SELECT 1 FROM whatsapp_inbound

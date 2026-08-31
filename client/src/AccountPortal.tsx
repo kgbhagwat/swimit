@@ -162,6 +162,28 @@ export function AccountPortal() {
       captchaRequired,
   );
 
+  async function refreshPoolWebsite(accountName: string, alive?: () => boolean) {
+    try {
+      const siteRes = await fetch('/api/pool-website');
+      const siteBody = await siteRes.json().catch(() => ({}));
+      if (alive && !alive()) return;
+      if (siteRes.ok) {
+        setPoolPage(mapWebsiteResponse(siteBody, accountName));
+      } else {
+        setPoolPage({
+          ...emptyWebsiteContent(),
+          poolName: accountName,
+        });
+      }
+    } catch {
+      if (alive && !alive()) return;
+      setPoolPage({
+        ...emptyWebsiteContent(),
+        poolName: accountName,
+      });
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -242,16 +264,7 @@ export function AccountPortal() {
         try {
           setActiveTenant({ id: info.id, accountCode: info.accountCode });
           setPublicAccessToken(String(body.publicAccessToken ?? ''));
-          const siteRes = await fetch('/api/pool-website');
-          const siteBody = await siteRes.json().catch(() => ({}));
-          if (siteRes.ok && !cancelled) {
-            setPoolPage(mapWebsiteResponse(siteBody, info.accountName));
-          } else if (!cancelled) {
-            setPoolPage({
-              ...emptyWebsiteContent(),
-              poolName: info.accountName,
-            });
-          }
+          await refreshPoolWebsite(info.accountName, () => !cancelled);
         } catch {
           if (!cancelled) {
             setPoolPage({
@@ -274,6 +287,26 @@ export function AccountPortal() {
       cancelled = true;
     };
   }, [code]);
+
+  // Reload website content when opening the public site (e.g. after saving new photos).
+  useEffect(() => {
+    if (!account || !viewingPublicSite) return;
+    void refreshPoolWebsite(account.accountName);
+  }, [account?.id, account?.accountName, viewingPublicSite]);
+
+  useEffect(() => {
+    function onPoolWebsiteUpdated(e: Event) {
+      if (!account) return;
+      const detail =
+        e instanceof CustomEvent && e.detail && typeof e.detail === 'object'
+          ? (e.detail as Record<string, unknown>)
+          : null;
+      if (!detail) return;
+      setPoolPage(mapWebsiteResponse(detail, account.accountName));
+    }
+    window.addEventListener('swimit:pool-website-updated', onPoolWebsiteUpdated);
+    return () => window.removeEventListener('swimit:pool-website-updated', onPoolWebsiteUpdated);
+  }, [account?.id, account?.accountName]);
 
   useEffect(() => {
     if (account && sessionUser && !sessionUser.mustChangePassword) {
