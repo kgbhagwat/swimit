@@ -416,6 +416,7 @@ const mr: Record<string, string> = {
   'Preview matches your public website. Drag borders between sections to resize.':
     'पूर्वावलोकन आपल्या सार्वजनिक संकेतस्थळाशी जुळते. आकार बदलण्यासाठी विभागांमधील कडा ड्रॅग करा.',
   'Custom boxes': 'सानुकूल बॉक्स',
+  'Custom box': 'सानुकूल बॉक्स',
   'Box title': 'बॉक्स शीर्षक',
   'Box text': 'बॉक्स मजकूर',
   'Box size': 'बॉक्स आकार',
@@ -1385,7 +1386,7 @@ const mr: Record<string, string> = {
   "Payment confirmation": "पेमेंट पुष्टीकरण",
   "Payment details": "पेमेंट तपशील",
   "Payment details saved. Account holders can use these to pay.": "पेमेंट तपशील जतन झाले. खातेधारक पेमेंटसाठी हे वापरू शकतात.",
-  "Payment mode": "पेमेंट पद्धत",
+  "Payment pending": "पेमेंट प्रलंबित",
   "Payment Options": "पेमेंट पर्याय",
   "Payment QR code": "पेमेंट QR कोड",
   "Payment QR code is required when Online is selected": "ऑनलाइन निवडल्यास पेमेंट QR कोड आवश्यक आहे",

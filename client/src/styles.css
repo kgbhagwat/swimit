@@ -3206,6 +3206,8 @@ html[data-theme='dark'] .pass-partial-paid {
   --pool-kicker: #ffffff;
   --pool-cta-hover: #eef7fc;
   --pool-banner-fill: #87ceeb;
+  /* Fixed rem gutter so every side of every box matches (not %-of-width vs %-of-height). */
+  --pool-box-gap: 0.55rem;
   height: 100svh;
   max-height: 100svh;
   width: 100%;
@@ -3330,7 +3332,7 @@ html[data-theme='dark'] .pass-partial-paid {
 .pool-site-split--free {
   display: block;
   position: relative;
-  --pool-layout-gap: 0.4%;
+  --pool-layout-gap: var(--pool-box-gap);
 }
 
 .pool-site-free-box {
@@ -3352,6 +3354,11 @@ html[data-theme='dark'] .pass-partial-paid {
   background: #fff;
   border: 1px solid var(--pool-border);
   border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+}
+
+.pool-site-split--free .pool-site-panel {
+  /* Override non-free panel padding so every box uses the same inner inset. */
   padding: 0.55rem 0.65rem;
 }
 
@@ -3538,6 +3545,17 @@ html[data-theme='dark'] .pass-partial-paid {
   padding: 0.65rem 0.75rem 0.5rem;
 }
 
+.pool-site-custom-box-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
 .pool-site-custom-box h2 {
   margin: 0 0 0.35rem;
   font-size: 0.78rem;
@@ -3555,30 +3573,54 @@ html[data-theme='dark'] .pass-partial-paid {
   white-space: pre-wrap;
 }
 
-.pool-site-custom-box--photo {
-  display: grid;
-  grid-template-columns: minmax(0, 5.6rem) minmax(0, 1fr);
-  gap: 0.55rem;
-  align-items: start;
-}
-
 .pool-site-custom-box-copy {
   min-width: 0;
   min-height: 0;
 }
 
-.pool-site-custom-box--photo .pool-site-custom-box-copy {
-  grid-column: 2;
-  grid-row: 1;
-}
-
 .pool-site-custom-box-photo {
   display: block;
-  width: 5.6rem;
-  height: 5.6rem;
   object-fit: cover;
   border-radius: 10px;
   background: var(--pool-border);
+  flex-shrink: 0;
+}
+
+/* Vertical box: photo centered on top, text below */
+.pool-site-custom-box--photo.pool-site-custom-box--vertical .pool-site-custom-box-body {
+  flex-direction: column;
+  align-items: center;
+}
+
+.pool-site-custom-box--photo.pool-site-custom-box--vertical .pool-site-custom-box-photo {
+  width: min(100%, 9rem);
+  max-width: 100%;
+  height: auto;
+  max-height: 42%;
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+
+.pool-site-custom-box--photo.pool-site-custom-box--vertical .pool-site-custom-box-copy {
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+/* Horizontal box: photo vertically centered, text beside it */
+.pool-site-custom-box--photo.pool-site-custom-box--horizontal .pool-site-custom-box-body {
+  flex-direction: row;
+  align-items: center;
+}
+
+.pool-site-custom-box--photo.pool-site-custom-box--horizontal .pool-site-custom-box-photo {
+  width: 5.6rem;
+  height: 5.6rem;
+  max-height: none;
+}
+
+.pool-site-custom-box--photo.pool-site-custom-box--horizontal .pool-site-custom-box-copy {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .pool-website-custom-box-view img {
@@ -4066,7 +4108,8 @@ html[data-theme='dark'] .pass-partial-paid {
   background: #eef3f8;
   overflow: hidden;
   box-sizing: border-box;
-  --pool-layout-gap: 0.4%;
+  --pool-box-gap: 0.55rem;
+  --pool-layout-gap: var(--pool-box-gap);
 }
 
 .pool-layout-editor-canvas--free {
@@ -4574,10 +4617,10 @@ html[data-theme='dark'] .form-info-page h2 {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: var(--pool-box-gap);
     position: relative;
-    padding: 0.65rem clamp(0.65rem, 2.4vw, 1rem)
-      max(0.65rem, env(safe-area-inset-bottom, 0px));
+    padding: var(--pool-box-gap) clamp(0.65rem, 2.4vw, 1rem)
+      max(var(--pool-box-gap), env(safe-area-inset-bottom, 0px));
     min-height: 0;
     overflow: visible;
   }
@@ -4620,8 +4663,9 @@ html[data-theme='dark'] .form-info-page h2 {
     max-height: 4.5rem;
   }
 
-  .pool-site--stacked .pool-site-custom-box--photo {
-    grid-template-columns: minmax(0, 4.5rem) minmax(0, 1fr);
+  .pool-site--stacked .pool-site-custom-box--photo.pool-site-custom-box--horizontal .pool-site-custom-box-photo {
+    width: 4.5rem;
+    height: 4.5rem;
   }
 
   .pool-site--stacked .pool-site-panel {
@@ -4645,18 +4689,33 @@ html[data-theme='dark'] .form-info-page h2 {
 
 @media (max-width: 480px) {
   .pool-site--stacked .pool-site-story--photo,
-  .pool-site--stacked .pool-site-info-cell--photo,
-  .pool-site--stacked .pool-site-custom-box--photo {
+  .pool-site--stacked .pool-site-info-cell--photo {
     grid-template-columns: 1fr;
   }
 
   .pool-site--stacked .pool-site-info-photo,
-  .pool-site--stacked .pool-site-story-photo,
-  .pool-site--stacked .pool-site-custom-box--photo .pool-site-custom-box-photo {
+  .pool-site--stacked .pool-site-story-photo {
     width: 100%;
     max-width: 100%;
     height: auto;
     max-height: 8rem;
+  }
+
+  /* Narrow phones: custom photos always stack above text for readability */
+  .pool-site--stacked .pool-site-custom-box--photo .pool-site-custom-box-body {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .pool-site--stacked .pool-site-custom-box--photo .pool-site-custom-box-photo {
+    width: min(100%, 9rem);
+    height: auto;
+    max-height: 8rem;
+    aspect-ratio: 1;
+  }
+
+  .pool-site--stacked .pool-site-custom-box--photo .pool-site-custom-box-copy {
+    width: 100%;
   }
 }
 
@@ -10255,8 +10314,8 @@ html[data-theme='dark'] .list-pager {
 }
 
 .payment-mode-row--online {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-areas: 'left left qr';
+  grid-template-columns: 1fr;
+  grid-template-areas: 'left';
   align-items: stretch;
   margin-top: 0.5rem;
 }
@@ -10294,13 +10353,6 @@ html[data-theme='dark'] .list-pager {
 
 .payment-mode-row--online .payment-mode-left {
   grid-area: left;
-}
-
-.payment-mode-row--online .online-payment-qr-panel {
-  grid-area: qr;
-  align-self: stretch;
-  height: 100%;
-  min-height: 0;
 }
 
 .payment-mode-left {
@@ -10577,9 +10629,7 @@ html[data-theme='dark'] .list-pager {
   .payment-mode-row,
   .payment-mode-row--online {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      'left'
-      'qr';
+    grid-template-areas: 'left';
   }
 
   .payment-mode-left {

@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 
 export const LAYOUT_RECT_MIN = 6;
-export const LAYOUT_BOX_GAP = 0.4;
+/** Logical gap used when migrating/rounding rects (percent of canvas). Visual gap uses CSS `--pool-box-gap`. */
+export const LAYOUT_BOX_GAP = 0.8;
 
 export type LayoutRect = {
   x: number;
@@ -226,24 +227,27 @@ export function introCellRect(
   };
 }
 
+/** Raw layout percents — edge handles add the visual gap via CSS calc. */
 export function layoutRectCss(rect: LayoutRect) {
-  const inset = LAYOUT_BOX_GAP / 2;
   return {
-    left: rect.x + inset,
-    top: rect.y + inset,
-    width: rect.w - LAYOUT_BOX_GAP,
-    height: rect.h - LAYOUT_BOX_GAP,
+    left: rect.x,
+    top: rect.y,
+    width: rect.w,
+    height: rect.h,
   };
 }
 
+/**
+ * Absolute box style with a fixed CSS gap (`--pool-box-gap`) so horizontal and
+ * vertical gutters match in pixels on every webpage (not %-of-width vs %-of-height).
+ */
 export function rectStyle(rect: LayoutRect): CSSProperties {
-  const box = layoutRectCss(rect);
   return {
     position: 'absolute',
-    left: `${box.left}%`,
-    top: `${box.top}%`,
-    width: `${box.width}%`,
-    height: `${box.height}%`,
+    left: `calc(${rect.x}% + (var(--pool-box-gap) / 2))`,
+    top: `calc(${rect.y}% + (var(--pool-box-gap) / 2))`,
+    width: `calc(${rect.w}% - var(--pool-box-gap))`,
+    height: `calc(${rect.h}% - var(--pool-box-gap))`,
     boxSizing: 'border-box',
   };
 }

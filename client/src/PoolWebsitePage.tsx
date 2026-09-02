@@ -271,7 +271,7 @@ export function PoolWebsite() {
     checkpointLayoutHistory();
     setForm((prev) => ({
       ...prev,
-      layout: sanitizeWebsiteLayout({ ...prev.layout, ...patch }),
+      layout: { ...prev.layout, ...patch },
     }));
   }
 
@@ -757,7 +757,7 @@ export function PoolWebsite() {
                               ...form.layout.customBoxes,
                               {
                                 id: `custom-${Date.now()}`,
-                                title: '',
+                                title: t('Custom box'),
                                 body: '',
                                 rect: defaultCustomBoxRect(index),
                                 photoUrl: null,

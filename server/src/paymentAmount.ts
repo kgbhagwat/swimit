@@ -93,6 +93,132 @@ export function amountsMatch(expected: number, found: number[], tolerance = 0.05
   return false;
 }
 
+const MONTH_NAME_TO_NUMBER: Record<string, number> = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+};
+
+function toIsoDateParts(year: number, month: number, day: number): string | null {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const y = year < 100 ? year + 2000 : year;
+  if (y < 2000 || y > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const probe = new Date(Date.UTC(y, month - 1, day));
+  if (
+    probe.getUTCFullYear() !== y ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Extract likely payment dates (YYYY-MM-DD) from caption or OCR, newest first. */
+export function extractPaymentDates(text: string): string[] {
+  const raw = latinDigits(String(text ?? ''));
+  const found = new Set<string>();
+
+  const add = (iso: string | null) => {
+    if (iso) found.add(iso);
+  };
+
+  let match: RegExpExecArray | null;
+  const dmy = /\b([0-3]?\d)[/.-]([0-1]?\d)[/.-]((?:20)?\d{2})\b/g;
+  while ((match = dmy.exec(raw)) != null) {
+    add(toIsoDateParts(Number(match[3]), Number(match[2]), Number(match[1])));
+  }
+
+  const iso = /\b(20\d{2})-([0-1]\d)-([0-3]\d)\b/g;
+  while ((match = iso.exec(raw)) != null) {
+    add(toIsoDateParts(Number(match[1]), Number(match[2]), Number(match[3])));
+  }
+
+  const named = /\b([0-3]?\d)\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)[a-z]*[,\s]+((?:20)?\d{2,4})\b/gi;
+  while ((match = named.exec(raw)) != null) {
+    const month = MONTH_NAME_TO_NUMBER[String(match[2]).slice(0, 3).toLowerCase()];
+    add(toIsoDateParts(Number(match[3]), month ?? 0, Number(match[1])));
+  }
+
+  const ymdNamed =
+    /\b((?:20)?\d{2,4})[,\s]+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)[a-z]*[,\s]+([0-3]?\d)\b/gi;
+  while ((match = ymdNamed.exec(raw)) != null) {
+    const month = MONTH_NAME_TO_NUMBER[String(match[2]).slice(0, 3).toLowerCase()];
+    add(toIsoDateParts(Number(match[1]), month ?? 0, Number(match[3])));
+  }
+
+  return [...found].sort((a, b) => b.localeCompare(a));
+}
+
+/** Best-effort payment date from screenshot text. Prefer dates near "paid"/"completed" labels. */
+export function pickPaymentDateFromText(text: string): string | null {
+  const normalized = latinDigits(String(text ?? ''));
+  const labeled = [
+    /(?:paid|payment|completed|successful|transferred|date)\b[^\n]{0,40}?([0-3]?\d[/.-][0-1]?\d[/.-](?:20)?\d{2})/i,
+    /(?:paid|payment|completed|successful|transferred|date)\b[^\n]{0,40}?([0-3]?\d\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[,\s]+(?:20)?\d{2,4})/i,
+  ];
+  for (const re of labeled) {
+    const hit = re.exec(normalized);
+    if (hit?.[1]) {
+      const picked = extractPaymentDates(hit[1])[0];
+      if (picked) return picked;
+    }
+  }
+  return extractPaymentDates(text)[0] ?? null;
+}
+
+/**
+ * Full-payment screenshot date rule:
+ * - payment date must be on or before the day the screenshot was received
+ * - payment date must be the same day as screenshot received, OR on/after pass selections were saved
+ */
+export function paymentDateValidForFullScreenshot(params: {
+  paymentDate: string;
+  screenshotReceivedDate: string;
+  intentSavedDate: string | null;
+}) {
+  const paymentDate = String(params.paymentDate ?? '').slice(0, 10);
+  const received = String(params.screenshotReceivedDate ?? '').slice(0, 10);
+  const saved = params.intentSavedDate ? String(params.intentSavedDate).slice(0, 10) : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || !/^\d{4}-\d{2}-\d{2}$/.test(received)) {
+    return { ok: false as const, reason: 'invalid_date' as const };
+  }
+  if (paymentDate > received) {
+    return { ok: false as const, reason: 'after_received' as const };
+  }
+  if (paymentDate === received) {
+    return { ok: true as const };
+  }
+  if (saved && paymentDate >= saved) {
+    return { ok: true as const };
+  }
+  if (saved && paymentDate < saved) {
+    return { ok: false as const, reason: 'before_saved' as const };
+  }
+  return { ok: false as const, reason: 'not_same_day' as const };
+}
+
 /** Best-effort UPI / UTR / transaction reference from caption or OCR. */
 export function extractTransactionId(text: string): string | null {
   const normalized = latinDigits(String(text ?? '')).replace(/\s+/g, ' ');

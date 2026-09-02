@@ -21,7 +21,6 @@ import { openPassPopup, rememberSampleIssuedPass } from './swimmerPass';
 import { tenantPath } from './tenantSession';
 import { indiaTodayIso } from './indiaDate';
 import { ageYearsAsOfToday } from './BirthDateField';
-import { isPdfUrl } from './uploadFile';
 import { useObjectUrl } from './useObjectUrl';
 import { PhotoPickerButtons } from './WebcamCapture';
 import { readSampleSwimmerProfile } from './sampleSwimmerEdit';
@@ -126,7 +125,7 @@ function pendingCellValue(row: PendingSwimmer, key: PendingSortKey) {
     const parts: string[] = [pendingTypeLabel(row)];
     if (row.passType) parts.push(row.passType);
     if ((row.passBalanceDue ?? 0) > 0) parts.push('Partially paid');
-    if (row.awaitingWhatsApp) parts.push('Awaiting WhatsApp payment');
+    if (row.awaitingWhatsApp) parts.push('Payment pending');
     return parts.join(' · ');
   }
   return row.fullName?.trim() || '—';
@@ -205,37 +204,6 @@ const SAMPLE_COACHES: CoachOption[] = [
 ];
 
 const SAMPLE_UPI_ID = 'swimit.demo@okaxis';
-
-/** Placeholder QR graphic for sample payment collect view. */
-const SAMPLE_PAYMENT_QR_URL =
-  'data:image/svg+xml,' +
-  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
-  <rect width="180" height="180" fill="#fff"/>
-  <rect x="12" y="12" width="52" height="52" fill="#1a3568"/>
-  <rect x="20" y="20" width="36" height="36" fill="#fff"/>
-  <rect x="28" y="28" width="20" height="20" fill="#1a3568"/>
-  <rect x="116" y="12" width="52" height="52" fill="#1a3568"/>
-  <rect x="124" y="20" width="36" height="36" fill="#fff"/>
-  <rect x="132" y="28" width="20" height="20" fill="#1a3568"/>
-  <rect x="12" y="116" width="52" height="52" fill="#1a3568"/>
-  <rect x="20" y="124" width="36" height="36" fill="#fff"/>
-  <rect x="28" y="132" width="20" height="20" fill="#1a3568"/>
-  <rect x="76" y="12" width="12" height="12" fill="#1a3568"/>
-  <rect x="100" y="12" width="12" height="12" fill="#1a3568"/>
-  <rect x="76" y="36" width="12" height="12" fill="#1a3568"/>
-  <rect x="88" y="48" width="12" height="12" fill="#1a3568"/>
-  <rect x="76" y="76" width="28" height="28" fill="#1a3568"/>
-  <rect x="116" y="76" width="12" height="12" fill="#1a3568"/>
-  <rect x="140" y="76" width="12" height="12" fill="#1a3568"/>
-  <rect x="116" y="100" width="12" height="12" fill="#1a3568"/>
-  <rect x="152" y="100" width="12" height="12" fill="#1a3568"/>
-  <rect x="76" y="116" width="12" height="12" fill="#1a3568"/>
-  <rect x="100" y="128" width="12" height="12" fill="#1a3568"/>
-  <rect x="76" y="152" width="12" height="12" fill="#1a3568"/>
-  <rect x="116" y="116" width="20" height="20" fill="#1a3568"/>
-  <rect x="148" y="140" width="20" height="20" fill="#1a3568"/>
-  <text x="90" y="98" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#64748b">SAMPLE</text>
-</svg>`);
 
 const SAMPLE_IDENTITY_PROOF_URL =
   'data:image/svg+xml,' +
@@ -322,11 +290,6 @@ type PeriodHoliday = {
   name: string;
   date: string;
 };
-
-function uploadUrl(filename: string | null | undefined) {
-  if (!filename) return null;
-  return `/uploads/${filename}`;
-}
 
 function formatBatchTime(value: string) {
   return value.slice(0, 5);
@@ -534,7 +497,6 @@ export function PassPayment() {
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [transactionId, setTransactionId] = useState('');
   const [paymentModes, setPaymentModes] = useState<Array<'Cash' | 'Online'>>(['Cash', 'Online']);
-  const [paymentQrPath, setPaymentQrPath] = useState<string | null>(null);
   const [upiDetails, setUpiDetails] = useState('');
   const [onlineDetailsLoading, setOnlineDetailsLoading] = useState(false);
   const [holidayRecords, setHolidayRecords] = useState<HolidayRecord[]>([]);
@@ -566,6 +528,8 @@ export function PassPayment() {
   >({});
   const [sortKey, setSortKey] = useState<PendingSortKey | null>(null);
   const [sortDir, setSortDir] = useState<ColumnSortDir>(null);
+  const [onlineScreenshotPartial, setOnlineScreenshotPartial] = useState(false);
+  const [sampleAwaitingPayment, setSampleAwaitingPayment] = useState<number[]>([]);
   const issueCloseTimerRef = useRef<number | null>(null);
   const autoIssuedHandledRef = useRef(false);
 
@@ -704,11 +668,11 @@ export function PassPayment() {
     setDiscountText('0');
     setReceivedText('');
     setReceivedTouched(false);
-    setPaymentMode(sample ? 'Cash' : '');
+    setPaymentMode(sample ? 'Cash' : row.awaitingWhatsApp || sampleAwaitingPayment.includes(row.id) ? 'Online' : '');
     setPaymentReceived(false);
     setTransactionId('');
-    setPaymentQrPath(null);
     setUpiDetails('');
+    setOnlineScreenshotPartial(false);
     if (sample) setPaymentModes(['Cash', 'Online']);
     setError('');
     setMissingFields([]);
@@ -724,7 +688,6 @@ export function PassPayment() {
       setHolidaysLoading(false);
       setAssignmentCount(3);
       setAssignmentCountLoading(false);
-      setPaymentQrPath(null);
       setUpiDetails(SAMPLE_UPI_ID);
       return;
     }
@@ -736,6 +699,23 @@ export function PassPayment() {
         setError(err instanceof Error ? err.message : 'Failed to load swimmer details'),
       )
       .finally(() => setProfileLoading(false));
+    if (row.awaitingWhatsApp || (row.passBalanceDue ?? 0) > 0) {
+      void fetch(`/api/registrations/${row.id}/payment-screenshot`)
+        .then(async (res) => {
+          const body = (await res.json().catch(() => ({}))) as {
+            upiOk?: boolean;
+            amountMatched?: boolean;
+            partial?: boolean;
+            transactionId?: string;
+            issued?: boolean;
+            detectedAmount?: number | null;
+          };
+          if (res.ok) applyScreenshotStatus(body);
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    }
   }
 
   function closePay() {
@@ -752,8 +732,8 @@ export function PassPayment() {
     setPaymentMode('');
     setPaymentReceived(false);
     setTransactionId('');
-    setPaymentQrPath(null);
     setUpiDetails('');
+    setOnlineScreenshotPartial(false);
     setAssignmentCount(null);
     setAssignmentCountLoading(false);
     setSwimmerProfile(null);
@@ -773,6 +753,33 @@ export function PassPayment() {
       afterClose?.();
       closePay();
     }, 2500);
+  }
+
+  function applyScreenshotStatus(body: {
+    upiOk?: boolean;
+    amountMatched?: boolean;
+    partial?: boolean;
+    transactionId?: string;
+    issued?: boolean;
+    detectedAmount?: number | null;
+  }) {
+    if (body.issued) {
+      markWhatsAppAutoIssued();
+      return;
+    }
+    const txn = String(body.transactionId ?? '').trim();
+    if (txn) {
+      setTransactionId((prev) => (prev.trim() ? prev : txn));
+    }
+    if (body.partial && body.detectedAmount != null && body.detectedAmount > 0) {
+      setOnlineScreenshotPartial(true);
+      setReceivedText(String(body.detectedAmount));
+      setReceivedTouched(true);
+      return;
+    }
+    if (body.upiOk && body.amountMatched) {
+      setPaymentReceived(true);
+    }
   }
 
   function markWhatsAppAutoIssued() {
@@ -940,7 +947,6 @@ export function PassPayment() {
         return body as {
           paymentAcceptCash?: boolean;
           paymentAcceptOnline?: boolean;
-          paymentQrPath?: string | null;
           upiDetails?: string;
         };
       })
@@ -953,7 +959,6 @@ export function PassPayment() {
           modes.length > 0 ? modes : ['Cash', 'Online'];
         setPaymentModes(allowed);
         setPaymentMode((prev) => (allowed.includes(prev as 'Cash' | 'Online') ? prev : ''));
-        setPaymentQrPath(body.paymentQrPath ?? null);
         setUpiDetails(String(body.upiDetails ?? '').trim());
       })
       .catch(() => {
@@ -978,16 +983,14 @@ export function PassPayment() {
       .then(async (res) => {
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error ?? 'Failed to load payment details');
-        return body as { paymentQrPath?: string | null; upiDetails?: string };
+        return body as { upiDetails?: string };
       })
       .then((body) => {
         if (cancelled) return;
-        setPaymentQrPath(body.paymentQrPath ?? null);
         setUpiDetails(String(body.upiDetails ?? '').trim());
       })
       .catch(() => {
         if (cancelled) return;
-        setPaymentQrPath(null);
         setUpiDetails('');
       })
       .finally(() => {
@@ -1000,29 +1003,35 @@ export function PassPayment() {
   }, [paying, samplePaying, paymentMode]);
 
   useEffect(() => {
-    if (samplePaying || paymentMode !== 'Online') return;
+    if (samplePaying || paymentMode !== 'Online' || onlineScreenshotPartial || paying?.awaitingWhatsApp) {
+      return;
+    }
     setTransactionId('');
     setPaymentReceived(false);
-  }, [paying?.id, samplePaying, paymentMode, passTypeId, batch, coach, discountText]);
+    setOnlineScreenshotPartial(false);
+  }, [paying?.id, paying?.awaitingWhatsApp, samplePaying, paymentMode, passTypeId, batch, coach, discountText, onlineScreenshotPartial]);
+
+  const onlineReadyToIssue = paymentReceived || onlineScreenshotPartial;
+  const isOnlineSaveMode =
+    paymentMode === 'Online' &&
+    !isTestPassFail &&
+    !isUnpaidTestPassChange &&
+    !isCollectRemaining &&
+    !onlineReadyToIssue;
 
   useEffect(() => {
     if (
       !paying ||
       samplePaying ||
       paymentMode !== 'Online' ||
-      !selectedPass ||
-      !batch.trim() ||
-      !passValidUntil ||
-      receivedParsed.received <= 0
+      isOnlineSaveMode
     ) {
       return;
     }
-    if (coachingRequired && !coach.trim()) return;
 
     let cancelled = false;
     let timer: number | null = null;
     const registrationId = paying.id;
-    const passName = selectedPass.passName;
 
     async function pollScreenshot() {
       if (cancelled) return;
@@ -1031,19 +1040,13 @@ export function PassPayment() {
         const body = (await res.json().catch(() => ({}))) as {
           upiOk?: boolean;
           amountMatched?: boolean;
+          partial?: boolean;
           transactionId?: string;
           issued?: boolean;
+          detectedAmount?: number | null;
         };
-        if (!cancelled && res.ok && body.issued) {
-          markWhatsAppAutoIssued();
-          return;
-        }
-        if (!cancelled && res.ok && body.upiOk && body.amountMatched) {
-          const txn = String(body.transactionId ?? '').trim();
-          if (txn) {
-            setTransactionId((prev) => (prev.trim() ? prev : txn));
-          }
-          setPaymentReceived(true);
+        if (!cancelled && res.ok) {
+          applyScreenshotStatus(body);
         }
       } catch {
         /* keep polling */
@@ -1055,65 +1058,13 @@ export function PassPayment() {
       }
     }
 
-    fetch(`/api/registrations/${registrationId}/expect-online-payment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        passType: passName,
-        batch: batch.trim(),
-        coach: coachingRequired ? coach.trim() : '',
-        passValidUntil,
-        discountAmount: isCollectRemaining ? 0 : discountParsed.discount,
-        receivedAmount: receivedParsed.received,
-      }),
-    })
-      .then(async (res) => {
-        const body = (await res.json().catch(() => ({}))) as {
-          screenshot?: {
-            upiOk?: boolean;
-            amountMatched?: boolean;
-            transactionId?: string;
-            issued?: boolean;
-          };
-        };
-        if (cancelled) return;
-        const shot = body.screenshot;
-        if (res.ok && shot?.issued) {
-          markWhatsAppAutoIssued();
-          return;
-        }
-        if (res.ok && shot?.upiOk && shot.amountMatched) {
-          const txn = String(shot.transactionId ?? '').trim();
-          if (txn) {
-            setTransactionId((prev) => (prev.trim() ? prev : txn));
-          }
-          setPaymentReceived(true);
-        }
-      })
-      .catch(() => {
-        /* poll anyway — screenshot may arrive later */
-      })
-      .finally(() => {
-        if (!cancelled) void pollScreenshot();
-      });
+    void pollScreenshot();
 
     return () => {
       cancelled = true;
       if (timer != null) window.clearTimeout(timer);
     };
-  }, [
-    paying,
-    samplePaying,
-    paymentMode,
-    selectedPass,
-    batch,
-    coach,
-    coachingRequired,
-    passValidUntil,
-    discountParsed.discount,
-    receivedParsed.received,
-    isCollectRemaining,
-  ]);
+  }, [paying?.id, samplePaying, paymentMode, isOnlineSaveMode]);
 
   const selectedBatchSlot = useMemo(
     () => activeBatches.find((slot) => batchLabel(slot) === batch) ?? null,
@@ -1291,6 +1242,74 @@ export function PassPayment() {
   async function onConfirmPay(e: FormEvent) {
     e.preventDefault();
     if (issueSuccessMessage) return;
+    if (isOnlineSaveMode && paying && !samplePaying) {
+      const missing = collectSharedMissing();
+      if (discountParsed.error) missing.push(discountParsed.error);
+      if (missing.length) {
+        showMissing(missing);
+        return;
+      }
+      if (!selectedPass) {
+        showMissing(['Pass']);
+        return;
+      }
+      if (!confirmAssignmentIfOverLimit()) return;
+      setSaving(true);
+      setError('');
+      setMissingFields([]);
+      try {
+        const assignedCoach = !coachingRequired
+          ? null
+          : coach || (selectedPass.coach !== 'Any' ? selectedPass.coach : null);
+        const res = await fetch(`/api/registrations/${paying.id}/save-online-payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            passType: selectedPass.passName,
+            batch: batch.trim(),
+            coach: assignedCoach,
+            passValidUntil,
+            discountAmount: discountParsed.discount,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? 'Failed to save payment');
+        const screenshot = body.screenshot as
+          | {
+              issued?: boolean;
+              upiOk?: boolean;
+              amountMatched?: boolean;
+              partial?: boolean;
+              transactionId?: string;
+              detectedAmount?: number | null;
+            }
+          | undefined;
+        if (screenshot) {
+          applyScreenshotStatus(screenshot);
+          if (screenshot.issued) return;
+        }
+        closePay();
+        void load();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save payment');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    if (samplePaying && isOnlineSaveMode) {
+      if (!paying || !selectedPass) return;
+      const missing = collectSharedMissing();
+      if (missing.length) {
+        showMissing(missing);
+        return;
+      }
+      setSampleAwaitingPayment((ids) =>
+        ids.includes(paying.id) ? ids : [...ids, paying.id],
+      );
+      closePay();
+      return;
+    }
     if (samplePaying) {
       if (!paying) return;
       const paidId = paying.id;
@@ -1437,8 +1456,6 @@ export function PassPayment() {
     openPassPopup('pass', card.id, { showOk: true, card });
   }
 
-  const sampleOnlineQrUrl = samplePaying ? SAMPLE_PAYMENT_QR_URL : null;
-  const onlineQrUrl = uploadUrl(paymentQrPath) ?? sampleOnlineQrUrl;
   const onlineUpi = samplePaying ? upiDetails || SAMPLE_UPI_ID : upiDetails;
 
   const queuedSamplePayments = demoMode
@@ -1469,7 +1486,9 @@ export function PassPayment() {
         )
           .map((row) => {
             const partial = samplePartials[row.id];
-            return partial ? { ...row, ...partial } : row;
+            const awaiting = sampleAwaitingPayment.includes(row.id);
+            const merged = partial ? { ...row, ...partial } : row;
+            return awaiting ? { ...merged, awaitingWhatsApp: true } : merged;
           }),
       ]
     : rows;
@@ -1603,7 +1622,7 @@ export function PassPayment() {
                         <span className="pass-partial-paid"> · {t('Partially paid')}</span>
                       ) : null}
                       {row.awaitingWhatsApp ? (
-                        <span className="pass-wa-wait"> · {t('Awaiting WhatsApp payment')}</span>
+                        <span className="pass-wa-wait"> · {t('Payment pending')}</span>
                       ) : null}
                     </span>
                   </div>
@@ -2007,7 +2026,7 @@ export function PassPayment() {
 
                 {receivedParsed.received > 0 && paymentMode === 'Online' ? (
                 <div className="payment-mode-row payment-mode-row--online">
-                <div className="payment-mode-left">
+                  <div className="payment-mode-left">
                     <div className="payment-mode-online-followup">
                       {onlineDetailsLoading && !samplePaying ? (
                         <p className="muted payment-mode-online-muted">{t('Loading payment details…')}</p>
@@ -2030,6 +2049,7 @@ export function PassPayment() {
                       )}
                     </div>
 
+                    {!isOnlineSaveMode ? (
                     <div className="online-payment-details">
                       <label className="field transaction-id-field">
                         <span className="label">
@@ -2053,26 +2073,7 @@ export function PassPayment() {
                         <span>{t('I confirmed amount and upi id of successful payment')}</span>
                       </label>
                     </div>
-                </div>
-
-                  <div className="online-payment-qr-panel">
-                    {onlineDetailsLoading && !samplePaying ? null : onlineQrUrl ? (
-                      isPdfUrl(onlineQrUrl) ? (
-                        <FilePreview
-                          src={onlineQrUrl}
-                          alt={t('Payment QR code')}
-                          className="online-payment-qr"
-                        />
-                      ) : (
-                        <FilePreview
-                          src={onlineQrUrl}
-                          alt={t('Payment QR code')}
-                          className="online-payment-qr"
-                        />
-                      )
-                    ) : (
-                      <p className="muted">{t('No payment QR code set in Pool Core Info.')}</p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 ) : null}
@@ -2111,22 +2112,29 @@ export function PassPayment() {
                     className="submit"
                     disabled={
                       saving ||
-                      (!isUnpaidTestPassChange && receivedParsed.received > 0 && !paymentReceived) ||
-                      Boolean(issueSuccessMessage)
+                      Boolean(issueSuccessMessage) ||
+                      (!isOnlineSaveMode &&
+                        !isUnpaidTestPassChange &&
+                        receivedParsed.received > 0 &&
+                        !paymentReceived)
                     }
                   >
                     {saving
                       ? isTestPassFail
                         ? t('Saving…')
-                        : t('Issuing…')
+                        : isOnlineSaveMode
+                          ? t('Saving…')
+                          : t('Issuing…')
                       : isTestPassFail
                         ? t('Mark as fail')
                         : t(
-                            isUnpaidTestPassChange
-                              ? 'Update Pass'
-                              : isCollectRemaining
-                                ? 'Record payment'
-                                : 'Issue Pass',
+                            isOnlineSaveMode
+                              ? 'Save'
+                              : isUnpaidTestPassChange
+                                ? 'Update Pass'
+                                : isCollectRemaining
+                                  ? 'Record payment'
+                                  : 'Issue Pass',
                           )}
                   </button>
                 </div>

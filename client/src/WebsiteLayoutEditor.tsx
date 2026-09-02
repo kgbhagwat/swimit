@@ -1,7 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useT } from './i18n';
 import {
-  customBoxHasContent,
   hideLayoutRect,
   isLayoutRectVisible,
   layoutRectCss,
@@ -22,12 +21,16 @@ type BoxTarget =
 function edgeHandleStyle(rect: LayoutRect, edge: LayoutRectEdge): CSSProperties {
   const box = layoutRectCss(rect);
   const base: CSSProperties = { position: 'absolute', pointerEvents: 'auto', touchAction: 'none' };
+  const left = `calc(${box.left}% + (var(--pool-box-gap) / 2))`;
+  const top = `calc(${box.top}% + (var(--pool-box-gap) / 2))`;
+  const width = `calc(${box.width}% - var(--pool-box-gap))`;
+  const height = `calc(${box.height}% - var(--pool-box-gap))`;
   if (edge === 'top') {
     return {
       ...base,
-      left: `${box.left}%`,
-      top: `${box.top}%`,
-      width: `${box.width}%`,
+      left,
+      top,
+      width,
       height: 0,
       transform: 'translateY(-50%)',
       cursor: 'row-resize',
@@ -36,9 +39,9 @@ function edgeHandleStyle(rect: LayoutRect, edge: LayoutRectEdge): CSSProperties 
   if (edge === 'bottom') {
     return {
       ...base,
-      left: `${box.left}%`,
-      top: `${box.top + box.height}%`,
-      width: `${box.width}%`,
+      left,
+      top: `calc(${box.top + box.height}% - (var(--pool-box-gap) / 2))`,
+      width,
       height: 0,
       transform: 'translateY(-50%)',
       cursor: 'row-resize',
@@ -47,20 +50,20 @@ function edgeHandleStyle(rect: LayoutRect, edge: LayoutRectEdge): CSSProperties 
   if (edge === 'left') {
     return {
       ...base,
-      left: `${box.left}%`,
-      top: `${box.top}%`,
+      left,
+      top,
       width: 0,
-      height: `${box.height}%`,
+      height,
       transform: 'translateX(-50%)',
       cursor: 'col-resize',
     };
   }
   return {
     ...base,
-    left: `${box.left + box.width}%`,
-    top: `${box.top}%`,
+    left: `calc(${box.left + box.width}% - (var(--pool-box-gap) / 2))`,
+    top,
     width: 0,
-    height: `${box.height}%`,
+    height,
     transform: 'translateX(-50%)',
     cursor: 'col-resize',
   };
@@ -259,7 +262,7 @@ export function WebsiteLayoutEditor({
   const hiddenSections = WEBSITE_LAYOUT_SECTIONS.filter((key) => !isLayoutRectVisible(layout[key]));
   const visibleCustomBoxes = layout.customBoxes
     .map((box, index) => ({ box, index }))
-    .filter(({ box }) => isLayoutRectVisible(box.rect) && customBoxHasContent(box));
+    .filter(({ box }) => isLayoutRectVisible(box.rect));
 
   useEffect(() => {
     if (disabled) return;

@@ -265,27 +265,34 @@ export function AccountPoolLanding({
 
         {layout.customBoxes
           .filter((box) => isLayoutRectVisible(box.rect) && customBoxHasContent(box))
-          .map((box) => (
+          .map((box) => {
+            const orientation =
+              box.photoUrl && box.rect.w >= box.rect.h ? 'horizontal' : 'vertical';
+            return (
           <section
             key={box.id}
             className={[
               'pool-site-custom-box',
               'pool-site-free-box',
               box.photoUrl ? 'pool-site-custom-box--photo' : '',
+              box.photoUrl ? `pool-site-custom-box--${orientation}` : '',
             ]
               .filter(Boolean)
               .join(' ')}
             style={boxStyle(stacked, box.rect)}
           >
-            {box.photoUrl ? (
-              <img src={box.photoUrl} alt="" className="pool-site-custom-box-photo" />
-            ) : null}
-            <div className="pool-site-custom-box-copy">
-              {box.title ? <h2>{box.title}</h2> : null}
-              {box.body ? <p>{box.body}</p> : null}
+            <div className="pool-site-custom-box-body">
+              {box.photoUrl ? (
+                <img src={box.photoUrl} alt="" className="pool-site-custom-box-photo" />
+              ) : null}
+              <div className="pool-site-custom-box-copy">
+                {box.title ? <h2>{box.title}</h2> : null}
+                {box.body ? <p>{box.body}</p> : null}
+              </div>
             </div>
           </section>
-        ))}
+            );
+          })}
       </div>
 
       <footer className="pool-site-footer">
